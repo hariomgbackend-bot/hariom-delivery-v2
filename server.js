@@ -39,6 +39,7 @@ const upload = multer({
 });
 
 const app = express();
+app.set("trust proxy", 1); // Required on Render — sits behind a reverse proxy
 app.use(cors());
 app.use(express.json());
 app.use(express.static("."));
@@ -59,6 +60,7 @@ const globalLimiter = rateLimit({
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false }, // Render proxy header — handled by trust proxy above
   message: { error: "Too many requests. Please wait a few minutes." }
 });
 
@@ -67,6 +69,7 @@ const pinLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: { error: "Too many PIN attempts. Please wait 15 minutes." }
 });
 
@@ -75,6 +78,7 @@ const adminLoginLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: { error: "Too many login attempts. Please wait 15 minutes." }
 });
 
