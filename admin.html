@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hariom DMS">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <title>Admin Dashboard — Hariom Traders</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f4fa;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --accent: #3b82f6;
+      --header-bg: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      --text: #1e293b;
+      --muted: #64748b;
+      --pending: #fef3c7; --pending-text: #92400e;
+      --loaded: #dbeafe;  --loaded-text: #1e40af;
+      --delivered: #dcfce7; --delivered-text: #166534;
+      --urgent: #fee2e2; --urgent-text: #991b1b;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* HEADER */
+    .header {
+      background: var(--header-bg);
+      color: white;
+      padding: 0 28px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'DM Serif Display', serif;
+      font-size: 20px;
+    }
+
+    .header-brand span { font-size: 22px; }
+
+    .header-nav a {
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 8px 14px;
+      border-radius: 8px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .header-nav a:hover {
+      background: rgba(255,255,255,0.12);
+      color: white;
+    }
+
+    /* MAIN */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    /* SUMMARY CARDS */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 20px 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: default;
+    }
+
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+
+    .stat-card .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-card .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+    }
+
+    .stat-pending  .stat-value { color: #d97706; }
+    .stat-loaded   .stat-value { color: #3b82f6; }
+    .stat-delivered .stat-value { color: #16a34a; }
+    .stat-urgent   .stat-value { color: #dc2626; }
+    .stat-overdue  .stat-value { color: #7c3aed; }
+
+    /* TOOLBAR */
+    .toolbar {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 16px 20px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .filter-btn {
+      padding: 7px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .filter-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .filter-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .filter-btn.active-orange {
+      background: #f97316;
+      border-color: #f97316;
+      color: white;
+    }
+
+    #adminDate {
+      display: none;
+      padding: 7px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+    }
+
+    .toolbar-right {
+      margin-left: auto;
+    }
+
+    .btn-csv {
+      padding: 7px 16px;
+      background: #16a34a;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-csv:hover { opacity: 0.85; }
+
+    /* TABLE */
+    .table-wrap {
+      background: var(--surface);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 900px;
+    }
+
+    thead th {
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: rgba(255,255,255,0.85);
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .badge-pending   { background: var(--pending);   color: var(--pending-text); }
+    .badge-loaded    { background: var(--loaded);    color: var(--loaded-text); }
+    .badge-delivered { background: var(--delivered); color: var(--delivered-text); }
+    .badge-urgent    { background: var(--urgent);    color: var(--urgent-text); }
+    .badge-normal    { background: #f1f5f9; color: #475569; }
+
+    .row-green { background: #f0fdf4 !important; }
+    .row-yellow { background: #fefce8 !important; }
+    .row-red   { background: #fff1f2 !important; }
+    .row-gray  { background: #f8fafc !important; }
+
+    .btn-sm {
+      padding: 5px 12px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-sm:hover { opacity: 0.85; }
+
+    /* POPUP */
+    .popup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 200;
+      overflow-y: auto;
+      padding: 40px 16px;
+    }
+
+    .popup-card {
+      background: white;
+      width: 100%;
+      max-width: 540px;
+      margin: 0 auto;
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    .popup-card h3 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 20px;
+      margin-bottom: 18px;
+      color: var(--text);
+    }
+
+    .detail-row {
+      display: flex;
+      gap: 8px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row b { color: var(--muted); min-width: 140px; font-weight: 500; }
+
+    .popup-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary { padding: 9px 18px; background: var(--accent); color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .btn-danger  { padding: 9px 18px; background: #dc2626; color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .btn-gray    { padding: 9px 18px; background: #64748b; color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; }
+
+    .edit-field { margin-bottom: 12px; }
+    .edit-field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .edit-field input, .edit-field select {
+      width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px;
+      outline: none; transition: border-color 0.2s;
+    }
+    .edit-field input:focus, .edit-field select:focus { border-color: var(--accent); }
+
+    /* IMAGE POPUP */
+    .img-popup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .img-popup-card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 600px;
+      width: 90%;
+      text-align: center;
+    }
+
+    .img-popup-card img {
+      max-width: 100%;
+      border-radius: 10px;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .header { padding: 0 16px; }
+      .container { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-brand">
+    <img src="/icons/icon-72x72.png" style="width:34px;height:34px;border-radius:8px;object-fit:contain;background:rgba(255,255,255,0.1);" onerror="this.style.display='none'" alt="">
+    <span style="font-family:'DM Serif Display',serif;">Hariom Traders</span>
+  </div>
+  <nav class="header-nav">
+    <a href="accountant.html">🧾 Accountant</a>
+    <a href="drivers.html">👤 Drivers</a>
+  </nav>
+</div>
+
+<div class="container">
+
+  <div class="summary-grid" id="summaryCards"></div>
+
+  <div class="toolbar">
+    <button class="filter-btn active" onclick="setFilter('all')">All</button>
+    <button class="filter-btn" onclick="setFilter('today')">Today</button>
+    <button class="filter-btn" onclick="showDatePicker()">📅 Date</button>
+    <input type="date" id="adminDate" onchange="applyDateFilter()">
+    <button class="filter-btn" onclick="setFilter('pending')">Pending</button>
+    <button class="filter-btn" onclick="setFilter('loaded')">Loaded</button>
+    <button class="filter-btn" onclick="setFilter('delivered')">Delivered</button>
+    <button class="filter-btn" onclick="setFilter('urgent')">🔥 Urgent</button>
+    <div class="toolbar-right">
+      <button class="btn-csv" onclick="downloadCSV()">⬇ Export CSV</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th>Driver</th>
+          <th>Product</th>
+          <th>Status</th>
+          <th>Priority</th>
+          <th>ETA</th>
+          <th>Duration</th>
+          <th>Loaded Photo</th>
+          <th>Loaded At</th>
+          <th>Delivered Photo</th>
+          <th>Delivered At</th>
+          <th>Location</th>
+          <th>View</th>
+        </tr>
+      </thead>
+      <tbody id="adminTable"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- DETAIL POPUP -->
+<div class="popup-overlay" id="popup">
+  <div class="popup-card">
+    <div id="popupContent"></div>
+    <div class="popup-actions">
+      <button class="btn-gray" onclick="document.getElementById('popup').style.display='none'">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMAGE POPUP -->
+<div class="img-popup-overlay" id="imgPopup" onclick="this.style.display='none'">
+  <div class="img-popup-card" onclick="event.stopPropagation()">
+    <img id="popupImg" src="" alt="Proof photo">
+    <br>
+    <a id="downloadLink" download>
+      <button class="btn-primary">⬇ Download</button>
+    </a>
+    <button class="btn-gray" style="margin-left:8px;" onclick="document.getElementById('imgPopup').style.display='none'">Close</button>
+  </div>
+</div>
+
+<script>
+const BASE_URL = window.location.origin;
+const token = localStorage.getItem("adminToken");
+if (!token) window.location.href = "login.html";
+
+let selectedAdminDate = null;
+let currentFilter = "all";
+let currentDeliveryObj = null;
+let currentDisplayedData = [];
+
+function setFilter(f) {
+  currentFilter = f;
+  if (f !== "date") document.getElementById("adminDate").style.display = "none";
+  highlightActiveButton(f);
+  loadAdmin();
+}
+
+function highlightActiveButton(filter) {
+  document.querySelectorAll(".filter-btn").forEach(btn => {
+    btn.classList.remove("active");
+    if (btn.innerText.toLowerCase().replace(/[^a-z]/g, "") === filter.replace(/[^a-z]/g, "")) {
+      btn.classList.add("active");
+    }
+  });
+}
+
+function showDatePicker() {
+  document.getElementById("adminDate").style.display = "inline-block";
+}
+
+function applyDateFilter() {
+  selectedAdminDate = document.getElementById("adminDate").value;
+  currentFilter = "date";
+  loadAdmin();
+}
+
+async function loadAdmin() {
+  const res = await fetch(`${BASE_URL}/deliveries`, {
+    headers: { Authorization: "Bearer " + token }
+  });
+  let data = await res.json();
+  const now = new Date();
+
+  if (currentFilter === "today") {
+    data = data.filter(d => {
+      if (!d.created_timestamp) return false;
+      return new Date(d.created_timestamp.seconds * 1000).toDateString() === now.toDateString();
+    });
+  } else if (currentFilter === "date") {
+    if (!selectedAdminDate) return;
+    const sel = new Date(selectedAdminDate);
+    data = data.filter(d => {
+      if (!d.created_timestamp) return false;
+      return new Date(d.created_timestamp.seconds * 1000).toDateString() === sel.toDateString();
+    });
+  } else if (currentFilter === "pending")   data = data.filter(d => d.status === "pending");
+  else if (currentFilter === "loaded")      data = data.filter(d => d.status === "loaded");
+  else if (currentFilter === "delivered")   data = data.filter(d => d.status === "delivered");
+  else if (currentFilter === "urgent")      data = data.filter(d => d.priority === "urgent");
+
+  currentDisplayedData = data;
+  updateSummaryCards(data);
+
+  const table = document.getElementById("adminTable");
+  table.innerHTML = "";
+
+  data.forEach(d => {
+    const row = document.createElement("tr");
+
+    const loaded    = d.loaded_timestamp    ? new Date(d.loaded_timestamp.seconds * 1000)    : null;
+    const delivered = d.delivered_timestamp ? new Date(d.delivered_timestamp.seconds * 1000) : null;
+    const eta       = d.estimated_delivery_time ? new Date(d.estimated_delivery_time) : null;
+
+    let durationText = "";
+    if (loaded && delivered) {
+      durationText = Math.round((delivered - loaded) / 60000) + " min";
+    } else if (loaded && !delivered) {
+      durationText = Math.round((now - loaded) / 60000) + " min (running)";
+    }
+
+    // Row color based on delivery performance
+    if (delivered && eta) {
+      const diff = (delivered - eta) / 60000;
+      if (diff <= 10) row.className = "row-green";
+      else if (diff <= 30) row.className = "row-yellow";
+      else row.className = "row-red";
+    } else if (d.status !== "delivered") {
+      row.className = "row-gray";
+    }
+
+    const mapLink = d.delivered_location
+      ? `https://www.google.com/maps?q=${d.delivered_location.lat},${d.delivered_location.lng}`
+      : d.loaded_location
+        ? `https://www.google.com/maps?q=${d.loaded_location.lat},${d.loaded_location.lng}`
+        : "";
+
+    row.innerHTML = `
+      <td>${d.customer_name || ""}</td>
+      <td>${d.assigned_driver_name || "—"}</td>
+      <td>${d.product_name || ""}</td>
+      <td><span class="badge badge-${d.status}">${d.status}</span></td>
+      <td><span class="badge badge-${d.priority || 'normal'}">${d.priority || "normal"}</span></td>
+      <td style="white-space:nowrap">${d.estimated_delivery_time || "—"}</td>
+      <td>${durationText || "—"}</td>
+      <td>${d.photo_loaded_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_loaded_url}')">View</button>` : "—"}</td>
+      <td style="white-space:nowrap">${loaded ? loaded.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : "—"}</td>
+      <td>${d.photo_delivered_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_delivered_url}')">View</button>` : "—"}</td>
+      <td style="white-space:nowrap">${delivered ? delivered.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : "—"}</td>
+      <td>${mapLink ? `<a href="${mapLink}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:500;">📍 Map</a>` : "—"}</td>
+      <td><button class="btn-sm" onclick='viewDetails(${JSON.stringify(d)})'>View</button></td>
+    `;
+    table.appendChild(row);
+  });
+}
+
+function updateSummaryCards(data) {
+  let pending = 0, loaded = 0, delivered = 0, urgent = 0, overdue = 0;
+  const now = new Date();
+
+  data.forEach(d => {
+    if (d.status === "pending") pending++;
+    if (d.status === "loaded") loaded++;
+    if (d.status === "delivered") delivered++;
+    if (d.priority === "urgent") urgent++;
+    if (d.status !== "delivered" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) overdue++;
+  });
+
+  document.getElementById("summaryCards").innerHTML = `
+    <div class="stat-card stat-pending">
+      <div class="stat-value">${pending}</div>
+      <div class="stat-label">Pending</div>
+    </div>
+    <div class="stat-card stat-loaded">
+      <div class="stat-value">${loaded}</div>
+      <div class="stat-label">Loaded</div>
+    </div>
+    <div class="stat-card stat-delivered">
+      <div class="stat-value">${delivered}</div>
+      <div class="stat-label">Delivered</div>
+    </div>
+    <div class="stat-card stat-urgent">
+      <div class="stat-value">${urgent}</div>
+      <div class="stat-label">Urgent</div>
+    </div>
+    <div class="stat-card stat-overdue">
+      <div class="stat-value">${overdue}</div>
+      <div class="stat-label">Overdue</div>
+    </div>
+  `;
+}
+
+function viewDetails(d) {
+  currentDeliveryObj = d;
+
+  const ts = (t) => t ? new Date(t.seconds * 1000).toLocaleString() : "—";
+  const loc = (l) => l ? `${l.lat}, ${l.lng}` : "—";
+
+  document.getElementById("popupContent").innerHTML = `
+    <h3>Delivery Details</h3>
+    <div class="detail-row"><b>Delivery ID</b><span>${d.id || ""}</span></div>
+    <div class="detail-row"><b>Customer</b><span>${d.customer_name || ""}</span></div>
+    <div class="detail-row"><b>Phone</b><span>${d.phone || ""}</span></div>
+    <div class="detail-row"><b>Alternate Phone</b><span>${d.alternate_phone || "—"}</span></div>
+    <div class="detail-row"><b>Address</b><span>${d.address || ""}</span></div>
+    <div class="detail-row"><b>Product</b><span>${d.product_name || ""}</span></div>
+    <div class="detail-row"><b>Serial No.</b><span>${d.product_serial_number || "—"}</span></div>
+    <div class="detail-row"><b>Invoice No.</b><span>${d.invoice_number || "—"}</span></div>
+    <div class="detail-row"><b>Status</b><span><span class="badge badge-${d.status}">${d.status}</span></span></div>
+    <div class="detail-row"><b>Priority</b><span><span class="badge badge-${d.priority || 'normal'}">${d.priority || "normal"}</span></span></div>
+    <div class="detail-row"><b>ETA</b><span>${d.estimated_delivery_time || "—"}</span></div>
+    <div class="detail-row"><b>Driver</b><span>${d.assigned_driver_name || "—"}</span></div>
+    <div class="detail-row"><b>Instructions</b><span>${d.driver_instructions || "—"}</span></div>
+    <div class="detail-row"><b>Freight Charged</b><span>${d.freight_charged ? "Yes" : "No"}</span></div>
+    <div class="detail-row"><b>Freight Amount</b><span>${d.freight_amount || "—"}</span></div>
+    <div class="detail-row"><b>Created At</b><span>${ts(d.created_timestamp)}</span></div>
+    <div class="detail-row"><b>Loaded At</b><span>${ts(d.loaded_timestamp)}</span></div>
+    <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
+    <div class="detail-row"><b>Loaded Location</b><span>${loc(d.loaded_location)}</span></div>
+    <div class="detail-row"><b>Delivered Location</b><span>${loc(d.delivered_location)}</span></div>
+    <div class="detail-row"><b>Loaded Photo</b><span>${d.photo_loaded_url ? `<a href="${d.photo_loaded_url}" target="_blank" style="color:var(--accent)">View</a>` : "—"}</span></div>
+    <div class="detail-row"><b>Delivered Photo</b><span>${d.photo_delivered_url ? `<a href="${d.photo_delivered_url}" target="_blank" style="color:var(--accent)">View</a>` : "—"}</span></div>
+    <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn-primary" onclick="enableEdit()">✏ Edit</button>
+      <button class="btn-danger" onclick="deleteDelivery('${d.id}')">🗑 Delete</button>
+    </div>
+  `;
+
+  document.getElementById("popup").style.display = "block";
+}
+
+function viewImage(url) {
+  document.getElementById("popupImg").src = url;
+  document.getElementById("downloadLink").href = url;
+  document.getElementById("imgPopup").style.display = "flex";
+}
+
+function enableEdit() {
+  const d = currentDeliveryObj;
+  document.getElementById("popupContent").innerHTML = `
+    <h3>Edit Delivery</h3>
+    <div class="edit-field"><label>Customer Name</label><input id="edit_customer" value="${d.customer_name}"></div>
+    <div class="edit-field"><label>Phone</label><input id="edit_phone" value="${d.phone}"></div>
+    <div class="edit-field"><label>Address</label><input id="edit_address" value="${d.address}"></div>
+    <div class="edit-field"><label>Product</label><input id="edit_product" value="${d.product_name}"></div>
+    <div class="edit-field"><label>Driver Name</label><input id="edit_driver" value="${d.assigned_driver_name || ""}"></div>
+    <div class="edit-field"><label>Priority</label>
+      <select id="edit_priority">
+        <option ${d.priority === "normal" ? "selected" : ""}>normal</option>
+        <option ${d.priority === "urgent" ? "selected" : ""}>urgent</option>
+      </select>
+    </div>
+    <div class="edit-field"><label>ETA</label><input id="edit_eta" value="${d.estimated_delivery_time || ""}"></div>
+    <div style="margin-top:20px;display:flex;gap:10px;">
+      <button class="btn-primary" onclick="updateDelivery('${d.id}')">Save Changes</button>
+      <button class="btn-gray" onclick="document.getElementById('popup').style.display='none'">Cancel</button>
+    </div>
+  `;
+}
+
+async function updateDelivery(id) {
+  if (!confirm("Update this delivery?")) return;
+
+  await fetch(`${BASE_URL}/delivery/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify({
+      customer_name: document.getElementById("edit_customer").value,
+      phone: document.getElementById("edit_phone").value,
+      address: document.getElementById("edit_address").value,
+      product_name: document.getElementById("edit_product").value,
+      assigned_driver_name: document.getElementById("edit_driver").value,
+      priority: document.getElementById("edit_priority").value,
+      estimated_delivery_time: document.getElementById("edit_eta").value
+    })
+  });
+
+  document.getElementById("popup").style.display = "none";
+  loadAdmin();
+}
+
+async function deleteDelivery(id) {
+  if (!confirm("Delete this delivery permanently?")) return;
+
+  await fetch(`${BASE_URL}/delivery/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + token }
+  });
+
+  document.getElementById("popup").style.display = "none";
+  loadAdmin();
+}
+
+function downloadCSV() {
+  if (!currentDisplayedData.length) { alert("No data to export"); return; }
+
+  let csv = "Delivery ID,Customer,Phone,Alt Phone,Address,Product,Serial,Invoice,Priority,Status,ETA,Driver ID,Driver,Instructions,Freight,Freight Amount,Created,Loaded,Delivered,Loaded Location,Delivered Location,Loaded Photo,Delivered Photo\n";
+
+  currentDisplayedData.forEach(d => {
+    const ts = (t) => t ? new Date(t.seconds * 1000).toLocaleString() : "";
+    const loc = (l) => l ? `${l.lat}, ${l.lng}` : "";
+
+    csv += [
+      d.id, d.customer_name, d.phone, d.alternate_phone, d.address,
+      d.product_name, d.product_serial_number, d.invoice_number,
+      d.priority, d.status, d.estimated_delivery_time,
+      d.assigned_driver_id, d.assigned_driver_name, d.driver_instructions,
+      d.freight_charged ? "Yes" : "No", d.freight_amount,
+      ts(d.created_timestamp), ts(d.loaded_timestamp), ts(d.delivered_timestamp),
+      loc(d.loaded_location), loc(d.delivered_location),
+      d.photo_loaded_url, d.photo_delivered_url
+    ].map(v => `"${v || ""}"`).join(",") + "\n";
+  });
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement("a"), { href: url, download: "deliveries_export.csv" });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+setInterval(loadAdmin, 30000);
+loadAdmin();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/firebase-messaging-sw.js")
+    .then(() => console.log("SW registered"))
+    .catch(err => console.log("SW error", err));
+}
+</script>
+</body>
+</html>

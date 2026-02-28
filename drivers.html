@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <title>Driver Management — Hariom Traders</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f4fa;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --accent: #3b82f6;
+      --header-bg: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      --text: #1e293b;
+      --muted: #64748b;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .header {
+      background: var(--header-bg);
+      color: white;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'DM Serif Display', serif;
+      font-size: 20px;
+    }
+
+    .header-nav a {
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 8px 14px;
+      border-radius: 8px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .header-nav a:hover { background: rgba(255,255,255,0.12); color: white; }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .card h3 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 18px;
+      margin-bottom: 18px;
+      color: var(--text);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: var(--muted);
+    }
+
+    .field input {
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      background: #fafbfc;
+    }
+
+    .field input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+      background: white;
+    }
+
+    .field input:disabled {
+      background: #f1f5f9;
+      color: var(--muted);
+      cursor: not-allowed;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 9px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+
+    .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-success { background: #16a34a; color: white; }
+    .btn-danger  { background: #dc2626; color: white; }
+    .btn-gray    { background: #64748b; color: white; }
+
+    .btn-add { margin-top: 18px; }
+
+    /* TABLE */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    thead th {
+      background: #1e293b;
+      color: rgba(255,255,255,0.85);
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    tbody td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+
+    /* POPUP */
+    .popup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .popup-card {
+      background: white;
+      width: 90%;
+      max-width: 500px;
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .popup-card h3 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+
+    .popup-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 600px) {
+      .header { padding: 0 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-brand">👤 Driver Management</div>
+  <nav class="header-nav">
+    <a href="admin.html">← Dashboard</a>
+  </nav>
+</div>
+
+<div class="container">
+
+  <div class="card">
+    <h3>Add New Driver</h3>
+    <div class="form-grid">
+      <div class="field"><label>Driver Name *</label><input id="name" placeholder="Full name"></div>
+      <div class="field"><label>Phone Number *</label><input id="phone" placeholder="10-digit number" maxlength="10"></div>
+      <div class="field"><label>Vehicle Number</label><input id="vehicle_number" placeholder="e.g. MH12AB1234"></div>
+      <div class="field"><label>Vehicle Make</label><input id="vehicle_make" placeholder="e.g. Tata"></div>
+      <div class="field"><label>Vehicle Model</label><input id="vehicle_model" placeholder="e.g. Ace"></div>
+      <div class="field"><label>6-Digit PIN *</label><input id="pin" placeholder="Set login PIN" maxlength="6" type="password"></div>
+    </div>
+    <button class="btn btn-primary btn-add" onclick="addDriver()">+ Add Driver</button>
+  </div>
+
+  <div class="card">
+    <h3>Driver List</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Vehicle No.</th>
+            <th>Make</th>
+            <th>Model</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="list"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- DRIVER DETAIL POPUP -->
+<div class="popup-overlay" id="driverPopup" style="display:flex;display:none;">
+  <div class="popup-card">
+    <h3>Driver Details</h3>
+    <div class="form-grid">
+      <div class="field"><label>Driver Name</label><input id="edit_name" disabled></div>
+      <div class="field"><label>Phone Number</label><input id="edit_phone" disabled></div>
+      <div class="field"><label>Vehicle Number</label><input id="edit_vehicle_number" disabled></div>
+      <div class="field"><label>Vehicle Make</label><input id="edit_vehicle_make" disabled></div>
+      <div class="field"><label>Vehicle Model</label><input id="edit_vehicle_model" disabled></div>
+      <div class="field"><label>New PIN (leave blank to keep)</label><input id="edit_pin" disabled maxlength="6" type="password"></div>
+    </div>
+    <div class="popup-actions">
+      <button class="btn btn-primary" id="editBtn" onclick="enableEdit()">✏ Edit</button>
+      <button class="btn btn-success" id="saveBtn" style="display:none;" onclick="saveDriver()">💾 Save</button>
+      <button class="btn btn-danger" onclick="deleteDriver()">🗑 Delete</button>
+      <button class="btn btn-gray" onclick="closeDriverPopup()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE_URL = window.location.origin;
+const token = localStorage.getItem("adminToken");
+if (!token) window.location.href = "login.html";
+
+let driverCache = [];
+let currentDriverId = null;
+
+document.getElementById("phone").addEventListener("input", function () {
+  this.value = this.value.replace(/\D/g, "");
+});
+
+async function addDriver() {
+  const name = document.getElementById("name").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const vehicle_number = document.getElementById("vehicle_number").value.trim();
+  const vehicle_make = document.getElementById("vehicle_make").value.trim();
+  const vehicle_model = document.getElementById("vehicle_model").value.trim();
+  const pin = document.getElementById("pin").value.trim();
+
+  if (!name) { alert("Driver name required"); return; }
+  if (phone.length !== 10) { alert("Phone must be 10 digits"); return; }
+  if (!/^\d{6}$/.test(pin)) { alert("PIN must be exactly 6 digits"); return; }
+
+  await fetch(`${BASE_URL}/addDriver`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify({ driver_name: name, phone, vehicle_number, vehicle_make, vehicle_model, pin })
+  });
+
+  ["name", "phone", "vehicle_number", "vehicle_make", "vehicle_model", "pin"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+
+  loadDrivers();
+}
+
+async function loadDrivers() {
+  const res = await fetch(`${BASE_URL}/drivers`, { headers: { Authorization: "Bearer " + token } });
+  const data = await res.json();
+  driverCache = data;
+
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  data.forEach(d => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${d.driver_name}</td>
+      <td>${d.phone || "—"}</td>
+      <td>${d.vehicle_number || "—"}</td>
+      <td>${d.vehicle_make || "—"}</td>
+      <td>${d.vehicle_model || "—"}</td>
+      <td><button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="openDriverPopup('${d.id}')">View</button></td>
+    `;
+    list.appendChild(tr);
+  });
+}
+
+function openDriverPopup(id) {
+  const d = driverCache.find(x => x.id === id);
+  if (!d) return;
+  currentDriverId = id;
+
+  document.getElementById("edit_name").value = d.driver_name || "";
+  document.getElementById("edit_phone").value = d.phone || "";
+  document.getElementById("edit_vehicle_number").value = d.vehicle_number || "";
+  document.getElementById("edit_vehicle_make").value = d.vehicle_make || "";
+  document.getElementById("edit_vehicle_model").value = d.vehicle_model || "";
+  document.getElementById("edit_pin").value = "";
+
+  disableEdit();
+  document.getElementById("driverPopup").style.display = "flex";
+}
+
+function closeDriverPopup() {
+  document.getElementById("driverPopup").style.display = "none";
+  disableEdit();
+}
+
+function enableEdit() {
+  ["edit_name", "edit_phone", "edit_vehicle_number", "edit_vehicle_make", "edit_vehicle_model", "edit_pin"]
+    .forEach(id => document.getElementById(id).disabled = false);
+  document.getElementById("editBtn").style.display = "none";
+  document.getElementById("saveBtn").style.display = "inline-flex";
+}
+
+function disableEdit() {
+  ["edit_name", "edit_phone", "edit_vehicle_number", "edit_vehicle_make", "edit_vehicle_model", "edit_pin"]
+    .forEach(id => document.getElementById(id).disabled = true);
+  document.getElementById("editBtn").style.display = "inline-flex";
+  document.getElementById("saveBtn").style.display = "none";
+}
+
+async function saveDriver() {
+  const updated = {
+    driver_name: document.getElementById("edit_name").value.trim(),
+    phone: document.getElementById("edit_phone").value.trim(),
+    vehicle_number: document.getElementById("edit_vehicle_number").value.trim(),
+    vehicle_make: document.getElementById("edit_vehicle_make").value.trim(),
+    vehicle_model: document.getElementById("edit_vehicle_model").value.trim()
+  };
+
+  const newPin = document.getElementById("edit_pin").value.trim();
+  if (newPin) {
+    if (!/^\d{6}$/.test(newPin)) { alert("PIN must be exactly 6 digits"); return; }
+    updated.pin = newPin;
+  }
+
+  await fetch(`${BASE_URL}/driver/${currentDriverId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify(updated)
+  });
+
+  disableEdit();
+  loadDrivers();
+}
+
+async function deleteDriver() {
+  if (!confirm("Are you sure you want to delete this driver?")) return;
+  if (prompt("Type DELETE to confirm:") !== "DELETE") return;
+
+  const res = await fetch(`${BASE_URL}/driver/${currentDriverId}`, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + token }
+  });
+
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+
+  closeDriverPopup();
+  loadDrivers();
+}
+
+loadDrivers();
+</script>
+</body>
+</html>

@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hariom DMS">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <meta name="theme-color" content="#0f172a">
+  <title>Accountant Panel — Hariom Traders</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f4fa;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --accent: #2563eb;
+      --accent-light: rgba(37,99,235,0.08);
+      --header-bg: linear-gradient(135deg, #0f172a 0%, #2563eb 100%);
+      --text: #1e293b;
+      --muted: #64748b;
+    }
+
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── LOGIN SCREEN ── */
+    #loginScreen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #0a0f1e;
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+    }
+    #loginScreen.active { display: flex; }
+
+    .login-card {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+      animation: slideUp 0.45s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    @keyframes slideUp {
+      from { opacity:0; transform:translateY(20px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .login-brand { text-align: center; margin-bottom: 28px; }
+    .login-icon {
+      width: 50px; height: 50px;
+      background: linear-gradient(135deg, #2563eb, #6366f1);
+      border-radius: 14px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 12px;
+    }
+    .login-brand h2 { font-family: 'DM Serif Display', serif; font-size: 20px; color: #f1f5f9; }
+    .login-brand p  { font-size: 13px; color: #64748b; margin-top: 4px; }
+    .login-field { margin-bottom: 16px; }
+    .login-field label {
+      display: block; font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      color: #64748b; margin-bottom: 7px;
+    }
+    .login-field input {
+      width: 100%; padding: 11px 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 9px; color: #f1f5f9;
+      font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .login-field input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.25);
+    }
+    .login-field input::placeholder { color: #475569; }
+    .login-btn {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #2563eb, #6366f1);
+      color: white; border: none; border-radius: 9px;
+      font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600;
+      cursor: pointer; margin-top: 6px;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+    .login-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .login-error { text-align: center; font-size: 13px; color: #f87171; margin-top: 12px; min-height: 18px; }
+
+    /* ── HEADER ── */
+    .header {
+      background: var(--header-bg);
+      color: white;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-brand {
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'DM Serif Display', serif; font-size: 20px;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+    .card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .card h3 { font-family: 'DM Serif Display', serif; font-size: 18px; margin-bottom: 16px; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border: none; border-radius: 9px;
+      font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+    }
+    .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-success { background: #16a34a; color: white; }
+    .btn-danger  { background: #dc2626; color: white; }
+    .btn-gray    { background: #64748b; color: white; }
+    .btn-sm      { padding: 5px 12px; font-size: 12px; font-weight: 500; }
+
+    /* ── FILTER BAR ── */
+    .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .filter-btn {
+      padding: 6px 14px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      background: white; color: var(--muted);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .filter-btn.activeFilter { background: var(--accent); border-color: var(--accent); color: white; }
+    .filter-count {
+      display: inline-block; background: rgba(0,0,0,0.12);
+      border-radius: 10px; padding: 1px 6px; font-size: 11px; font-weight: 700;
+      margin-left: 3px; min-width: 18px; text-align: center;
+    }
+    .filter-btn.activeFilter .filter-count { background: rgba(255,255,255,0.25); }
+
+    .search-input {
+      padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none;
+      min-width: 220px; transition: border-color 0.2s;
+    }
+    .search-input:focus { border-color: var(--accent); }
+
+    /* ── SUMMARY ── */
+    .summary-bar {
+      display: flex; gap: 16px; font-size: 13px; font-weight: 600;
+      color: var(--muted); margin-bottom: 14px; flex-wrap: wrap;
+    }
+    .summary-bar span { color: var(--text); }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 700px; }
+    thead th {
+      background: #1e293b; color: rgba(255,255,255,0.85);
+      padding: 11px 14px; text-align: left;
+      font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; text-transform: capitalize;
+    }
+    .badge-pending   { background: #fef3c7; color: #92400e; }
+    .badge-loaded    { background: #dbeafe; color: #1e40af; }
+    .badge-delivered { background: #dcfce7; color: #166534; }
+
+    /* ── POPUP ── */
+    .popup-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 200; overflow-y: auto; padding: 30px 16px;
+    }
+    .popup-card {
+      background: white; width: 100%; max-width: 520px; margin: 0 auto;
+      border-radius: 18px; padding: 28px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.2); max-height: 88vh; overflow-y: auto;
+    }
+    .popup-card h3 { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 20px; }
+
+    /* ── FORM FIELDS ── */
+    .section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px;
+      color: var(--muted); margin-top: 16px; margin-bottom: 6px;
+    }
+    .popup-card input,
+    .popup-card select {
+      width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 9px;
+      font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text);
+      outline: none; margin-bottom: 8px; background: #fafbfc;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .popup-card input:focus,
+    .popup-card select:focus {
+      border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); background: white;
+    }
+    .checkbox-row {
+      display: flex; align-items: center; gap: 8px; margin: 12px 0 6px;
+      font-weight: 500; font-size: 14px;
+    }
+    .checkbox-row input[type="checkbox"] { width: auto; margin-bottom: 0; }
+    .form-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+    /* ── DETAIL ROWS (view popup) ── */
+    .detail-row {
+      display: flex; gap: 10px; padding: 9px 0;
+      border-bottom: 1px solid var(--border); font-size: 14px;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row b { color: var(--muted); min-width: 130px; font-weight: 500; font-size: 13px; }
+
+    @media (max-width: 700px) {
+      .header { padding: 0 16px; }
+      .container { padding: 14px; }
+      .search-input { min-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ LOGIN SCREEN ══ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-icon">🧾</div>
+      <h2>Hariom Traders</h2>
+      <p>Accountant Panel</p>
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="doAccountantLogin()">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ══ -->
+<div id="appShell" style="display:none;">
+
+<div class="header">
+  <div class="header-brand">
+    <img src="/icons/icon-72x72.png" style="width:32px;height:32px;border-radius:8px;object-fit:contain;background:rgba(255,255,255,0.1);" onerror="this.style.display='none'" alt="Logo">
+    🧾 Accountant Panel
+  </div>
+  <nav style="display:flex;align-items:center;gap:10px;">
+    <span id="pushIndicator" style="font-size:12px;color:rgba(255,255,255,0.55);"></span>
+    <a href="driver_interface.html" style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:13px;font-weight:600;padding:7px 13px;border-radius:9px;background:rgba(255,255,255,0.1);">🚚 Driver View</a>
+    <button onclick="accountantLogout()" style="background:rgba(255,255,255,0.12);border:none;color:rgba(255,255,255,0.75);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;padding:7px 13px;border-radius:9px;cursor:pointer;">Logout</button>
+  </nav>
+</div>
+
+<div class="container">
+
+  <div class="card" style="padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <button class="btn btn-primary" onclick="openPopup()">+ Create Delivery</button>
+    <button class="btn btn-success" onclick="exportToCSV()">⬇ Export CSV</button>
+  </div>
+
+  <div class="card">
+    <h3>Deliveries</h3>
+
+    <div class="filter-bar">
+      <button class="filter-btn" data-filter="all"       onclick="setFilter('all')">All <span class="filter-count" id="fc-all"></span></button>
+      <button class="filter-btn" data-filter="pending"   onclick="setFilter('pending')">Pending <span class="filter-count" id="fc-pending"></span></button>
+      <button class="filter-btn" data-filter="loaded"    onclick="setFilter('loaded')">Loaded <span class="filter-count" id="fc-loaded"></span></button>
+      <button class="filter-btn" data-filter="delivered" onclick="setFilter('delivered')">Delivered <span class="filter-count" id="fc-delivered"></span></button>
+      <button class="filter-btn" data-filter="urgent"    onclick="setFilter('urgent')">🔥 Urgent <span class="filter-count" id="fc-urgent"></span></button>
+      <button class="filter-btn" data-filter="today"     onclick="setFilter('today')">Today <span class="filter-count" id="fc-today"></span></button>
+      <button class="filter-btn" data-filter="yesterday" onclick="setFilter('yesterday')">Yesterday</button>
+      <button class="filter-btn" data-filter="custom"    onclick="showCustomDate()">📅 Custom</button>
+      <input type="date" id="customDate" style="display:none;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;" onchange="applyCustomDate()">
+    </div>
+
+    <input class="search-input" id="searchInput" placeholder="🔍 Search by name or phone..." oninput="applySearch()" style="margin-bottom:14px;">
+
+    <div class="summary-bar" id="deliverySummary"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Phone</th>
+            <th>Product</th>
+            <th>Driver</th>
+            <th>ETA</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="list"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- CREATE DELIVERY POPUP -->
+<div class="popup-overlay" id="popup">
+  <div class="popup-card">
+    <h3>Create Delivery</h3>
+    <div id="formMessage" style="margin-bottom:10px;font-size:14px;font-weight:500;"></div>
+
+    <div class="section-title">Customer Name</div>
+    <input id="first_name" placeholder="First Name">
+    <input id="middle_name" placeholder="Middle Name (Optional)">
+    <input id="last_name" placeholder="Last Name">
+
+    <div class="section-title">Phone</div>
+    <input id="phone" placeholder="Phone" maxlength="10">
+    <input id="alt_phone" placeholder="Alternate Phone (Optional)" maxlength="10">
+
+    <div class="section-title">Address</div>
+    <input id="addr1" placeholder="Address Line 1">
+    <input id="addr2" placeholder="Address Line 2">
+    <input id="area" placeholder="Area / Landmark">
+    <input id="city" placeholder="City">
+    <input id="state_field" placeholder="State">
+    <input id="pincode" placeholder="PIN Code" maxlength="6">
+
+    <div class="section-title">Product</div>
+    <select id="product_select" onchange="handleAddNew(this,'product')"></select>
+    <input id="new_product" placeholder="New Product" style="display:none">
+    <button class="btn btn-success btn-sm" id="btn_product" type="button" onclick="saveNew('product')" style="display:none;margin-bottom:8px;">+ Add Product</button>
+
+    <div class="section-title">Make</div>
+    <select id="make_select" onchange="handleAddNew(this,'make')"></select>
+    <input id="new_make" placeholder="New Make" style="display:none">
+    <button class="btn btn-success btn-sm" id="btn_make" type="button" onclick="saveNew('make')" style="display:none;margin-bottom:8px;">+ Add Make</button>
+
+    <div class="section-title">Model</div>
+    <select id="model_select" onchange="handleAddNew(this,'model')"></select>
+    <input id="new_model" placeholder="New Model" style="display:none">
+    <button class="btn btn-success btn-sm" id="btn_model" type="button" onclick="saveNew('model')" style="display:none;margin-bottom:8px;">+ Add Model</button>
+
+    <input id="serial" placeholder="Serial Number">
+    <input id="invoice" placeholder="Invoice Number">
+
+    <div class="section-title">Priority</div>
+    <select id="priority">
+      <option value="normal">Normal</option>
+      <option value="urgent">Urgent</option>
+    </select>
+
+    <div class="section-title">Estimated Delivery Time</div>
+    <input type="datetime-local" id="estimated_time">
+
+    <div class="section-title">Assign Driver</div>
+    <select id="driver"></select>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="has_instruction" onchange="toggleInstruction()">
+      <label for="has_instruction">Add Delivery Instruction</label>
+    </div>
+    <input id="instruction" placeholder="Enter Instruction" style="display:none">
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="freight_charged" onchange="toggleFreight()">
+      <label for="freight_charged">Freight Charges Applied</label>
+    </div>
+    <input id="freight_amount" placeholder="Freight Amount" style="display:none">
+
+    <div class="form-actions">
+      <button class="btn btn-primary" id="createBtn" onclick="createDelivery()">Create Delivery</button>
+      <button class="btn btn-danger" type="button" onclick="resetForm()">Reset</button>
+      <button class="btn btn-gray" onclick="closePopup()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW DELIVERY POPUP -->
+<div class="popup-overlay" id="viewPopup">
+  <div class="popup-card">
+    <h3>Delivery Details</h3>
+    <div id="viewContent"></div>
+    <div class="form-actions">
+      <button class="btn btn-gray" onclick="closeViewPopup()">Close</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- end #appShell -->
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+
+<script>
+/* ══════════════════════════════════════════
+   AUTH — accountant login gate
+══════════════════════════════════════════ */
+const BASE_URL = window.location.origin;
+
+/* ── STATE — must be declared before any function runs ── */
+let swRegistration      = null;
+let currentFilter       = "all";
+let customSelectedDate  = null;
+let searchQuery         = "";
+let currentAccountantData = [];
+let autoRefreshInterval = null;
+
+function accountantLogout() {
+  localStorage.removeItem("accountantToken");
+  showLoginScreen();
+}
+
+function showLoginScreen() {
+  document.getElementById("loginScreen").classList.add("active");
+  document.getElementById("appShell").style.display = "none";
+}
+
+function showApp() {
+  document.getElementById("loginScreen").classList.remove("active");
+  document.getElementById("appShell").style.display = "block";
+}
+
+async function doAccountantLogin() {
+  const password = document.getElementById("loginPassword").value;
+  const err = document.getElementById("loginError");
+  err.innerText = "";
+  if (!password) { err.innerText = "Password required"; return; }
+
+  const res = await fetch(`${BASE_URL}/accountant/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password })
+  });
+  const data = await res.json();
+  if (!res.ok) { err.innerText = data.error || "Invalid password"; return; }
+
+  localStorage.setItem("accountantToken", data.token);
+  showApp();
+  initApp();
+}
+
+document.getElementById("loginPassword").addEventListener("keydown", e => {
+  if (e.key === "Enter") doAccountantLogin();
+});
+
+// On page load — check for existing token
+const existingToken = localStorage.getItem("accountantToken");
+if (existingToken) {
+  showApp();
+  initApp();
+} else {
+  showLoginScreen();
+}
+
+/* ══════════════════════════════════════════
+   FIREBASE + PUSH SETUP
+══════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBfQlLpHbuRsZ7YKIFBj8Fa5o-HMo0SBrU",
+  authDomain: "hariom-delivery.firebaseapp.com",
+  projectId: "hariom-delivery",
+  storageBucket: "hariom-delivery.firebasestorage.app",
+  messagingSenderId: "60300951507",
+  appId: "1:60300951507:web:e5d55d0d18dc2000b47926"
+};
+
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
+
+const VAPID_KEY = "BMiekPX2di-maWY-3KoprJFLy2OVNPiqvjuz9W9mpNDuOPWDMhstKpaja8A2zKkp8XpmKxETbi_3hoMaPVgB0dE";
+
+async function initSWAndPush() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) {
+      if (r.active && !r.active.scriptURL.includes("firebase-messaging-sw")) await r.unregister();
+    }
+    const reg = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
+    // Wait for SW to activate
+    await new Promise(resolve => {
+      if (reg.active) { resolve(); return; }
+      const sw = reg.installing || reg.waiting;
+      if (!sw) { resolve(); return; }
+      sw.addEventListener("statechange", function h() {
+        if (sw.state === "activated") { sw.removeEventListener("statechange", h); resolve(); }
+      });
+    });
+    swRegistration = reg;
+    await registerAccountantPush(reg);
+  } catch (e) { console.warn("[SW] Init failed:", e); }
+}
+
+async function registerAccountantPush(reg, isRetry = false) {
+  const indicator = document.getElementById("pushIndicator");
+  if (!("Notification" in window)) return;
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") { if (indicator) indicator.innerText = "🔕 Notifications blocked"; return; }
+  try {
+    const registration = reg || swRegistration || await navigator.serviceWorker.ready;
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+    if (!token) return;
+    await fetch(`${BASE_URL}/saveAccountantPushToken`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+    if (indicator) indicator.innerText = "🔔 Notifications on";
+  } catch (err) {
+    console.warn("[Push]", err);
+    if (!isRetry && err.message?.includes("registration")) {
+      try { await messaging.deleteToken(); setTimeout(() => registerAccountantPush(null, true), 2500); } catch (_) {}
+    } else {
+      if (indicator) indicator.innerText = "⚠ Push unavailable";
+    }
+  }
+}
+
+messaging.onMessage(async payload => {
+  try {
+    const reg = swRegistration || await navigator.serviceWorker.ready;
+    reg.showNotification(payload?.data?.title || "Hariom DMS", {
+      body: payload?.data?.body || "",
+      icon: "/icons/icon-192.png",
+      requireInteraction: true
+    });
+  } catch (e) { console.warn("[Push] fg notify", e); }
+
+  // Flash page title
+  const origTitle = document.title;
+  let n = 0;
+  const fi = setInterval(() => {
+    document.title = n % 2 === 0 ? "🔔 " + (payload?.data?.title || "Alert") : origTitle;
+    if (++n >= 10) { clearInterval(fi); document.title = origTitle; }
+  }, 600);
+
+  // Soft beep
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.5);
+  } catch (_) {}
+
+  if (typeof loadDeliveries === "function") loadDeliveries();
+});
+
+/* ══════════════════════════════════════════
+   MAIN APP
+══════════════════════════════════════════ */
+
+function initApp() {
+  initSWAndPush();
+  loadDraft();
+  loadDrivers();
+  loadDeliveries();
+  loadAllMasters();
+  startAutoRefresh();
+
+  // Set ETA min on DOMContentLoaded if popup already open
+  const etaInput = document.getElementById("estimated_time");
+  if (etaInput) {
+    const setMin = () => {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      etaInput.min = now.toISOString().slice(0, 16);
+    };
+    setMin();
+    setInterval(setMin, 60000);
+  }
+}
+
+// Auto-refresh deliveries every 30 seconds
+function startAutoRefresh() {
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  autoRefreshInterval = setInterval(() => {
+    loadDeliveries();
+  }, 30000);
+}
+
+/* ── FILTERS ── */
+function applySearch() {
+  searchQuery = document.getElementById("searchInput").value.toLowerCase();
+  loadDeliveries();
+}
+
+function setFilter(type) {
+  currentFilter = type;
+  if (type !== "custom") document.getElementById("customDate").style.display = "none";
+  highlightActiveFilter(type);
+  loadDeliveries();
+}
+
+function highlightActiveFilter(filter) {
+  document.querySelectorAll(".filter-btn").forEach(btn => {
+    btn.classList.toggle("activeFilter", btn.dataset.filter === filter);
+  });
+}
+
+function showCustomDate() {
+  document.getElementById("customDate").style.display = "inline-block";
+  highlightActiveFilter("custom");
+}
+
+function applyCustomDate() {
+  customSelectedDate = document.getElementById("customDate").value;
+  currentFilter = "custom";
+  loadDeliveries();
+}
+
+/* ── POPUP OPEN/CLOSE ── */
+function openPopup() {
+  const etaInput = document.getElementById("estimated_time");
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  etaInput.min = now.toISOString().slice(0, 16);
+  resetForm();
+  document.getElementById("popup").style.display = "block";
+}
+
+function closePopup() { document.getElementById("popup").style.display = "none"; }
+
+/* ── DROPDOWNS ── */
+async function loadDropdown(endpoint, selectId) {
+  const res = await fetch(`${BASE_URL}/${endpoint}`);
+  const data = await res.json();
+  const select = document.getElementById(selectId);
+  select.innerHTML = "";
+  data.forEach(x => {
+    const o = document.createElement("option");
+    o.value = x.name; o.text = x.name;
+    select.appendChild(o);
+  });
+  const add = document.createElement("option");
+  add.value = "add_new"; add.text = "+ Add New";
+  select.appendChild(add);
+}
+
+async function loadAllMasters() {
+  await loadDropdown("products", "product_select");
+  await loadDropdown("makes", "make_select");
+  await loadDropdown("models", "model_select");
+}
+
+function handleAddNew(select, type) {
+  const input = document.getElementById("new_" + type);
+  const button = document.getElementById("btn_" + type);
+  const isNew = select.value === "add_new";
+  input.style.display = isNew ? "block" : "none";
+  button.style.display = isNew ? "inline-flex" : "none";
+}
+
+async function saveNew(type) {
+  const input = document.getElementById("new_" + type);
+  const select = document.getElementById(type + "_select");
+  const value = input.value.trim();
+  if (!value) { alert("Enter value first"); return; }
+
+  const res = await fetch(`${BASE_URL}/${type}s`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: value })
+  });
+  const result = await res.json();
+  if (result.exists) { alert("Already exists"); return; }
+
+  const option = document.createElement("option");
+  option.value = value; option.text = value;
+  select.insertBefore(option, select.firstChild);
+  select.value = value;
+  input.value = "";
+  input.style.display = "none";
+  document.getElementById("btn_" + type).style.display = "none";
+}
+
+function toggleInstruction() {
+  const input = document.getElementById("instruction");
+  const checked = document.getElementById("has_instruction").checked;
+  input.style.display = checked ? "block" : "none";
+  if (!checked) input.value = "";
+}
+
+function toggleFreight() {
+  const input = document.getElementById("freight_amount");
+  const checked = document.getElementById("freight_charged").checked;
+  input.style.display = checked ? "block" : "none";
+  if (!checked) input.value = "";
+}
+
+async function loadDrivers() {
+  const res = await fetch(`${BASE_URL}/driver-list-public`);
+  const data = await res.json();
+  const d = document.getElementById("driver");
+  d.innerHTML = "";
+  data.forEach(x => {
+    const o = document.createElement("option");
+    o.value = x.id; o.text = x.driver_name;
+    d.appendChild(o);
+  });
+}
+
+function capitalizeWords(str) {
+  if (!str) return "";
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/* ── PIN CODE AUTO-FILL ── */
+document.addEventListener("DOMContentLoaded", () => {
+  const pincodeEl = document.getElementById("pincode");
+  if (!pincodeEl) return;
+
+  pincodeEl.addEventListener("input", () => {
+    pincodeEl.value = pincodeEl.value.replace(/\D/g, "");
+  });
+
+  pincodeEl.addEventListener("blur", async () => {
+    if (pincodeEl.value.length !== 6) return;
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pincodeEl.value}`);
+      const data = await res.json();
+      const cityEl  = document.getElementById("city");
+      const stateEl = document.getElementById("state_field");
+      if (data[0].Status === "Success") {
+        const po = data[0].PostOffice[0];
+        cityEl.value  = po.District;
+        stateEl.value = po.State;
+        cityEl.style.background  = "#f0fdf4";
+        stateEl.style.background = "#f0fdf4";
+      } else {
+        cityEl.value = ""; stateEl.value = "";
+        alert("Invalid PIN Code");
+      }
+    } catch (err) { console.log("PIN API Error:", err); }
+  });
+});
+
+/* ── PHONE DIGIT ONLY ── */
+document.addEventListener("DOMContentLoaded", () => {
+  const phoneEl    = document.getElementById("phone");
+  const altPhoneEl = document.getElementById("alt_phone");
+  if (phoneEl)    phoneEl.addEventListener("input", function() { this.value = this.value.replace(/\D/g, ""); });
+  if (altPhoneEl) altPhoneEl.addEventListener("input", function() { this.value = this.value.replace(/\D/g, ""); });
+
+  // Auto-save draft on any input change
+  document.querySelectorAll("#popup input").forEach(i => i.addEventListener("input", saveDraft));
+});
+
+/* ── CREATE DELIVERY ── */
+async function createDelivery() {
+  const btn = document.getElementById("createBtn");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.innerText = "Creating...";
+
+  const firstNameEl     = document.getElementById("first_name");
+  const phoneEl         = document.getElementById("phone");
+  const addr1El         = document.getElementById("addr1");
+  const driverEl        = document.getElementById("driver");
+  const etaEl           = document.getElementById("estimated_time");
+
+  if (!firstNameEl.value.trim()) {
+    alert("First name is required");
+    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+  }
+  if (!phoneEl.value || phoneEl.value.length !== 10) {
+    alert("Valid 10-digit phone number is required");
+    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+  }
+  if (!addr1El.value.trim()) {
+    alert("Address Line 1 is required");
+    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+  }
+  if (!driverEl.value) {
+    alert("Please assign a driver");
+    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+  }
+  if (!etaEl.value) {
+    alert("Estimated delivery time is required");
+    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+  }
+  if (new Date(etaEl.value) < new Date()) {
+    alert("Estimated delivery time cannot be in the past");
+    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+  }
+
+  async function resolveValue(type) {
+    const select = document.getElementById(type + "_select");
+    const input  = document.getElementById("new_" + type);
+    if (select.value === "add_new") {
+      const newValue = input.value.trim();
+      if (!newValue) { alert("Please enter " + type + " name."); throw new Error("Missing " + type); }
+      await fetch(`${BASE_URL}/${type}s`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newValue })
+      });
+      return newValue;
+    }
+    return select.value;
+  }
+
+  let productVal, makeVal, modelVal;
+  try {
+    productVal = await resolveValue("product");
+    makeVal    = await resolveValue("make");
+    modelVal   = await resolveValue("model");
+  } catch { btn.disabled = false; btn.innerText = "Create Delivery"; return; }
+
+  const middleName  = document.getElementById("middle_name").value;
+  const lastName    = document.getElementById("last_name").value;
+  const fullName    = [firstNameEl.value, middleName, lastName].filter(x => x).join(" ");
+
+  const addr2       = document.getElementById("addr2").value;
+  const area        = document.getElementById("area").value;
+  const city        = document.getElementById("city").value;
+  const stateVal    = document.getElementById("state_field").value;
+  const pincodeVal  = document.getElementById("pincode").value;
+  const fullAddress = [addr1El.value, addr2, area, city, stateVal + (pincodeVal ? " - " + pincodeVal : "")].filter(x => x).join(", ");
+
+  const finalProduct     = [productVal, makeVal, modelVal].filter(x => x).join(" ");
+  const driverSel        = document.getElementById("driver");
+  const hasInstruction   = document.getElementById("has_instruction").checked;
+  const freightCharged   = document.getElementById("freight_charged").checked;
+
+  const response = await fetch(`${BASE_URL}/createDelivery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      customer_name:           capitalizeWords(fullName),
+      phone:                   phoneEl.value,
+      alternate_phone:         document.getElementById("alt_phone").value || "",
+      address:                 capitalizeWords(fullAddress),
+      product_name:            capitalizeWords(finalProduct),
+      product_serial_number:   document.getElementById("serial").value,
+      invoice_number:          document.getElementById("invoice").value,
+      priority:                document.getElementById("priority").value,
+      estimated_delivery_time: etaEl.value,
+      assigned_driver_id:      driverSel.value,
+      assigned_driver_name:    driverSel.options[driverSel.selectedIndex].text,
+      driver_instructions:     hasInstruction ? document.getElementById("instruction").value.trim() : "none",
+      freight_charged:         freightCharged,
+      freight_amount:          freightCharged ? document.getElementById("freight_amount").value : ""
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    alert(err.error || "Something went wrong. Delivery not created.");
+    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+  }
+
+  closePopup();
+  loadDeliveries();
+  resetForm();
+  localStorage.removeItem("deliveryDraft");
+  document.getElementById("formMessage").innerHTML = "<span style='color:#16a34a;'>✔ Delivery Created Successfully</span>";
+  btn.innerText = "Created ✔";
+  setTimeout(() => { btn.disabled = false; btn.innerText = "Create Delivery"; }, 1000);
+}
+
+/* ── RESET FORM ── */
+function resetForm() {
+  document.querySelectorAll("#popup input").forEach(i => { i.value = ""; i.classList.remove("error"); });
+  document.querySelectorAll("#popup select").forEach(s => { s.selectedIndex = 0; });
+  ["product", "make", "model"].forEach(type => {
+    const input = document.getElementById("new_" + type);
+    const btn   = document.getElementById("btn_" + type);
+    if (input) input.style.display = "none";
+    if (btn)   btn.style.display = "none";
+  });
+  document.getElementById("has_instruction").checked = false;
+  document.getElementById("instruction").style.display = "none";
+  document.getElementById("instruction").value = "";
+  document.getElementById("freight_charged").checked = false;
+  document.getElementById("freight_amount").style.display = "none";
+  document.getElementById("freight_amount").value = "";
+  const cityEl  = document.getElementById("city");
+  const stateEl = document.getElementById("state_field");
+  if (cityEl)  cityEl.style.background  = "";
+  if (stateEl) stateEl.style.background = "";
+  document.getElementById("formMessage").innerHTML = "";
+}
+
+/* ── DRAFT AUTO-SAVE ── */
+function saveDraft() {
+  const fn = document.getElementById("first_name");
+  const ph = document.getElementById("phone");
+  const a1 = document.getElementById("addr1");
+  localStorage.setItem("deliveryDraft", JSON.stringify({
+    first_name: fn ? fn.value : "",
+    phone:      ph ? ph.value : "",
+    addr1:      a1 ? a1.value : ""
+  }));
+}
+
+function loadDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem("deliveryDraft"));
+    if (!draft) return;
+    const fn = document.getElementById("first_name");
+    const ph = document.getElementById("phone");
+    const a1 = document.getElementById("addr1");
+    if (fn) fn.value = draft.first_name || "";
+    if (ph) ph.value = draft.phone      || "";
+    if (a1) a1.value = draft.addr1      || "";
+  } catch (_) {}
+}
+
+/* ── DATE FORMAT ── */
+function formatDate(dateString) {
+  if (!dateString) return "—";
+  const d = new Date(dateString);
+  return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
+/* ── LOAD DELIVERIES ── */
+async function loadDeliveries() {
+  let data;
+  try {
+    const res = await fetch(`${BASE_URL}/deliveries`);
+    if (res.status === 401) { accountantLogout(); return; }
+    data = await res.json();
+  } catch (e) { return; }
+
+  const today    = new Date();
+  const todayStr = today.toDateString();
+  const yest     = new Date(); yest.setDate(today.getDate() - 1);
+  const yestStr  = yest.toDateString();
+
+  let finalData = [];
+
+  if (currentFilter === "custom" && customSelectedDate) {
+    const selStr = new Date(customSelectedDate).toDateString();
+    finalData = data.filter(d => d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === selStr);
+  } else if (currentFilter === "yesterday") {
+    finalData = data.filter(d => d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === yestStr);
+  } else {
+    const pendingArr = data.filter(d => d.status === "pending")
+      .sort((a, b) => (b.created_timestamp?.seconds || 0) - (a.created_timestamp?.seconds || 0));
+    const loadedArr  = data.filter(d => d.status === "loaded");
+    const deliveredTodayArr = data.filter(d =>
+      d.status === "delivered" && d.delivered_timestamp &&
+      new Date(d.delivered_timestamp.seconds * 1000).toDateString() === todayStr
+    );
+    finalData = [...pendingArr, ...loadedArr, ...deliveredTodayArr];
+
+    if      (currentFilter === "pending")   finalData = pendingArr;
+    else if (currentFilter === "loaded")    finalData = loadedArr;
+    else if (currentFilter === "delivered") finalData = deliveredTodayArr;
+    else if (currentFilter === "urgent")    finalData = finalData.filter(d => d.priority === "urgent");
+    else if (currentFilter === "today")     finalData = finalData.filter(d =>
+      d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === todayStr
+    );
+  }
+
+  if (searchQuery) {
+    finalData = finalData.filter(d =>
+      (d.customer_name && d.customer_name.toLowerCase().includes(searchQuery)) ||
+      (d.phone && d.phone.includes(searchQuery))
+    );
+  }
+
+  currentAccountantData = finalData;
+
+  // Update filter count badges (based on all unfiltered data)
+  const counts = { all: data.length, pending: 0, loaded: 0, delivered: 0, urgent: 0, today: 0 };
+  data.forEach(d => {
+    if (d.status === "pending")   counts.pending++;
+    if (d.status === "loaded")    counts.loaded++;
+    if (d.status === "delivered") counts.delivered++;
+    if (d.priority === "urgent")  counts.urgent++;
+    if (d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === todayStr) counts.today++;
+  });
+  ["all","pending","loaded","delivered","urgent","today"].forEach(k => {
+    const el = document.getElementById("fc-" + k);
+    if (el) el.innerText = counts[k] || "";
+  });
+
+  // Update page tab title with pending count
+  const pendingCount = counts.pending;
+  document.title = pendingCount > 0
+    ? `(${pendingCount}) Accountant Panel — Hariom Traders`
+    : "Accountant Panel — Hariom Traders";
+
+  let pending = 0, loaded = 0, delivered = 0;
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  finalData.forEach(d => {
+    if (d.status === "pending")   pending++;
+    if (d.status === "loaded")    loaded++;
+    if (d.status === "delivered") delivered++;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${d.customer_name}</td>
+      <td>${d.phone}</td>
+      <td>${d.product_name}</td>
+      <td>${d.assigned_driver_name || "—"}</td>
+      <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
+      <td><span class="badge badge-${d.status}">${d.status}</span></td>
+      <td><button class="btn btn-primary btn-sm" onclick="openViewPopup('${d.id}')">View</button></td>
+    `;
+    list.appendChild(tr);
+  });
+
+  document.getElementById("deliverySummary").innerHTML = `
+    📦 Pending: <span>${pending}</span> &nbsp;|&nbsp;
+    🚚 Loaded: <span>${loaded}</span> &nbsp;|&nbsp;
+    ✅ Delivered: <span>${delivered}</span>
+  `;
+}
+
+/* ── VIEW POPUP ── */
+function openViewPopup(id) {
+  const delivery = currentAccountantData.find(d => d.id === id);
+  if (!delivery) return;
+
+  const content = document.getElementById("viewContent");
+  content.innerHTML = `
+    <div class="section-title">Customer Details</div>
+    <div class="detail-row"><b>Name</b><span>${delivery.customer_name}</span></div>
+    <div class="detail-row"><b>Phone</b><span>${delivery.phone}</span></div>
+    <div class="detail-row"><b>Alternate</b><span>${delivery.alternate_phone || "—"}</span></div>
+    <div class="detail-row"><b>Address</b><span>${delivery.address}</span></div>
+
+    <div class="section-title">Product Details</div>
+    <div class="detail-row"><b>Product</b><span>${delivery.product_name}</span></div>
+    <div class="detail-row"><b>Serial</b><span>${delivery.product_serial_number || "—"}</span></div>
+    <div class="detail-row"><b>Invoice</b><span>${delivery.invoice_number || "—"}</span></div>
+
+    <div class="section-title">Delivery Info</div>
+    <div class="detail-row"><b>Status</b><span><span class="badge badge-${delivery.status}">${delivery.status}</span></span></div>
+    <div class="detail-row"><b>Priority</b><span>${delivery.priority}</span></div>
+    <div class="detail-row"><b>Driver</b><span>${delivery.assigned_driver_name || "—"}</span></div>
+    <div class="detail-row"><b>ETA</b><span>${formatDate(delivery.estimated_delivery_time)}</span></div>
+    <div class="detail-row"><b>Instruction</b><span>${delivery.driver_instructions || "—"}</span></div>
+
+    <div class="section-title">Freight</div>
+    <div class="detail-row"><b>Freight Applied</b><span>${delivery.freight_charged ? "Yes" : "No"}</span></div>
+    <div class="detail-row"><b>Amount</b><span>${delivery.freight_amount || "—"}</span></div>
+
+    ${delivery.photo_loaded_url || delivery.photo_delivered_url ? `<div class="section-title">Photos</div>` : ""}
+    ${delivery.photo_loaded_url    ? `<div class="detail-row"><b>Loaded</b><img src="${delivery.photo_loaded_url}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:6px;"></div>` : ""}
+    ${delivery.photo_delivered_url ? `<div class="detail-row"><b>Delivered</b><img src="${delivery.photo_delivered_url}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:6px;"></div>` : ""}
+
+    ${delivery.loaded_location    ? `<div class="detail-row"><b>Loaded Location</b><a href="https://www.google.com/maps?q=${delivery.loaded_location.lat},${delivery.loaded_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></div>` : ""}
+    ${delivery.delivered_location ? `<div class="detail-row"><b>Delivered Location</b><a href="https://www.google.com/maps?q=${delivery.delivered_location.lat},${delivery.delivered_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></div>` : ""}
+  `;
+
+  if (delivery.status?.toLowerCase() === "pending") {
+    content.innerHTML += `<button class="btn btn-primary" style="margin-top:16px;" onclick="editDelivery('${delivery.id}')">✏ Edit</button>`;
+  }
+
+  document.getElementById("viewPopup").style.display = "block";
+}
+
+function closeViewPopup() {
+  document.getElementById("viewPopup").style.display = "none";
+}
+
+async function editDelivery(id) {
+  const delivery = currentAccountantData.find(d => d.id === id);
+  if (!delivery) return;
+
+  const res = await fetch(`${BASE_URL}/driver-list-public`);
+  const drivers = await res.json();
+
+  const inputStyle = "width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;margin-bottom:8px;outline:none;";
+
+  document.getElementById("viewContent").innerHTML = `
+    <h3 style="margin-bottom:16px;">Edit Delivery</h3>
+    <div class="section-title">Customer Name</div>
+    <input id="edit_name" value="${delivery.customer_name}" style="${inputStyle}">
+    <div class="section-title">Phone</div>
+    <input id="edit_phone" value="${delivery.phone}" style="${inputStyle}">
+    <div class="section-title">Alternate Phone</div>
+    <input id="edit_alt" value="${delivery.alternate_phone || ""}" style="${inputStyle}">
+    <div class="section-title">Address</div>
+    <textarea id="edit_address" style="${inputStyle}min-height:70px;">${delivery.address}</textarea>
+    <div class="section-title">Product</div>
+    <input id="edit_product" value="${delivery.product_name}" style="${inputStyle}">
+    <div class="section-title">Serial Number</div>
+    <input id="edit_serial" value="${delivery.product_serial_number || ""}" style="${inputStyle}">
+    <div class="section-title">Estimated Delivery Time</div>
+    <input type="datetime-local" id="edit_eta" value="${delivery.estimated_delivery_time ? new Date(delivery.estimated_delivery_time).toISOString().slice(0,16) : ""}" style="${inputStyle}">
+    <div class="section-title">Assign Driver</div>
+    <select id="edit_driver" style="${inputStyle}"></select>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-success" onclick="saveDelivery('${id}')">💾 Save Changes</button>
+      <button class="btn btn-gray" onclick="closeViewPopup()">Cancel</button>
+    </div>
+  `;
+
+  const driverSelect = document.getElementById("edit_driver");
+  drivers.forEach(driver => {
+    const option = document.createElement("option");
+    option.value = driver.id; option.text = driver.driver_name;
+    if (driver.id === delivery.assigned_driver_id) option.selected = true;
+    driverSelect.appendChild(option);
+  });
+
+  const editEta = document.getElementById("edit_eta");
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  editEta.min = now.toISOString().slice(0, 16);
+}
+
+async function saveDelivery(id) {
+  const driverSelect = document.getElementById("edit_driver");
+  const updated = {
+    customer_name:           document.getElementById("edit_name").value,
+    phone:                   document.getElementById("edit_phone").value,
+    alternate_phone:         document.getElementById("edit_alt").value,
+    address:                 document.getElementById("edit_address").value,
+    product_name:            document.getElementById("edit_product").value,
+    product_serial_number:   document.getElementById("edit_serial").value,
+    estimated_delivery_time: document.getElementById("edit_eta").value,
+    assigned_driver_id:      driverSelect.value,
+    assigned_driver_name:    driverSelect.options[driverSelect.selectedIndex].text
+  };
+
+  const res = await fetch(`${BASE_URL}/delivery/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updated)
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    alert(err.error || "Edit failed");
+    return;
+  }
+
+  closeViewPopup();
+  loadDeliveries();
+}
+
+/* ── CSV EXPORT ── */
+function exportToCSV() {
+  if (!currentAccountantData.length) { alert("No data to export"); return; }
+
+  const headers = ["Customer","Phone","Alt Phone","Address","Product","Serial","Invoice","Priority","Status","ETA","Driver","Instructions","Freight","Freight Amount","Created","Loaded At","Delivered At"];
+  const rows = currentAccountantData.map(d => {
+    const ts = t => t ? new Date(t.seconds * 1000).toLocaleString("en-IN") : "";
+    return [
+      d.customer_name, d.phone, d.alternate_phone || "", d.address,
+      d.product_name, d.product_serial_number || "", d.invoice_number || "",
+      d.priority, d.status, d.estimated_delivery_time || "",
+      d.assigned_driver_name || "", d.driver_instructions || "",
+      d.freight_charged ? "Yes" : "No", d.freight_amount || "",
+      ts(d.created_timestamp), ts(d.loaded_timestamp), ts(d.delivered_timestamp)
+    ].map(v => { const s = String(v || "").replace(/"/g, "\"\""); return "\"" + s + "\""; }).join(",");
+  });
+
+  const csv  = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement("a"), {
+    href: url,
+    download: `hariom_deliveries_${new Date().toISOString().slice(0,10)}.csv`
+  });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

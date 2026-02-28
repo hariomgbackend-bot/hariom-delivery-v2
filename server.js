@@ -1,0 +1,702 @@
+import express from "express";
+import cors from "cors";
+import db from "./firestore.js";
+import { storage } from "./storage.js";
+import fetch from "node-fetch";
+import multer from "multer";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+  collection, addDoc, getDocs, Timestamp,
+  doc, getDoc, updateDoc, deleteDoc,
+  query, where, setDoc
+} from "firebase/firestore";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import dotenv from "dotenv";
+import admin from "firebase-admin";
+import { createRequire } from "module";
+import rateLimit from "express-rate-limit";
+
+dotenv.config();
+
+const require = createRequire(import.meta.url);
+const serviceAccount = require("./firebase-service-account.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+const JWT_SECRET       = process.env.JWT_SECRET;
+const JWT_EXPIRY       = "8h";
+const WHATSAPP_TOKEN   = process.env.WHATSAPP_TOKEN;
+const PHONE_NUMBER_ID  = process.env.PHONE_NUMBER_ID;
+const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.static("."));
+
+app.get("/", (req, res) => {
+  res.sendFile(process.cwd() + "/driver_interface.html");
+});
+
+/* ════════════════════════════════════════════════
+   RATE LIMITING
+   - Global limiter: 200 req / 15 min per IP (generous for internal use)
+   - Driver PIN limiter: 10 attempts / 15 min per IP (brute-force protection)
+   - Admin login limiter: 10 attempts / 15 min per IP
+════════════════════════════════════════════════ */
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a few minutes." }
+});
+
+const pinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many PIN attempts. Please wait 15 minutes." }
+});
+
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please wait 15 minutes." }
+});
+
+// Apply global limiter to all routes
+app.use(globalLimiter);
+
+/* ════════════════════════════════════════════════
+   AUTH MIDDLEWARE
+════════════════════════════════════════════════ */
+
+function authenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: "No token provided" });
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+}
+
+function authorize(allowedRoles) {
+  return (req, res, next) => {
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    next();
+  };
+}
+
+/* ════════════════════════════════════════════════
+   WHATSAPP
+════════════════════════════════════════════════ */
+
+async function sendWhatsapp(phone, message) {
+  try {
+    await fetch(`https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: { body: message }
+      })
+    });
+  } catch (err) {
+    console.log("WhatsApp error:", err.message);
+  }
+}
+
+/* ════════════════════════════════════════════════
+   SMS
+════════════════════════════════════════════════ */
+
+async function sendSMS(phone, message) {
+  try {
+    const r = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+      method: "POST",
+      headers: {
+        authorization: FAST2SMS_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ route: "q", message, language: "english", numbers: phone })
+    });
+    const data = await r.json();
+    console.log("SMS response:", data);
+  } catch (err) {
+    console.log("SMS error:", err.message);
+  }
+}
+
+/* ════════════════════════════════════════════════
+   PUSH HELPER — with automatic stale token cleanup
+════════════════════════════════════════════════ */
+
+async function sendPushToToken(token, title, body, docRef = null, tokenField = null) {
+  try {
+    const response = await admin.messaging().send({
+      token,
+      data: { title: String(title), body: String(body) }
+    });
+    console.log("Push sent:", response);
+    return true;
+  } catch (err) {
+    console.warn("Push failed:", err.message);
+
+    // Auto-cleanup stale/invalid tokens from Firestore
+    const isStale =
+      err.code === "messaging/registration-token-not-registered" ||
+      err.code === "messaging/invalid-registration-token" ||
+      err.message?.includes("Requested entity was not found") ||
+      err.message?.includes("registration-token-not-registered") ||
+      err.message?.includes("InvalidRegistration") ||
+      err.message?.includes("NotRegistered");
+
+    if (isStale && docRef && tokenField) {
+      try {
+        await updateDoc(docRef, { [tokenField]: null });
+        console.log(`Cleaned up stale push token from ${tokenField}`);
+      } catch (cleanupErr) {
+        console.warn("Token cleanup failed:", cleanupErr.message);
+      }
+    }
+    return false;
+  }
+}
+
+async function sendAccountantPush(title, body) {
+  try {
+    const settingsRef  = doc(db, "settings", "accountant");
+    const settingsSnap = await getDoc(settingsRef);
+    if (!settingsSnap.exists()) return;
+
+    const { pushToken } = settingsSnap.data();
+    if (!pushToken) return;
+
+    await sendPushToToken(pushToken, title, body, settingsRef, "pushToken");
+  } catch (err) {
+    console.warn("sendAccountantPush error:", err.message);
+  }
+}
+
+/* ════════════════════════════════════════════════
+   ADMIN LOGIN
+════════════════════════════════════════════════ */
+
+app.post("/admin/login", adminLoginLimiter, async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+  if (email !== process.env.ADMIN_EMAIL || password !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+  const token = jwt.sign({ role: "admin" }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+  res.json({ success: true, token });
+});
+
+/* ════════════════════════════════════════════════
+   ACCOUNTANT LOGIN
+════════════════════════════════════════════════ */
+
+app.post("/accountant/login", adminLoginLimiter, async (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ error: "Password required" });
+  if (password !== process.env.ACCOUNTANT_PASSWORD) {
+    return res.status(401).json({ error: "Invalid password" });
+  }
+  const token = jwt.sign({ role: "accountant" }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+  res.json({ success: true, token });
+});
+
+/* ════════════════════════════════════════════════
+   PRODUCTS / MAKES / MODELS
+════════════════════════════════════════════════ */
+
+app.get("/products", async (req, res) => {
+  const snapshot = await getDocs(collection(db, "products"));
+  res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+});
+
+app.post("/products", async (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: "Name required" });
+  const snapshot = await getDocs(query(collection(db, "products"), where("name", "==", name)));
+  if (!snapshot.empty) return res.json({ exists: true });
+  await addDoc(collection(db, "products"), { name });
+  res.json({ success: true });
+});
+
+app.get("/makes", async (req, res) => {
+  const snapshot = await getDocs(collection(db, "makes"));
+  res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+});
+
+app.post("/makes", async (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: "Name required" });
+  const snapshot = await getDocs(query(collection(db, "makes"), where("name", "==", name)));
+  if (!snapshot.empty) return res.json({ exists: true });
+  await addDoc(collection(db, "makes"), { name });
+  res.json({ success: true });
+});
+
+app.get("/models", async (req, res) => {
+  const snapshot = await getDocs(collection(db, "models"));
+  res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+});
+
+app.post("/models", async (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: "Name required" });
+  const snapshot = await getDocs(query(collection(db, "models"), where("name", "==", name)));
+  if (!snapshot.empty) return res.json({ exists: true });
+  await addDoc(collection(db, "models"), { name });
+  res.json({ success: true });
+});
+
+/* ════════════════════════════════════════════════
+   CREATE DELIVERY — with duplicate prevention
+   Blocks identical customer+phone+product within 60 seconds
+════════════════════════════════════════════════ */
+
+app.post("/createDelivery", async (req, res) => {
+  try {
+    const data = req.body;
+
+    if (!data.estimated_delivery_time) return res.status(400).json({ error: "ETA is required" });
+    if (new Date(data.estimated_delivery_time) < new Date()) {
+      return res.status(400).json({ error: "ETA cannot be in the past" });
+    }
+
+    // Duplicate check — same customer + phone + product in last 60 seconds
+    if (data.customer_name && data.phone && data.product_name) {
+      const since = Timestamp.fromMillis(Date.now() - 60_000);
+      const dupeSnap = await getDocs(query(
+        collection(db, "deliveries"),
+        where("phone", "==", data.phone),
+        where("product_name", "==", data.product_name),
+        where("status", "==", "pending")
+      ));
+      const isDuplicate = dupeSnap.docs.some(d => {
+        const ts = d.data().created_timestamp;
+        return ts && ts.seconds >= since.seconds;
+      });
+      if (isDuplicate) {
+        return res.status(409).json({ error: "Duplicate delivery detected. This customer + product was just created. Please wait a moment." });
+      }
+    }
+
+    const docRef = await addDoc(collection(db, "deliveries"), {
+      ...data,
+      priority: data.priority || "normal",
+      estimated_delivery_time: data.estimated_delivery_time || null,
+      created_timestamp: Timestamp.now(),
+      status: "pending"
+    });
+
+    await sendWhatsapp(data.phone,
+      `Hello ${data.customer_name}, your delivery is scheduled at ${data.estimated_delivery_time}`
+    );
+    await sendSMS(data.phone,
+      `Hariom Delivery: Your delivery scheduled at ${data.estimated_delivery_time}`
+    );
+
+    // Push to assigned driver
+    if (data.assigned_driver_id) {
+      const driverSnap = await getDoc(doc(db, "drivers", data.assigned_driver_id));
+      if (driverSnap.exists()) {
+        const { pushToken } = driverSnap.data();
+        if (pushToken) {
+          await sendPushToToken(
+            pushToken,
+            "🚚 New Delivery Assigned",
+            `${data.customer_name || ""} - ${data.address || ""}`,
+            doc(db, "drivers", data.assigned_driver_id),
+            "pushToken"
+          );
+        }
+      }
+    }
+
+    res.json({ success: true, id: docRef.id });
+  } catch (error) {
+    console.error("/createDelivery error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   GET DELIVERIES
+════════════════════════════════════════════════ */
+
+app.get("/deliveries", async (req, res) => {
+  try {
+    const snapshot = await getDocs(collection(db, "deliveries"));
+    let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    deliveries.sort((a, b) => (b.priority === "urgent") - (a.priority === "urgent"));
+    res.json(deliveries);
+  } catch (error) {
+    console.error("/deliveries error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/delivery/:id", async (req, res) => {
+  try {
+    const snap = await getDoc(doc(db, "deliveries", req.params.id));
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+    res.json({ id: snap.id, ...snap.data() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/delivery/:id", async (req, res) => {
+  const refDoc = doc(db, "deliveries", req.params.id);
+  const snap = await getDoc(refDoc);
+  if (!snap.exists()) return res.status(404).json({ error: "Not found" });
+  const delivery = snap.data();
+  if (delivery.status !== "pending") {
+    return res.status(400).json({ error: "Only pending deliveries can be edited" });
+  }
+  if (req.body.estimated_delivery_time) {
+    if (new Date(req.body.estimated_delivery_time) < new Date()) {
+      return res.status(400).json({ error: "ETA cannot be in the past" });
+    }
+  }
+  await updateDoc(refDoc, req.body);
+  res.json({ success: true });
+});
+
+app.delete("/delivery/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  await deleteDoc(doc(db, "deliveries", req.params.id));
+  res.json({ success: true });
+});
+
+/* ════════════════════════════════════════════════
+   MARK LOADED
+════════════════════════════════════════════════ */
+
+app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
+  try {
+    const refDoc = doc(db, "deliveries", req.params.id);
+    const snap   = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Not found" });
+
+    const delivery = snap.data();
+    if (delivery.status !== "pending") return res.status(400).json({ error: "Invalid status" });
+
+    let finalSerial = delivery.product_serial_number;
+    if (!finalSerial) {
+      if (!req.body.serial) return res.status(400).json({ error: "Serial required" });
+      finalSerial = req.body.serial;
+    }
+
+    if (!req.file?.buffer) return res.status(400).json({ error: "Photo required" });
+
+    const storageRef = ref(storage, "delivery_proofs_loaded/" + Date.now());
+    await uploadBytes(storageRef, req.file.buffer);
+    const url = await getDownloadURL(storageRef);
+
+    await updateDoc(refDoc, {
+      status: "loaded",
+      product_serial_number: finalSerial,
+      loaded_timestamp: Timestamp.now(),
+      loaded_location: { lat: req.body.lat, lng: req.body.lng },
+      photo_loaded_url: url
+    });
+
+    await sendAccountantPush("📦 Delivery Loaded", `${delivery.customer_name} - ${delivery.address}`);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("/markLoaded error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   MARK DELIVERED
+════════════════════════════════════════════════ */
+
+app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
+  try {
+    if (!req.file?.buffer) return res.status(400).json({ error: "Photo required" });
+
+    const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now());
+    await uploadBytes(storageRef, req.file.buffer);
+    const url = await getDownloadURL(storageRef);
+
+    const refDoc = doc(db, "deliveries", req.params.id);
+
+    // Idempotency guard — prevent double-delivery
+    const snapBefore = await getDoc(refDoc);
+    if (!snapBefore.exists()) return res.status(404).json({ error: "Not found" });
+    if (snapBefore.data().status === "delivered") {
+      return res.status(409).json({ error: "Delivery already marked as delivered" });
+    }
+
+    await updateDoc(refDoc, {
+      status: "delivered",
+      delivered_timestamp: Timestamp.now(),
+      delivered_location: { lat: req.body.lat, lng: req.body.lng },
+      photo_delivered_url: url
+    });
+
+    const snap = await getDoc(refDoc);
+    const d    = snap.data();
+
+    await sendAccountantPush("✅ Delivery Delivered", `${d.customer_name} - ${d.address}`);
+    await sendWhatsapp(d.phone, `Hello ${d.customer_name}, your order has been DELIVERED successfully.`);
+    await sendSMS(d.phone, "Hariom Delivery: Your order has been delivered successfully.");
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("/markDelivered error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   DRIVERS
+════════════════════════════════════════════════ */
+
+app.post("/addDriver", authenticate, authorize(["admin"]), async (req, res) => {
+  const { driver_name, phone, vehicle_number, vehicle_make, vehicle_model, pin } = req.body;
+  if (!driver_name) return res.status(400).json({ error: "Driver name required" });
+  if (!pin || !/^\d{6}$/.test(pin)) return res.status(400).json({ error: "PIN must be exactly 6 digits" });
+
+  const pinHash = await bcrypt.hash(pin, 10);
+  const docRef  = await addDoc(collection(db, "drivers"), {
+    driver_name,
+    phone: phone || "",
+    vehicle_number: vehicle_number || "",
+    vehicle_make: vehicle_make || "",
+    vehicle_model: vehicle_model || "",
+    pinHash,
+    created_timestamp: Timestamp.now()
+  });
+  res.json({ success: true, id: docRef.id });
+});
+
+app.get("/drivers", authenticate, authorize(["admin"]), async (req, res) => {
+  const snapshot = await getDocs(collection(db, "drivers"));
+  res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+});
+
+app.put("/driver/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  const { pin, ...otherFields } = req.body;
+  const refDoc = doc(db, "drivers", req.params.id);
+  if (pin) {
+    if (!/^\d{6}$/.test(pin)) return res.status(400).json({ error: "PIN must be exactly 6 digits" });
+    const pinHash = await bcrypt.hash(pin, 10);
+    await updateDoc(refDoc, { ...otherFields, pinHash });
+  } else {
+    await updateDoc(refDoc, otherFields);
+  }
+  res.json({ success: true });
+});
+
+app.delete("/driver/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const driverId = req.params.id;
+    const snapshot = await getDocs(query(
+      collection(db, "deliveries"),
+      where("assigned_driver_id", "==", driverId)
+    ));
+    const hasActive = snapshot.docs.some(d => d.data().status !== "delivered");
+    if (hasActive) return res.json({ error: "Driver has active deliveries. Cannot delete." });
+    await deleteDoc(doc(db, "drivers", driverId));
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/driver-list-public", async (req, res) => {
+  const snapshot = await getDocs(collection(db, "drivers"));
+  res.json(snapshot.docs.map(d => ({ id: d.id, driver_name: d.data().driver_name })));
+});
+
+/* ════════════════════════════════════════════════
+   DRIVER DELIVERIES — server-side PIN lockout
+   Tracks failed attempts in Firestore.
+   After 7 fails: 15-minute lockout enforced server-side.
+════════════════════════════════════════════════ */
+
+app.post("/driverDeliveries", pinLimiter, async (req, res) => {
+  const { driver_id, pin } = req.body;
+  if (!driver_id || !pin) return res.status(400).json({ error: "Driver ID and PIN required" });
+
+  const driverRef  = doc(db, "drivers", driver_id);
+  const snap       = await getDoc(driverRef);
+  if (!snap.exists()) return res.status(404).json({ error: "Driver not found" });
+
+  const driverData = snap.data();
+
+  // Server-side lockout check
+  const failedAttempts  = driverData.failedPinAttempts || 0;
+  const lockedUntil     = driverData.pinLockedUntil || null;
+
+  if (lockedUntil) {
+    const lockedUntilDate = new Date(lockedUntil);
+    if (new Date() < lockedUntilDate) {
+      const minutesLeft = Math.ceil((lockedUntilDate - new Date()) / 60000);
+      return res.status(429).json({
+        error: `Account locked. Try again in ${minutesLeft} minute${minutesLeft > 1 ? "s" : ""}.`
+      });
+    } else {
+      // Lock expired — reset
+      await updateDoc(driverRef, { failedPinAttempts: 0, pinLockedUntil: null });
+    }
+  }
+
+  const match = await bcrypt.compare(pin, driverData.pinHash);
+  if (!match) {
+    const newAttempts = failedAttempts + 1;
+    const updates     = { failedPinAttempts: newAttempts };
+
+    if (newAttempts >= 7) {
+      // Lock for 15 minutes
+      updates.pinLockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      await updateDoc(driverRef, updates);
+      return res.status(429).json({ error: "Too many incorrect attempts. Account locked for 15 minutes." });
+    }
+
+    await updateDoc(driverRef, updates);
+    return res.status(401).json({ error: `Invalid PIN (${newAttempts}/7)` });
+  }
+
+  // Successful login — reset failure counters
+  await updateDoc(driverRef, { failedPinAttempts: 0, pinLockedUntil: null });
+
+  // Issue a short-lived session token so background refreshes don't need PIN
+  const sessionToken = jwt.sign(
+    { role: "driver", driver_id },
+    JWT_SECRET,
+    { expiresIn: "12h" }
+  );
+
+  const snapshot = await getDocs(query(
+    collection(db, "deliveries"),
+    where("assigned_driver_id", "==", driver_id)
+  ));
+
+  res.json({ deliveries: snapshot.docs.map(d => ({ id: d.id, ...d.data() })), sessionToken });
+});
+
+/* ════════════════════════════════════════════════
+   DRIVER DELIVERIES REFRESH — uses JWT session token
+   Called by auto-refresh / history — does NOT count
+   toward PIN lockout. PIN only needed on first login.
+════════════════════════════════════════════════ */
+
+app.post("/driverDeliveriesRefresh", authenticate, authorize(["driver"]), async (req, res) => {
+  try {
+    const { driver_id } = req.body;
+    if (!driver_id || driver_id !== req.user.driver_id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const snapshot = await getDocs(query(
+      collection(db, "deliveries"),
+      where("assigned_driver_id", "==", driver_id)
+    ));
+    res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/driver/verify-pin", pinLimiter, async (req, res) => {
+  try {
+    const { driver_id, pin } = req.body;
+    if (!driver_id || !pin) return res.status(400).json({ error: "Driver ID and PIN required" });
+    const snap = await getDoc(doc(db, "drivers", driver_id));
+    if (!snap.exists()) return res.status(404).json({ error: "Driver not found" });
+    const match = await bcrypt.compare(pin, snap.data().pinHash);
+    if (!match) return res.status(401).json({ error: "Invalid PIN" });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   PUSH TOKENS
+════════════════════════════════════════════════ */
+
+app.post("/saveAccountantPushToken", async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Token required" });
+    await setDoc(doc(db, "settings", "accountant"), { pushToken: token }, { merge: true });
+    console.log("Accountant push token stored");
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/saveDriverPushToken", async (req, res) => {
+  try {
+    const { driver_id, token } = req.body;
+    if (!driver_id || !token) return res.status(400).json({ error: "Missing data" });
+    await updateDoc(doc(db, "drivers", driver_id), { pushToken: token });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   GLOBAL ERROR HANDLERS
+   Catches unhandled errors so the server never crashes
+════════════════════════════════════════════════ */
+
+// Express async error handler
+app.use((err, req, res, next) => {
+  console.error("Unhandled Express error:", err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+// Unhandled promise rejections — log but don't crash
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Promise Rejection:", reason);
+});
+
+// Uncaught exceptions — log and gracefully exit (Render will restart)
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  process.exit(1);
+});
+
+/* ════════════════════════════════════════════════
+   START
+════════════════════════════════════════════════ */
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+});

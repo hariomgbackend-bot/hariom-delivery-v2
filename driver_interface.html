@@ -1,0 +1,2055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hariom DMS">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <title>Driver Panel — Hariom Traders</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f4fa;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --header-bg: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      --text: #1e293b;
+      --muted: #64748b;
+      --green: #16a34a;
+      --red: #dc2626;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    html { height: 100%; }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100%;
+      padding-bottom: calc(16px + var(--safe-bottom));
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── HEADER ─── */
+    .header {
+      background: var(--header-bg);
+      color: white;
+      padding: calc(12px + var(--safe-top)) 18px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 10px; }
+
+    .header-logo {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      object-fit: contain;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .header-title {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.1px;
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 11px;
+      color: rgba(255,255,255,0.55);
+      font-weight: 400;
+    }
+
+    .push-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+      flex-shrink: 0;
+      transition: background 0.4s;
+    }
+    .push-dot.on  { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+    .push-dot.off { background: #f87171; }
+
+    /* ─── CONTAINER ─── */
+    .container { max-width: 560px; margin: 0 auto; padding: 16px 14px; }
+
+    /* ─── TOAST ─── */
+    #toast {
+      position: fixed;
+      bottom: calc(24px + var(--safe-bottom));
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1e293b;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ─── PTR (PULL TO REFRESH) ─── */
+    #ptrIndicator {
+      text-align: center;
+      padding: 0;
+      height: 0;
+      overflow: hidden;
+      font-size: 13px;
+      color: var(--muted);
+      transition: height 0.2s, padding 0.2s;
+      font-weight: 500;
+    }
+    #ptrIndicator.active { height: 44px; padding: 12px; }
+
+    /* ─── LOGIN CARD ─── */
+    .login-card {
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 20px 18px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+      margin-bottom: 16px;
+    }
+
+    .login-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .login-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .login-row select,
+    .login-row input {
+      flex: 1;
+      padding: 13px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      outline: none;
+      background: #f8fafc;
+      color: var(--text);
+      -webkit-appearance: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      min-width: 0;
+    }
+
+    .login-row select:focus,
+    .login-row input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+      background: white;
+    }
+
+    .login-remembered-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #eff6ff;
+      color: var(--accent);
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    /* ─── BUTTONS ─── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: none;
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .btn:active { transform: scale(0.96); opacity: 0.88; }
+
+    .btn-unlock {
+      background: var(--accent);
+      color: white;
+      padding: 13px 20px;
+      font-size: 15px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .btn-danger {
+      background: #fee2e2;
+      color: var(--red);
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* FULL-WIDTH ACTION BUTTONS */
+    .btn-action {
+      width: 100%;
+      padding: 17px;
+      font-size: 18px;
+      font-weight: 700;
+      border-radius: 14px;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.15s, transform 0.1s;
+      letter-spacing: 0.1px;
+    }
+    .btn-action:active { transform: scale(0.98); opacity: 0.9; }
+    .btn-loaded    { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; }
+    .btn-delivered { background: linear-gradient(135deg, #16a34a, #15803d); color: white; }
+    .btn-close-action {
+      background: #f1f5f9;
+      color: var(--text);
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      width: 100%;
+      border-radius: 12px;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+    }
+
+    /* ─── SECTION HEADER ─── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .section-title-text { font-size: 16px; font-weight: 700; }
+    .count-badge {
+      background: var(--accent);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 11px;
+      border-radius: 20px;
+    }
+
+    /* ─── DELIVERY CARDS ─── */
+    .delivery-card {
+      background: var(--surface);
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+      margin-bottom: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: box-shadow 0.2s, transform 0.1s;
+      user-select: none;
+    }
+    .delivery-card:active { transform: scale(0.99); box-shadow: 0 1px 6px rgba(0,0,0,0.07); }
+    .delivery-card.priority-urgent { border-left: 4px solid var(--red); }
+
+    .card-top {
+      padding: 14px 16px 10px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .card-name { font-size: 17px; font-weight: 700; line-height: 1.3; }
+    .card-product { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+    .card-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      white-space: nowrap;
+    }
+    .badge-pending   { background: #fef3c7; color: #92400e; }
+    .badge-loaded    { background: #dbeafe; color: #1e40af; }
+    .badge-delivered { background: #dcfce7; color: #166534; }
+    .badge-urgent    { background: #fee2e2; color: #b91c1c; }
+    .badge-normal    { background: #f1f5f9; color: #475569; }
+
+    .card-divider { height: 1px; background: var(--border); margin: 0 16px; }
+
+    .card-footer {
+      padding: 10px 16px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-address {
+      font-size: 13px;
+      color: var(--muted);
+      flex: 1;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-eta {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--red);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .card-chevron { color: #cbd5e1; font-size: 20px; flex-shrink: 0; }
+
+    /* ─── SKELETON LOADER ─── */
+    .skeleton-card {
+      background: var(--surface);
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      padding: 18px 16px;
+      margin-bottom: 12px;
+    }
+    .skeleton-line {
+      background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ─── EMPTY STATE ─── */
+    .empty-state {
+      text-align: center;
+      padding: 44px 20px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 15px; font-weight: 500; }
+    .empty-state small { font-size: 13px; color: #94a3b8; margin-top: 4px; display: block; }
+
+    /* ─── POPUP ─── */
+    .popup {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 200;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: calc(16px + var(--safe-top)) 14px calc(16px + var(--safe-bottom));
+    }
+
+    .popup-box {
+      background: white;
+      width: 100%;
+      max-width: 500px;
+      margin: 0 auto;
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 28px 64px rgba(0,0,0,0.28);
+    }
+
+    /* Colored status band at top of popup */
+    .popup-band {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .popup-band-pending  { background: linear-gradient(135deg, #fefce8, #fef9c3); }
+    .popup-band-loaded   { background: linear-gradient(135deg, #eff6ff, #dbeafe); }
+    .popup-band-delivered { background: linear-gradient(135deg, #f0fdf4, #dcfce7); }
+
+    .popup-status-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+
+    .popup-name {
+      font-size: 21px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    /* Popup body */
+    .popup-body { padding: 0 20px 6px; }
+
+    .detail-row {
+      display: flex;
+      gap: 10px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      align-items: flex-start;
+    }
+    .detail-row:last-of-type { border-bottom: none; }
+
+    .detail-label {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      min-width: 82px;
+      padding-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .detail-value { color: var(--text); font-weight: 500; line-height: 1.5; flex: 1; }
+
+    .phone-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    .navigate-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #f0fdf4;
+      color: var(--green);
+      border: 1.5px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      margin-top: 6px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .info-box {
+      margin: 0 20px 10px;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .info-box-yellow { background: #fef9c3; color: #713f12; }
+    .info-box-gray   { background: #f1f5f9; color: var(--text); }
+
+    .eta-countdown {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--red);
+    }
+
+    /* ─── UPLOAD SECTION ─── */
+    .upload-section {
+      padding: 14px 20px 6px;
+      border-top: 1px solid var(--border);
+    }
+
+    .upload-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin: 12px 0 7px;
+    }
+    .upload-label:first-child { margin-top: 0; }
+
+    .file-input {
+      width: 100%;
+      padding: 11px;
+      border: 2px dashed #cbd5e1;
+      border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      background: #f8fafc;
+      cursor: pointer;
+    }
+
+    .serial-input {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      color: var(--text);
+      outline: none;
+      background: #f8fafc;
+      transition: border-color 0.2s;
+    }
+    .serial-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+    /* ─── SERIAL INPUT ROW (input + scan button) ─── */
+    .serial-input-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .serial-input-row .serial-input {
+      flex: 1;
+      min-width: 0;
+    }
+    .btn-scan {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      background: linear-gradient(135deg, #1e3a8a, #2563eb);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 0 15px;
+      font-family: "DM Sans", sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-scan:active { transform: scale(0.96); opacity: 0.88; }
+
+    /* ─── SCANNER OVERLAY ─── */
+    #scannerOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 9000;
+      flex-direction: column;
+    }
+    #scannerOverlay.active { display: flex; }
+
+    .scanner-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 14px;
+      background: rgba(0,0,0,0.85);
+      color: white;
+      flex-shrink: 0;
+    }
+    .scanner-title { font-size: 16px; font-weight: 700; }
+    .scanner-sub   { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+    .btn-scanner-close {
+      background: rgba(255,255,255,0.15);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 36px; height: 36px;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #scannerViewport {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #000;
+    }
+    #scannerVideo {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .scanner-frame-wrap {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .scanner-frame {
+      width: min(72vw, 280px);
+      height: min(72vw, 280px);
+      position: relative;
+    }
+    .scanner-frame::before, .scanner-frame::after,
+    .sf-bl, .sf-br {
+      content: "";
+      position: absolute;
+      width: 28px; height: 28px;
+      border-color: #3b82f6; border-style: solid;
+    }
+    .scanner-frame::before { top:0;    left:0;   border-width:3px 0 0 3px; border-radius:4px 0 0 0; }
+    .scanner-frame::after  { top:0;    right:0;  border-width:3px 3px 0 0; border-radius:0 4px 0 0; }
+    .sf-bl                 { bottom:0; left:0;   border-width:0 0 3px 3px; border-radius:0 0 0 4px; }
+    .sf-br                 { bottom:0; right:0;  border-width:0 3px 3px 0; border-radius:0 0 4px 0; }
+    .scanner-laser {
+      position: absolute;
+      left: 4px; right: 4px; height: 2px;
+      background: linear-gradient(90deg, transparent, #3b82f6, #93c5fd, #3b82f6, transparent);
+      border-radius: 2px;
+      animation: laserAnim 2s ease-in-out infinite;
+      box-shadow: 0 0 8px #3b82f6;
+    }
+    @keyframes laserAnim {
+      0%   { top: 6px; }
+      50%  { top: calc(100% - 8px); }
+      100% { top: 6px; }
+    }
+    .scanner-dim {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.52);
+      clip-path: polygon(
+        0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
+        calc(50% - min(36vw,140px)) calc(50% - min(36vw,140px)),
+        calc(50% - min(36vw,140px)) calc(50% + min(36vw,140px)),
+        calc(50% + min(36vw,140px)) calc(50% + min(36vw,140px)),
+        calc(50% + min(36vw,140px)) calc(50% - min(36vw,140px)),
+        calc(50% - min(36vw,140px)) calc(50% - min(36vw,140px))
+      );
+    }
+    .scanner-flash {
+      position: absolute; inset: 0;
+      background: rgba(74,222,128,0.4);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.12s;
+    }
+    .scanner-flash.active { opacity: 1; }
+
+    .scanner-result {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(135deg, #15803d, #16a34a);
+      color: white;
+      text-align: center;
+      padding: 14px 20px;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
+      z-index: 5;
+    }
+    .scanner-result.show { transform: translateY(0); }
+    .scanner-result-label { font-size: 12px; opacity: 0.8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .scanner-result-value { font-size: 19px; font-weight: 800; margin-top: 4px; word-break: break-all; }
+
+    .scanner-hint {
+      color: rgba(255,255,255,0.6);
+      font-size: 13px;
+      text-align: center;
+      padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+      background: rgba(0,0,0,0.85);
+      flex-shrink: 0;
+    }
+
+
+    /* ─── SWIPE TO CONFIRM ─── */
+    .swipe-container {
+      position: relative;
+      height: 60px;
+      background: #e2e8f0;
+      border-radius: 14px;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .swipe-track {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      padding-left: 68px;
+      font-size: 15px;
+      font-weight: 700;
+      color: rgba(0,0,0,0.35);
+      letter-spacing: 0.3px;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .swipe-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      border-radius: 14px;
+      pointer-events: none;
+      transition: background 0.2s;
+    }
+    .swipe-loaded-fill   { background: linear-gradient(135deg, #2563eb88, #1d4ed888); }
+    .swipe-delivered-fill { background: linear-gradient(135deg, #16a34a88, #15803d88); }
+    .swipe-thumb {
+      position: absolute;
+      left: 4px; top: 4px; bottom: 4px;
+      width: 52px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      cursor: grab;
+      touch-action: none;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      transition: box-shadow 0.15s;
+      z-index: 2;
+    }
+    .swipe-thumb:active { cursor: grabbing; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+    .swipe-loaded-thumb    { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+    .swipe-delivered-thumb { background: linear-gradient(135deg, #16a34a, #15803d); }
+
+    /* ─── DELIVERY HISTORY SECTION ─── */
+    .history-section {
+      margin-top: 8px;
+    }
+    .history-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      background: var(--surface);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 15px;
+      -webkit-tap-highlight-color: transparent;
+      margin-bottom: 0;
+      transition: background 0.15s;
+    }
+    .history-toggle.open { border-radius: 16px 16px 0 0; border-bottom: none; }
+    .history-toggle:active { background: #f8fafc; }
+    .history-chevron { transition: transform 0.25s; color: var(--muted); }
+    .history-chevron.open { transform: rotate(90deg); }
+    #historyCards {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 16px 16px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    #historyCards.open { display: block; }
+    .history-card {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .history-card:last-child { border-bottom: none; }
+    .history-card-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      background: #dcfce7;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .history-card-info { flex: 1; min-width: 0; }
+    .history-card-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-card-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .history-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 14px; }
+
+    /* ─── POPUP ACTIONS ─── */
+    .popup-actions {
+      padding: 14px 20px calc(20px + var(--safe-bottom));
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ─── INSTALL BANNER ─── */
+    #installBanner {
+      display: none;
+      background: linear-gradient(135deg, #1e3a8a, #2563eb);
+      color: white;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      border-radius: 16px;
+      align-items: center;
+      gap: 12px;
+    }
+    #installBanner.visible { display: flex; }
+    #installBanner .install-text { flex: 1; font-size: 14px; font-weight: 500; line-height: 1.4; }
+    #installBanner .install-text strong { display: block; font-size: 15px; }
+    .btn-install {
+      background: white;
+      color: var(--accent);
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .btn-install-dismiss {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.6);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <img src="/icons/icon-72x72.png" class="header-logo" alt="Logo" onerror="this.style.display='none'">
+    <div>
+      <div class="header-title">Hariom Traders</div>
+      <div class="header-subtitle">Driver Panel</div>
+    </div>
+  </div>
+  <div id="pushDot" class="push-dot" title="Push notification status"></div>
+</div>
+
+<div class="container">
+
+  <!-- PWA INSTALL BANNER -->
+  <div id="installBanner">
+    <div class="install-text">
+      <strong>📲 Install App</strong>
+      Add to home screen for quick access
+    </div>
+    <button class="btn-install" onclick="triggerInstall()">Install</button>
+    <button class="btn-install-dismiss" onclick="dismissInstall()">✕</button>
+  </div>
+
+  <!-- PULL TO REFRESH INDICATOR -->
+  <div id="ptrIndicator">↻ Release to refresh</div>
+
+  <!-- LOGIN -->
+  <div class="login-card">
+    <div class="login-label">Driver Login</div>
+    <div class="login-row">
+      <select id="driverSelect"></select>
+      <input type="password" id="driverPin" placeholder="PIN" maxlength="6" inputmode="numeric" autocomplete="current-password">
+      <button class="btn btn-unlock" id="unlockBtn" onclick="unlockDriver()">Unlock</button>
+    </div>
+    <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <button class="btn btn-danger" id="changeDriverBtn" style="display:none;" onclick="logoutDriver()">⇄ Change Driver</button>
+      <div id="rememberedTag" class="login-remembered-tag" style="display:none;">⚡ Last session restored</div>
+    </div>
+  </div>
+
+  <!-- DELIVERIES -->
+  <div>
+    <div class="section-header">
+      <span class="section-title-text">My Deliveries</span>
+      <span class="count-badge" id="deliveryCount" style="display:none;"></span>
+    </div>
+    <div id="deliveryCards">
+      <!-- Skeleton shown on first load -->
+      <div id="skeletonLoader">
+        <div class="skeleton-card">
+          <div class="skeleton-line" style="width:60%;height:18px;"></div>
+          <div class="skeleton-line" style="width:40%;height:13px;"></div>
+          <div class="skeleton-line" style="width:80%;height:13px;margin-top:14px;"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton-line" style="width:50%;height:18px;"></div>
+          <div class="skeleton-line" style="width:35%;height:13px;"></div>
+          <div class="skeleton-line" style="width:75%;height:13px;margin-top:14px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- DELIVERY DETAIL POPUP -->
+<div id="popup" class="popup">
+  <div class="popup-box">
+    <div id="popupContent"></div>
+  </div>
+</div>
+
+  <!-- DELIVERY HISTORY -->
+  <div class="history-section" id="historySection" style="display:none;">
+    <div class="history-toggle" id="historyToggle" onclick="toggleHistory()">
+      <span>✅ Today's Completed <span id="historyCountBadge" style="background:#dcfce7;color:#166534;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px;"></span></span>
+      <span class="history-chevron" id="historyChevron">›</span>
+    </div>
+    <div id="historyCards"></div>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+
+<!-- SCANNER OVERLAY -->
+<div id="scannerOverlay">
+  <div class="scanner-header">
+    <div>
+      <div class="scanner-title">📷 Scan Barcode / QR Code</div>
+      <div class="scanner-sub">Point camera at the code on the product</div>
+    </div>
+    <button class="btn-scanner-close" onclick="closeScanner()">✕</button>
+  </div>
+
+  <div id="scannerViewport">
+    <video id="scannerVideo" autoplay muted playsinline></video>
+    <div class="scanner-dim"></div>
+    <div class="scanner-frame-wrap">
+      <div class="scanner-frame">
+        <span class="sf-bl"></span>
+        <span class="sf-br"></span>
+        <div class="scanner-laser"></div>
+      </div>
+    </div>
+    <div class="scanner-flash" id="scannerFlash"></div>
+    <div class="scanner-result" id="scannerResult">
+      <div class="scanner-result-label">✅ Scanned Successfully</div>
+      <div class="scanner-result-value" id="scannerResultValue"></div>
+    </div>
+  </div>
+
+  <div class="scanner-hint">Supports QR Code · Barcode · Code128 · EAN · UPC</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+
+<script>
+/* ═══════════════════════════════════════
+   FIREBASE + STABLE PUSH
+═══════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBfQlLpHbuRsZ7YKIFBj8Fa5o-HMo0SBrU",
+  authDomain: "hariom-delivery.firebaseapp.com",
+  projectId: "hariom-delivery",
+  storageBucket: "hariom-delivery.firebasestorage.app",
+  messagingSenderId: "60300951507",
+  appId: "1:60300951507:web:e5d55d0d18dc2000b47926"
+};
+
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
+
+const VAPID_KEY = "BMiekPX2di-maWY-3KoprJFLy2OVNPiqvjuz9W9mpNDuOPWDMhstKpaja8A2zKkp8XpmKxETbi_3hoMaPVgB0dE";
+const BASE_URL  = window.location.origin;
+let swRegistration = null;
+
+function waitForActiveSW(reg) {
+  return new Promise(resolve => {
+    if (reg.active) { resolve(); return; }
+    const sw = reg.installing || reg.waiting;
+    if (!sw) { resolve(); return; }
+    sw.addEventListener("statechange", function h() {
+      if (sw.state === "activated") { sw.removeEventListener("statechange", h); resolve(); }
+    });
+  });
+}
+
+async function initServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    // Clean up stale non-FCM SWs
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) {
+      if (r.active && !r.active.scriptURL.includes("firebase-messaging-sw")) await r.unregister();
+    }
+    const reg = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
+    await waitForActiveSW(reg);
+    swRegistration = reg;
+    console.log("[SW] Active");
+  } catch (e) { console.warn("[SW]", e); }
+}
+
+messaging.onMessage(async payload => {
+  try {
+    const reg = swRegistration || await navigator.serviceWorker.ready;
+    reg.showNotification(payload?.data?.title || "Hariom DMS", {
+      body: payload?.data?.body || "",
+      icon: "/icons/icon-192x192.png",
+      requireInteraction: true,
+      vibrate: [200, 100, 200]
+    });
+  } catch (e) { console.warn("[Push] fg notify", e); }
+});
+
+async function registerPushToken(driverId) {
+  const dot = document.getElementById("pushDot");
+  if (!("Notification" in window)) return;
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") { dot.className = "push-dot off"; return; }
+  try {
+    const reg = swRegistration || await navigator.serviceWorker.ready;
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) return;
+    await fetch(`${BASE_URL}/saveDriverPushToken`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driver_id: driverId, token })
+    });
+    dot.className = "push-dot on";
+  } catch (e) {
+    console.warn("[Push]", e);
+    // Stale token — delete and retry once
+    if (e.message?.includes("registration") || e.message?.includes("InvalidRegistration")) {
+      try { await messaging.deleteToken(); setTimeout(() => registerPushToken(driverId), 2500); } catch (_) {}
+    } else { dot.className = "push-dot off"; }
+  }
+}
+
+// Boot SW immediately
+initServiceWorker();
+
+/* ═══════════════════════════════════════
+   STATE
+═══════════════════════════════════════ */
+let currentDeliveryId   = null;
+let currentStatus       = null;
+let etaInterval         = null;
+let driverRefreshInterval = null;
+let currentDriverId     = null;
+let currentDriverPin    = null;
+let pinAttempts         = 0;
+let currentDeliveryData  = null;
+let driverSessionToken   = null;   // JWT issued on PIN login — used for refreshes
+
+/* ═══════════════════════════════════════
+   TOAST
+═══════════════════════════════════════ */
+let toastTimer = null;
+function showToast(msg, duration = 2800) {
+  const t = document.getElementById("toast");
+  t.innerText = msg;
+  t.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), duration);
+}
+
+/* ═══════════════════════════════════════
+   VIBRATION HELPER
+═══════════════════════════════════════ */
+function vibrate(pattern) {
+  if ("vibrate" in navigator) navigator.vibrate(pattern);
+}
+
+/* ═══════════════════════════════════════
+   REMEMBER LAST DRIVER (localStorage)
+═══════════════════════════════════════ */
+const STORAGE_KEY = "hariom_last_driver";
+
+function saveLastDriver(id, name) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ id, name }));
+}
+
+function restoreLastDriver() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; }
+}
+
+/* ═══════════════════════════════════════
+   LOAD DRIVERS
+═══════════════════════════════════════ */
+async function loadDrivers() {
+  try {
+    const res  = await fetch(`${BASE_URL}/driver-list-public`);
+    const data = await res.json();
+    const sel  = document.getElementById("driverSelect");
+    sel.innerHTML = "";
+    data.forEach(d => {
+      const o = document.createElement("option");
+      o.value = d.driver_name; o.text = d.driver_name; o.dataset.id = d.id;
+      sel.appendChild(o);
+    });
+
+    // Restore last selected driver
+    const last = restoreLastDriver();
+    if (last) {
+      const match = data.find(d => d.id === last.id);
+      if (match) {
+        sel.value = match.driver_name;
+        document.getElementById("rememberedTag").style.display = "inline-flex";
+      }
+    } else if (data.length > 0) {
+      sel.value = data[0].driver_name;
+    }
+
+    // Hide skeleton
+    const sk = document.getElementById("skeletonLoader");
+    if (sk) sk.remove();
+  } catch (e) {
+    console.warn("[loadDrivers]", e);
+    showToast("⚠ Could not load drivers");
+  }
+}
+
+/* ═══════════════════════════════════════
+   UNLOCK
+═══════════════════════════════════════ */
+async function unlockDriver() {
+  const driverSelect = document.getElementById("driverSelect");
+  const pinInput     = document.getElementById("driverPin");
+  const pin          = pinInput.value;
+
+  if (!driverSelect.value || !pin) { showToast("Select driver and enter PIN"); return; }
+
+  const driverId = driverSelect.options[driverSelect.selectedIndex].dataset.id;
+
+  // Show loading state
+  const btn = document.getElementById("unlockBtn");
+  const origText = btn.innerText;
+  btn.innerText = "..."; btn.disabled = true;
+
+  try {
+    const res  = await fetch(`${BASE_URL}/driverDeliveries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driver_id: driverId, pin })
+    });
+    const json = await res.json();
+
+    btn.innerText = origText; btn.disabled = false;
+
+    if (!res.ok) {
+      vibrate([100, 50, 100]);
+      const errMsg = json?.error || "Invalid PIN";
+      const isLocked = res.status === 429 || errMsg.toLowerCase().includes("lock");
+      if (isLocked) {
+        showToast("🔒 " + errMsg);
+        pinInput.disabled = true; driverSelect.disabled = true;
+        return;
+      }
+      pinAttempts++;
+      if (pinAttempts >= 7) {
+        showToast("🔒 Too many attempts. Contact admin.");
+        pinInput.disabled = true; driverSelect.disabled = true;
+        return;
+      }
+      showToast("❌ " + errMsg);
+      return;
+    }
+
+    // Save session token — background refreshes use this, not the PIN
+    driverSessionToken = json.sessionToken || null;
+    const data = json.deliveries || json;
+
+    currentDriverId  = driverId;
+    currentDriverPin = pin;
+    pinAttempts      = 0;
+    saveLastDriver(driverId, driverSelect.value);
+
+    await registerPushToken(driverId);
+
+    driverSelect.disabled = true;
+    pinInput.style.display = "none";
+    document.getElementById("unlockBtn").style.display       = "none";
+    document.getElementById("changeDriverBtn").style.display = "inline-flex";
+    document.getElementById("rememberedTag").style.display   = "none";
+
+    renderDeliveries(data);
+    loadDeliveryHistory(driverId);
+    startDriverAutoRefresh();
+    vibrate([50]);
+  } catch (e) {
+    btn.innerText = origText; btn.disabled = false;
+    showToast("⚠ Network error. Please retry.");
+  }
+}
+
+/* ═══════════════════════════════════════
+   RENDER — sorted: urgent first, then by ETA
+═══════════════════════════════════════ */
+function renderDeliveries(data) {
+  data = data.filter(d => d.status !== "delivered");
+
+  // Sort: urgent first, then pending before loaded, then by ETA
+  data.sort((a, b) => {
+    if (a.priority === "urgent" && b.priority !== "urgent") return -1;
+    if (b.priority === "urgent" && a.priority !== "urgent") return 1;
+    const statusOrder = { pending: 0, loaded: 1 };
+    const sd = (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0);
+    if (sd !== 0) return sd;
+    return new Date(a.estimated_delivery_time || 0) - new Date(b.estimated_delivery_time || 0);
+  });
+
+  const countBadge = document.getElementById("deliveryCount");
+  const container  = document.getElementById("deliveryCards");
+
+  // Remove skeleton
+  const sk = document.getElementById("skeletonLoader");
+  if (sk) sk.remove();
+
+  if (data.length === 0) {
+    countBadge.style.display = "none";
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">📭</div>
+        <p>All clear!</p>
+        <small>No active deliveries assigned</small>
+      </div>`;
+    return;
+  }
+
+  countBadge.innerText  = `${data.length} Active`;
+  countBadge.style.display = "inline-block";
+  container.innerHTML   = "";
+
+  data.forEach(d => {
+    const card = document.createElement("div");
+    card.className = "delivery-card" + (d.priority === "urgent" ? " priority-urgent" : "");
+    card.onclick   = () => openDelivery(d.id);
+
+    // ETA short label
+    let etaLabel = "";
+    if (d.estimated_delivery_time) {
+      const diff = new Date(d.estimated_delivery_time) - new Date();
+      if (diff < 0) etaLabel = "⚠ Overdue";
+      else {
+        const m = Math.floor(diff / 60000);
+        etaLabel = m < 60 ? `${m}m` : `${Math.floor(m/60)}h ${m%60}m`;
+      }
+    }
+
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-name">${d.customer_name}</div>
+          <div class="card-product">${d.product_name}</div>
+        </div>
+        <div class="card-badges">
+          <span class="badge badge-${d.status}">${d.status}</span>
+          ${d.priority === "urgent" ? `<span class="badge badge-urgent">🔥 Urgent</span>` : ""}
+        </div>
+      </div>
+      <div class="card-divider"></div>
+      <div class="card-footer">
+        <div class="card-address">${d.address}</div>
+        ${etaLabel ? `<div class="card-eta">⏱ ${etaLabel}</div>` : ""}
+        <div class="card-chevron">›</div>
+      </div>`;
+
+    container.appendChild(card);
+  });
+}
+
+/* ═══════════════════════════════════════
+   OPEN DELIVERY POPUP
+═══════════════════════════════════════ */
+async function openDelivery(id) {
+  const res = await fetch(`${BASE_URL}/delivery/${id}`);
+  const d   = await res.json();
+  currentDeliveryData = d;
+  currentDeliveryId   = id;
+  currentStatus       = (d.status || "").toLowerCase();
+
+  let uploadSection = "";
+  if (currentStatus === "pending") {
+    const serialField = d.product_serial_number
+      ? `<div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value">${d.product_serial_number}</span></div>`
+      : `<label class="upload-label">Serial Number *</label>
+         <div class="serial-input-row">
+           <input class="serial-input" id="serialInput" placeholder="Enter or scan serial number" inputmode="text" autocomplete="off">
+           <button class="btn-scan" onclick="openScanner()" type="button">
+             <span style="font-size:18px;">&#x1F4F7;</span> Scan
+           </button>
+         </div>`;
+
+    uploadSection = `
+      <div class="upload-section">
+        ${serialField}
+        <label class="upload-label">Loaded Photo *</label>
+        <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
+      </div>`;
+  } else if (currentStatus === "loaded") {
+    uploadSection = `
+      <div class="upload-section">
+        <label class="upload-label">Delivered Photo *</label>
+        <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
+      </div>`;
+  }
+
+  const bandClass = `popup-band popup-band-${currentStatus}`;
+
+  // Swipe-to-confirm widget instead of plain button
+  let actionBtn = "";
+  if (currentStatus === "pending") {
+    actionBtn = `
+      <div class="swipe-container" id="swipeWidget" data-action="loaded">
+        <div class="swipe-fill swipe-loaded-fill" id="swipeFill" style="width:60px;"></div>
+        <div class="swipe-thumb swipe-loaded-thumb" id="swipeThumb">📦</div>
+        <div class="swipe-track" id="swipeTrack">Swipe to Mark Loaded →</div>
+      </div>`;
+  } else if (currentStatus === "loaded") {
+    actionBtn = `
+      <div class="swipe-container" id="swipeWidget" data-action="delivered">
+        <div class="swipe-fill swipe-delivered-fill" id="swipeFill" style="width:60px;"></div>
+        <div class="swipe-thumb swipe-delivered-thumb" id="swipeThumb">✅</div>
+        <div class="swipe-track" id="swipeTrack">Swipe to Mark Delivered →</div>
+      </div>`;
+  }
+
+  document.getElementById("popupContent").innerHTML = `
+    <div class="${bandClass}">
+      <div class="popup-status-row">
+        <span class="badge badge-${d.status}">${d.status}</span>
+        ${d.priority === "urgent" ? `<span class="badge badge-urgent">🔥 Urgent</span>` : ""}
+      </div>
+      <div class="popup-name">${d.customer_name}</div>
+    </div>
+
+    <div class="popup-body">
+      <div class="detail-row">
+        <span class="detail-label">Phone</span>
+        <span class="detail-value">
+          <a class="phone-link" href="tel:${d.phone}">${d.phone}</a>
+          ${d.alternate_phone ? `<br><a class="phone-link" href="tel:${d.alternate_phone}">${d.alternate_phone}</a>` : ""}
+        </span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Address</span>
+        <span class="detail-value">
+          ${d.address}
+          <br>
+          <button class="navigate-btn" onclick="navigateTo('${encodeURIComponent(d.address)}')">📍 Open Maps</button>
+        </span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Product</span>
+        <span class="detail-value">${d.product_name}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">ETA</span>
+        <span class="detail-value">
+          ${d.estimated_delivery_time ? new Date(d.estimated_delivery_time).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"}) : "Not set"}
+          <br><span class="eta-countdown" id="etaCountdown"></span>
+        </span>
+      </div>
+    </div>
+
+    <div class="info-box info-box-yellow">
+      📝 <strong>Instructions:</strong><br>
+      ${d.driver_instructions && d.driver_instructions !== "none" ? d.driver_instructions : "No special instructions"}
+    </div>
+
+    <div class="info-box info-box-gray">
+      💰 <strong>Freight:</strong>
+      ${d.freight_charged ? `Yes — ₹${d.freight_amount || "—"}` : "No freight charges"}
+    </div>
+
+    ${uploadSection}
+
+    <div class="popup-actions">
+      ${actionBtn}
+      <button class="btn-close-action" onclick="closePopup()">Close</button>
+    </div>
+  `;
+
+  startETACountdown(d.estimated_delivery_time);
+  document.getElementById("popup").style.display = "block";
+  document.getElementById("popup").scrollTop = 0;
+
+  // Init swipe widget after DOM renders
+  requestAnimationFrame(() => requestAnimationFrame(initSwipeWidget));
+}
+
+/* ═══════════════════════════════════════
+   ETA COUNTDOWN
+═══════════════════════════════════════ */
+function startETACountdown(etaTime) {
+  if (!etaTime) return;
+  const el = document.getElementById("etaCountdown");
+  if (!el) return;
+  function update() {
+    const diff = new Date(etaTime) - new Date();
+    if (diff <= 0) { el.innerText = "⚠ Overdue"; return; }
+    const m = Math.floor(diff / 60000);
+    el.innerText = m < 60 ? `⏱ ${m}m remaining` : `⏱ ${Math.floor(m/60)}h ${m%60}m remaining`;
+  }
+  update();
+  if (etaInterval) clearInterval(etaInterval);
+  etaInterval = setInterval(update, 60000);
+}
+
+function navigateTo(address) {
+  if (!address) return;
+  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(decodeURIComponent(address))}`, "_blank");
+}
+
+/* ═══════════════════════════════════════
+   IMAGE COMPRESSION
+═══════════════════════════════════════ */
+async function compressImage(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const max = 1280;
+        let w = img.width, h = img.height;
+        if (w > max) { h = Math.round(h * max / w); w = max; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        canvas.toBlob(resolve, "image/jpeg", 0.75);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ═══════════════════════════════════════
+   UPDATE DELIVERY
+═══════════════════════════════════════ */
+async function updateDelivery() {
+  const fileInput = document.getElementById("photo");
+  if (!fileInput?.files?.length) { showToast("📷 Please upload a photo first"); return; }
+  const file = fileInput.files[0];
+  if (!file.type.startsWith("image/")) { showToast("Only image files allowed"); return; }
+
+  // Lock swipe widget during upload
+  const widget = document.getElementById("swipeWidget");
+  if (widget) widget.style.pointerEvents = "none";
+
+  const compressedBlob = await compressImage(file);
+  const formData = new FormData();
+  formData.append("photo", compressedBlob, "upload.jpg");
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    formData.append("lat",       pos.coords.latitude);
+    formData.append("lng",       pos.coords.longitude);
+    formData.append("driver_id", currentDriverId);
+    formData.append("pin",       currentDriverPin);
+
+    const serialInput = document.getElementById("serialInput");
+    if (currentStatus === "pending" && !currentDeliveryData.product_serial_number) {
+      if (!serialInput?.value?.trim()) { showToast("⚠ Serial number is required"); if(widget) widget.style.pointerEvents="auto"; return; }
+      formData.append("serial", serialInput.value.trim());
+    }
+
+    const endpoint = currentStatus === "pending" ? `/markLoaded/${currentDeliveryId}` : `/markDelivered/${currentDeliveryId}`;
+
+    try {
+      const res = await fetch(`${BASE_URL}${endpoint}`, { method: "POST", body: formData });
+      if (!res.ok) { showToast("⚠ Update failed. Try again."); if(actionBtn){actionBtn.disabled=false;} return; }
+      vibrate([100, 50, 200]);
+      showToast(currentStatus === "pending" ? "✅ Marked as Loaded!" : "🎉 Marked as Delivered!");
+      closePopup();
+      unlockDriver();
+    } catch (e) {
+      showToast("⚠ Network error. Please retry.");
+      if (widget) widget.style.pointerEvents = "auto";
+    }
+  }, () => {
+    showToast("📍 Location access required. Please enable it and try again.");
+    if (widget) widget.style.pointerEvents = "auto";
+  });
+}
+
+/* ═══════════════════════════════════════
+   CLOSE POPUP & AUTO REFRESH
+═══════════════════════════════════════ */
+function closePopup() {
+  document.getElementById("popup").style.display = "none";
+  if (etaInterval) { clearInterval(etaInterval); etaInterval = null; }
+}
+
+// Close popup on backdrop tap
+document.getElementById("popup").addEventListener("click", e => {
+  if (e.target === document.getElementById("popup")) closePopup();
+});
+
+function startDriverAutoRefresh() {
+  if (driverRefreshInterval) clearInterval(driverRefreshInterval);
+  driverRefreshInterval = setInterval(() => {
+    if (document.getElementById("popup").style.display !== "block" && currentDriverId) {
+      silentRefresh();
+    }
+  }, 30000);
+}
+
+async function silentRefresh() {
+  try {
+    // Use session token if available — avoids counting toward PIN lockout
+    let res;
+    if (driverSessionToken) {
+      res = await fetch(`${BASE_URL}/driverDeliveriesRefresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + driverSessionToken
+        },
+        body: JSON.stringify({ driver_id: currentDriverId })
+      });
+      // If token expired, fall back to PIN
+      if (res.status === 401) driverSessionToken = null;
+    }
+    if (!driverSessionToken) {
+      res = await fetch(`${BASE_URL}/driverDeliveries`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driver_id: currentDriverId, pin: currentDriverPin })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        driverSessionToken = json.sessionToken || null;
+        renderDeliveries(json.deliveries || json);
+        loadDeliveryHistory(currentDriverId);
+        return;
+      }
+    }
+    if (res && res.ok) {
+      const data = await res.json();
+      renderDeliveries(data);
+      loadDeliveryHistory(currentDriverId);
+    }
+  } catch (_) {}
+}
+
+/* ═══════════════════════════════════════
+   LOGOUT
+═══════════════════════════════════════ */
+function logoutDriver() {
+  currentDriverId    = null;
+  currentDriverPin   = null;
+  driverSessionToken = null;
+  if (driverRefreshInterval) clearInterval(driverRefreshInterval);
+
+  document.getElementById("driverSelect").disabled     = false;
+  const pin = document.getElementById("driverPin");
+  pin.style.display = "inline-block"; pin.value = "";
+  document.getElementById("unlockBtn").style.display       = "inline-flex";
+  document.getElementById("changeDriverBtn").style.display = "none";
+  document.getElementById("deliveryCards").innerHTML        = "";
+  document.getElementById("deliveryCount").style.display   = "none";
+  document.getElementById("historySection").style.display  = "none";
+  document.getElementById("historyCards").innerHTML        = "";
+  document.getElementById("historyCards").classList.remove("open");
+  historyOpen = false; historyData = [];
+
+  // Re-show remembered tag if applicable
+  const last = restoreLastDriver();
+  if (last) document.getElementById("rememberedTag").style.display = "inline-flex";
+}
+
+/* ═══════════════════════════════════════
+   PULL TO REFRESH
+═══════════════════════════════════════ */
+let ptrStartY = 0;
+let ptrPulling = false;
+const PTR_THRESHOLD = 70;
+
+document.addEventListener("touchstart", e => {
+  if (window.scrollY === 0) { ptrStartY = e.touches[0].clientY; ptrPulling = true; }
+}, { passive: true });
+
+document.addEventListener("touchmove", e => {
+  if (!ptrPulling) return;
+  const delta = e.touches[0].clientY - ptrStartY;
+  if (delta > 20) {
+    const ind = document.getElementById("ptrIndicator");
+    ind.classList.add("active");
+    ind.innerText = delta > PTR_THRESHOLD ? "↻ Release to refresh" : "↓ Pull to refresh";
+  }
+}, { passive: true });
+
+document.addEventListener("touchend", e => {
+  if (!ptrPulling) return;
+  ptrPulling = false;
+  const delta = e.changedTouches[0].clientY - ptrStartY;
+  const ind = document.getElementById("ptrIndicator");
+  ind.classList.remove("active");
+
+  if (delta > PTR_THRESHOLD && currentDriverId) {
+    showToast("🔄 Refreshing...");
+    silentRefresh().then(() => showToast("✅ Updated"));
+  }
+});
+
+/* ═══════════════════════════════════════
+   PWA INSTALL PROMPT
+═══════════════════════════════════════ */
+let deferredInstallPrompt = null;
+
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  // Only show if not already dismissed
+  if (!localStorage.getItem("pwa_install_dismissed")) {
+    document.getElementById("installBanner").classList.add("visible");
+  }
+});
+
+async function triggerInstall() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  if (outcome === "accepted") { showToast("🎉 App installed!"); }
+  deferredInstallPrompt = null;
+  document.getElementById("installBanner").classList.remove("visible");
+}
+
+function dismissInstall() {
+  localStorage.setItem("pwa_install_dismissed", "1");
+  document.getElementById("installBanner").classList.remove("visible");
+}
+
+window.addEventListener("appinstalled", () => {
+  document.getElementById("installBanner").classList.remove("visible");
+  showToast("✅ App installed successfully!");
+});
+
+/* ═══════════════════════════════════════
+   AUTO-LOGOUT ON INACTIVITY (15 min)
+═══════════════════════════════════════ */
+const INACTIVITY_MS = 15 * 60 * 1000;
+let inactivityTimer = null;
+
+function resetInactivityTimer() {
+  if (!currentDriverId) return;
+  if (inactivityTimer) clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(() => {
+    if (currentDriverId) {
+      showToast("🔒 Session expired. Please log in again.");
+      logoutDriver();
+    }
+  }, INACTIVITY_MS);
+}
+
+["touchstart", "touchmove", "click", "keydown"].forEach(evt =>
+  document.addEventListener(evt, resetInactivityTimer, { passive: true })
+);
+
+
+
+/* ═══════════════════════════════════════════════════
+   SWIPE-TO-CONFIRM
+   Draggable thumb across the container.
+   Fires updateDelivery() when dragged > 80% of width.
+═══════════════════════════════════════════════════ */
+
+function initSwipeWidget() {
+  const widget = document.getElementById("swipeWidget");
+  if (!widget) return;
+
+  const thumb  = document.getElementById("swipeThumb");
+  const fill   = document.getElementById("swipeFill");
+  const track  = document.getElementById("swipeTrack");
+  const maxX   = widget.offsetWidth - thumb.offsetWidth - 8;
+
+  let startX  = 0;
+  let currentX = 0;
+  let dragging = false;
+
+  function onStart(e) {
+    dragging = true;
+    startX   = (e.touches ? e.touches[0].clientX : e.clientX);
+    thumb.style.transition = "none";
+    fill.style.transition  = "none";
+    e.preventDefault();
+  }
+
+  function onMove(e) {
+    if (!dragging) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    currentX = Math.max(0, Math.min(clientX - startX, maxX));
+    thumb.style.left = (4 + currentX) + "px";
+    fill.style.width = (60 + currentX) + "px";
+
+    // Fade out track text as user drags
+    const pct = currentX / maxX;
+    track.style.opacity = 1 - pct * 1.4;
+
+    e.preventDefault();
+  }
+
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    const pct = currentX / maxX;
+
+    if (pct >= 0.82) {
+      // ✅ Confirmed — snap to end, trigger action
+      thumb.style.transition = "left 0.15s";
+      fill.style.transition  = "width 0.15s";
+      thumb.style.left = (4 + maxX) + "px";
+      fill.style.width = (widget.offsetWidth) + "px";
+      track.style.opacity = 0;
+      vibrate([80, 40, 120]);
+      widget.style.pointerEvents = "none";
+      setTimeout(() => updateDelivery(), 200);
+    } else {
+      // ❌ Not far enough — snap back
+      thumb.style.transition = "left 0.3s cubic-bezier(0.16,1,0.3,1)";
+      fill.style.transition  = "width 0.3s cubic-bezier(0.16,1,0.3,1)";
+      thumb.style.left = "4px";
+      fill.style.width = "60px";
+      track.style.opacity = 1;
+      track.style.transition = "opacity 0.3s";
+      currentX = 0;
+    }
+  }
+
+  // Touch events
+  thumb.addEventListener("touchstart",  onStart,  { passive: false });
+  thumb.addEventListener("touchmove",   onMove,   { passive: false });
+  thumb.addEventListener("touchend",    onEnd,    { passive: false });
+  // Mouse events (desktop testing)
+  thumb.addEventListener("mousedown",   onStart);
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup",  onEnd);
+}
+
+/* ═══════════════════════════════════════════════════
+   DELIVERY HISTORY — today's completed deliveries
+═══════════════════════════════════════════════════ */
+
+let historyData = [];
+let historyOpen = false;
+
+async function loadDeliveryHistory(driverId) {
+  try {
+    let res;
+    if (driverSessionToken) {
+      res = await fetch(`${BASE_URL}/driverDeliveriesRefresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + driverSessionToken
+        },
+        body: JSON.stringify({ driver_id: driverId })
+      });
+      if (res.status === 401) driverSessionToken = null;
+    }
+    if (!driverSessionToken) {
+      res = await fetch(`${BASE_URL}/driverDeliveries`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driver_id: driverId, pin: currentDriverPin })
+      });
+    }
+    if (!res || !res.ok) return;
+    const json = await res.json();
+    const data = json.deliveries || json;
+
+    const todayStr = new Date().toDateString();
+    historyData = data.filter(d => {
+      if (d.status !== "delivered") return false;
+      if (!d.delivered_timestamp) return false;
+      return new Date(d.delivered_timestamp.seconds * 1000).toDateString() === todayStr;
+    });
+
+    if (historyData.length === 0) {
+      document.getElementById("historySection").style.display = "none";
+      return;
+    }
+
+    document.getElementById("historySection").style.display = "block";
+    document.getElementById("historyCountBadge").innerText = historyData.length;
+    renderHistory();
+  } catch (e) {
+    console.warn("[History]", e);
+  }
+}
+
+function renderHistory() {
+  const container = document.getElementById("historyCards");
+  if (!historyData.length) {
+    container.innerHTML = `<div class="history-empty">No completed deliveries today</div>`;
+    return;
+  }
+
+  container.innerHTML = historyData.map(d => {
+    const delivTime = d.delivered_timestamp
+      ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+      : "";
+    return `
+      <div class="history-card">
+        <div class="history-card-icon">✅</div>
+        <div class="history-card-info">
+          <div class="history-card-name">${d.customer_name}</div>
+          <div class="history-card-meta">${d.product_name} · Delivered ${delivTime}</div>
+        </div>
+        <a href="tel:${d.phone}" style="color:var(--accent);text-decoration:none;font-size:18px;flex-shrink:0;">📞</a>
+      </div>`;
+  }).join("");
+}
+
+function toggleHistory() {
+  historyOpen = !historyOpen;
+  const cards   = document.getElementById("historyCards");
+  const chevron = document.getElementById("historyChevron");
+  const toggle  = document.getElementById("historyToggle");
+  cards.classList.toggle("open",   historyOpen);
+  chevron.classList.toggle("open", historyOpen);
+  toggle.classList.toggle("open",  historyOpen);
+}
+
+/* ═══════════════════════════════════════════════════
+   BARCODE / QR SCANNER
+   Uses the browser-native BarcodeDetector API first
+   (supported on Android Chrome 83+, Safari 17.4+).
+   Falls back to a pure-JS ZXing WASM decoder for
+   older devices / Firefox — loaded lazily only if needed.
+═══════════════════════════════════════════════════ */
+
+let scannerStream   = null;   // active MediaStream
+let scannerTimer    = null;   // rAF / interval loop
+let scannerActive   = false;
+let zxingReader     = null;   // lazy-loaded fallback
+
+// Which decoder is available
+const HAS_NATIVE_DETECTOR = ("BarcodeDetector" in window);
+
+async function openScanner() {
+  // Camera permission + stream
+  try {
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },  // rear camera
+        width:  { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    });
+  } catch (err) {
+    if (err.name === "NotAllowedError") {
+      showToast("📷 Camera permission denied. Please allow camera access.");
+    } else {
+      showToast("📷 Could not open camera: " + err.message);
+    }
+    return;
+  }
+
+  const video   = document.getElementById("scannerVideo");
+  video.srcObject = scannerStream;
+  await video.play().catch(() => {});
+
+  document.getElementById("scannerOverlay").classList.add("active");
+  scannerActive = true;
+
+  // Lock screen orientation to portrait if possible
+  if (screen.orientation?.lock) {
+    screen.orientation.lock("portrait").catch(() => {});
+  }
+
+  if (HAS_NATIVE_DETECTOR) {
+    startNativeDetector(video);
+  } else {
+    await startZXingDetector(video);
+  }
+}
+
+/* ── Native BarcodeDetector (Chrome Android 83+) ── */
+function startNativeDetector(video) {
+  const formats = [
+    "qr_code","code_128","code_39","ean_13","ean_8",
+    "upc_a","upc_e","data_matrix","itf","codabar","aztec","pdf417"
+  ];
+
+  let detector;
+  try {
+    detector = new BarcodeDetector({ formats });
+  } catch {
+    // Format list rejected — try with just common ones
+    try { detector = new BarcodeDetector({ formats: ["qr_code","code_128","ean_13","upc_a"] }); }
+    catch { startZXingDetector(video); return; }
+  }
+
+  async function detect() {
+    if (!scannerActive) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      try {
+        const results = await detector.detect(video);
+        if (results.length > 0) {
+          handleScanResult(results[0].rawValue);
+          return; // stop loop after hit
+        }
+      } catch (_) {}
+    }
+    scannerTimer = requestAnimationFrame(detect);
+  }
+  detect();
+}
+
+/* ── ZXing-WASM fallback (loads lazily) ── */
+async function startZXingDetector(video) {
+  if (!zxingReader) {
+    try {
+      // Load ZXing from CDN
+      await loadScript("https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js");
+      const hints = new Map();
+      const formats = [
+        ZXing.BarcodeFormat.QR_CODE,
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.UPC_A,
+        ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.DATA_MATRIX,
+        ZXing.BarcodeFormat.PDF_417
+      ];
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      zxingReader = new ZXing.MultiFormatReader();
+      zxingReader.setHints(hints);
+    } catch (e) {
+      showToast("⚠ Scanner library failed to load");
+      closeScanner();
+      return;
+    }
+  }
+
+  const canvas = document.createElement("canvas");
+  const ctx    = canvas.getContext("2d");
+
+  function decodeFrame() {
+    if (!scannerActive) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      try {
+        const imgData   = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
+        const binary    = new ZXing.HybridBinarizer(luminance);
+        const bitmap    = new ZXing.BinaryBitmap(binary);
+        const result    = zxingReader.decode(bitmap);
+        if (result) { handleScanResult(result.getText()); return; }
+      } catch (_) {}
+    }
+    scannerTimer = requestAnimationFrame(decodeFrame);
+  }
+  decodeFrame();
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+/* ── Handle a successful scan ── */
+function handleScanResult(value) {
+  if (!value || !scannerActive) return;
+  scannerActive = false;   // prevent double-fire
+  cancelAnimationFrame(scannerTimer);
+
+  // Haptic + visual feedback
+  vibrate([50, 30, 80]);
+
+  const flash = document.getElementById("scannerFlash");
+  flash.classList.add("active");
+
+  const resultEl = document.getElementById("scannerResult");
+  document.getElementById("scannerResultValue").innerText = value;
+  resultEl.classList.add("show");
+
+  // Close scanner after short delay so user sees the result
+  setTimeout(() => {
+    closeScanner();
+
+    // Fill the serial input
+    const input = document.getElementById("serialInput");
+    if (input) {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      // Brief highlight to confirm fill
+      input.style.borderColor = "#16a34a";
+      input.style.boxShadow   = "0 0 0 3px rgba(22,163,74,0.2)";
+      setTimeout(() => { input.style.borderColor = ""; input.style.boxShadow = ""; }, 1800);
+    }
+    showToast("✅ Serial number scanned!");
+  }, 950);
+}
+
+/* ── Close / cleanup scanner ── */
+function closeScanner() {
+  scannerActive = false;
+  cancelAnimationFrame(scannerTimer);
+
+  if (scannerStream) {
+    scannerStream.getTracks().forEach(t => t.stop());
+    scannerStream = null;
+  }
+
+  const video = document.getElementById("scannerVideo");
+  if (video) { video.srcObject = null; }
+
+  // Reset UI state
+  document.getElementById("scannerOverlay").classList.remove("active");
+  const flash  = document.getElementById("scannerFlash");
+  const result = document.getElementById("scannerResult");
+  if (flash)  flash.classList.remove("active");
+  if (result) result.classList.remove("show");
+
+  if (screen.orientation?.unlock) screen.orientation.unlock();
+}
+
+// Close scanner if user taps outside the frame (on the dim area)
+document.getElementById("scannerOverlay")?.addEventListener("click", e => {
+  if (e.target === document.getElementById("scannerOverlay") ||
+      e.target.classList.contains("scanner-dim")) closeScanner();
+});
+
+// Hardware back button (Android) closes scanner first
+window.addEventListener("popstate", () => {
+  if (scannerActive) { closeScanner(); history.pushState(null, ""); }
+});
+// Push state so back button is interceptable
+history.pushState(null, "");
+
+
+/* ═══════════════════════════════════════
+   INIT
+═══════════════════════════════════════ */
+loadDrivers();
+</script>
+</body>
+</html>
