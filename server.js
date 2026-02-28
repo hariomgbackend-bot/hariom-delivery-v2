@@ -20,7 +20,8 @@ import rateLimit from "express-rate-limit";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-const serviceAccount = require("./firebase-service-account.json");
+//const serviceAccount = require("./firebase-service-account.json");
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
