@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#0f172a">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-  <title>Driver Panel — Hariom Traders</title>
+  <title>Driver Panel — Hariom Electronics</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
@@ -844,7 +844,7 @@
   <div class="header-left">
     <img src="/icons/icon-72x72.png" class="header-logo" alt="Logo" onerror="this.style.display='none'">
     <div>
-      <div class="header-title">Hariom Traders</div>
+      <div class="header-title">Hariom Electronics</div>
       <div class="header-subtitle">Driver Panel</div>
     </div>
   </div>
@@ -1580,16 +1580,22 @@ function logoutDriver() {
 ═══════════════════════════════════════ */
 let ptrStartY = 0;
 let ptrPulling = false;
-const PTR_THRESHOLD = 70;
+const PTR_THRESHOLD = 80;
 
 document.addEventListener("touchstart", e => {
-  if (window.scrollY === 0) { ptrStartY = e.touches[0].clientY; ptrPulling = true; }
+  // Guard: only activate PTR when logged in, at top of page, no popup/scanner open
+  const popupOpen   = document.getElementById("popup").style.display === "block";
+  const scannerOpen = document.getElementById("scannerOverlay").classList.contains("active");
+  if (window.scrollY === 0 && currentDriverId && !popupOpen && !scannerOpen) {
+    ptrStartY  = e.touches[0].clientY;
+    ptrPulling = true;
+  }
 }, { passive: true });
 
 document.addEventListener("touchmove", e => {
   if (!ptrPulling) return;
   const delta = e.touches[0].clientY - ptrStartY;
-  if (delta > 20) {
+  if (delta > 10) {
     const ind = document.getElementById("ptrIndicator");
     ind.classList.add("active");
     ind.innerText = delta > PTR_THRESHOLD ? "↻ Release to refresh" : "↓ Pull to refresh";
@@ -1600,9 +1606,10 @@ document.addEventListener("touchend", e => {
   if (!ptrPulling) return;
   ptrPulling = false;
   const delta = e.changedTouches[0].clientY - ptrStartY;
-  const ind = document.getElementById("ptrIndicator");
+  const ind   = document.getElementById("ptrIndicator");
   ind.classList.remove("active");
 
+  // Only silentRefresh — never unlockDriver (avoids re-login flash)
   if (delta > PTR_THRESHOLD && currentDriverId) {
     showToast("🔄 Refreshing...");
     silentRefresh().then(() => showToast("✅ Updated"));

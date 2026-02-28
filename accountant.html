@@ -1065,8 +1065,29 @@ function openViewPopup(id) {
     <div class="detail-row"><b>Amount</b><span>${delivery.freight_amount || "—"}</span></div>
 
     ${delivery.photo_loaded_url || delivery.photo_delivered_url ? `<div class="section-title">Photos</div>` : ""}
-    ${delivery.photo_loaded_url    ? `<div class="detail-row"><b>Loaded</b><img src="${delivery.photo_loaded_url}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:6px;"></div>` : ""}
-    ${delivery.photo_delivered_url ? `<div class="detail-row"><b>Delivered</b><img src="${delivery.photo_delivered_url}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:6px;"></div>` : ""}
+    ${delivery.photo_loaded_url || delivery.photo_delivered_url ? `
+      <div style="display:flex;gap:12px;margin:10px 0;flex-wrap:wrap;">
+        ${delivery.photo_loaded_url ? `
+          <div style="flex:1;min-width:120px;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📦 Loaded</div>
+            <img src="${delivery.photo_loaded_url}"
+              onclick="openPhotoLightbox('${delivery.photo_loaded_url}','Loaded Photo')"
+              style="width:100%;height:160px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dbeafe;"
+              title="Click to view full size">
+            <a href="${delivery.photo_loaded_url}" download target="_blank"
+              style="display:inline-block;margin-top:6px;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;">⬇ Download</a>
+          </div>` : ""}
+        ${delivery.photo_delivered_url ? `
+          <div style="flex:1;min-width:120px;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">✅ Delivered</div>
+            <img src="${delivery.photo_delivered_url}"
+              onclick="openPhotoLightbox('${delivery.photo_delivered_url}','Delivered Photo')"
+              style="width:100%;height:160px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dcfce7;"
+              title="Click to view full size">
+            <a href="${delivery.photo_delivered_url}" download target="_blank"
+              style="display:inline-block;margin-top:6px;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;">⬇ Download</a>
+          </div>` : ""}
+      </div>` : ""}
 
     ${delivery.loaded_location    ? `<div class="detail-row"><b>Loaded Location</b><a href="https://www.google.com/maps?q=${delivery.loaded_location.lat},${delivery.loaded_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></div>` : ""}
     ${delivery.delivered_location ? `<div class="detail-row"><b>Delivered Location</b><a href="https://www.google.com/maps?q=${delivery.delivered_location.lat},${delivery.delivered_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></div>` : ""}
@@ -1189,6 +1210,39 @@ function exportToCSV() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+</script>
+
+<!-- PHOTO LIGHTBOX -->
+<div id="photoLightbox" onclick="closePhotoLightbox()" style="
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);
+  z-index:9999;align-items:flex-start;justify-content:center;
+  overflow-y:auto;padding:20px 16px;">
+  <div onclick="event.stopPropagation()" style="max-width:900px;width:100%;text-align:center;margin:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <span id="lightboxLabel" style="color:white;font-weight:700;font-size:16px;"></span>
+      <div style="display:flex;gap:10px;">
+        <a id="lightboxDownload" download target="_blank"
+          style="background:#2563eb;color:white;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">⬇ Download</a>
+        <button onclick="closePhotoLightbox()"
+          style="background:rgba(255,255,255,0.15);color:white;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;">✕ Close</button>
+      </div>
+    </div>
+    <img id="lightboxImg" src="" style="max-width:100%;height:auto;border-radius:12px;display:block;margin:0 auto;">
+  </div>
+</div>
+
+<script>
+function openPhotoLightbox(url, label) {
+  document.getElementById("lightboxImg").src = url;
+  document.getElementById("lightboxLabel").innerText = label || "Photo";
+  document.getElementById("lightboxDownload").href = url;
+  document.getElementById("photoLightbox").style.display = "flex";
+}
+function closePhotoLightbox() {
+  document.getElementById("photoLightbox").style.display = "none";
+  document.getElementById("lightboxImg").src = "";
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") closePhotoLightbox(); });
 </script>
 </body>
 </html>
