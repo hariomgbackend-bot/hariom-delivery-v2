@@ -365,9 +365,82 @@
       margin-right: auto;
     }
 
-    @media (max-width: 768px) {
-      .header { padding: 0 16px; }
-      .container { padding: 16px; }
+    /* ══ PHONE LINK ══ */
+    .phone-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .phone-link:hover { text-decoration: underline; }
+
+    /* ══ LAST UPDATED ══ */
+    #lastUpdated { font-size: 11px; color: rgba(255,255,255,0.45); }
+
+    /* ══ MOBILE (≤ 767px) ══ */
+    @media (max-width: 767px) {
+      .header { padding: 0 14px; height: 56px; }
+      .header-brand { font-size: 16px; gap: 8px; }
+      .container { padding: 12px; }
+
+      /* Hide heavy table, show cards */
+      .table-wrap { display: none !important; }
+
+      /* Stat cards compact */
+      .summary-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+      .stat-card { padding: 12px 8px; border-radius: 12px; }
+      .stat-card .stat-value { font-size: 22px; }
+      .stat-card .stat-label { font-size: 10px; }
+
+      /* Toolbar scrollable */
+      .toolbar { padding: 10px 12px; gap: 6px; overflow-x: auto; flex-wrap: nowrap; border-radius: 12px; }
+      .toolbar::-webkit-scrollbar { display: none; }
+      .filter-btn { flex-shrink: 0; font-size: 12px; padding: 6px 11px; }
+      .btn-csv { padding: 6px 12px; font-size: 12px; }
+
+      /* Mobile delivery cards */
+      .mob-cards { display: block; }
+      .mob-delivery-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .mob-delivery-card:active { opacity: 0.92; }
+      .mob-delivery-card.batch-card { border-left: 3px solid var(--mc-border, #7c3aed); }
+      .mob-dc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+      .mob-dc-name { font-size: 15px; font-weight: 700; }
+      .mob-dc-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+      .mob-dc-meta { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; }
+
+      /* Mob batch group */
+      .mob-batch-grp { margin-bottom: 12px; }
+      .mob-batch-grp-hdr {
+        padding: 7px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+        border-radius: 11px 11px 0 0; border: 2px solid var(--mc-border, #7c3aed); border-bottom: none;
+        background: var(--mc-bg, #f5f3ff); color: var(--mc-text, #5b21b6);
+      }
+      .mob-batch-grp .mob-delivery-card {
+        border-radius: 0; border: 2px solid var(--mc-border, #7c3aed); border-top: none; margin-bottom: 0;
+        background: var(--mc-bg, #f5f3ff);
+      }
+      .mob-batch-grp .mob-delivery-card:last-child { border-radius: 0 0 11px 11px; }
+
+      /* Popup full screen bottom sheet on mobile */
+      .popup-overlay { padding: 0; display: flex; align-items: flex-end; }
+      .popup-overlay[style*="display: block"] { display: flex !important; }
+      .popup-card { border-radius: 22px 22px 0 0; max-width: 100%; max-height: 90vh; margin: 0; }
+    }
+
+    /* ══ PC (≥ 768px) ══ */
+    @media (min-width: 768px) {
+      .mob-cards { display: none; }
+      .popup-overlay { align-items: flex-start; }
+      .popup-card { border-radius: 18px; }
+    }
+
+    /* ══ LARGE PC (≥ 1400px) ══ */
+    @media (min-width: 1400px) {
+      .container { padding: 28px 40px; }
     }
   </style>
 </head>
@@ -378,7 +451,8 @@
     <img src="/icons/icon-72x72.png" style="width:34px;height:34px;border-radius:8px;object-fit:contain;background:rgba(255,255,255,0.1);" onerror="this.style.display='none'" alt="">
     <span style="font-family:'DM Serif Display',serif;">Hariom Electronics</span>
   </div>
-  <nav class="header-nav">
+  <nav class="header-nav" style="display:flex;align-items:center;gap:6px;">
+    <span id="lastUpdated"></span>
     <a href="accountant.html">🧾 Accountant</a>
     <a href="drivers.html">👤 Drivers</a>
   </nav>
@@ -413,6 +487,7 @@
           <th>Priority</th>
           <th>ETA</th>
           <th>Duration</th>
+          <th>Rating</th>
           <th>Loaded Photo</th>
           <th>Loaded At</th>
           <th>Delivered Photo</th>
@@ -424,6 +499,9 @@
       <tbody id="adminTable"></tbody>
     </table>
   </div>
+
+  <!-- MOBILE DELIVERY CARDS -->
+  <div class="mob-cards" id="mobCards"></div>
 
 </div>
 
@@ -515,6 +593,43 @@ async function loadAdmin() {
   const table = document.getElementById("adminTable");
   table.innerHTML = "";
 
+  // ── Helpers ──
+  function getDeliveryRating(d) {
+    if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—";
+    const diffMin = (new Date(d.delivered_timestamp.seconds * 1000) - new Date(d.estimated_delivery_time)) / 60000;
+    if (diffMin <= -10) return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#d1fae5;color:#065f46;white-space:nowrap;">⚡ Early</span>`;
+    if (diffMin <=  10) return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af;white-space:nowrap;">✅ On Time</span>`;
+    if (diffMin <=  30) return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;white-space:nowrap;">🕐 Late</span>`;
+    return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#fee2e2;color:#991b1b;white-space:nowrap;">🔴 Very Late</span>`;
+  }
+
+  function formatETA(val) {
+    if (!val) return "—";
+    const dt = new Date(val);
+    if (isNaN(dt)) return val;
+    return dt.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
+  }
+
+  // ── Batch grouping ──
+  const phoneCounts = {};
+  data.forEach(d => { if (d.phone) phoneCounts[d.phone] = (phoneCounts[d.phone] || 0) + 1; });
+  const batchPhones = Object.keys(phoneCounts).filter(p => phoneCounts[p] > 1);
+  const batchNumberMap = {};
+  let batchCounter = 1;
+  data.forEach(d => {
+    if (d.phone && batchPhones.includes(d.phone) && !(d.phone in batchNumberMap)) {
+      batchNumberMap[d.phone] = batchCounter++;
+    }
+  });
+  const BATCH_PALETTES = [
+    { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
+    { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
+    { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
+    { bg: "#f0fdf4", border: "#16a34a", text: "#065f46" },
+    { bg: "#eff6ff", border: "#2563eb", text: "#1e3a8a" },
+    { bg: "#fefce8", border: "#ca8a04", text: "#713f12" },
+  ];
+
   data.forEach(d => {
     const row = document.createElement("tr");
 
@@ -545,14 +660,23 @@ async function loadAdmin() {
         ? `https://www.google.com/maps?q=${d.loaded_location.lat},${d.loaded_location.lng}`
         : "";
 
+    // Batch tag
+    let batchTag = "";
+    if (d.phone && batchPhones.includes(d.phone)) {
+      const bNum    = batchNumberMap[d.phone];
+      const palette = BATCH_PALETTES[(bNum - 1) % BATCH_PALETTES.length];
+      batchTag = `<span style="display:inline-block;margin-left:5px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bNum}</span>`;
+    }
+
     row.innerHTML = `
-      <td>${d.customer_name || ""}</td>
+      <td>${d.customer_name || ""}${batchTag}</td>
       <td>${d.assigned_driver_name || "—"}</td>
       <td>${d.product_name || ""}</td>
       <td><span class="badge badge-${d.status}">${d.status}</span></td>
       <td><span class="badge badge-${d.priority || 'normal'}">${d.priority || "normal"}</span></td>
-      <td style="white-space:nowrap">${d.estimated_delivery_time || "—"}</td>
+      <td style="white-space:nowrap">${formatETA(d.estimated_delivery_time)}</td>
       <td>${durationText || "—"}</td>
+      <td>${getDeliveryRating(d)}</td>
       <td>${d.photo_loaded_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_loaded_url}')">View</button>` : "—"}</td>
       <td style="white-space:nowrap">${loaded ? loaded.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : "—"}</td>
       <td>${d.photo_delivered_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_delivered_url}')">View</button>` : "—"}</td>
@@ -561,6 +685,85 @@ async function loadAdmin() {
       <td><button class="btn-sm" onclick='viewDetails(${JSON.stringify(d)})'>View</button></td>
     `;
     table.appendChild(row);
+  });
+
+  // ── Last updated ──
+  const luEl = document.getElementById("lastUpdated");
+  if (luEl) luEl.innerText = "🕐 " + new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
+
+  // ── Mobile cards ──
+  renderMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES);
+}
+
+function renderMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) {
+  const container = document.getElementById("mobCards");
+  if (!container) return;
+  container.innerHTML = "";
+
+  function ratingBadge(d) {
+    if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "";
+    const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000;
+    if (diff<=-10) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early</span>`;
+    if (diff<= 10) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
+    if (diff<= 30) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late</span>`;
+    return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 VLate</span>`;
+  }
+
+  function etaFmt(v) {
+    if (!v) return "—";
+    const dt = new Date(v);
+    return isNaN(dt) ? v : dt.toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:true});
+  }
+
+  function makeMobAdminCard(d, palette) {
+    const card = document.createElement("div");
+    card.className = "mob-delivery-card" + (palette ? " batch-card" : "");
+    if (palette) { card.style.setProperty("--mc-border", palette.border); card.style.setProperty("--mc-bg", palette.bg); }
+    card.onclick = () => viewDetails(d);
+    card.innerHTML = `
+      <div class="mob-dc-header">
+        <div>
+          <div class="mob-dc-name">${d.customer_name || ""}${palette ? `<span style="margin-left:6px;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};">🔗 Batch ${batchNumberMap[d.phone]}</span>` : ""}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${d.product_name || ""}</div>
+        </div>
+        <div class="mob-dc-badges">
+          <span class="badge badge-${d.status}">${d.status}</span>
+          ${d.priority === "urgent" ? `<span class="badge badge-urgent">🔥</span>` : ""}
+          ${ratingBadge(d)}
+        </div>
+      </div>
+      <div class="mob-dc-meta">
+        <span>🚚 ${d.assigned_driver_name || "—"}</span>
+        <span>⏱ ${etaFmt(d.estimated_delivery_time)}</span>
+        ${d.phone ? `<span>📞 <a class="phone-link" href="tel:${d.phone}" onclick="event.stopPropagation()">${d.phone}</a></span>` : ""}
+      </div>
+    `;
+    return card;
+  }
+
+  const rendered = new Set();
+  data.forEach(d => {
+    if (rendered.has(d.id)) return;
+    const isBatch = d.phone && batchPhones.includes(d.phone);
+    if (isBatch) {
+      const bNum    = batchNumberMap[d.phone];
+      const palette = BATCH_PALETTES[(bNum-1) % BATCH_PALETTES.length];
+      const siblings = data.filter(x => x.phone === d.phone);
+      const grp = document.createElement("div");
+      grp.className = "mob-batch-grp";
+      grp.style.setProperty("--mc-border", palette.border);
+      grp.style.setProperty("--mc-bg",     palette.bg);
+      grp.style.setProperty("--mc-text",   palette.text);
+      const hdr = document.createElement("div");
+      hdr.className = "mob-batch-grp-hdr";
+      hdr.innerHTML = `🔗 Batch ${bNum} · ${d.customer_name} · ${siblings.length} items`;
+      grp.appendChild(hdr);
+      siblings.forEach(item => { rendered.add(item.id); grp.appendChild(makeMobAdminCard(item, palette)); });
+      container.appendChild(grp);
+    } else {
+      rendered.add(d.id);
+      container.appendChild(makeMobAdminCard(d, null));
+    }
   });
 }
 
@@ -618,8 +821,10 @@ function viewDetails(d) {
     <div class="detail-row"><b>Invoice No.</b><span>${d.invoice_number || "—"}</span></div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${d.status}">${d.status}</span></span></div>
     <div class="detail-row"><b>Priority</b><span><span class="badge badge-${d.priority || 'normal'}">${d.priority || "normal"}</span></span></div>
-    <div class="detail-row"><b>ETA</b><span>${d.estimated_delivery_time || "—"}</span></div>
+    <div class="detail-row"><b>ETA</b><span>${d.estimated_delivery_time ? new Date(d.estimated_delivery_time).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}) : "—"}</span></div>
+    <div class="detail-row"><b>Rating</b><span>${(() => { if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—"; const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000; if (diff<=-10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early (' + Math.abs(Math.round(diff)) + 'm early)</span>'; if (diff<=10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>'; if (diff<=30) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late (' + Math.round(diff) + 'm)</span>'; return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 Very Late (' + Math.round(diff) + 'm)</span>'; })()}</span></div>
     <div class="detail-row"><b>Driver</b><span>${d.assigned_driver_name || "—"}</span></div>
+    ${d.delivery_note ? `<div class="detail-row"><b>Driver Note</b><span style="color:#16a34a;font-weight:500;">💬 ${d.delivery_note}</span></div>` : ""}
     <div class="detail-row"><b>Instructions</b><span>${d.driver_instructions || "—"}</span></div>
     <div class="detail-row"><b>Freight Charged</b><span>${d.freight_charged ? "Yes" : "No"}</span></div>
     <div class="detail-row"><b>Freight Amount</b><span>${d.freight_amount || "—"}</span></div>
@@ -671,51 +876,80 @@ function enableEdit() {
 async function updateDelivery(id) {
   if (!confirm("Update this delivery?")) return;
 
-  await fetch(`${BASE_URL}/delivery/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-    body: JSON.stringify({
-      customer_name: document.getElementById("edit_customer").value,
-      phone: document.getElementById("edit_phone").value,
-      address: document.getElementById("edit_address").value,
-      product_name: document.getElementById("edit_product").value,
-      assigned_driver_name: document.getElementById("edit_driver").value,
-      priority: document.getElementById("edit_priority").value,
-      estimated_delivery_time: document.getElementById("edit_eta").value
-    })
-  });
-
-  document.getElementById("popup").style.display = "none";
-  loadAdmin();
+  try {
+    const res = await fetch(`${BASE_URL}/delivery/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({
+        customer_name: document.getElementById("edit_customer").value,
+        phone: document.getElementById("edit_phone").value,
+        address: document.getElementById("edit_address").value,
+        product_name: document.getElementById("edit_product").value,
+        assigned_driver_name: document.getElementById("edit_driver").value,
+        priority: document.getElementById("edit_priority").value,
+        estimated_delivery_time: document.getElementById("edit_eta").value
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      alert("⚠ " + (err.error || "Update failed. Please try again."));
+      return;
+    }
+    document.getElementById("popup").style.display = "none";
+    loadAdmin();
+  } catch (e) {
+    alert("⚠ Network error. Please try again.");
+  }
 }
 
 async function deleteDelivery(id) {
   if (!confirm("Delete this delivery permanently?")) return;
 
-  await fetch(`${BASE_URL}/delivery/${id}`, {
-    method: "DELETE",
-    headers: { Authorization: "Bearer " + token }
-  });
-
-  document.getElementById("popup").style.display = "none";
-  loadAdmin();
+  try {
+    const res = await fetch(`${BASE_URL}/delivery/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: "Bearer " + token }
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      alert("⚠ " + (err.error || "Delete failed."));
+      return;
+    }
+    document.getElementById("popup").style.display = "none";
+    loadAdmin();
+  } catch (e) {
+    alert("⚠ Network error. Please try again.");
+  }
 }
 
 function downloadCSV() {
   if (!currentDisplayedData.length) { alert("No data to export"); return; }
 
-  let csv = "Delivery ID,Customer,Phone,Alt Phone,Address,Product,Serial,Invoice,Priority,Status,ETA,Driver ID,Driver,Instructions,Freight,Freight Amount,Created,Loaded,Delivered,Loaded Location,Delivered Location,Loaded Photo,Delivered Photo\n";
+  // Recompute batch map from currentDisplayedData
+  const _pc = {}; currentDisplayedData.forEach(d => { if (d.phone) _pc[d.phone] = (_pc[d.phone]||0)+1; });
+  const _bp = Object.keys(_pc).filter(p => _pc[p]>1);
+  const _bm = {}; let _bc = 1;
+  currentDisplayedData.forEach(d => { if (d.phone && _bp.includes(d.phone) && !_bm[d.phone]) _bm[d.phone] = _bc++; });
+
+  let csv = "Delivery ID,Customer,Phone,Alt Phone,Address,Product,Serial,Invoice,Priority,Status,Rating,Batch,ETA,Driver ID,Driver,Instructions,Freight,Freight Amount,Created By,Created,Loaded,Delivered,Loaded Location,Delivered Location,Loaded Photo,Delivered Photo\n";
 
   currentDisplayedData.forEach(d => {
     const ts = (t) => t ? new Date(t.seconds * 1000).toLocaleString() : "";
     const loc = (l) => l ? `${l.lat}, ${l.lng}` : "";
+    let rating = "";
+    if (d.status === "delivered" && d.delivered_timestamp && d.estimated_delivery_time) {
+      const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000;
+      if (diff<=-10) rating = "Early"; else if (diff<=10) rating = "On Time"; else if (diff<=30) rating = "Late"; else rating = "Very Late";
+    }
+    const batch = (d.phone && _bp.includes(d.phone)) ? "Batch " + _bm[d.phone] : "";
 
     csv += [
       d.id, d.customer_name, d.phone, d.alternate_phone, d.address,
       d.product_name, d.product_serial_number, d.invoice_number,
-      d.priority, d.status, d.estimated_delivery_time,
+      d.priority, d.status, rating, batch, d.estimated_delivery_time,
       d.assigned_driver_id, d.assigned_driver_name, d.driver_instructions,
       d.freight_charged ? "Yes" : "No", d.freight_amount,
+      d.created_by || "accountant",
       ts(d.created_timestamp), ts(d.loaded_timestamp), ts(d.delivered_timestamp),
       loc(d.loaded_location), loc(d.delivered_location),
       d.photo_loaded_url, d.photo_delivered_url

@@ -241,6 +241,9 @@
 
   <div class="card">
     <h3>Driver List</h3>
+    <input id="driverSearch" placeholder="🔍 Search by name or phone…" oninput="filterDrivers()"
+      style="width:100%;padding:9px 14px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;margin-bottom:14px;transition:border-color 0.2s;"
+      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
     <div class="table-wrap">
       <table>
         <thead>
@@ -281,6 +284,8 @@
   </div>
 </div>
 
+<div id="driverToast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:white;padding:11px 22px;border-radius:100px;font-size:14px;font-weight:500;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.3);white-space:nowrap;transition:opacity 0.3s;"></div>
+
 <script>
 const BASE_URL = window.location.origin;
 const token = localStorage.getItem("adminToken");
@@ -293,6 +298,15 @@ document.getElementById("phone").addEventListener("input", function () {
   this.value = this.value.replace(/\D/g, "");
 });
 
+function showToast(msg, color) {
+  const t = document.getElementById("driverToast");
+  t.innerText = msg;
+  t.style.background = color || "#1e293b";
+  t.style.display = "block";
+  t.style.opacity = "1";
+  setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.style.display = "none", 300); }, 3000);
+}
+
 async function addDriver() {
   const name = document.getElementById("name").value.trim();
   const phone = document.getElementById("phone").value.trim();
@@ -301,21 +315,28 @@ async function addDriver() {
   const vehicle_model = document.getElementById("vehicle_model").value.trim();
   const pin = document.getElementById("pin").value.trim();
 
-  if (!name) { alert("Driver name required"); return; }
-  if (phone.length !== 10) { alert("Phone must be 10 digits"); return; }
-  if (!/^\d{6}$/.test(pin)) { alert("PIN must be exactly 6 digits"); return; }
+  if (!name) { showToast("⚠ Driver name required", "#dc2626"); return; }
+  if (phone.length !== 10) { showToast("⚠ Phone must be 10 digits", "#dc2626"); return; }
+  if (!/^\d{6}$/.test(pin)) { showToast("⚠ PIN must be exactly 6 digits", "#dc2626"); return; }
 
-  await fetch(`${BASE_URL}/addDriver`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-    body: JSON.stringify({ driver_name: name, phone, vehicle_number, vehicle_make, vehicle_model, pin })
-  });
+  const btn = document.querySelector(".btn-add");
+  btn.disabled = true; btn.innerText = "Adding…";
 
-  ["name", "phone", "vehicle_number", "vehicle_make", "vehicle_model", "pin"].forEach(id => {
-    document.getElementById(id).value = "";
-  });
-
-  loadDrivers();
+  try {
+    const res = await fetch(`${BASE_URL}/addDriver`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ driver_name: name, phone, vehicle_number, vehicle_make, vehicle_model, pin })
+    });
+    const result = await res.json();
+    if (!res.ok) { showToast("⚠ " + (result.error || "Failed to add driver"), "#dc2626"); btn.disabled = false; btn.innerText = "+ Add Driver"; return; }
+    ["name", "phone", "vehicle_number", "vehicle_make", "vehicle_model", "pin"].forEach(id => { document.getElementById(id).value = ""; });
+    showToast("✅ Driver added successfully", "#16a34a");
+    loadDrivers();
+  } catch (e) {
+    showToast("⚠ Network error. Try again.", "#dc2626");
+  }
+  btn.disabled = false; btn.innerText = "+ Add Driver";
 }
 
 async function loadDrivers() {
@@ -386,18 +407,24 @@ async function saveDriver() {
 
   const newPin = document.getElementById("edit_pin").value.trim();
   if (newPin) {
-    if (!/^\d{6}$/.test(newPin)) { alert("PIN must be exactly 6 digits"); return; }
+    if (!/^\d{6}$/.test(newPin)) { showToast("⚠ PIN must be exactly 6 digits", "#dc2626"); return; }
     updated.pin = newPin;
   }
 
-  await fetch(`${BASE_URL}/driver/${currentDriverId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-    body: JSON.stringify(updated)
-  });
-
-  disableEdit();
-  loadDrivers();
+  try {
+    const res = await fetch(`${BASE_URL}/driver/${currentDriverId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify(updated)
+    });
+    const result = await res.json();
+    if (!res.ok) { showToast("⚠ " + (result.error || "Save failed"), "#dc2626"); return; }
+    showToast("✅ Driver updated", "#16a34a");
+    disableEdit();
+    loadDrivers();
+  } catch (e) {
+    showToast("⚠ Network error. Try again.", "#dc2626");
+  }
 }
 
 async function deleteDriver() {
@@ -414,6 +441,14 @@ async function deleteDriver() {
 
   closeDriverPopup();
   loadDrivers();
+}
+
+function filterDrivers() {
+  const q = document.getElementById("driverSearch").value.toLowerCase();
+  document.querySelectorAll("#list tr").forEach(tr => {
+    const text = tr.innerText.toLowerCase();
+    tr.style.display = q && !text.includes(q) ? "none" : "";
+  });
 }
 
 loadDrivers();

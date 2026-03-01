@@ -283,6 +283,40 @@
     .delivery-card:active { transform: scale(0.99); box-shadow: 0 1px 6px rgba(0,0,0,0.07); }
     .delivery-card.priority-urgent { border-left: 4px solid var(--red); }
 
+    /* ─── BATCH CARD GROUPING ─── */
+    .batch-group {
+      border-radius: 18px;
+      overflow: hidden;
+      margin-bottom: 14px;
+      border: 2px solid var(--batch-border, #7c3aed);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    .batch-group-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      background: var(--batch-bg, #f5f3ff);
+      color: var(--batch-text, #5b21b6);
+      border-bottom: 1px solid var(--batch-border, #7c3aed);
+    }
+    .batch-group .delivery-card {
+      margin-bottom: 0;
+      border-radius: 0;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      box-shadow: none;
+    }
+    .batch-group .delivery-card:last-child {
+      border-bottom: none;
+    }
+    .batch-group .delivery-card:active { transform: none; }
+    .batch-card-bg { background: var(--batch-bg, #f5f3ff) !important; }
+
     .card-top {
       padding: 14px 16px 10px;
       display: flex;
@@ -886,6 +920,21 @@
       <span class="section-title-text">My Deliveries</span>
       <span class="count-badge" id="deliveryCount" style="display:none;"></span>
     </div>
+
+    <!-- SEARCH BAR -->
+    <div style="position:relative;margin-bottom:12px;">
+      <span style="position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:15px;pointer-events:none;">🔍</span>
+      <input
+        id="deliverySearch"
+        type="text"
+        placeholder="Search by name, phone, or address…"
+        oninput="filterDeliveryCards()"
+        style="width:100%;padding:11px 14px 11px 38px;border:1.5px solid var(--border);border-radius:12px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:#f8fafc;color:var(--text);transition:border-color 0.2s,box-shadow 0.2s;-webkit-appearance:none;"
+        onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px rgba(37,99,235,0.12)';this.style.background='white'"
+        onblur="this.style.borderColor='var(--border)';this.style.boxShadow='none';this.style.background='#f8fafc'"
+      >
+    </div>
+
     <div id="deliveryCards">
       <!-- Skeleton shown on first load -->
       <div id="skeletonLoader">
@@ -1189,6 +1238,7 @@ async function unlockDriver() {
     document.getElementById("changeDriverBtn").style.display = "inline-flex";
     document.getElementById("rememberedTag").style.display   = "none";
 
+    allDeliveriesData = data;
     renderDeliveries(data);
     loadDeliveryHistory(driverId);
     startDriverAutoRefresh();
@@ -1197,6 +1247,26 @@ async function unlockDriver() {
     btn.innerText = origText; btn.disabled = false;
     showToast("⚠ Network error. Please retry.");
   }
+}
+
+/* ═══════════════════════════════════════
+   SEARCH FILTER
+═══════════════════════════════════════ */
+let allDeliveriesData = [];
+
+function filterDeliveryCards() {
+  const q = document.getElementById("deliverySearch").value.toLowerCase().trim();
+  if (!q) {
+    renderDeliveries(allDeliveriesData);
+    return;
+  }
+  const filtered = allDeliveriesData.filter(d =>
+    (d.customer_name && d.customer_name.toLowerCase().includes(q)) ||
+    (d.phone && d.phone.includes(q)) ||
+    (d.address && d.address.toLowerCase().includes(q)) ||
+    (d.product_name && d.product_name.toLowerCase().includes(q))
+  );
+  renderDeliveries(filtered);
 }
 
 /* ═══════════════════════════════════════
@@ -1237,12 +1307,39 @@ function renderDeliveries(data) {
   countBadge.style.display = "inline-block";
   container.innerHTML   = "";
 
+  // ── Batch grouping ──
+  const BATCH_PALETTES = [
+    { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
+    { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
+    { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
+    { bg: "#f0fdf4", border: "#16a34a", text: "#065f46" },
+    { bg: "#eff6ff", border: "#2563eb", text: "#1e3a8a" },
+    { bg: "#fefce8", border: "#ca8a04", text: "#713f12" },
+  ];
+  const phoneCounts = {};
+  data.forEach(d => { if (d.phone) phoneCounts[d.phone] = (phoneCounts[d.phone] || 0) + 1; });
+  const batchPhones = Object.keys(phoneCounts).filter(p => phoneCounts[p] > 1);
+  const batchNumberMap = {};
+  let batchCounter = 1;
   data.forEach(d => {
-    const card = document.createElement("div");
-    card.className = "delivery-card" + (d.priority === "urgent" ? " priority-urgent" : "");
-    card.onclick   = () => openDelivery(d.id);
+    if (d.phone && batchPhones.includes(d.phone) && !(d.phone in batchNumberMap)) {
+      batchNumberMap[d.phone] = batchCounter++;
+    }
+  });
 
-    // ETA short label
+  // Group data: batched deliveries rendered together, singles rendered alone
+  const rendered = new Set();
+
+  function makeCard(d, inBatch, palette) {
+    const card = document.createElement("div");
+    card.className = "delivery-card" +
+      (d.priority === "urgent" ? " priority-urgent" : "") +
+      (inBatch ? " batch-card-bg" : "");
+    if (inBatch && palette) {
+      card.style.setProperty("--batch-bg", palette.bg);
+    }
+    card.onclick = () => openDelivery(d.id);
+
     let etaLabel = "";
     if (d.estimated_delivery_time) {
       const diff = new Date(d.estimated_delivery_time) - new Date();
@@ -1271,7 +1368,39 @@ function renderDeliveries(data) {
         <div class="card-chevron">›</div>
       </div>`;
 
-    container.appendChild(card);
+    return card;
+  }
+
+  data.forEach(d => {
+    if (rendered.has(d.id)) return;
+
+    if (d.phone && batchPhones.includes(d.phone)) {
+      // Find all deliveries in this batch
+      const batchItems = data.filter(x => x.phone === d.phone);
+      const bNum       = batchNumberMap[d.phone];
+      const palette    = BATCH_PALETTES[(bNum - 1) % BATCH_PALETTES.length];
+
+      const group = document.createElement("div");
+      group.className = "batch-group";
+      group.style.setProperty("--batch-border", palette.border);
+      group.style.setProperty("--batch-bg",     palette.bg);
+      group.style.setProperty("--batch-text",   palette.text);
+
+      const header = document.createElement("div");
+      header.className = "batch-group-header";
+      header.innerHTML = `🔗 Batch ${bNum} — ${d.customer_name} · ${batchItems.length} deliveries`;
+      group.appendChild(header);
+
+      batchItems.forEach(item => {
+        rendered.add(item.id);
+        group.appendChild(makeCard(item, true, palette));
+      });
+
+      container.appendChild(group);
+    } else {
+      rendered.add(d.id);
+      container.appendChild(makeCard(d, false, null));
+    }
   });
 }
 
@@ -1536,14 +1665,16 @@ async function silentRefresh() {
       if (res.ok) {
         const json = await res.json();
         driverSessionToken = json.sessionToken || null;
-        renderDeliveries(json.deliveries || json);
+        allDeliveriesData = json.deliveries || json;
+        renderDeliveries(allDeliveriesData);
         loadDeliveryHistory(currentDriverId);
         return;
       }
     }
     if (res && res.ok) {
       const data = await res.json();
-      renderDeliveries(data);
+      allDeliveriesData = data;
+      renderDeliveries(allDeliveriesData);
       loadDeliveryHistory(currentDriverId);
     }
   } catch (_) {}
