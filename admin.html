@@ -512,6 +512,67 @@
   <!-- MOBILE DELIVERY CARDS -->
   <div class="mob-cards" id="mobCards"></div>
 
+  <!-- DRIVER PAYOUT SECTION -->
+  <div style="background:#fff;border-radius:16px;padding:24px;margin-top:20px;border:1px solid var(--border);box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+    <h3 style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+      💸 Driver Payout Calculator
+    </h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;flex-wrap:wrap;" id="payoutFilterRow">
+      <div>
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);display:block;margin-bottom:6px;">Driver</label>
+        <select id="payoutDriver" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;background:#fafbfc;">
+          <option value="">Select driver…</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);display:block;margin-bottom:6px;">Date</label>
+        <input type="date" id="payoutDate" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;background:#fafbfc;">
+      </div>
+      <button onclick="loadPayout()" style="padding:10px 20px;background:var(--accent);color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;height:42px;">
+        Calculate
+      </button>
+    </div>
+
+    <div id="payoutResult" style="margin-top:18px;display:none;">
+      <!-- Summary chips -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+        <div style="background:#eff6ff;border-radius:12px;padding:14px 20px;flex:1;min-width:120px;text-align:center;">
+          <div style="font-size:22px;font-weight:700;color:#1d4ed8;" id="payoutTotalFreight">—</div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:#64748b;margin-top:4px;">Total Freight</div>
+        </div>
+        <div style="background:#f0fdf4;border-radius:12px;padding:14px 20px;flex:1;min-width:120px;text-align:center;">
+          <div style="font-size:22px;font-weight:700;color:#16a34a;" id="payoutTotalDistance">—</div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:#64748b;margin-top:4px;">Total Distance</div>
+        </div>
+        <div style="background:#faf5ff;border-radius:12px;padding:14px 20px;flex:1;min-width:120px;text-align:center;">
+          <div style="font-size:22px;font-weight:700;color:#7c3aed;" id="payoutCount">—</div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:#64748b;margin-top:4px;">Deliveries</div>
+        </div>
+      </div>
+
+      <!-- Deliveries table -->
+      <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--border);">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr>
+              <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:left;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Customer</th>
+              <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:left;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Address</th>
+              <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:left;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Delivered At</th>
+              <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:right;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Freight (₹)</th>
+              <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:right;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Distance</th>
+            </tr>
+          </thead>
+          <tbody id="payoutTable"></tbody>
+          <tfoot id="payoutFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div id="payoutEmpty" style="display:none;text-align:center;padding:24px;color:var(--muted);font-size:14px;">
+      No delivered deliveries found for this driver on selected date.
+    </div>
+  </div>
+
 </div>
 
 <!-- DETAIL POPUP -->
@@ -839,7 +900,8 @@ function viewDetails(d) {
     <div class="detail-row"><b>Driver</b><span>${d.assigned_driver_name || "—"}</span></div>
     <div class="detail-row"><b>Instructions</b><span>${d.driver_instructions || "—"}</span></div>
     <div class="detail-row"><b>Freight Charged</b><span>${d.freight_charged ? "Yes" : "No"}</span></div>
-    <div class="detail-row"><b>Freight Amount</b><span>${d.freight_amount || "—"}</span></div>
+    <div class="detail-row"><b>Freight Amount</b><span>${d.freight_amount ? "₹" + d.freight_amount : "—"}${d.freight_set_by === "driver" ? " <span style='font-size:11px;background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:6px;font-weight:600;'>Driver set</span>" : ""}</span></div>
+    <div class="detail-row"><b>Distance Covered</b><span>${d.distance_km != null ? d.distance_km + " km" : "—"}</span></div>
     <div class="detail-row"><b>Created At</b><span>${ts(d.created_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded At</b><span>${ts(d.loaded_timestamp)}</span></div>
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
@@ -952,6 +1014,82 @@ function downloadCSV() {
 
 setInterval(loadAdmin, 30000);
 loadAdmin();
+
+// ── DRIVER PAYOUT ──────────────────────────────
+async function loadPayoutDrivers() {
+  try {
+    const res = await fetch(`${BASE_URL}/driver-list-public`);
+    const drivers = await res.json();
+    const sel = document.getElementById("payoutDriver");
+    drivers.forEach(d => {
+      const opt = document.createElement("option");
+      opt.value = d.id;
+      opt.textContent = d.driver_name;
+      sel.appendChild(opt);
+    });
+  } catch (e) { console.warn("Could not load payout drivers:", e); }
+}
+
+// Default payout date to today
+document.getElementById("payoutDate").value = new Date().toISOString().split("T")[0];
+loadPayoutDrivers();
+
+async function loadPayout() {
+  const driverId = document.getElementById("payoutDriver").value;
+  const date     = document.getElementById("payoutDate").value;
+  const result   = document.getElementById("payoutResult");
+  const empty    = document.getElementById("payoutEmpty");
+
+  if (!driverId) { alert("Please select a driver"); return; }
+  if (!date)     { alert("Please select a date"); return; }
+
+  result.style.display = "none";
+  empty.style.display  = "none";
+
+  try {
+    const res  = await fetch(`${BASE_URL}/driver-payout?driver_id=${driverId}&date=${date}`, {
+      headers: { Authorization: "Bearer " + token }
+    });
+    const data = await res.json();
+
+    if (!data.deliveries?.length) {
+      empty.style.display = "block";
+      return;
+    }
+
+    document.getElementById("payoutTotalFreight").textContent  = "₹" + data.total_freight.toLocaleString("en-IN");
+    document.getElementById("payoutTotalDistance").textContent = data.total_distance_km + " km";
+    document.getElementById("payoutCount").textContent         = data.count;
+
+    const tbody = document.getElementById("payoutTable");
+    tbody.innerHTML = data.deliveries.map(d => {
+      const delivTime = d.delivered_timestamp
+        ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })
+        : "—";
+      const freight = d.freight_charged ? "₹" + parseFloat(d.freight_amount || 0).toLocaleString("en-IN") : "<span style='color:#94a3b8'>—</span>";
+      const dist    = d.distance_km != null ? d.distance_km + " km" : "<span style='color:#94a3b8'>—</span>";
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:10px 12px;">${d.customer_name || "—"}</td>
+        <td style="padding:10px 12px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.address || "—"}</td>
+        <td style="padding:10px 12px;">${delivTime}</td>
+        <td style="padding:10px 12px;text-align:right;font-weight:600;">${freight}</td>
+        <td style="padding:10px 12px;text-align:right;font-weight:600;">${dist}</td>
+      </tr>`;
+    }).join("");
+
+    document.getElementById("payoutFoot").innerHTML = `
+      <tr style="background:#f8fafc;font-weight:700;border-top:2px solid var(--border);">
+        <td colspan="3" style="padding:10px 12px;font-size:13px;">Total (${data.count} deliveries)</td>
+        <td style="padding:10px 12px;text-align:right;color:#1d4ed8;">₹${data.total_freight.toLocaleString("en-IN")}</td>
+        <td style="padding:10px 12px;text-align:right;color:#16a34a;">${data.total_distance_km} km</td>
+      </tr>`;
+
+    result.style.display = "block";
+  } catch (e) {
+    alert("Failed to load payout data. Please try again.");
+  }
+}
+// ── END DRIVER PAYOUT ──────────────────────────
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/firebase-messaging-sw.js")

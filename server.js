@@ -22,7 +22,7 @@ dotenv.config();
 const require = createRequire(import.meta.url);
 //const serviceAccount = require("./firebase-service-account.json");
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-
+const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_KEY;
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -361,7 +361,40 @@ app.get("/deliveries", async (req, res) => {
   try {
     const snapshot = await getDocs(collection(db, "deliveries"));
     let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    deliveries.sort((a, b) => (b.priority === "urgent") - (a.priority === "urgent"));
+
+    const statusOrder = { pending: 0, loaded: 1, delivered: 2 };
+
+    deliveries.sort((a, b) => {
+      // Primary: status group order
+      const statusDiff = (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
+      if (statusDiff !== 0) return statusDiff;
+
+      // Within pending: urgent first, then newest created first
+      if (a.status === "pending") {
+        const urgentDiff = (b.priority === "urgent") - (a.priority === "urgent");
+        if (urgentDiff !== 0) return urgentDiff;
+        const aTs = a.created_timestamp?.seconds ?? 0;
+        const bTs = b.created_timestamp?.seconds ?? 0;
+        return bTs - aTs;
+      }
+
+      // Within loaded: newest loaded_timestamp first
+      if (a.status === "loaded") {
+        const aTs = a.loaded_timestamp?.seconds ?? 0;
+        const bTs = b.loaded_timestamp?.seconds ?? 0;
+        return bTs - aTs;
+      }
+
+      // Within delivered: newest delivered_timestamp first
+      if (a.status === "delivered") {
+        const aTs = a.delivered_timestamp?.seconds ?? 0;
+        const bTs = b.delivered_timestamp?.seconds ?? 0;
+        return bTs - aTs;
+      }
+
+      return 0;
+    });
+
     res.json(deliveries);
   } catch (error) {
     console.error("/deliveries error:", error);
@@ -431,7 +464,11 @@ app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
       product_serial_number: finalSerial,
       loaded_timestamp: Timestamp.now(),
       loaded_location: { lat: req.body.lat, lng: req.body.lng },
-      photo_loaded_url: url
+      photo_loaded_url: url,
+      // Save freight charge if driver set it (only when not already set by admin)
+      ...((!delivery.freight_charged && req.body.driver_freight_amount)
+        ? { freight_charged: true, freight_amount: req.body.driver_freight_amount, freight_set_by: "driver" }
+        : {})
     });
 
     await sendAccountantPush("📦 Delivery Loaded", `${delivery.customer_name} - ${delivery.address}`);
@@ -464,11 +501,36 @@ app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
       return res.status(409).json({ error: "Delivery already marked as delivered" });
     }
 
+    // Compute road distance via Google Maps Distance Matrix
+    let distance_km = null;
+    const deliveryData = snapBefore.data();
+    const loadedLoc = deliveryData.loaded_location;
+    const delivLat  = req.body.lat;
+    const delivLng  = req.body.lng;
+
+    if (loadedLoc?.lat && loadedLoc?.lng && delivLat && delivLng && GOOGLE_MAPS_KEY) {
+      try {
+        const mapsUrl = `https://maps.googleapis.com/maps/api/distancematrix/json` +
+          `?origins=${loadedLoc.lat},${loadedLoc.lng}` +
+          `&destinations=${delivLat},${delivLng}` +
+          `&key=${GOOGLE_MAPS_KEY}`;
+        const mapsRes  = await fetch(mapsUrl);
+        const mapsData = await mapsRes.json();
+        const element  = mapsData?.rows?.[0]?.elements?.[0];
+        if (element?.status === "OK") {
+          distance_km = parseFloat((element.distance.value / 1000).toFixed(2));
+        }
+      } catch (mapErr) {
+        console.warn("Distance Matrix error:", mapErr.message);
+      }
+    }
+
     await updateDoc(refDoc, {
       status: "delivered",
       delivered_timestamp: Timestamp.now(),
-      delivered_location: { lat: req.body.lat, lng: req.body.lng },
-      photo_delivered_url: url
+      delivered_location: { lat: delivLat, lng: delivLng },
+      photo_delivered_url: url,
+      ...(distance_km !== null ? { distance_km } : {})
     });
 
     const snap = await getDoc(refDoc);
@@ -672,6 +734,56 @@ app.post("/saveDriverPushToken", async (req, res) => {
     await updateDoc(doc(db, "drivers", driver_id), { pushToken: token });
     res.json({ success: true });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   DRIVER PAYOUT
+   GET /driver-payout?driver_id=X&date=YYYY-MM-DD
+   Returns all delivered deliveries for that driver
+   on that date, with freight totals + distance totals
+════════════════════════════════════════════════ */
+
+app.get("/driver-payout", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { driver_id, date } = req.query;
+    if (!driver_id || !date) return res.status(400).json({ error: "driver_id and date required" });
+
+    // Build day range in UTC
+    const dayStart = new Date(date + "T00:00:00.000Z");
+    const dayEnd   = new Date(date + "T23:59:59.999Z");
+
+    const snapshot = await getDocs(query(
+      collection(db, "deliveries"),
+      where("assigned_driver_id", "==", driver_id),
+      where("status", "==", "delivered")
+    ));
+
+    const deliveries = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => {
+        if (!d.delivered_timestamp) return false;
+        const ts = new Date(d.delivered_timestamp.seconds * 1000);
+        return ts >= dayStart && ts <= dayEnd;
+      });
+
+    const total_freight = deliveries.reduce((sum, d) => {
+      return sum + (d.freight_charged ? parseFloat(d.freight_amount || 0) : 0);
+    }, 0);
+
+    const total_distance_km = deliveries.reduce((sum, d) => {
+      return sum + (d.distance_km || 0);
+    }, 0);
+
+    res.json({
+      deliveries,
+      total_freight: parseFloat(total_freight.toFixed(2)),
+      total_distance_km: parseFloat(total_distance_km.toFixed(2)),
+      count: deliveries.length
+    });
+  } catch (error) {
+    console.error("/driver-payout error:", error);
     res.status(500).json({ error: error.message });
   }
 });

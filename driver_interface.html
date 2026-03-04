@@ -1505,7 +1505,18 @@ async function openDelivery(id) {
 
     <div class="info-box info-box-gray">
       💰 <strong>Freight:</strong>
-      ${d.freight_charged ? `Yes — ₹${d.freight_amount || "—"}` : "No freight charges"}
+      ${d.freight_charged
+        ? `Already set — ₹${d.freight_amount || "—"}`
+        : d.status === "pending"
+          ? `<div style="margin-top:8px;">
+               <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Set Freight Charge (₹)</label>
+               <input id="freightInput" type="number" min="0" step="1" placeholder="Enter amount or leave blank if none"
+                 style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;background:#f8fafc;color:var(--text);transition:border-color 0.2s;"
+                 onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+               <div style="font-size:11px;color:var(--muted);margin-top:5px;">Leave blank if no freight charges for this delivery</div>
+             </div>`
+          : "No freight charges"
+      }
     </div>
 
     ${uploadSection}
@@ -1597,6 +1608,15 @@ async function updateDelivery() {
     if (currentStatus === "pending" && !currentDeliveryData.product_serial_number) {
       if (!serialInput?.value?.trim()) { showToast("⚠ Serial number is required"); if(widget) widget.style.pointerEvents="auto"; return; }
       formData.append("serial", serialInput.value.trim());
+    }
+
+    // Append driver-set freight charge when marking loaded (only if admin hasn't set it)
+    if (currentStatus === "pending" && !currentDeliveryData.freight_charged) {
+      const freightInput = document.getElementById("freightInput");
+      const freightVal = freightInput?.value?.trim();
+      if (freightVal && parseFloat(freightVal) > 0) {
+        formData.append("driver_freight_amount", freightVal);
+      }
     }
 
     const endpoint = currentStatus === "pending" ? `/markLoaded/${currentDeliveryId}` : `/markDelivered/${currentDeliveryId}`;
