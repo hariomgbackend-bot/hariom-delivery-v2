@@ -787,6 +787,7 @@ async function loadAdmin() {
   ];
 
   pageData.forEach(d => {
+    const row = document.createElement("tr");
 
     const loaded    = d.loaded_timestamp    ? new Date(d.loaded_timestamp.seconds * 1000)    : null;
     const delivered = d.delivered_timestamp ? new Date(d.delivered_timestamp.seconds * 1000) : null;
