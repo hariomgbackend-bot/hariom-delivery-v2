@@ -463,12 +463,43 @@
     <input id="alt_phone" placeholder="Alternate Phone (Optional)" maxlength="10">
 
     <div class="section-title">Address</div>
+
+    <!-- PIN CODE — first, triggers auto-fill -->
+    <div style="position:relative;">
+      <input id="pincode" placeholder="PIN Code" maxlength="6"
+             style="padding-right:36px;"
+             inputmode="numeric">
+      <span id="pinSpinner" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:14px;">⏳</span>
+    </div>
+    <div id="pinError" style="display:none;font-size:12px;color:#dc2626;margin-top:-4px;margin-bottom:6px;"></div>
+
+    <!-- STATE + CITY — auto-filled, read-only with edit override -->
+    <div style="display:flex;gap:8px;">
+      <div style="flex:1;position:relative;">
+        <input id="state_field" placeholder="State" readonly
+               style="background:#f0fdf4;padding-right:48px;">
+        <button type="button" id="editStateBtn"
+                style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:11px;font-weight:700;color:var(--accent);cursor:pointer;padding:2px 4px;">
+          ✏ Edit
+        </button>
+      </div>
+      <div style="flex:1;position:relative;">
+        <input id="city" placeholder="City" readonly
+               style="background:#f0fdf4;padding-right:48px;">
+        <button type="button" id="editCityBtn"
+                style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:11px;font-weight:700;color:var(--accent);cursor:pointer;padding:2px 4px;">
+          ✏ Edit
+        </button>
+      </div>
+    </div>
+
+    <!-- AREA — dropdown populated from API -->
+    <select id="area" style="display:none;"></select>
+    <input id="area_manual" placeholder="Area / Landmark" style="display:none;">
+
+    <!-- ADDRESS LINES -->
     <input id="addr1" placeholder="Address Line 1">
-    <input id="addr2" placeholder="Address Line 2">
-    <input id="area" placeholder="Area / Landmark">
-    <input id="city" placeholder="City">
-    <input id="state_field" placeholder="State">
-    <input id="pincode" placeholder="PIN Code" maxlength="6">
+    <input id="addr2" placeholder="Address Line 2 (Optional)">
 
     <div class="section-title">Product</div>
     <select id="product_select" onchange="handleAddNew(this,'product')"></select>
@@ -858,31 +889,104 @@ function capitalizeWords(str) {
 
 /* ── PIN CODE AUTO-FILL ── */
 document.addEventListener("DOMContentLoaded", () => {
-  const pincodeEl = document.getElementById("pincode");
+  const pincodeEl   = document.getElementById("pincode");
+  const stateEl     = document.getElementById("state_field");
+  const cityEl      = document.getElementById("city");
+  const areaSelect  = document.getElementById("area");
+  const areaManual  = document.getElementById("area_manual");
+  const pinSpinner  = document.getElementById("pinSpinner");
+  const pinError    = document.getElementById("pinError");
+  const editStateBtn = document.getElementById("editStateBtn");
+  const editCityBtn  = document.getElementById("editCityBtn");
+
   if (!pincodeEl) return;
 
-  pincodeEl.addEventListener("input", () => {
+  // Digits only
+  pincodeEl.addEventListener("input", async () => {
     pincodeEl.value = pincodeEl.value.replace(/\D/g, "");
+
+    // Reset fields when user is typing
+    if (pincodeEl.value.length < 6) {
+      resetPinFields();
+      return;
+    }
+
+    // Fire on exactly 6 digits
+    if (pincodeEl.value.length === 6) {
+      await fetchPinData(pincodeEl.value);
+    }
   });
 
-  pincodeEl.addEventListener("blur", async () => {
-    if (pincodeEl.value.length !== 6) return;
+  function resetPinFields() {
+    stateEl.value = ""; stateEl.readOnly = true; stateEl.style.background = "";
+    cityEl.value  = ""; cityEl.readOnly  = true; cityEl.style.background  = "";
+    editStateBtn.style.display = "none";
+    editCityBtn.style.display  = "none";
+    areaSelect.style.display   = "none";
+    areaSelect.innerHTML       = "";
+    areaManual.style.display   = "none";
+    areaManual.value           = "";
+    pinError.style.display     = "none";
+    pinError.innerText         = "";
+  }
+
+  async function fetchPinData(pin) {
+    pinSpinner.style.display = "inline";
+    pinError.style.display   = "none";
     try {
-      const res = await fetch(`https://api.postalpincode.in/pincode/${pincodeEl.value}`);
+      const res  = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
       const data = await res.json();
-      const cityEl  = document.getElementById("city");
-      const stateEl = document.getElementById("state_field");
+
       if (data[0].Status === "Success") {
-        const po = data[0].PostOffice[0];
-        cityEl.value  = po.District;
+        const offices = data[0].PostOffice;
+        const po      = offices[0];
+
+        // Fill state + city — read-only with edit button
         stateEl.value = po.State;
-        cityEl.style.background  = "#f0fdf4";
-        stateEl.style.background = "#f0fdf4";
+        cityEl.value  = po.District;
+        stateEl.readOnly = true; stateEl.style.background = "#f0fdf4";
+        cityEl.readOnly  = true; cityEl.style.background  = "#f0fdf4";
+        editStateBtn.style.display = "inline-block";
+        editCityBtn.style.display  = "inline-block";
+
+        // Populate area dropdown with all post office names
+        areaSelect.innerHTML = '<option value="">— Select Area —</option>';
+        offices.forEach(office => {
+          const opt = document.createElement("option");
+          opt.value = office.Name;
+          opt.text  = office.Name;
+          areaSelect.appendChild(opt);
+        });
+        areaSelect.style.display  = "block";
+        areaManual.style.display  = "none";
+        areaManual.value          = "";
+
       } else {
-        cityEl.value = ""; stateEl.value = "";
-        alert("Invalid PIN Code");
+        pinError.innerText     = "⚠ Invalid PIN Code — please check and re-enter";
+        pinError.style.display = "block";
+        resetPinFields();
+        pincodeEl.focus();
       }
-    } catch (err) { console.log("PIN API Error:", err); }
+    } catch (err) {
+      pinError.innerText     = "⚠ Could not reach PIN API — enter area manually";
+      pinError.style.display = "block";
+      // Fallback: show manual area input
+      areaManual.style.display = "block";
+      areaSelect.style.display = "none";
+      console.warn("PIN API Error:", err);
+    } finally {
+      pinSpinner.style.display = "none";
+    }
+  }
+
+  // Edit override buttons
+  editStateBtn.addEventListener("click", () => {
+    stateEl.readOnly = false; stateEl.style.background = "";
+    stateEl.focus(); editStateBtn.style.display = "none";
+  });
+  editCityBtn.addEventListener("click", () => {
+    cityEl.readOnly = false; cityEl.style.background = "";
+    cityEl.focus(); editCityBtn.style.display = "none";
   });
 });
 
@@ -962,10 +1066,13 @@ async function createDelivery() {
   const fullName    = [firstNameEl.value, middleName, lastName].filter(x => x).join(" ");
 
   const addr2       = document.getElementById("addr2").value;
-  const area        = document.getElementById("area").value;
+  const areaSelect  = document.getElementById("area");
+  const areaManual  = document.getElementById("area_manual");
+  const area        = areaSelect.style.display !== "none" ? areaSelect.value : areaManual.value;
   const city        = document.getElementById("city").value;
   const stateVal    = document.getElementById("state_field").value;
   const pincodeVal  = document.getElementById("pincode").value;
+  // Pincode always at end of address string
   const fullAddress = [addr1El.value, addr2, area, city, stateVal + (pincodeVal ? " - " + pincodeVal : "")].filter(x => x).join(", ");
 
   const finalProduct     = [productVal, makeVal, modelVal].filter(x => x).join(" ");
@@ -1027,8 +1134,19 @@ function resetForm() {
   document.getElementById("freight_amount").value = "";
   const cityEl  = document.getElementById("city");
   const stateEl = document.getElementById("state_field");
-  if (cityEl)  cityEl.style.background  = "";
-  if (stateEl) stateEl.style.background = "";
+  if (cityEl)  { cityEl.style.background = ""; cityEl.readOnly = true; }
+  if (stateEl) { stateEl.style.background = ""; stateEl.readOnly = true; }
+  // Reset area dropdown + manual fallback
+  const areaSelect = document.getElementById("area");
+  const areaManual = document.getElementById("area_manual");
+  if (areaSelect) { areaSelect.innerHTML = ""; areaSelect.style.display = "none"; }
+  if (areaManual) { areaManual.value = ""; areaManual.style.display = "none"; }
+  const editStateBtn = document.getElementById("editStateBtn");
+  const editCityBtn  = document.getElementById("editCityBtn");
+  if (editStateBtn) editStateBtn.style.display = "none";
+  if (editCityBtn)  editCityBtn.style.display  = "none";
+  const pinError = document.getElementById("pinError");
+  if (pinError) { pinError.style.display = "none"; pinError.innerText = ""; }
   document.getElementById("formMessage").innerHTML = "";
 }
 
