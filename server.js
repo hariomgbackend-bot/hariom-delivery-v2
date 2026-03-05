@@ -750,9 +750,9 @@ app.get("/driver-payout", authenticate, authorize(["admin"]), async (req, res) =
     const { driver_id, date } = req.query;
     if (!driver_id || !date) return res.status(400).json({ error: "driver_id and date required" });
 
-    // Build day range in UTC
-    const dayStart = new Date(date + "T00:00:00.000Z");
-    const dayEnd   = new Date(date + "T23:59:59.999Z");
+    // Build IST day boundaries (India = UTC+5:30)
+    const dayStart = new Date(date + "T00:00:00.000+05:30");
+    const dayEnd   = new Date(date + "T23:59:59.999+05:30");
 
     const snapshot = await getDocs(query(
       collection(db, "deliveries"),
@@ -768,8 +768,13 @@ app.get("/driver-payout", authenticate, authorize(["admin"]), async (req, res) =
         return ts >= dayStart && ts <= dayEnd;
       });
 
-    const total_freight = deliveries.reduce((sum, d) => {
-      return sum + (d.freight_charged ? parseFloat(d.freight_amount || 0) : 0);
+    // Only count freight the DRIVER set at load time — meaning WE bear the cost
+    // Freight set by accountant during delivery creation = customer pays = excluded
+    const total_our_freight = deliveries.reduce((sum, d) => {
+      if (d.freight_set_by === "driver" && d.freight_charged) {
+        return sum + parseFloat(d.freight_amount || 0);
+      }
+      return sum;
     }, 0);
 
     const total_distance_km = deliveries.reduce((sum, d) => {
@@ -778,8 +783,8 @@ app.get("/driver-payout", authenticate, authorize(["admin"]), async (req, res) =
 
     res.json({
       deliveries,
-      total_freight: parseFloat(total_freight.toFixed(2)),
-      total_distance_km: parseFloat(total_distance_km.toFixed(2)),
+      total_our_freight:  parseFloat(total_our_freight.toFixed(2)),
+      total_distance_km:  parseFloat(total_distance_km.toFixed(2)),
       count: deliveries.length
     });
   } catch (error) {

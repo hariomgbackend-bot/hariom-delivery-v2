@@ -1008,37 +1008,46 @@ function updateSummaryCards(data) {
 function viewDetails(d) {
   currentDeliveryObj = d;
 
-  const ts = (t) => t ? new Date(t.seconds * 1000).toLocaleString() : "—";
-  const loc = (l) => l ? `${l.lat}, ${l.lng}` : "—";
+  const ts  = (t) => t ? new Date(t.seconds * 1000).toLocaleString("en-IN", {day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}) : "—";
+
+  const freightDisplay = (() => {
+    if (!d.freight_charged) return "No";
+    const amount = d.freight_amount ? " — \u20b9" + parseFloat(d.freight_amount).toLocaleString("en-IN") : "";
+    if (d.freight_set_by === "driver") {
+      return "Yes" + amount + ' <span style="margin-left:6px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:#fee2e2;color:#991b1b;">Driver set — We pay</span>';
+    }
+    return "Yes" + amount + ' <span style="margin-left:6px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:#dcfce7;color:#166534;">Accountant set — Customer pays</span>';
+  })();
 
   document.getElementById("popupContent").innerHTML = `
     <h3>Delivery Details</h3>
-    <div class="detail-row"><b>Delivery ID</b><span>${d.id || ""}</span></div>
-    <div class="detail-row"><b>Customer</b><span>${d.customer_name || ""}</span></div>
-    <div class="detail-row"><b>Phone</b><span>${d.phone || ""}</span></div>
-    <div class="detail-row"><b>Alternate Phone</b><span>${d.alternate_phone || "—"}</span></div>
-    <div class="detail-row"><b>Address</b><span>${d.address || ""}</span></div>
-    <div class="detail-row"><b>Product</b><span>${d.product_name || ""}</span></div>
+    <div class="detail-row"><b>Delivery ID</b><span style="font-size:12px;word-break:break-all;color:var(--muted)">${d.id || ""}</span></div>
+    <div class="detail-row"><b>Customer</b><span style="font-weight:600">${d.customer_name || "—"}</span></div>
+    <div class="detail-row"><b>Phone</b><span>${d.phone ? '<a class="phone-link" href="tel:' + d.phone + '">' + d.phone + '</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Alternate Phone</b><span>${d.alternate_phone ? '<a class="phone-link" href="tel:' + d.alternate_phone + '">' + d.alternate_phone + '</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Address</b><span>${d.address || "—"}</span></div>
+    <div class="detail-row"><b>Product</b><span>${d.product_name || "—"}</span></div>
+    <div class="detail-row"><b>Make / Model</b><span>${[d.product_make, d.product_model].filter(Boolean).join(" / ") || "—"}</span></div>
     <div class="detail-row"><b>Serial No.</b><span>${d.product_serial_number || "—"}</span></div>
     <div class="detail-row"><b>Invoice No.</b><span>${d.invoice_number || "—"}</span></div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${d.status}">${d.status}</span></span></div>
-    <div class="detail-row"><b>Priority</b><span><span class="badge badge-${d.priority || 'normal'}">${d.priority || "normal"}</span></span></div>
-    <div class="detail-row"><b>ETA</b><span>${d.estimated_delivery_time ? new Date(d.estimated_delivery_time).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}) : "—"}</span></div>
-    <div class="detail-row"><b>Rating</b><span>${(() => { if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—"; const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000; if (diff<=-10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early (' + Math.abs(Math.round(diff)) + 'm early)</span>'; if (diff<=10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>'; if (diff<=30) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late (' + Math.round(diff) + 'm)</span>'; return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 Very Late (' + Math.round(diff) + 'm)</span>'; })()}</span></div>
+    <div class="detail-row"><b>Priority</b><span><span class="badge badge-${d.priority || "normal"}">${d.priority || "normal"}</span></span></div>
+    <div class="detail-row"><b>ETA</b><span>${d.estimated_delivery_time ? new Date(d.estimated_delivery_time).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}) : "—"}</span></div>
+    <div class="detail-row"><b>Delivery Rating</b><span>${(() => { if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—"; const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000; if (diff<=-10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">\u26a1 Early (' + Math.abs(Math.round(diff)) + 'm early)</span>'; if (diff<=10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">\u2705 On Time</span>'; if (diff<=30) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">\ud83d\udd50 Late (' + Math.round(diff) + 'm)</span>'; return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">\ud83d\udd34 Very Late (' + Math.round(diff) + 'm)</span>'; })()}</span></div>
     <div class="detail-row"><b>Driver</b><span>${d.assigned_driver_name || "—"}</span></div>
-    <div class="detail-row"><b>Instructions</b><span>${d.driver_instructions || "—"}</span></div>
-    <div class="detail-row"><b>Freight Charged</b><span>${d.freight_charged ? "Yes" : "No"}</span></div>
-    <div class="detail-row"><b>Freight Amount</b><span>${d.freight_amount || "—"}</span></div>
+    <div class="detail-row"><b>Driver Instructions</b><span>${d.driver_instructions && d.driver_instructions !== "none" ? d.driver_instructions : "—"}</span></div>
+    <div class="detail-row"><b>Freight</b><span>${freightDisplay}</span></div>
+    <div class="detail-row"><b>Distance Covered</b><span>${d.distance_km != null ? "<strong style=\"color:#16a34a;\">" + d.distance_km + " km</strong>" : "—"}</span></div>
     <div class="detail-row"><b>Created At</b><span>${ts(d.created_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded At</b><span>${ts(d.loaded_timestamp)}</span></div>
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
-    <div class="detail-row"><b>Loaded Location</b><span>${loc(d.loaded_location)}</span></div>
-    <div class="detail-row"><b>Delivered Location</b><span>${loc(d.delivered_location)}</span></div>
-    <div class="detail-row"><b>Loaded Photo</b><span>${d.photo_loaded_url ? `<a href="${d.photo_loaded_url}" target="_blank" style="color:var(--accent)">View</a>` : "—"}</span></div>
-    <div class="detail-row"><b>Delivered Photo</b><span>${d.photo_delivered_url ? `<a href="${d.photo_delivered_url}" target="_blank" style="color:var(--accent)">View</a>` : "—"}</span></div>
+    <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + d.loaded_location.lat + ',' + d.loaded_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + d.delivered_location.lat + ',' + d.delivered_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Loaded Photo</b><span>${d.photo_loaded_url ? '<a href="' + d.photo_loaded_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Delivered Photo</b><span>${d.photo_delivered_url ? '<a href="' + d.photo_delivered_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
-      <button class="btn-primary" onclick="enableEdit()">✏ Edit</button>
-      <button class="btn-danger" onclick="deleteDelivery('${d.id}')">🗑 Delete</button>
+      <button class="btn-primary" onclick="enableEdit()">\u270f Edit</button>
+      <button class="btn-danger" onclick="deleteDelivery('${d.id}')">\ud83d\uddd1 Delete</button>
     </div>
   `;
 
@@ -1193,9 +1202,9 @@ async function loadPayout() {
       return;
     }
 
-    // Summary chips
-    document.getElementById("payoutTotalFreight").textContent  = "₹" + data.total_freight.toLocaleString("en-IN");
-    document.getElementById("payoutTotalDistance").textContent = data.total_distance_km + " km";
+    // Summary chips — only our freight (driver-set) counts
+    document.getElementById("payoutTotalFreight").textContent  = "\u20b9" + (data.total_our_freight || 0).toLocaleString("en-IN");
+    document.getElementById("payoutTotalDistance").textContent = (data.total_distance_km || 0) + " km";
     document.getElementById("payoutCount").textContent         = data.count;
     chips.style.display = "flex";
 
@@ -1204,29 +1213,43 @@ async function loadPayout() {
     tbody.innerHTML = data.deliveries.map((d, i) => {
       const delivTime = d.delivered_timestamp
         ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })
-        : "—";
-      const freight = d.freight_charged
-        ? `<strong style="color:#1d4ed8;">₹${parseFloat(d.freight_amount || 0).toLocaleString("en-IN")}</strong>`
-        : `<span style="color:#94a3b8;">—</span>`;
-      const dist = d.distance_km != null
+        : "\u2014";
+
+      // Only show in red if driver set it (we owe); accountant-set = customer paid = grey note
+      const isOurFreight = d.freight_set_by === "driver" && d.freight_charged;
+      const freightCell  = isOurFreight
+        ? `<strong style="color:#dc2626;">\u20b9${parseFloat(d.freight_amount || 0).toLocaleString("en-IN")}</strong>`
+        : d.freight_charged
+          ? `<span style="color:#94a3b8;font-size:12px;">Customer paid</span>`
+          : `<span style="color:#94a3b8;">\u2014</span>`;
+
+      const distCell = d.distance_km != null
         ? `<strong style="color:#16a34a;">${d.distance_km} km</strong>`
-        : `<span style="color:#94a3b8;">—</span>`;
+        : `<span style="color:#94a3b8;">\u2014</span>`;
+
       return `<tr style="border-bottom:1px solid var(--border);">
         <td style="padding:10px 12px;color:var(--muted);font-size:12px;">${i + 1}</td>
-        <td style="padding:10px 12px;font-weight:600;">${d.customer_name || "—"}</td>
-        <td style="padding:10px 12px;color:var(--muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.address || "—"}</td>
+        <td style="padding:10px 12px;font-weight:600;">${d.customer_name || "\u2014"}</td>
+        <td style="padding:10px 12px;color:var(--muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${d.address || ""}">${d.address || "\u2014"}</td>
         <td style="padding:10px 12px;white-space:nowrap;">${delivTime}</td>
-        <td style="padding:10px 12px;text-align:right;">${freight}</td>
-        <td style="padding:10px 12px;text-align:right;">${dist}</td>
+        <td style="padding:10px 12px;text-align:right;">${freightCell}</td>
+        <td style="padding:10px 12px;text-align:right;">${distCell}</td>
       </tr>`;
     }).join("");
 
-    // Footer totals row
+    // Footer totals
     document.getElementById("payoutFoot").innerHTML = `
-      <tr style="background:#f8fafc;border-top:2px solid var(--border);">
-        <td colspan="4" style="padding:12px;font-weight:700;font-size:13px;">Total — ${data.count} deliveries</td>
-        <td style="padding:12px;text-align:right;font-weight:700;font-size:15px;color:#1d4ed8;">₹${data.total_freight.toLocaleString("en-IN")}</td>
-        <td style="padding:12px;text-align:right;font-weight:700;font-size:15px;color:#16a34a;">${data.total_distance_km} km</td>
+      <tr style="background:#fef9f0;border-top:2px solid var(--border);">
+        <td colspan="4" style="padding:12px;font-weight:700;font-size:13px;">
+          Total \u2014 ${data.count} deliveries
+          <span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--muted);">Only freight we owe driver shown in red</span>
+        </td>
+        <td style="padding:12px;text-align:right;font-weight:700;font-size:16px;color:#dc2626;">
+          \u20b9${(data.total_our_freight || 0).toLocaleString("en-IN")}
+        </td>
+        <td style="padding:12px;text-align:right;font-weight:700;font-size:16px;color:#16a34a;">
+          ${(data.total_distance_km || 0)} km
+        </td>
       </tr>`;
 
     tableWrap.style.display = "block";
