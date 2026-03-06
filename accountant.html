@@ -414,6 +414,7 @@
       <button class="filter-btn" data-filter="pending"   onclick="setFilter('pending')">Pending <span class="filter-count" id="fc-pending"></span></button>
       <button class="filter-btn" data-filter="loaded"    onclick="setFilter('loaded')">Loaded <span class="filter-count" id="fc-loaded"></span></button>
       <button class="filter-btn" data-filter="delivered" onclick="setFilter('delivered')">Delivered <span class="filter-count" id="fc-delivered"></span></button>
+      <button class="filter-btn" data-filter="failed"    onclick="setFilter('failed')" style="color:#dc2626;border-color:#fca5a5;">❌ Failed <span class="filter-count" id="fc-failed"></span></button>
       <button class="filter-btn" data-filter="urgent"    onclick="setFilter('urgent')">🔥 Urgent <span class="filter-count" id="fc-urgent"></span></button>
       <button class="filter-btn" data-filter="today"     onclick="setFilter('today')">Today <span class="filter-count" id="fc-today"></span></button>
       <button class="filter-btn" data-filter="yesterday" onclick="setFilter('yesterday')">Yesterday</button>
@@ -1207,14 +1208,16 @@ async function loadDeliveries() {
     const pendingArr = data.filter(d => d.status === "pending")
       .sort((a, b) => (b.created_timestamp?.seconds || 0) - (a.created_timestamp?.seconds || 0));
     const loadedArr  = data.filter(d => d.status === "loaded");
+    const failedArr  = data.filter(d => d.status === "failed");
     const deliveredTodayArr = data.filter(d =>
       d.status === "delivered" && d.delivered_timestamp &&
       new Date(d.delivered_timestamp.seconds * 1000).toDateString() === todayStr
     );
-    finalData = [...pendingArr, ...loadedArr, ...deliveredTodayArr];
+    finalData = [...pendingArr, ...loadedArr, ...failedArr, ...deliveredTodayArr];
 
     if      (currentFilter === "pending")   finalData = pendingArr;
     else if (currentFilter === "loaded")    finalData = loadedArr;
+    else if (currentFilter === "failed")    finalData = failedArr;
     else if (currentFilter === "delivered") finalData = deliveredTodayArr;
     else if (currentFilter === "urgent")    finalData = finalData.filter(d => d.priority === "urgent");
     else if (currentFilter === "today")     finalData = finalData.filter(d =>
@@ -1232,15 +1235,16 @@ async function loadDeliveries() {
   currentAccountantData = finalData;
 
   // Update filter count badges (based on all unfiltered data)
-  const counts = { all: data.length, pending: 0, loaded: 0, delivered: 0, urgent: 0, today: 0 };
+  const counts = { all: data.length, pending: 0, loaded: 0, delivered: 0, failed: 0, urgent: 0, today: 0 };
   data.forEach(d => {
     if (d.status === "pending")   counts.pending++;
     if (d.status === "loaded")    counts.loaded++;
     if (d.status === "delivered") counts.delivered++;
+    if (d.status === "failed")    counts.failed++;
     if (d.priority === "urgent")  counts.urgent++;
     if (d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === todayStr) counts.today++;
   });
-  ["all","pending","loaded","delivered","urgent","today"].forEach(k => {
+  ["all","pending","loaded","delivered","failed","urgent","today"].forEach(k => {
     const el = document.getElementById("fc-" + k);
     if (el) el.innerText = counts[k] || "";
   });
@@ -1283,7 +1287,7 @@ async function loadDeliveries() {
     return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 Very Late</span>`;
   }
 
-  let pending = 0, loaded = 0, delivered = 0;
+  let pending = 0, loaded = 0, delivered = 0, failed = 0;
   const list = document.getElementById("list");
   list.innerHTML = "";
 
@@ -1300,6 +1304,7 @@ async function loadDeliveries() {
     if (d.status === "pending")   pending++;
     if (d.status === "loaded")    loaded++;
     if (d.status === "delivered") delivered++;
+    if (d.status === "failed")    failed++;
 
     const tr = document.createElement("tr");
     const isBatched = d.phone && batchPhones.includes(d.phone);
@@ -1326,15 +1331,20 @@ async function loadDeliveries() {
       batchTag = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bNum}</span>`;
     }
 
+    if (d.status === "failed") tr.style.background = "#fff1f2";
+
     tr.innerHTML = `
-      <td>${d.customer_name}${batchTag}</td>
+      <td>${d.customer_name}${batchTag}${d.previous_failures > 0 ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;">⚠ Prev. Failed</span>` : ""}</td>
       <td><a class='phone-link' href='tel:${d.phone}'>${d.phone}</a></td>
       <td>${d.product_name}</td>
       <td>${d.assigned_driver_name || "—"}</td>
       <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
-      <td><span class="badge badge-${d.status}">${d.status}</span></td>
+      <td>
+        <span class="badge badge-${d.status}">${d.status}</span>
+        ${d.status === "failed" && d.failure_reason ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">${d.failure_reason}</div>` : ""}
+      </td>
       <td>${getDeliveryRating(d)}</td>
-      <td><button class="btn btn-primary btn-sm" onclick="openViewPopup('${d.id}')">View</button></td>
+      <td><button class="btn ${d.status === 'failed' ? 'btn-danger' : 'btn-primary'} btn-sm" onclick="openViewPopup('${d.id}')">${d.status === "failed" ? "⚠ Action" : "View"}</button></td>
     `;
     list.appendChild(tr);
   });
@@ -1343,6 +1353,7 @@ async function loadDeliveries() {
     📦 Pending: <span>${pending}</span> &nbsp;|&nbsp;
     🚚 Loaded: <span>${loaded}</span> &nbsp;|&nbsp;
     ✅ Delivered: <span>${delivered}</span>
+    ${failed > 0 ? ` &nbsp;|&nbsp; <span style="color:#dc2626;font-weight:700;">❌ Failed: ${failed}</span>` : ""}
   `;
 
   // Last updated
@@ -1507,6 +1518,34 @@ function openViewPopup(id) {
 
     ${delivery.loaded_location    ? `<div class="detail-row"><b>Loaded Location</b><a href="https://www.google.com/maps?q=${delivery.loaded_location.lat},${delivery.loaded_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></div>` : ""}
     ${delivery.delivered_location ? `<div class="detail-row"><b>Delivered Location</b><a href="https://www.google.com/maps?q=${delivery.delivered_location.lat},${delivery.delivered_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></div>` : ""}
+
+    ${delivery.status === "failed" ? `
+    <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:16px;margin-top:16px;">
+      <div style="font-weight:700;font-size:15px;color:#b91c1c;margin-bottom:10px;">
+        ${delivery.failure_reason === "Product Damaged / Not Working" ? "🔴 URGENT — " : ""}❌ Delivery Failed
+      </div>
+      <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${delivery.failure_reason || "—"}</span></div>
+      ${delivery.failure_photo_url ? `
+        <div style="margin:10px 0;">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:6px;">Failure Photo</div>
+          <img src="${delivery.failure_photo_url}"
+            onclick="openPhotoLightbox('${delivery.failure_photo_url}','Failure Photo')"
+            style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #fca5a5;">
+        </div>` : ""}
+      ${!delivery.product_returned ? `
+        <div style="background:#fef9c3;border-radius:8px;padding:10px 12px;font-size:13px;color:#92400e;margin:10px 0;">
+          ⚠ Reschedule is locked until product is marked as returned
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="markReturned('${delivery.id}')">
+          📦 Mark Product Returned
+        </button>` : `
+        <div style="background:#dcfce7;border-radius:8px;padding:10px 12px;font-size:13px;color:#166534;margin:10px 0;">
+          ✅ Product has been returned to warehouse
+        </div>
+        <button class="btn btn-success" style="width:100%;margin-top:8px;" onclick="openReschedule('${delivery.id}')">
+          🔄 Reschedule Delivery
+        </button>`}
+    </div>` : ""}
   `;
 
   if (delivery.status?.toLowerCase() === "pending") {
@@ -1518,6 +1557,86 @@ function openViewPopup(id) {
 
 function closeViewPopup() {
   document.getElementById("viewPopup").classList.remove("is-open");
+}
+
+/* ── MARK PRODUCT RETURNED ── */
+async function markReturned(id) {
+  if (!confirm("Confirm that the product has physically returned to the warehouse?")) return;
+  try {
+    const res = await fetch(`${BASE_URL}/markReturned/${id}`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + localStorage.getItem("accountantToken") }
+    });
+    const data = await res.json();
+    if (!res.ok) { alert("⚠ " + (data.error || "Failed")); return; }
+    closeViewPopup();
+    loadDeliveries();
+  } catch (e) {
+    alert("⚠ Network error. Try again.");
+  }
+}
+
+/* ── OPEN RESCHEDULE FORM ── */
+async function openReschedule(id) {
+  const delivery = currentAccountantData.find(d => d.id === id);
+  if (!delivery) return;
+
+  const res = await fetch(`${BASE_URL}/driver-list-public`);
+  const drivers = await res.json();
+
+  const inputStyle = "width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;margin-bottom:8px;outline:none;";
+
+  document.getElementById("viewContent").innerHTML = `
+    <h3 style="margin-bottom:4px;">🔄 Reschedule Delivery</h3>
+    <div style="font-size:13px;color:#64748b;margin-bottom:16px;">${delivery.customer_name} — ${delivery.product_name}</div>
+    ${delivery.previous_failures > 0 ? `<div style="background:#fff1f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;font-size:13px;color:#991b1b;margin-bottom:12px;">⚠ Previous failure: ${delivery.failure_reason || "Unknown reason"}</div>` : ""}
+    <div class="section-title">New Estimated Delivery Time *</div>
+    <input type="datetime-local" id="reschedule_eta" style="${inputStyle}">
+    <div class="section-title">Reassign Driver (optional — leave to keep current)</div>
+    <select id="reschedule_driver" style="${inputStyle}">
+      <option value="">— Keep current driver (${delivery.assigned_driver_name || "none"}) —</option>
+    </select>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-success" onclick="saveReschedule('${id}')">✅ Confirm Reschedule</button>
+      <button class="btn btn-gray" onclick="closeViewPopup()">Cancel</button>
+    </div>
+  `;
+
+  const sel = document.getElementById("reschedule_driver");
+  drivers.forEach(d => {
+    const opt = document.createElement("option");
+    opt.value = d.id;
+    opt.textContent = d.driver_name + (d.id === delivery.assigned_driver_id ? " (current)" : "");
+    sel.appendChild(opt);
+  });
+}
+
+/* ── SAVE RESCHEDULE ── */
+async function saveReschedule(id) {
+  const eta = document.getElementById("reschedule_eta")?.value;
+  if (!eta) { alert("Please set a new delivery time"); return; }
+  if (new Date(eta) < new Date()) { alert("ETA must be in the future"); return; }
+
+  const driverSel = document.getElementById("reschedule_driver");
+  const driverId = driverSel?.value;
+  const driverName = driverId ? driverSel.options[driverSel.selectedIndex]?.text?.replace(" (current)", "") : null;
+
+  const body = { estimated_delivery_time: eta };
+  if (driverId) { body.assigned_driver_id = driverId; body.assigned_driver_name = driverName; }
+
+  try {
+    const res = await fetch(`${BASE_URL}/rescheduleDelivery/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + localStorage.getItem("accountantToken") },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) { alert("⚠ " + (data.error || "Reschedule failed")); return; }
+    closeViewPopup();
+    loadDeliveries();
+  } catch (e) {
+    alert("⚠ Network error. Try again.");
+  }
 }
 
 async function editDelivery(id) {

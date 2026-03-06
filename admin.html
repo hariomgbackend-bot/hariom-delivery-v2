@@ -612,6 +612,7 @@
     <button class="filter-btn" onclick="setFilter('pending')">Pending</button>
     <button class="filter-btn" onclick="setFilter('loaded')">Loaded</button>
     <button class="filter-btn" onclick="setFilter('delivered')">Delivered</button>
+    <button class="filter-btn" onclick="setFilter('failed')" style="color:#dc2626;border-color:#fca5a5;">❌ Failed</button>
     <button class="filter-btn" onclick="setFilter('urgent')">🔥 Urgent</button>
     <div class="toolbar-right">
       <button class="btn-csv" onclick="downloadCSV()">⬇ Export CSV</button>
@@ -735,6 +736,7 @@ async function loadAdmin() {
   } else if (currentFilter === "pending")   data = data.filter(d => d.status === "pending");
   else if (currentFilter === "loaded")      data = data.filter(d => d.status === "loaded");
   else if (currentFilter === "delivered")   data = data.filter(d => d.status === "delivered");
+  else if (currentFilter === "failed")      data = data.filter(d => d.status === "failed");
   else if (currentFilter === "urgent")      data = data.filter(d => d.priority === "urgent");
 
   currentDisplayedData = data;
@@ -828,7 +830,10 @@ async function loadAdmin() {
       <td>${d.customer_name || ""}${batchTag}</td>
       <td>${d.assigned_driver_name || "—"}</td>
       <td>${d.product_name || ""}</td>
-      <td><span class="badge badge-${d.status}">${d.status}</span></td>
+      <td>
+        <span class="badge badge-${d.status}">${d.status}</span>
+        ${d.status === "failed" && d.failure_reason ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">${d.failure_reason}</div>` : ""}
+      </td>
       <td><span class="badge badge-${d.priority || 'normal'}">${d.priority || "normal"}</span></td>
       <td style="white-space:nowrap">${formatETA(d.estimated_delivery_time)}</td>
       <td>${durationText || "—"}</td>
@@ -840,6 +845,7 @@ async function loadAdmin() {
       <td>${mapLink ? `<a href="${mapLink}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:500;">📍 Map</a>` : "—"}</td>
       <td><button class="btn-sm" onclick='viewDetails(${JSON.stringify(d)})'>View</button></td>
     `;
+    if (d.status === "failed") row.style.background = "#fff1f2";
     table.appendChild(row);
   });
 
@@ -1045,9 +1051,18 @@ function viewDetails(d) {
     <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + d.delivered_location.lat + ',' + d.delivered_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
     <div class="detail-row"><b>Loaded Photo</b><span>${d.photo_loaded_url ? '<a href="' + d.photo_loaded_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
     <div class="detail-row"><b>Delivered Photo</b><span>${d.photo_delivered_url ? '<a href="' + d.photo_delivered_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+
+    ${d.status === "failed" ? `
+    <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:14px;margin-top:16px;">
+      <div style="font-weight:700;color:#b91c1c;margin-bottom:8px;">${d.failure_reason === "Product Damaged / Not Working" ? "🔴 URGENT — " : ""}❌ Delivery Failed</div>
+      <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${d.failure_reason || "—"}</span></div>
+      <div class="detail-row"><b>Product Returned</b><span>${d.product_returned ? "✅ Yes" : "❌ Not yet"}</span></div>
+      ${d.failure_photo_url ? `<div class="detail-row"><b>Failure Photo</b><span><a href="${d.failure_photo_url}" target="_blank" style="color:var(--accent);">View Photo</a></span></div>` : ""}
+    </div>` : ""}
+
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
-      <button class="btn-primary" onclick="enableEdit()">\u270f Edit</button>
-      <button class="btn-danger" onclick="deleteDelivery('${d.id}')">\ud83d\uddd1 Delete</button>
+      <button class="btn-primary" onclick="enableEdit()">✏ Edit</button>
+      <button class="btn-danger" onclick="deleteDelivery('${d.id}')">🗑 Delete</button>
     </div>
   `;
 

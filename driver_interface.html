@@ -345,6 +345,23 @@
     .badge-loaded    { background: #dbeafe; color: #1e40af; }
     .badge-delivered { background: #dcfce7; color: #166534; }
     .badge-urgent    { background: #fee2e2; color: #b91c1c; }
+    .badge-failed    { background: #fee2e2; color: #991b1b; }
+
+    .btn-failed {
+      width: 100%;
+      padding: 14px;
+      background: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: opacity 0.2s;
+    }
+    .btn-failed:active { opacity: 0.85; }
     .badge-normal    { background: #f1f5f9; color: #475569; }
 
     .card-divider { height: 1px; background: var(--border); margin: 0 16px; }
@@ -1273,7 +1290,7 @@ function filterDeliveryCards() {
    RENDER — sorted: urgent first, then by ETA
 ═══════════════════════════════════════ */
 function renderDeliveries(data) {
-  data = data.filter(d => d.status !== "delivered");
+  data = data.filter(d => d.status !== "delivered" && d.status !== "failed");
 
   // Sort: urgent first, then pending before loaded, then by ETA
   data.sort((a, b) => {
@@ -1521,8 +1538,48 @@ async function openDelivery(id) {
 
     ${uploadSection}
 
+    ${currentStatus === "loaded" ? `
+    <div id="failureSection" style="display:none;background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:16px;margin-top:10px;">
+      <div style="font-weight:700;color:#b91c1c;margin-bottom:12px;">❌ Report Failed Delivery</div>
+
+      <label style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Reason *</label>
+      <select id="failureReason" onchange="onFailureReasonChange()"
+        style="width:100%;padding:10px 12px;border:1.5px solid #fca5a5;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:white;color:#1e293b;margin-bottom:12px;">
+        <option value="">— Select reason —</option>
+        <option>Customer Not Available</option>
+        <option>Customer Not Responding</option>
+        <option>Customer Asked to Reschedule</option>
+        <option>Customer Cancelled / Not Accepting Product</option>
+        <option>Product Damaged / Not Working</option>
+      </select>
+
+      <div id="failurePhotoWrap" style="display:none;margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Damage Photo * (required)</label>
+        <input type="file" id="failurePhoto" accept="image/*" capture="environment"
+          style="width:100%;padding:8px;border:2px solid #dc2626;border-radius:9px;font-size:13px;background:white;">
+      </div>
+
+      <div id="failurePhotoOptWrap" style="display:none;margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Photo (optional)</label>
+        <input type="file" id="failurePhotoOpt" accept="image/*" capture="environment"
+          style="width:100%;padding:8px;border:1.5px solid #fca5a5;border-radius:9px;font-size:13px;background:white;">
+      </div>
+
+      <div style="display:flex;gap:8px;">
+        <button onclick="submitFailure()"
+          style="flex:1;padding:12px;background:#dc2626;color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;">
+          Confirm Failure
+        </button>
+        <button onclick="document.getElementById('failureSection').style.display='none';document.getElementById('showFailureBtn').style.display='block';"
+          style="padding:12px 16px;background:#64748b;color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">
+          Cancel
+        </button>
+      </div>
+    </div>` : ""}
+
     <div class="popup-actions">
       ${actionBtn}
+      ${currentStatus === "loaded" ? `<button id="showFailureBtn" class="btn-failed" onclick="document.getElementById('failureSection').style.display='block';this.style.display='none';">❌ Mark as Failed</button>` : ""}
       <button class="btn-close-action" onclick="closePopup()">Close</button>
     </div>
   `;
@@ -1644,6 +1701,70 @@ async function updateDelivery() {
 function closePopup() {
   document.getElementById("popup").style.display = "none";
   if (etaInterval) { clearInterval(etaInterval); etaInterval = null; }
+}
+
+/* ═══════════════════════════════════════
+   FAILURE REASON CHANGE
+═══════════════════════════════════════ */
+function onFailureReasonChange() {
+  const reason = document.getElementById("failureReason")?.value;
+  const dmgWrap = document.getElementById("failurePhotoWrap");
+  const optWrap = document.getElementById("failurePhotoOptWrap");
+  if (!dmgWrap || !optWrap) return;
+  if (reason === "Product Damaged / Not Working") {
+    dmgWrap.style.display = "block";
+    optWrap.style.display = "none";
+  } else if (reason) {
+    dmgWrap.style.display = "none";
+    optWrap.style.display = "block";
+  } else {
+    dmgWrap.style.display = "none";
+    optWrap.style.display = "none";
+  }
+}
+
+/* ═══════════════════════════════════════
+   SUBMIT FAILURE
+═══════════════════════════════════════ */
+async function submitFailure() {
+  const reason = document.getElementById("failureReason")?.value;
+  if (!reason) { showToast("⚠ Please select a reason"); return; }
+
+  const isDamage = reason === "Product Damaged / Not Working";
+  const photoInput = isDamage
+    ? document.getElementById("failurePhoto")
+    : document.getElementById("failurePhotoOpt");
+
+  if (isDamage && (!photoInput?.files?.length)) {
+    showToast("📷 Photo required for damaged product");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("reason", reason);
+
+  if (photoInput?.files?.length) {
+    const compressed = await compressImage(photoInput.files[0]);
+    formData.append("photo", compressed, "failure.jpg");
+  }
+
+  try {
+    const res = await fetch(`${BASE_URL}/markFailed/${currentDeliveryId}`, {
+      method: "POST",
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast("⚠ " + (err.error || "Failed to submit. Try again."));
+      return;
+    }
+    vibrate([100, 50, 100, 50, 200]);
+    showToast("❌ Delivery marked as failed");
+    closePopup();
+    unlockDriver();
+  } catch (e) {
+    showToast("⚠ Network error. Please retry.");
+  }
 }
 
 // Close popup on backdrop tap

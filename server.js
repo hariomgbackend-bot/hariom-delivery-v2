@@ -764,18 +764,7 @@ app.get("/driver-payout", authenticate, authorize(["admin"]), async (req, res) =
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(d => {
         if (!d.delivered_timestamp) return false;
-        // Firestore SDK can return Timestamp with .toMillis(), or plain {seconds, nanoseconds}
-        // If .seconds is undefined, seconds*1000 = NaN and ALL date comparisons silently fail
-        let ms;
-        if (typeof d.delivered_timestamp.toMillis === "function") {
-          ms = d.delivered_timestamp.toMillis();
-        } else if (d.delivered_timestamp.seconds != null) {
-          ms = d.delivered_timestamp.seconds * 1000;
-        } else {
-          ms = Number(d.delivered_timestamp);
-        }
-        if (!ms || isNaN(ms)) return false;
-        const ts = new Date(ms);
+        const ts = new Date(d.delivered_timestamp.seconds * 1000);
         return ts >= dayStart && ts <= dayEnd;
       });
 
@@ -800,6 +789,180 @@ app.get("/driver-payout", authenticate, authorize(["admin"]), async (req, res) =
     });
   } catch (error) {
     console.error("/driver-payout error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   MARK FAILED — driver reports a failed delivery
+   POST /markFailed/:id  (multipart/form-data)
+   Fields: reason (string), photo (file, required for damage)
+════════════════════════════════════════════════ */
+
+app.post("/markFailed/:id", upload.single("photo"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const VALID_REASONS = [
+      "Customer Not Available",
+      "Customer Not Responding",
+      "Customer Asked to Reschedule",
+      "Customer Cancelled / Not Accepting Product",
+      "Product Damaged / Not Working"
+    ];
+
+    if (!reason || !VALID_REASONS.includes(reason)) {
+      return res.status(400).json({ error: "Invalid or missing failure reason" });
+    }
+
+    const deliveryRef = doc(db, "deliveries", id);
+    const snap = await getDoc(deliveryRef);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    const delivery = snap.data();
+    if (delivery.status !== "loaded") {
+      return res.status(400).json({ error: "Only loaded deliveries can be marked as failed" });
+    }
+
+    const isDamage = reason === "Product Damaged / Not Working";
+
+    // Photo required for damage
+    if (isDamage && !req.file) {
+      return res.status(400).json({ error: "Photo is required for damaged product" });
+    }
+
+    let failure_photo_url = null;
+    if (req.file) {
+      const storageRef = ref(storage, "delivery_failures/" + Date.now() + "_" + id);
+      await uploadBytes(storageRef, req.file.buffer, { contentType: req.file.mimetype });
+      failure_photo_url = await getDownloadURL(storageRef);
+    }
+
+    await updateDoc(deliveryRef, {
+      status: "failed",
+      failure_reason: reason,
+      failed_timestamp: Timestamp.now(),
+      product_returned: false,
+      ...(failure_photo_url && { failure_photo_url })
+    });
+
+    // Notify accountant — urgent tag for damage
+    const urgentPrefix = isDamage ? "🔴 URGENT — " : "";
+    await sendAccountantPush(
+      urgentPrefix + "Delivery Failed",
+      `${delivery.customer_name || "Customer"}: ${reason}`
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("/markFailed error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   MARK RETURNED — accountant confirms product back
+   POST /markReturned/:id
+════════════════════════════════════════════════ */
+
+app.post("/markReturned/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deliveryRef = doc(db, "deliveries", id);
+    const snap = await getDoc(deliveryRef);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    if (snap.data().status !== "failed") {
+      return res.status(400).json({ error: "Only failed deliveries can be marked as returned" });
+    }
+
+    await updateDoc(deliveryRef, {
+      product_returned: true,
+      returned_timestamp: Timestamp.now()
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("/markReturned error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   RESCHEDULE DELIVERY — back to pending
+   POST /rescheduleDelivery/:id
+   Body: estimated_delivery_time, assigned_driver_id?, assigned_driver_name?
+   Requires: status === "failed" AND product_returned === true
+════════════════════════════════════════════════ */
+
+app.post("/rescheduleDelivery/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estimated_delivery_time, assigned_driver_id, assigned_driver_name } = req.body;
+
+    if (!estimated_delivery_time) {
+      return res.status(400).json({ error: "New estimated delivery time is required" });
+    }
+
+    const newETA = new Date(estimated_delivery_time);
+    if (isNaN(newETA.getTime()) || newETA < new Date()) {
+      return res.status(400).json({ error: "ETA must be a valid future date/time" });
+    }
+
+    const deliveryRef = doc(db, "deliveries", id);
+    const snap = await getDoc(deliveryRef);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    const delivery = snap.data();
+    if (delivery.status !== "failed") {
+      return res.status(400).json({ error: "Only failed deliveries can be rescheduled" });
+    }
+    if (!delivery.product_returned) {
+      return res.status(400).json({ error: "Product must be marked as returned before rescheduling" });
+    }
+
+    const previousFailures = (delivery.previous_failures || 0) + 1;
+
+    await updateDoc(deliveryRef, {
+      status: "pending",
+      estimated_delivery_time,
+      previous_failures: previousFailures,
+      previous_failure_reason: delivery.failure_reason || null,
+      // Clear failure fields
+      failure_reason: null,
+      failed_timestamp: null,
+      product_returned: null,
+      returned_timestamp: null,
+      failure_photo_url: null,
+      rescheduled_timestamp: Timestamp.now(),
+      // Reassign driver if provided, else keep existing
+      ...(assigned_driver_id && { assigned_driver_id }),
+      ...(assigned_driver_name && { assigned_driver_name })
+    });
+
+    // Notify the (possibly new) driver
+    const driverIdToNotify = assigned_driver_id || delivery.assigned_driver_id;
+    if (driverIdToNotify) {
+      const driverSnap = await getDoc(doc(db, "drivers", driverIdToNotify));
+      if (driverSnap.exists()) {
+        const { pushToken } = driverSnap.data();
+        if (pushToken) {
+          const previousNote = previousFailures > 1 ? ` (${previousFailures - 1} prev. attempt)` : "";
+          await sendPushToToken(
+            pushToken,
+            "Delivery Rescheduled",
+            `New delivery assigned: ${delivery.customer_name || "Customer"}${previousNote}`,
+            doc(db, "drivers", driverIdToNotify),
+            "pushToken"
+          );
+        }
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("/rescheduleDelivery error:", error);
     res.status(500).json({ error: error.message });
   }
 });
