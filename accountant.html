@@ -590,6 +590,33 @@ function accountantLogout() {
   showLoginScreen();
 }
 
+// Central handler — called any time a 401 is received
+function handleAuthError() {
+  localStorage.removeItem("accountantToken");
+  showLoginScreen();
+  // Brief delay so the login screen is visible before showing the message
+  setTimeout(() => {
+    document.getElementById("loginError").innerText = "⚠ Session expired. Please log in again.";
+  }, 100);
+}
+
+// Decode JWT exp claim without verifying signature (safe — we just read the expiry time)
+function isTokenExpired() {
+  const t = localStorage.getItem("accountantToken");
+  if (!t) return true;
+  try {
+    const payload = JSON.parse(atob(t.split(".")[1]));
+    return Date.now() >= payload.exp * 1000;
+  } catch { return true; }
+}
+
+// Check on every visibility change (user switches back to tab)
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && isTokenExpired()) {
+    handleAuthError();
+  }
+});
+
 function showLoginScreen() {
   document.getElementById("loginScreen").classList.add("active");
   document.getElementById("appShell").style.display = "none";
@@ -1185,10 +1212,13 @@ function formatDate(dateString) {
 
 /* ── LOAD DELIVERIES ── */
 async function loadDeliveries() {
+  if (isTokenExpired()) { handleAuthError(); return; }
   let data;
   try {
-    const res = await fetch(`${BASE_URL}/deliveries`);
-    if (res.status === 401) { accountantLogout(); return; }
+    const res = await fetch(`${BASE_URL}/deliveries`, {
+      headers: { Authorization: "Bearer " + localStorage.getItem("accountantToken") }
+    });
+    if (res.status === 401) { handleAuthError(); return; }
     data = await res.json();
   } catch (e) { return; }
 
@@ -1568,7 +1598,10 @@ async function markReturned(id) {
       headers: { Authorization: "Bearer " + localStorage.getItem("accountantToken") }
     });
     const data = await res.json();
-    if (!res.ok) { alert("⚠ " + (data.error || "Failed")); return; }
+    if (!res.ok) {
+      if (res.status === 401) { handleAuthError(); return; }
+      alert("⚠ " + (data.error || "Failed")); return;
+    }
     closeViewPopup();
     loadDeliveries();
   } catch (e) {
@@ -1631,7 +1664,10 @@ async function saveReschedule(id) {
       body: JSON.stringify(body)
     });
     const data = await res.json();
-    if (!res.ok) { alert("⚠ " + (data.error || "Reschedule failed")); return; }
+    if (!res.ok) {
+      if (res.status === 401) { handleAuthError(); return; }
+      alert("⚠ " + (data.error || "Reschedule failed")); return;
+    }
     closeViewPopup();
     loadDeliveries();
   } catch (e) {

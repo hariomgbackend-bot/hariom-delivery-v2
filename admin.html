@@ -362,6 +362,10 @@
       padding: 24px 16px;
     }
 
+    .img-popup-overlay.is-open {
+      display: flex;
+    }
+
     .img-popup-card {
       background: white;
       border-radius: 16px;
@@ -662,14 +666,14 @@
 </div>
 
 <!-- IMAGE POPUP -->
-<div class="img-popup-overlay" id="imgPopup" onclick="this.style.display='none'">
+<div class="img-popup-overlay" id="imgPopup" onclick="closeImgPopup()">
   <div class="img-popup-card" onclick="event.stopPropagation()">
     <img id="popupImg" src="" alt="Proof photo">
     <br>
     <a id="downloadLink" download>
       <button class="btn-primary">⬇ Download</button>
     </a>
-    <button class="btn-gray" style="margin-left:8px;" onclick="document.getElementById('imgPopup').style.display='none'">Close</button>
+    <button class="btn-gray" style="margin-left:8px;" onclick="closeImgPopup()">Close</button>
   </div>
 </div>
 
@@ -718,6 +722,11 @@ async function loadAdmin() {
   const res = await fetch(`${BASE_URL}/deliveries`, {
     headers: { Authorization: "Bearer " + token }
   });
+  if (res.status === 401) {
+    localStorage.removeItem("adminToken");
+    window.location.href = "login.html";
+    return;
+  }
   let data = await res.json();
   const now = new Date();
 
@@ -1049,15 +1058,15 @@ function viewDetails(d) {
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + d.loaded_location.lat + ',' + d.loaded_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
     <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + d.delivered_location.lat + ',' + d.delivered_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Loaded Photo</b><span>${d.photo_loaded_url ? '<a href="' + d.photo_loaded_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Delivered Photo</b><span>${d.photo_delivered_url ? '<a href="' + d.photo_delivered_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Loaded Photo</b><span>${d.photo_loaded_url ? `<a href="javascript:void(0)" onclick="viewImage('${d.photo_loaded_url}')" style="color:var(--accent);font-weight:600;cursor:pointer;">📷 View Photo</a>` : "—"}</span></div>
+    <div class="detail-row"><b>Delivered Photo</b><span>${d.photo_delivered_url ? `<a href="javascript:void(0)" onclick="viewImage('${d.photo_delivered_url}')" style="color:var(--accent);font-weight:600;cursor:pointer;">📷 View Photo</a>` : "—"}</span></div>
 
     ${d.status === "failed" ? `
     <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:14px;margin-top:16px;">
       <div style="font-weight:700;color:#b91c1c;margin-bottom:8px;">${d.failure_reason === "Product Damaged / Not Working" ? "🔴 URGENT — " : ""}❌ Delivery Failed</div>
       <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${d.failure_reason || "—"}</span></div>
       <div class="detail-row"><b>Product Returned</b><span>${d.product_returned ? "✅ Yes" : "❌ Not yet"}</span></div>
-      ${d.failure_photo_url ? `<div class="detail-row"><b>Failure Photo</b><span><a href="${d.failure_photo_url}" target="_blank" style="color:var(--accent);">View Photo</a></span></div>` : ""}
+      ${d.failure_photo_url ? `<div class="detail-row"><b>Failure Photo</b><span><a href="javascript:void(0)" onclick="viewImage('${d.failure_photo_url}')" style="color:var(--accent);font-weight:600;cursor:pointer;">📷 View Photo</a></span></div>` : ""}
     </div>` : ""}
 
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
@@ -1072,7 +1081,12 @@ function viewDetails(d) {
 function viewImage(url) {
   document.getElementById("popupImg").src = url;
   document.getElementById("downloadLink").href = url;
-  document.getElementById("imgPopup").style.display = "flex";
+  document.getElementById("imgPopup").classList.add("is-open");
+}
+
+function closeImgPopup() {
+  document.getElementById("imgPopup").classList.remove("is-open");
+  document.getElementById("popupImg").src = "";
 }
 
 function enableEdit() {

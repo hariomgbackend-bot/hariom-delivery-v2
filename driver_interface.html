@@ -1834,6 +1834,13 @@ async function silentRefresh() {
         renderDeliveries(allDeliveriesData);
         loadDeliveryHistory(currentDriverId);
         return;
+      } else {
+        // PIN rejected — session fully expired, force re-login
+        closePopup();
+        logoutDriver();
+        showToast("🔒 Session expired. Please log in again.", 4000);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
       }
     }
     if (res && res.ok) {
@@ -1956,8 +1963,11 @@ function resetInactivityTimer() {
   if (inactivityTimer) clearTimeout(inactivityTimer);
   inactivityTimer = setTimeout(() => {
     if (currentDriverId) {
-      showToast("🔒 Session expired. Please log in again.");
+      closePopup();
       logoutDriver();
+      showToast("🔒 Session expired. Please log in again.", 4000);
+      // Scroll to top so PIN screen is visible
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, INACTIVITY_MS);
 }
