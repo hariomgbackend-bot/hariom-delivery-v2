@@ -764,7 +764,18 @@ app.get("/driver-payout", authenticate, authorize(["admin"]), async (req, res) =
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(d => {
         if (!d.delivered_timestamp) return false;
-        const ts = new Date(d.delivered_timestamp.seconds * 1000);
+        // Firestore SDK can return Timestamp with .toMillis(), or plain {seconds, nanoseconds}
+        // If .seconds is undefined, seconds*1000 = NaN and ALL date comparisons silently fail
+        let ms;
+        if (typeof d.delivered_timestamp.toMillis === "function") {
+          ms = d.delivered_timestamp.toMillis();
+        } else if (d.delivered_timestamp.seconds != null) {
+          ms = d.delivered_timestamp.seconds * 1000;
+        } else {
+          ms = Number(d.delivered_timestamp);
+        }
+        if (!ms || isNaN(ms)) return false;
+        const ts = new Date(ms);
         return ts >= dayStart && ts <= dayEnd;
       });
 

@@ -1174,7 +1174,9 @@ async function loadPayoutDrivers() {
   } catch (e) { console.warn("Could not load payout drivers:", e); }
 }
 
-document.getElementById("payoutDate").value = new Date().toISOString().split("T")[0];
+// IST = UTC+5:30 — using toISOString() gives UTC date which is wrong in India before 5:30 AM
+const _istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+document.getElementById("payoutDate").value = _istNow.toISOString().split("T")[0];
 loadPayoutDrivers();
 
 async function loadPayout() {
@@ -1196,6 +1198,11 @@ async function loadPayout() {
       headers: { Authorization: "Bearer " + token }
     });
     const data = await res.json();
+
+    if (!res.ok) {
+      alert("⚠ Payout error: " + (data.error || "Server error — check console"));
+      return;
+    }
 
     if (!data.deliveries?.length) {
       empty.style.display = "block";
