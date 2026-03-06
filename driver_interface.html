@@ -12,24 +12,28 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
   <title>Driver Panel — Hariom Electronics</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #f0f4fa;
+      --bg: #f0f4f8;
       --surface: #ffffff;
-      --border: #e2e8f0;
+      --border: #dde3ed;
       --accent: #2563eb;
       --accent-dark: #1d4ed8;
-      --header-bg: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
-      --text: #1e293b;
+      --header-bg: linear-gradient(135deg, #0b1629 0%, #162032 100%);
+      --text: #1a2540;
       --muted: #64748b;
       --green: #16a34a;
       --red: #dc2626;
+      --amber: #f59e0b;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --font-display: 'Syne', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-body: 'DM Sans', sans-serif;
     }
 
     html { height: 100%; }
@@ -895,8 +899,8 @@
   <div class="header-left">
     <img src="/icons/icon-72x72.png" class="header-logo" alt="Logo" onerror="this.style.display='none'">
     <div>
-      <div class="header-title">Hariom Electronics</div>
-      <div class="header-subtitle">Driver Panel</div>
+      <div class="header-title" style="font-family:'Syne',sans-serif;font-weight:700;">Hariom Electronics</div>
+      <div class="header-subtitle" style="font-family:'JetBrains Mono',monospace;letter-spacing:0.8px;">DRIVER PANEL</div>
     </div>
   </div>
   <div id="pushDot" class="push-dot" title="Push notification status"></div>
