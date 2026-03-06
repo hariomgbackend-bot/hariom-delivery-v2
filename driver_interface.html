@@ -361,7 +361,7 @@
       margin-top: 10px;
       transition: opacity 0.2s;
     }
-    .btn-failed:active { opacity: 0.85; }
+    .btn-failed:active { opacity: 0.82; }
     .badge-normal    { background: #f1f5f9; color: #475569; }
 
     .card-divider { height: 1px; background: var(--border); margin: 0 16px; }
@@ -1123,6 +1123,7 @@ let currentDriverPin    = null;
 let pinAttempts         = 0;
 let currentDeliveryData  = null;
 let driverSessionToken   = null;   // JWT issued on PIN login — used for refreshes
+let cachedGpsPosition    = null;   // Pre-warmed GPS so driver doesn't wait on swipe
 
 /* ═══════════════════════════════════════
    TOAST
@@ -1588,6 +1589,16 @@ async function openDelivery(id) {
   document.getElementById("popup").style.display = "block";
   document.getElementById("popup").scrollTop = 0;
 
+  // Pre-warm GPS immediately when popup opens so it's ready by the time driver swipes
+  if (currentStatus === "pending" || currentStatus === "loaded") {
+    cachedGpsPosition = null;
+    navigator.geolocation.getCurrentPosition(
+      pos => { cachedGpsPosition = pos; },
+      () => { cachedGpsPosition = null; },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 }
+    );
+  }
+
   // Init swipe widget after DOM renders
   requestAnimationFrame(() => requestAnimationFrame(initSwipeWidget));
 }
@@ -1655,7 +1666,8 @@ async function updateDelivery() {
   const formData = new FormData();
   formData.append("photo", compressedBlob, "upload.jpg");
 
-  navigator.geolocation.getCurrentPosition(async pos => {
+  // Use pre-warmed GPS if available (avoids 2-5s wait), else get fresh
+  function doSubmit(pos) {
     formData.append("lat",       pos.coords.latitude);
     formData.append("lng",       pos.coords.longitude);
     formData.append("driver_id", currentDriverId);
@@ -1667,7 +1679,6 @@ async function updateDelivery() {
       formData.append("serial", serialInput.value.trim());
     }
 
-    // Append driver-set freight charge when marking loaded (only if admin hasn't set it)
     if (currentStatus === "pending" && !currentDeliveryData.freight_charged) {
       const freightInput = document.getElementById("freightInput");
       const freightVal = freightInput?.value?.trim();
@@ -1678,21 +1689,34 @@ async function updateDelivery() {
 
     const endpoint = currentStatus === "pending" ? `/markLoaded/${currentDeliveryId}` : `/markDelivered/${currentDeliveryId}`;
 
-    try {
-      const res = await fetch(`${BASE_URL}${endpoint}`, { method: "POST", body: formData });
-      if (!res.ok) { showToast("⚠ Update failed. Try again."); if(actionBtn){actionBtn.disabled=false;} return; }
-      vibrate([100, 50, 200]);
-      showToast(currentStatus === "pending" ? "✅ Marked as Loaded!" : "🎉 Marked as Delivered!");
-      closePopup();
-      unlockDriver();
-    } catch (e) {
-      showToast("⚠ Network error. Please retry.");
-      if (widget) widget.style.pointerEvents = "auto";
-    }
-  }, () => {
-    showToast("📍 Location access required. Please enable it and try again.");
-    if (widget) widget.style.pointerEvents = "auto";
-  });
+    fetch(`${BASE_URL}${endpoint}`, { method: "POST", body: formData })
+      .then(res => {
+        if (!res.ok) { showToast("⚠ Update failed. Try again."); if(widget) widget.style.pointerEvents="auto"; return; }
+        vibrate([100, 50, 200]);
+        showToast(currentStatus === "pending" ? "✅ Marked as Loaded!" : "🎉 Marked as Delivered!");
+        closePopup();
+        unlockDriver();
+      })
+      .catch(() => {
+        showToast("⚠ Network error. Please retry.");
+        if (widget) widget.style.pointerEvents = "auto";
+      });
+  }
+
+  if (cachedGpsPosition) {
+    // GPS already warm — submit instantly
+    doSubmit(cachedGpsPosition);
+  } else {
+    // No cached position — get fresh (shows loading implicitly via locked swipe)
+    navigator.geolocation.getCurrentPosition(
+      pos => doSubmit(pos),
+      () => {
+        showToast("📍 Location access required. Please enable it and try again.");
+        if (widget) widget.style.pointerEvents = "auto";
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -1735,7 +1759,7 @@ async function submitFailure() {
     ? document.getElementById("failurePhoto")
     : document.getElementById("failurePhotoOpt");
 
-  if (isDamage && (!photoInput?.files?.length)) {
+  if (isDamage && !photoInput?.files?.length) {
     showToast("📷 Photo required for damaged product");
     return;
   }
