@@ -205,14 +205,12 @@
       border: 1px solid var(--border);
       overflow: hidden;
       box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-      overflow-x: auto;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 13px;
-      min-width: 900px;
     }
 
     thead th {
@@ -228,13 +226,47 @@
     }
 
     tbody td {
-      padding: 12px 14px;
+      padding: 11px 14px;
       border-bottom: 1px solid var(--border);
       vertical-align: middle;
     }
 
     tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover { background: #f8fafc; }
+    tbody tr.main-row:hover { filter: brightness(0.97); }
+    tbody tr.main-row { cursor: pointer; }
+
+    /* Expand chevron */
+    .row-chevron {
+      display: inline-block;
+      transition: transform 0.2s;
+      color: var(--muted);
+      font-size: 12px;
+      user-select: none;
+    }
+    .row-chevron.open { transform: rotate(90deg); }
+
+    /* Expanded detail row */
+    .detail-expand-row td {
+      padding: 0;
+      border-bottom: 2px solid var(--accent);
+    }
+    .detail-expand-inner {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px 18px;
+      padding: 14px 18px;
+      background: #f8faff;
+      border-top: 1px solid #e0e9ff;
+    }
+    .detail-expand-item { display: flex; flex-direction: column; gap: 2px; }
+    .detail-expand-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+    }
+    .detail-expand-value { font-size: 13px; color: var(--text); }
 
     .badge {
       display: inline-block;
@@ -360,10 +392,6 @@
       justify-content: center;
       overflow-y: auto;
       padding: 24px 16px;
-    }
-
-    .img-popup-overlay.is-open {
-      display: flex;
     }
 
     .img-popup-card {
@@ -627,20 +655,13 @@
     <table>
       <thead>
         <tr>
+          <th style="width:22px;"></th>
           <th>Customer</th>
           <th>Driver</th>
           <th>Product</th>
           <th>Status</th>
-          <th>Priority</th>
           <th>ETA</th>
-          <th>Duration</th>
-          <th>Rating</th>
-          <th>Loaded Photo</th>
-          <th>Loaded At</th>
-          <th>Delivered Photo</th>
-          <th>Delivered At</th>
-          <th>Location</th>
-          <th>View</th>
+          <th>Details</th>
         </tr>
       </thead>
       <tbody id="adminTable"></tbody>
@@ -666,14 +687,14 @@
 </div>
 
 <!-- IMAGE POPUP -->
-<div class="img-popup-overlay" id="imgPopup" onclick="closeImgPopup()">
+<div class="img-popup-overlay" id="imgPopup" onclick="this.style.display='none'">
   <div class="img-popup-card" onclick="event.stopPropagation()">
     <img id="popupImg" src="" alt="Proof photo">
     <br>
     <a id="downloadLink" download>
       <button class="btn-primary">⬇ Download</button>
     </a>
-    <button class="btn-gray" style="margin-left:8px;" onclick="closeImgPopup()">Close</button>
+    <button class="btn-gray" style="margin-left:8px;" onclick="document.getElementById('imgPopup').style.display='none'">Close</button>
   </div>
 </div>
 
@@ -722,11 +743,6 @@ async function loadAdmin() {
   const res = await fetch(`${BASE_URL}/deliveries`, {
     headers: { Authorization: "Bearer " + token }
   });
-  if (res.status === 401) {
-    localStorage.removeItem("adminToken");
-    window.location.href = "login.html";
-    return;
-  }
   let data = await res.json();
   const now = new Date();
 
@@ -812,20 +828,15 @@ async function loadAdmin() {
     }
 
     // Row color based on delivery performance
+    let rowExtraClass = "";
     if (delivered && eta) {
       const diff = (delivered - eta) / 60000;
-      if (diff <= 10) row.className = "row-green";
-      else if (diff <= 30) row.className = "row-yellow";
-      else row.className = "row-red";
+      if (diff <= 10) rowExtraClass = "row-green";
+      else if (diff <= 30) rowExtraClass = "row-yellow";
+      else rowExtraClass = "row-red";
     } else if (d.status !== "delivered") {
-      row.className = "row-gray";
+      rowExtraClass = "row-gray";
     }
-
-    const mapLink = d.delivered_location
-      ? `https://www.google.com/maps?q=${d.delivered_location.lat},${d.delivered_location.lng}`
-      : d.loaded_location
-        ? `https://www.google.com/maps?q=${d.loaded_location.lat},${d.loaded_location.lng}`
-        : "";
 
     // Batch tag
     let batchTag = "";
@@ -835,27 +846,81 @@ async function loadAdmin() {
       batchTag = `<span style="display:inline-block;margin-left:5px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bNum}</span>`;
     }
 
+    row.className = ("main-row " + rowExtraClass).trim();
     row.innerHTML = `
-      <td>${d.customer_name || ""}${batchTag}</td>
-      <td>${d.assigned_driver_name || "—"}</td>
+      <td><span class="row-chevron">▶</span></td>
+      <td><b>${d.customer_name || ""}</b>${batchTag}${d.status === "failed" ? `<div style="font-size:11px;color:#dc2626;margin-top:2px;">${d.failure_reason || ""}</div>` : ""}</td>
+      <td style="color:var(--muted)">${d.assigned_driver_name || "—"}</td>
       <td>${d.product_name || ""}</td>
       <td>
         <span class="badge badge-${d.status}">${d.status}</span>
-        ${d.status === "failed" && d.failure_reason ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">${d.failure_reason}</div>` : ""}
+        ${d.priority === "urgent" ? `<span class="badge badge-urgent" style="margin-left:4px;">🔥</span>` : ""}
       </td>
-      <td><span class="badge badge-${d.priority || 'normal'}">${d.priority || "normal"}</span></td>
       <td style="white-space:nowrap">${formatETA(d.estimated_delivery_time)}</td>
-      <td>${durationText || "—"}</td>
-      <td>${getDeliveryRating(d)}</td>
-      <td>${d.photo_loaded_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_loaded_url}')">View</button>` : "—"}</td>
-      <td style="white-space:nowrap">${loaded ? loaded.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : "—"}</td>
-      <td>${d.photo_delivered_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_delivered_url}')">View</button>` : "—"}</td>
-      <td style="white-space:nowrap">${delivered ? delivered.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : "—"}</td>
-      <td>${mapLink ? `<a href="${mapLink}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:500;">📍 Map</a>` : "—"}</td>
-      <td><button class="btn-sm" onclick='viewDetails(${JSON.stringify(d)})'>View</button></td>
+      <td><button class="btn-sm" onclick='event.stopPropagation();viewDetails(${JSON.stringify(d)})'>Full&nbsp;View</button></td>
     `;
+
+    // Build expanded detail row
+    const expandRow = document.createElement("tr");
+    expandRow.className = "detail-expand-row";
+    expandRow.style.display = "none";
+
+    const mapLink = d.delivered_location
+      ? `https://www.google.com/maps?q=${d.delivered_location.lat},${d.delivered_location.lng}`
+      : null;
+
+    const loadedTime = loaded ? loaded.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "—";
+    const delivTime  = delivered ? delivered.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "—";
+
+    const ratingHtml = getDeliveryRating(d) || "—";
+
+    expandRow.innerHTML = `<td colspan="7">
+      <div class="detail-expand-inner">
+        <div class="detail-expand-item">
+          <span class="detail-expand-label">Priority</span>
+          <span class="detail-expand-value"><span class="badge badge-${d.priority||'normal'}">${d.priority||"normal"}</span></span>
+        </div>
+        <div class="detail-expand-item">
+          <span class="detail-expand-label">Rating</span>
+          <span class="detail-expand-value">${ratingHtml}</span>
+        </div>
+        <div class="detail-expand-item">
+          <span class="detail-expand-label">Duration</span>
+          <span class="detail-expand-value">${durationText || "—"}</span>
+        </div>
+        <div class="detail-expand-item">
+          <span class="detail-expand-label">Loaded At</span>
+          <span class="detail-expand-value">${loadedTime}</span>
+        </div>
+        <div class="detail-expand-item">
+          <span class="detail-expand-label">Delivered At</span>
+          <span class="detail-expand-value">${delivTime}</span>
+        </div>
+        <div class="detail-expand-item">
+          <span class="detail-expand-label">Loaded Photo</span>
+          <span class="detail-expand-value">${d.photo_loaded_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_loaded_url}')">📷 View</button>` : "—"}</span>
+        </div>
+        <div class="detail-expand-item">
+          <span class="detail-expand-label">Delivered Photo</span>
+          <span class="detail-expand-value">${d.photo_delivered_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_delivered_url}')">📷 View</button>` : "—"}</span>
+        </div>
+        <div class="detail-expand-item">
+          <span class="detail-expand-label">Location</span>
+          <span class="detail-expand-value">${mapLink ? `<a href="${mapLink}" target="_blank" style="color:var(--accent);font-weight:600;text-decoration:none;">📍 Map</a>` : "—"}</span>
+        </div>
+      </div>
+    </td>`;
+
+    // Toggle expand on row click
+    row.onclick = () => {
+      const open = expandRow.style.display !== "none";
+      expandRow.style.display = open ? "none" : "table-row";
+      row.querySelector(".row-chevron").classList.toggle("open", !open);
+    };
+
     if (d.status === "failed") row.style.background = "#fff1f2";
     table.appendChild(row);
+    table.appendChild(expandRow);
   });
 
   // Last updated
@@ -1058,15 +1123,15 @@ function viewDetails(d) {
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + d.loaded_location.lat + ',' + d.loaded_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
     <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + d.delivered_location.lat + ',' + d.delivered_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Loaded Photo</b><span>${d.photo_loaded_url ? `<a href="javascript:void(0)" onclick="viewImage('${d.photo_loaded_url}')" style="color:var(--accent);font-weight:600;cursor:pointer;">📷 View Photo</a>` : "—"}</span></div>
-    <div class="detail-row"><b>Delivered Photo</b><span>${d.photo_delivered_url ? `<a href="javascript:void(0)" onclick="viewImage('${d.photo_delivered_url}')" style="color:var(--accent);font-weight:600;cursor:pointer;">📷 View Photo</a>` : "—"}</span></div>
+    <div class="detail-row"><b>Loaded Photo</b><span>${d.photo_loaded_url ? '<a href="' + d.photo_loaded_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Delivered Photo</b><span>${d.photo_delivered_url ? '<a href="' + d.photo_delivered_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
 
     ${d.status === "failed" ? `
     <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:14px;margin-top:16px;">
       <div style="font-weight:700;color:#b91c1c;margin-bottom:8px;">${d.failure_reason === "Product Damaged / Not Working" ? "🔴 URGENT — " : ""}❌ Delivery Failed</div>
       <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${d.failure_reason || "—"}</span></div>
       <div class="detail-row"><b>Product Returned</b><span>${d.product_returned ? "✅ Yes" : "❌ Not yet"}</span></div>
-      ${d.failure_photo_url ? `<div class="detail-row"><b>Failure Photo</b><span><a href="javascript:void(0)" onclick="viewImage('${d.failure_photo_url}')" style="color:var(--accent);font-weight:600;cursor:pointer;">📷 View Photo</a></span></div>` : ""}
+      ${d.failure_photo_url ? `<div class="detail-row"><b>Failure Photo</b><span><a href="${d.failure_photo_url}" target="_blank" style="color:var(--accent);">View Photo</a></span></div>` : ""}
     </div>` : ""}
 
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
@@ -1081,12 +1146,7 @@ function viewDetails(d) {
 function viewImage(url) {
   document.getElementById("popupImg").src = url;
   document.getElementById("downloadLink").href = url;
-  document.getElementById("imgPopup").classList.add("is-open");
-}
-
-function closeImgPopup() {
-  document.getElementById("imgPopup").classList.remove("is-open");
-  document.getElementById("popupImg").src = "";
+  document.getElementById("imgPopup").style.display = "flex";
 }
 
 function enableEdit() {
