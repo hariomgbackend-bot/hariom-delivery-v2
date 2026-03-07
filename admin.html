@@ -706,8 +706,60 @@
 
 <script>
 const BASE_URL = window.location.origin;
-const token = localStorage.getItem("adminToken");
-if (!token) window.location.href = "login.html";
+
+/* ══════════════════════════════════════════
+   AUTH — single source of truth
+══════════════════════════════════════════ */
+function getAdminToken() { return localStorage.getItem("adminToken"); }
+
+function isTokenExpired() {
+  const t = getAdminToken();
+  if (!t) return true;
+  try {
+    const payload = JSON.parse(atob(t.split(".")[1]));
+    return Date.now() >= payload.exp * 1000;
+  } catch { return true; }
+}
+
+function redirectToLogin(reason) {
+  localStorage.removeItem("adminToken");
+  const url = reason
+    ? `login.html?reason=${encodeURIComponent(reason)}`
+    : "login.html";
+  window.location.href = url;
+}
+
+// Guard on page load — before anything renders
+if (!getAdminToken() || isTokenExpired()) {
+  redirectToLogin(isTokenExpired() ? "expired" : null);
+}
+
+// Guard on every tab focus
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && isTokenExpired()) {
+    redirectToLogin("expired");
+  }
+});
+
+// Background watchdog — checks every 60s regardless of user activity
+setInterval(() => {
+  if (isTokenExpired()) redirectToLogin("expired");
+}, 60_000);
+
+// Central authenticated fetch — redirects on 401 or expired token
+async function authFetch(url, options = {}) {
+  if (isTokenExpired()) { redirectToLogin("expired"); throw new Error("expired"); }
+  const opts = {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: "Bearer " + getAdminToken()
+    }
+  };
+  const res = await fetch(url, opts);
+  if (res.status === 401) { redirectToLogin("expired"); throw new Error("401"); }
+  return res;
+}
 
 let selectedAdminDate = null;
 let currentFilter = "all";
@@ -746,9 +798,7 @@ function applyDateFilter() {
 }
 
 async function loadAdmin() {
-  const res = await fetch(`${BASE_URL}/deliveries`, {
-    headers: { Authorization: "Bearer " + token }
-  });
+  const res = await authFetch(`${BASE_URL}/deliveries`);
   let data = await res.json();
   const now = new Date();
 
@@ -1182,9 +1232,9 @@ async function updateDelivery(id) {
   if (!confirm("Update this delivery?")) return;
 
   try {
-    const res = await fetch(`${BASE_URL}/delivery/${id}`, {
+    const res = await authFetch(`${BASE_URL}/delivery/${id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         customer_name: document.getElementById("edit_customer").value,
         phone: document.getElementById("edit_phone").value,
@@ -1205,9 +1255,8 @@ async function deleteDelivery(id) {
   if (!confirm("Delete this delivery permanently?")) return;
 
   try {
-    const res = await fetch(`${BASE_URL}/delivery/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: "Bearer " + token }
+    const res = await authFetch(`${BASE_URL}/delivery/${id}`, {
+      method: "DELETE"
     });
     if (!res.ok) { const e = await res.json(); alert("⚠ " + (e.error || "Delete failed")); return; }
     document.getElementById("popup").classList.remove("is-open");
@@ -1289,9 +1338,7 @@ async function loadPayout() {
   empty.style.display = "none";
 
   try {
-    const res  = await fetch(`${BASE_URL}/driver-payout?driver_id=${driverId}&date=${date}`, {
-      headers: { Authorization: "Bearer " + token }
-    });
+    const res  = await authFetch(`${BASE_URL}/driver-payout?driver_id=${driverId}&date=${date}`);
     const data = await res.json();
 
     if (!res.ok) {

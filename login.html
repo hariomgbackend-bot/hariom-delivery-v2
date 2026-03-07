@@ -13,225 +13,196 @@
   <meta name="theme-color" content="#0f172a">
   <title>Admin Login — Hariom Electronics</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg: #0a0f1e;
+      --surface: #111827;
+      --border: rgba(255,255,255,0.08);
+      --accent: #3b82f6;
+      --accent-glow: rgba(59,130,246,0.35);
+      --text: #f1f5f9;
+      --muted: #64748b;
+    }
+
     body {
       font-family: 'DM Sans', sans-serif;
-      background: #08111f;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      position: relative;
     }
 
-    /* Dot-grid background */
-    body::before {
+    /* Ambient background orbs */
+    body::before, body::after {
       content: '';
-      position: fixed; inset: 0;
-      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
-      background-size: 28px 28px;
-      pointer-events: none;
-    }
-
-    /* Amber glow at top */
-    .glow-orb {
       position: fixed;
-      width: 600px; height: 300px;
-      background: radial-gradient(ellipse, rgba(245,158,11,0.12) 0%, transparent 70%);
-      top: -80px; left: 50%; transform: translateX(-50%);
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
       pointer-events: none;
     }
-
-    /* Side accent lines */
-    .accent-line {
-      position: fixed;
-      top: 0; bottom: 0;
-      width: 1px;
-      background: linear-gradient(to bottom, transparent, rgba(245,158,11,0.3), transparent);
-      pointer-events: none;
+    body::before {
+      width: 500px; height: 500px;
+      background: #3b82f6;
+      top: -100px; left: -100px;
     }
-    .accent-line.left { left: 60px; }
-    .accent-line.right { right: 60px; }
+    body::after {
+      width: 400px; height: 400px;
+      background: #6366f1;
+      bottom: -80px; right: -80px;
+    }
 
     .card {
-      background: rgba(22, 32, 48, 0.95);
-      border: 1px solid rgba(245,158,11,0.2);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 20px;
-      padding: 48px 44px;
+      padding: 44px 40px;
       width: 100%;
-      max-width: 420px;
+      max-width: 400px;
       position: relative;
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 30px 80px rgba(0,0,0,0.6);
-      animation: rise 0.6s cubic-bezier(0.16,1,0.3,1) both;
-      backdrop-filter: blur(20px);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+      animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
     }
 
-    @keyframes rise {
-      from { opacity: 0; transform: translateY(32px) scale(0.98); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    .brand { text-align: center; margin-bottom: 40px; }
-
-    .brand-mark {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 64px; height: 64px;
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      border-radius: 18px;
-      font-size: 28px;
-      margin-bottom: 20px;
-      box-shadow: 0 8px 32px rgba(245,158,11,0.35);
-      animation: pulse-amber 3s ease-in-out infinite;
+    .brand {
+      text-align: center;
+      margin-bottom: 32px;
     }
-    @keyframes pulse-amber {
-      0%,100% { box-shadow: 0 8px 32px rgba(245,158,11,0.35); }
-      50%      { box-shadow: 0 8px 48px rgba(245,158,11,0.55); }
+
+    .brand-icon {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 14px;
+      box-shadow: 0 8px 20px var(--accent-glow);
     }
 
     .brand h1 {
-      font-family: 'Syne', sans-serif;
-      font-size: 26px;
-      font-weight: 800;
-      color: #e8edf5;
-      letter-spacing: -0.5px;
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      letter-spacing: 0.3px;
+      color: var(--text);
     }
 
     .brand p {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      color: #f59e0b;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin-top: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
     }
 
-    .divider {
-      height: 1px;
-      background: linear-gradient(to right, transparent, rgba(245,158,11,0.3), transparent);
-      margin: 32px 0;
+    .field {
+      margin-bottom: 18px;
     }
-
-    .field { margin-bottom: 20px; }
 
     .field label {
-      display: flex; align-items: center; gap: 6px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
+      display: block;
+      font-size: 12px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: #6b7f9e;
-      margin-bottom: 9px;
-    }
-
-    .field label::before {
-      content: '';
-      display: inline-block;
-      width: 3px; height: 3px;
-      background: #f59e0b;
-      border-radius: 50%;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-bottom: 8px;
     }
 
     .field input {
       width: 100%;
-      padding: 13px 16px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.1);
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
       border-radius: 10px;
-      color: #e8edf5;
+      color: var(--text);
       font-family: 'DM Sans', sans-serif;
-      font-size: 15px;
-      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+      font-size: 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
       outline: none;
     }
-    .field input::placeholder { color: #3d5070; }
+
     .field input:focus {
-      border-color: rgba(245,158,11,0.5);
-      box-shadow: 0 0 0 3px rgba(245,158,11,0.1);
-      background: rgba(255,255,255,0.06);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
     }
 
-    .sign-btn {
+    .field input::placeholder { color: var(--muted); }
+
+    button {
       width: 100%;
-      padding: 14px;
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      color: #08111f;
+      padding: 13px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white;
       border: none;
       border-radius: 10px;
-      font-family: 'Syne', sans-serif;
+      font-family: 'DM Sans', sans-serif;
       font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
+      font-weight: 600;
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
-      margin-top: 10px;
-      box-shadow: 0 6px 24px rgba(245,158,11,0.3);
+      transition: opacity 0.2s, transform 0.15s;
+      margin-top: 8px;
+      box-shadow: 0 6px 20px var(--accent-glow);
     }
-    .sign-btn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 10px 30px rgba(245,158,11,0.4); }
-    .sign-btn:active { transform: translateY(0); }
+
+    button:hover { opacity: 0.9; transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
 
     .message {
       text-align: center;
       margin-top: 14px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      min-height: 18px;
+      font-size: 13px;
+      min-height: 20px;
       color: #f87171;
-      letter-spacing: 0.3px;
-    }
-
-    .footer-note {
-      text-align: center;
-      margin-top: 28px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      color: #243350;
-      letter-spacing: 0.5px;
-    }
-
-    @media (max-width: 480px) {
-      .card { padding: 36px 24px; border-radius: 16px; }
-      .accent-line { display: none; }
     }
   </style>
 </head>
 <body>
 
-<div class="glow-orb"></div>
-<div class="accent-line left"></div>
-<div class="accent-line right"></div>
-
 <div class="card">
   <div class="brand">
-    <div class="brand-mark">🚚</div>
+    <div class="brand-icon">🚚</div>
     <h1>Hariom Electronics</h1>
     <p>Delivery Management System</p>
   </div>
 
-  <div class="divider"></div>
-
   <div class="field">
-    <label>Email Address</label>
-    <input type="email" id="email" placeholder="admin@hariom.com" autocomplete="email">
+    <label>Email</label>
+    <input type="email" id="email" placeholder="admin@example.com" autocomplete="email">
   </div>
 
   <div class="field">
     <label>Password</label>
-    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+    <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
   </div>
 
-  <button class="sign-btn" onclick="login()">Sign In →</button>
+  <button onclick="login()">Sign In</button>
   <div class="message" id="message"></div>
-
-  <div class="footer-note">HARIOM ELECTRONICS · DMS v2 · ADMIN ACCESS</div>
 </div>
 
 <script>
 const BASE_URL = window.location.origin;
+
+// Show "session expired" message if redirected from admin with ?reason=expired
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("reason") === "expired") {
+    const msg = document.getElementById("message");
+    if (msg) {
+      msg.style.color = "#dc2626";
+      msg.innerText = "⚠ Your session has expired. Please sign in again.";
+    }
+  }
+})();
 
 async function login() {
   const email = document.getElementById("email").value;

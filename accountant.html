@@ -646,24 +646,13 @@ let batchPhones    = [];
 let batchNumberMap = {};
 let phoneCounts    = {};
 
-function accountantLogout() {
-  localStorage.removeItem("accountantToken");
-  showLoginScreen();
-}
+/* ══════════════════════════════════════════
+   AUTH — single source of truth
+══════════════════════════════════════════ */
+function getToken() { return localStorage.getItem("accountantToken"); }
 
-// Central handler — called any time a 401 is received
-function handleAuthError() {
-  localStorage.removeItem("accountantToken");
-  showLoginScreen();
-  // Brief delay so the login screen is visible before showing the message
-  setTimeout(() => {
-    document.getElementById("loginError").innerText = "⚠ Session expired. Please log in again.";
-  }, 100);
-}
-
-// Decode JWT exp claim without verifying signature (safe — we just read the expiry time)
 function isTokenExpired() {
-  const t = localStorage.getItem("accountantToken");
+  const t = getToken();
   if (!t) return true;
   try {
     const payload = JSON.parse(atob(t.split(".")[1]));
@@ -671,12 +660,46 @@ function isTokenExpired() {
   } catch { return true; }
 }
 
-// Check on every visibility change (user switches back to tab)
+function handleAuthError() {
+  localStorage.removeItem("accountantToken");
+  showLoginScreen();
+  setTimeout(() => {
+    const el = document.getElementById("loginError");
+    if (el) el.innerText = "⚠ Session expired. Please sign in again.";
+  }, 100);
+}
+
+function accountantLogout() {
+  localStorage.removeItem("accountantToken");
+  showLoginScreen();
+}
+
+// Central authenticated fetch — checks token before every request
+async function authFetch(url, options = {}) {
+  if (isTokenExpired()) { handleAuthError(); throw new Error("expired"); }
+  const opts = {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: "Bearer " + getToken()
+    }
+  };
+  const res = await fetch(url, opts);
+  if (res.status === 401) { handleAuthError(); throw new Error("401"); }
+  return res;
+}
+
+// Guard on every tab focus
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && isTokenExpired()) {
     handleAuthError();
   }
 });
+
+// Background watchdog — checks every 60s regardless of user activity
+setInterval(() => {
+  if (isTokenExpired()) handleAuthError();
+}, 60_000);
 
 function showLoginScreen() {
   document.getElementById("loginScreen").classList.add("active");
@@ -711,13 +734,21 @@ document.getElementById("loginPassword").addEventListener("keydown", e => {
   if (e.key === "Enter") doAccountantLogin();
 });
 
-// On page load — check for existing token
+// On page load — check for existing token AND that it hasn't expired
 const existingToken = localStorage.getItem("accountantToken");
-if (existingToken) {
+if (existingToken && !isTokenExpired()) {
   showApp();
   initApp();
 } else {
+  if (existingToken) localStorage.removeItem("accountantToken"); // clear stale token
   showLoginScreen();
+  if (existingToken) {
+    // Token existed but was expired — show message
+    setTimeout(() => {
+      const el = document.getElementById("loginError");
+      if (el) el.innerText = "⚠ Session expired. Please sign in again.";
+    }, 100);
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -1352,12 +1383,9 @@ async function createDelivery() {
 
   // ── Call server ──
   try {
-    const response = await fetch(`${BASE_URL}/createDeliveries`, {
+    const response = await authFetch(`${BASE_URL}/createDeliveries`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + localStorage.getItem("accountantToken")
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ shared: sharedPayload, products })
     });
 
@@ -1474,13 +1502,9 @@ function formatDate(dateString) {
 
 /* ── LOAD DELIVERIES ── */
 async function loadDeliveries() {
-  if (isTokenExpired()) { handleAuthError(); return; }
   let data;
   try {
-    const res = await fetch(`${BASE_URL}/deliveries`, {
-      headers: { Authorization: "Bearer " + localStorage.getItem("accountantToken") }
-    });
-    if (res.status === 401) { handleAuthError(); return; }
+    const res = await authFetch(`${BASE_URL}/deliveries`);
     data = await res.json();
   } catch (e) { return; }
 
@@ -1855,13 +1879,9 @@ function closeViewPopup() {
 async function markReturned(id) {
   if (!confirm("Confirm that the product has physically returned to the warehouse?")) return;
   try {
-    const res = await fetch(`${BASE_URL}/markReturned/${id}`, {
-      method: "POST",
-      headers: { Authorization: "Bearer " + localStorage.getItem("accountantToken") }
-    });
+    const res = await authFetch(`${BASE_URL}/markReturned/${id}`, { method: "POST" });
     const data = await res.json();
     if (!res.ok) {
-      if (res.status === 401) { handleAuthError(); return; }
       alert("⚠ " + (data.error || "Failed")); return;
     }
     closeViewPopup();
@@ -1920,14 +1940,13 @@ async function saveReschedule(id) {
   if (driverId) { body.assigned_driver_id = driverId; body.assigned_driver_name = driverName; }
 
   try {
-    const res = await fetch(`${BASE_URL}/rescheduleDelivery/${id}`, {
+    const res = await authFetch(`${BASE_URL}/rescheduleDelivery/${id}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + localStorage.getItem("accountantToken") },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
     const data = await res.json();
     if (!res.ok) {
-      if (res.status === 401) { handleAuthError(); return; }
       alert("⚠ " + (data.error || "Reschedule failed")); return;
     }
     closeViewPopup();
