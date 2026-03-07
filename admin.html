@@ -751,23 +751,7 @@
     [data-theme="dark"] .message { color: #f87171 !important; }
 
     /* Dark toggle button */
-    .dark-toggle {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.14);
-      color: rgba(255,255,255,0.75);
-      cursor: pointer;
-      border-radius: 7px;
-      padding: 5px 10px;
-      font-size: 15px;
-      line-height: 1;
-      transition: background 0.2s;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    .dark-toggle:hover { background: rgba(255,255,255,0.15); color: white; }
-
+    
     /* SEARCH BAR */
     .search-wrap {
       position: relative;
@@ -828,7 +812,7 @@
   </div>
   <nav class="header-nav" style="display:flex;align-items:center;gap:8px;">
     <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
-    <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark mode">🌙</button>
+    
     <span id="lastUpdated"></span>
     <a href="accountant.html">🧾 Accountant</a>
     <a href="drivers.html">👤 Drivers</a>
@@ -989,32 +973,6 @@ document.addEventListener("DOMContentLoaded", function() {
 /* ── END DARK MODE ───────────────────────────────────── */
 
 
-
-/* ── DARK MODE ────────────────────────────────────────── */
-(function() {
-  const saved = localStorage.getItem("hariom_theme");
-  if (saved === "dark") document.documentElement.setAttribute("data-theme", "dark");
-})();
-
-function toggleDarkMode() {
-  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-  if (isDark) {
-    document.documentElement.removeAttribute("data-theme");
-    localStorage.setItem("hariom_theme", "light");
-    document.getElementById("darkToggleBtn").textContent = "🌙";
-  } else {
-    document.documentElement.setAttribute("data-theme", "dark");
-    localStorage.setItem("hariom_theme", "dark");
-    document.getElementById("darkToggleBtn").textContent = "☀️";
-  }
-}
-
-function initDarkToggleIcon() {
-  const btn = document.getElementById("darkToggleBtn");
-  if (btn) btn.textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
-}
-document.addEventListener("DOMContentLoaded", initDarkToggleIcon);
-/* ── END DARK MODE ───────────────────────────────────── */
 
 
 

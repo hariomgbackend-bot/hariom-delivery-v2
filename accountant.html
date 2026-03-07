@@ -328,9 +328,12 @@
 
     /* ── BATCH ROW GROUPING ── */
     tbody tr.batch-first td { border-top: 2px solid var(--batch-color, #a78bfa); padding-top: 14px; }
-    tbody tr.batch-first td:first-child { border-left: 3px solid var(--batch-color, #a78bfa); border-radius: 0; }
-    tbody tr.batch-mid   td:first-child { border-left: 3px solid var(--batch-color, #a78bfa); }
-    tbody tr.batch-last  td:first-child { border-left: 3px solid var(--batch-color, #a78bfa); }
+    tbody tr.batch-first td:last-child { border-right: 2px solid var(--batch-color, #a78bfa); border-top-right-radius: 4px; }
+    tbody tr.batch-first td:first-child { border-left: 2px solid var(--batch-color, #a78bfa); border-top-left-radius: 4px; }
+    tbody tr.batch-mid   td:first-child { border-left: 2px solid var(--batch-color, #a78bfa); }
+    tbody tr.batch-mid   td:last-child  { border-right: 2px solid var(--batch-color, #a78bfa); }
+    tbody tr.batch-last  td:first-child { border-left: 2px solid var(--batch-color, #a78bfa); border-bottom-left-radius: 4px; }
+    tbody tr.batch-last  td:last-child  { border-right: 2px solid var(--batch-color, #a78bfa); border-bottom-right-radius: 4px; }
     tbody tr.batch-last  td { border-bottom: 2px solid var(--batch-color, #a78bfa) !important; padding-bottom: 14px; }
     tbody tr.batch-row   td { background: var(--batch-bg, #f5f3ff) !important; }
     tbody tr.batch-row:hover td { filter: brightness(0.97); }
@@ -499,6 +502,20 @@
     /* Popup overlays */
     [data-theme="dark"] .popup-card h3 { color: var(--text) !important; }
     [data-theme="dark"] .popup-card b { color: #6b7e99 !important; }
+
+    /* Product items inside create-delivery popup */
+    [data-theme="dark"] .product-item {
+      background: #111927 !important;
+      border-color: rgba(255,255,255,0.1) !important;
+    }
+    [data-theme="dark"] .product-item:hover { border-color: var(--accent) !important; }
+    [data-theme="dark"] .product-item-num { background: rgba(79,142,247,0.12) !important; }
+    [data-theme="dark"] .popup-card { color: var(--text) !important; }
+    [data-theme="dark"] .popup-card label,
+    [data-theme="dark"] .popup-card .section-title,
+    [data-theme="dark"] .popup-card p { color: var(--text) !important; }
+    [data-theme="dark"] .login-card h2,
+    [data-theme="dark"] .login-card p { color: var(--text) !important; }
 
     /* Mobile delivery cards */
     [data-theme="dark"] .mob-delivery-card { background: var(--surface) !important; border-color: var(--border) !important; }
