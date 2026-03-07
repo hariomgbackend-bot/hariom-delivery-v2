@@ -354,6 +354,79 @@ app.post("/createDelivery", async (req, res) => {
 });
 
 /* ════════════════════════════════════════════════
+   CREATE MULTIPLE DELIVERIES (batch from one form)
+════════════════════════════════════════════════ */
+app.post("/createDeliveries", async (req, res) => {
+  try {
+    const { shared, products } = req.body;
+
+    if (!shared || !products || !Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ error: "shared payload and products array required" });
+    }
+    if (!shared.estimated_delivery_time) {
+      return res.status(400).json({ error: "ETA is required" });
+    }
+    if (new Date(shared.estimated_delivery_time) < new Date()) {
+      return res.status(400).json({ error: "ETA cannot be in the past" });
+    }
+
+    // Generate one batch_id shared across all deliveries in this group
+    const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+
+    const createdIds = [];
+
+    for (const item of products) {
+      const docData = {
+        ...shared,
+        product_name:          item.product_name          || "",
+        product_serial_number: item.product_serial_number || "",
+        invoice_number:        item.invoice_number        || "",
+        batch_id:              products.length > 1 ? batchId : null,
+        priority:              shared.priority || "normal",
+        created_timestamp:     Timestamp.now(),
+        status:                "pending"
+      };
+
+      const docRef = await addDoc(collection(db, "deliveries"), docData);
+      createdIds.push(docRef.id);
+    }
+
+    // Notify customer once (not once per product)
+    await sendWhatsapp(shared.phone,
+      `Hello ${shared.customer_name}, your ${products.length > 1 ? products.length + " deliveries are" : "delivery is"} scheduled at ${shared.estimated_delivery_time}`
+    );
+    await sendSMS(shared.phone,
+      `Hariom Delivery: Your ${products.length > 1 ? products.length + " items are" : "delivery is"} scheduled at ${shared.estimated_delivery_time}`
+    );
+
+    // Notify driver once
+    if (shared.assigned_driver_id) {
+      const driverSnap = await getDoc(doc(db, "drivers", shared.assigned_driver_id));
+      if (driverSnap.exists()) {
+        const { pushToken } = driverSnap.data();
+        if (pushToken) {
+          const summary = products.length > 1
+            ? `${shared.customer_name} — ${products.length} items`
+            : `${shared.customer_name} - ${products[0].product_name}`;
+          await sendPushToToken(
+            pushToken,
+            products.length > 1 ? `🚚 ${products.length} New Deliveries Assigned` : "🚚 New Delivery Assigned",
+            summary,
+            doc(db, "drivers", shared.assigned_driver_id),
+            "pushToken"
+          );
+        }
+      }
+    }
+
+    res.json({ success: true, created: createdIds.length, ids: createdIds, batch_id: batchId });
+  } catch (error) {
+    console.error("/createDeliveries error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
    GET DELIVERIES
 ════════════════════════════════════════════════ */
 

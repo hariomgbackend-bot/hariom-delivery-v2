@@ -12,153 +12,125 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
   <meta name="theme-color" content="#0f172a">
   <title>Accountant Panel — Hariom Traders</title>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #f0f4f8;
+      --bg: #f0f4fa;
       --surface: #ffffff;
-      --border: #dde3ed;
+      --border: #e2e8f0;
       --accent: #2563eb;
       --accent-light: rgba(37,99,235,0.08);
-      --header-bg: linear-gradient(135deg, #0b1629 0%, #162032 100%);
-      --text: #1a2540;
+      --header-bg: linear-gradient(135deg, #0f172a 0%, #2563eb 100%);
+      --text: #1e293b;
       --muted: #64748b;
-      --font-display: 'Syne', sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-      --font-body: 'DM Sans', sans-serif;
     }
 
-    body { font-family: var(--font-body); background: var(--bg); color: var(--text); min-height: 100vh; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
     /* ── LOGIN SCREEN ── */
     #loginScreen {
       display: none;
       position: fixed;
       inset: 0;
-      background: #08111f;
+      background: #0a0f1e;
       z-index: 999;
       align-items: center;
       justify-content: center;
     }
     #loginScreen.active { display: flex; }
-    #loginScreen::before {
-      content: '';
-      position: fixed; inset: 0;
-      background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
-      background-size: 28px 28px;
-      pointer-events: none;
-    }
 
     .login-card {
-      background: rgba(22, 32, 48, 0.97);
-      border: 1px solid rgba(245,158,11,0.18);
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.08);
       border-radius: 20px;
-      padding: 44px 40px;
+      padding: 40px 36px;
       width: 100%;
       max-width: 380px;
-      box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
       animation: slideUp 0.45s cubic-bezier(0.16,1,0.3,1) both;
-      position: relative;
-      z-index: 1;
     }
     @keyframes slideUp {
       from { opacity:0; transform:translateY(20px); }
       to   { opacity:1; transform:translateY(0); }
     }
-    .login-brand { text-align: center; margin-bottom: 32px; }
+    .login-brand { text-align: center; margin-bottom: 28px; }
     .login-icon {
-      width: 56px; height: 56px;
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      border-radius: 16px;
+      width: 50px; height: 50px;
+      background: linear-gradient(135deg, #2563eb, #6366f1);
+      border-radius: 14px;
       display: inline-flex; align-items: center; justify-content: center;
-      font-size: 24px; margin-bottom: 16px;
-      box-shadow: 0 8px 30px rgba(245,158,11,0.35);
+      font-size: 22px; margin-bottom: 12px;
     }
-    .login-brand h2 { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #e8edf5; }
-    .login-brand p  { font-family: var(--font-mono); font-size: 10px; color: #f59e0b; letter-spacing: 2px; text-transform: uppercase; margin-top: 6px; }
-    .login-field { margin-bottom: 18px; }
+    .login-brand h2 { font-family: 'DM Serif Display', serif; font-size: 20px; color: #f1f5f9; }
+    .login-brand p  { font-size: 13px; color: #64748b; margin-top: 4px; }
+    .login-field { margin-bottom: 16px; }
     .login-field label {
-      display: flex; align-items: center; gap: 5px;
-      font-family: var(--font-mono); font-size: 10px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 1.5px;
-      color: #6b7f9e; margin-bottom: 8px;
+      display: block; font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      color: #64748b; margin-bottom: 7px;
     }
-    .login-field label::before { content:''; width:3px; height:3px; background:#f59e0b; border-radius:50%; display:inline-block; }
     .login-field input {
-      width: 100%; padding: 12px 14px;
+      width: 100%; padding: 11px 14px;
       background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 9px; color: #e8edf5;
-      font-family: var(--font-body); font-size: 15px; outline: none;
+      border-radius: 9px; color: #f1f5f9;
+      font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
     .login-field input:focus {
-      border-color: rgba(245,158,11,0.5);
-      box-shadow: 0 0 0 3px rgba(245,158,11,0.1);
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.25);
     }
-    .login-field input::placeholder { color: #3d5070; }
+    .login-field input::placeholder { color: #475569; }
     .login-btn {
-      width: 100%; padding: 13px;
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      color: #08111f; border: none; border-radius: 9px;
-      font-family: var(--font-display); font-size: 15px; font-weight: 700;
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #2563eb, #6366f1);
+      color: white; border: none; border-radius: 9px;
+      font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600;
       cursor: pointer; margin-top: 6px;
       transition: opacity 0.2s, transform 0.15s;
-      box-shadow: 0 6px 24px rgba(245,158,11,0.3);
     }
-    .login-btn:hover { opacity: 0.92; transform: translateY(-1px); }
-    .login-error { text-align: center; font-family: var(--font-mono); font-size: 11px; color: #f87171; margin-top: 12px; min-height: 18px; letter-spacing: 0.3px; }
+    .login-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .login-error { text-align: center; font-size: 13px; color: #f87171; margin-top: 12px; min-height: 18px; }
 
     /* ── HEADER ── */
     .header {
       background: var(--header-bg);
       color: white;
-      height: 60px;
+      height: 64px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 28px;
-      box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 4px 20px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
       position: sticky;
       top: 0;
       z-index: 100;
     }
     .header-brand {
       display: flex; align-items: center; gap: 10px;
-    }
-    .header-brand-name {
-      font-family: var(--font-display);
-      font-size: 17px; font-weight: 700;
-      color: #e8edf5;
-    }
-    .header-brand-tag {
-      font-family: var(--font-mono);
-      font-size: 9px; font-weight: 600;
-      color: #f59e0b; letter-spacing: 1.5px; text-transform: uppercase;
-      background: rgba(245,158,11,0.12);
-      padding: 2px 7px; border-radius: 4px;
-      border: 1px solid rgba(245,158,11,0.2);
+      font-family: 'DM Serif Display', serif; font-size: 20px;
     }
 
     .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 
     .card {
       background: var(--surface);
-      border-radius: 14px;
-      padding: 20px;
-      margin-bottom: 16px;
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 20px;
       border: 1px solid var(--border);
-      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
     }
-    .card h3 { font-family: var(--font-display); font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+    .card h3 { font-family: 'DM Serif Display', serif; font-size: 18px; margin-bottom: 16px; }
 
     /* ── BUTTONS ── */
     .btn {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 9px 18px; border: none; border-radius: 9px;
-      font-family: var(--font-body); font-size: 14px; font-weight: 600;
+      font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
       cursor: pointer; transition: opacity 0.2s, transform 0.15s;
     }
     .btn:hover { opacity: 0.88; transform: translateY(-1px); }
@@ -170,35 +142,34 @@
     .btn-sm      { padding: 5px 12px; font-size: 12px; font-weight: 500; }
 
     /* ── FILTER BAR ── */
-    .filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
     .filter-btn {
-      padding: 6px 13px;
-      border: 1.5px solid var(--border); border-radius: 7px;
-      background: transparent; color: var(--muted);
-      font-family: var(--font-body); font-size: 12px; font-weight: 600;
+      padding: 6px 14px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      background: white; color: var(--muted);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
       cursor: pointer; transition: all 0.15s;
     }
-    .filter-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(37,99,235,0.04); }
+    .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
     .filter-btn.activeFilter { background: var(--accent); border-color: var(--accent); color: white; }
     .filter-count {
       display: inline-block; background: rgba(0,0,0,0.12);
-      border-radius: 8px; padding: 1px 6px;
-      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
-      margin-left: 3px; min-width: 16px; text-align: center;
+      border-radius: 10px; padding: 1px 6px; font-size: 11px; font-weight: 700;
+      margin-left: 3px; min-width: 18px; text-align: center;
     }
     .filter-btn.activeFilter .filter-count { background: rgba(255,255,255,0.25); }
 
     .search-input {
       padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 8px;
-      font-family: var(--font-body); font-size: 13px; outline: none;
-      min-width: 220px; transition: border-color 0.2s; color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none;
+      min-width: 220px; transition: border-color 0.2s;
     }
     .search-input:focus { border-color: var(--accent); }
 
     /* ── SUMMARY ── */
     .summary-bar {
       display: flex; gap: 16px; font-size: 13px; font-weight: 600;
-      color: var(--muted); margin-bottom: 12px; flex-wrap: wrap;
+      color: var(--muted); margin-bottom: 14px; flex-wrap: wrap;
     }
     .summary-bar span { color: var(--text); }
 
@@ -206,30 +177,27 @@
     .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 700px; }
     thead th {
-      background: #0b1629; color: rgba(255,255,255,0.65);
+      background: #1e293b; color: rgba(255,255,255,0.85);
       padding: 11px 14px; text-align: left;
-      font-family: var(--font-mono); font-weight: 500; font-size: 10px;
-      text-transform: uppercase; letter-spacing: 1px;
+      font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
     }
     tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:hover { background: #f8fafc; }
 
     .badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 9px; border-radius: 6px;
-      font-size: 11px; font-weight: 700; text-transform: capitalize;
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; text-transform: capitalize;
     }
-    .badge-pending   { background: rgba(245,158,11,0.12); color: #b45309; }
-    .badge-loaded    { background: rgba(56,189,248,0.12);  color: #0369a1; }
-    .badge-delivered { background: rgba(74,222,128,0.12);  color: #166534; }
-    .badge-failed    { background: rgba(248,113,113,0.12); color: #b91c1c; }
+    .badge-pending   { background: #fef3c7; color: #92400e; }
+    .badge-loaded    { background: #dbeafe; color: #1e40af; }
+    .badge-delivered { background: #dcfce7; color: #166534; }
 
     /* ── POPUP ── */
+    /* ── POPUP (class-driven, no JS display fights) ── */
     .popup-overlay {
       display: none; position: fixed; inset: 0;
-      background: rgba(8,17,31,0.7); z-index: 200;
-      backdrop-filter: blur(4px);
+      background: rgba(0,0,0,0.55); z-index: 200;
       overflow-y: auto; padding: 30px 16px;
       align-items: flex-end; /* used on mobile */
     }
@@ -282,6 +250,73 @@
     }
     .checkbox-row input[type="checkbox"] { width: auto; margin-bottom: 0; }
     .form-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+    /* ── MULTI-PRODUCT LIST ── */
+    #productList { margin-bottom: 4px; }
+
+    .product-item {
+      background: #f8faff;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      position: relative;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .product-item:hover { border-color: #c7d7f8; }
+    .product-item.highlighted { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+
+    .product-item-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .product-item-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700;
+      color: var(--accent); letter-spacing: 1px;
+      text-transform: uppercase;
+      background: rgba(37,99,235,0.08);
+      padding: 2px 8px; border-radius: 5px;
+    }
+    .product-item-remove {
+      background: none; border: none; color: #dc2626;
+      font-size: 18px; cursor: pointer; padding: 0 4px;
+      line-height: 1; border-radius: 4px;
+      transition: background 0.15s;
+      width: auto; margin-bottom: 0;
+    }
+    .product-item-remove:hover { background: rgba(220,38,38,0.08); }
+
+    .product-item .section-title { margin-top: 8px; }
+    .product-item .section-title:first-of-type { margin-top: 0; }
+
+    /* Override popup-card input width inside product items to stay clean */
+    .product-item input,
+    .product-item select {
+      width: 100%;
+    }
+
+    .btn-add-product {
+      width: 100%; padding: 11px;
+      border: 2px dashed var(--border);
+      border-radius: 12px; background: transparent;
+      color: var(--muted); font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; margin-bottom: 8px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-add-product:hover {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(37,99,235,0.04);
+    }
+
+    .product-count-pill {
+      display: inline-flex; align-items: center;
+      background: rgba(37,99,235,0.1); color: var(--accent);
+      border-radius: 20px; padding: 2px 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 700; margin-left: 8px;
+    }
 
     /* ── DETAIL ROWS (view popup) ── */
     .detail-row {
@@ -403,14 +438,14 @@
   <div class="login-card">
     <div class="login-brand">
       <div class="login-icon">🧾</div>
-      <h2>Hariom Electronics</h2>
+      <h2>Hariom Traders</h2>
       <p>Accountant Panel</p>
     </div>
     <div class="login-field">
       <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+      <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password">
     </div>
-    <button class="login-btn" onclick="doAccountantLogin()">Sign In →</button>
+    <button class="login-btn" onclick="doAccountantLogin()">Sign In</button>
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
@@ -420,15 +455,14 @@
 
 <div class="header">
   <div class="header-brand">
-    <img src="/icons/icon-72x72.png" style="width:30px;height:30px;border-radius:7px;object-fit:contain;background:rgba(255,255,255,0.08);" onerror="this.style.display='none'" alt="Logo">
-    <span class="header-brand-name">Hariom Electronics</span>
-    <span class="header-brand-tag">ACCOUNTS</span>
+    <img src="/icons/icon-72x72.png" style="width:32px;height:32px;border-radius:8px;object-fit:contain;background:rgba(255,255,255,0.1);" onerror="this.style.display='none'" alt="Logo">
+    🧾 Accountant Panel
   </div>
   <nav style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <span id="lastUpdated" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:0.5px;"></span>
-    <span id="pushIndicator" style="font-size:12px;color:rgba(255,255,255,0.4);"></span>
-    <a href="driver_interface.html" style="color:rgba(255,255,255,0.65);text-decoration:none;font-size:12px;font-weight:600;padding:6px 12px;border-radius:7px;border:1px solid rgba(255,255,255,0.1);transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='none'">🚚 Driver View</a>
-    <button onclick="accountantLogout()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.65);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.14)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Logout</button>
+    <span id="lastUpdated"></span>
+    <span id="pushIndicator" style="font-size:12px;color:rgba(255,255,255,0.55);"></span>
+    <a href="driver_interface.html" style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:13px;font-weight:600;padding:7px 13px;border-radius:9px;background:rgba(255,255,255,0.1);">🚚 Driver View</a>
+    <button onclick="accountantLogout()" style="background:rgba(255,255,255,0.12);border:none;color:rgba(255,255,255,0.75);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;padding:7px 13px;border-radius:9px;cursor:pointer;">Logout</button>
   </nav>
 </div>
 
@@ -535,23 +569,17 @@
     <input id="addr1" placeholder="Address Line 1">
     <input id="addr2" placeholder="Address Line 2 (Optional)">
 
-    <div class="section-title">Product</div>
-    <select id="product_select" onchange="handleAddNew(this,'product')"></select>
-    <input id="new_product" placeholder="New Product" style="display:none">
-    <button class="btn btn-success btn-sm" id="btn_product" type="button" onclick="saveNew('product')" style="display:none;margin-bottom:8px;">+ Add Product</button>
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Products <span class="product-count-pill" id="productCountPill">1</span></span>
+    </div>
 
-    <div class="section-title">Make</div>
-    <select id="make_select" onchange="handleAddNew(this,'make')"></select>
-    <input id="new_make" placeholder="New Make" style="display:none">
-    <button class="btn btn-success btn-sm" id="btn_make" type="button" onclick="saveNew('make')" style="display:none;margin-bottom:8px;">+ Add Make</button>
+    <div id="productList">
+      <!-- Product items injected by JS -->
+    </div>
 
-    <div class="section-title">Model</div>
-    <select id="model_select" onchange="handleAddNew(this,'model')"></select>
-    <input id="new_model" placeholder="New Model" style="display:none">
-    <button class="btn btn-success btn-sm" id="btn_model" type="button" onclick="saveNew('model')" style="display:none;margin-bottom:8px;">+ Add Model</button>
-
-    <input id="serial" placeholder="Serial Number">
-    <input id="invoice" placeholder="Invoice Number">
+    <button type="button" class="btn-add-product" onclick="addProductItem()">
+      + Add Another Product
+    </button>
 
     <div class="section-title">Priority</div>
     <select id="priority">
@@ -853,22 +881,30 @@ function applyCustomDate() {
 }
 
 /* ── POPUP OPEN/CLOSE ── */
-function openPopup() {
+async function openPopup() {
   const etaInput = document.getElementById("estimated_time");
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   etaInput.min = now.toISOString().slice(0, 16);
+  if (masterProducts.length === 0) await loadAllMasters();
   resetForm();
   document.getElementById("popup").classList.add("is-open");
 }
 
 function closePopup() { document.getElementById("popup").classList.remove("is-open"); }
 
-/* ── DROPDOWNS ── */
+/* ══════════════════════════════════════════
+   DROPDOWNS — masters
+══════════════════════════════════════════ */
+let masterProducts = [];
+let masterMakes    = [];
+let masterModels   = [];
+
 async function loadDropdown(endpoint, selectId) {
   const res = await fetch(`${BASE_URL}/${endpoint}`);
   const data = await res.json();
   const select = document.getElementById(selectId);
+  if (!select) return data; // may be called for cache only
   select.innerHTML = "";
   data.forEach(x => {
     const o = document.createElement("option");
@@ -878,44 +914,178 @@ async function loadDropdown(endpoint, selectId) {
   const add = document.createElement("option");
   add.value = "add_new"; add.text = "+ Add New";
   select.appendChild(add);
+  return data;
 }
 
 async function loadAllMasters() {
-  await loadDropdown("products", "product_select");
-  await loadDropdown("makes", "make_select");
-  await loadDropdown("models", "model_select");
+  const [products, makes, models] = await Promise.all([
+    fetch(`${BASE_URL}/products`).then(r => r.json()),
+    fetch(`${BASE_URL}/makes`).then(r => r.json()),
+    fetch(`${BASE_URL}/models`).then(r => r.json())
+  ]);
+  masterProducts = products.map(x => x.name);
+  masterMakes    = makes.map(x => x.name);
+  masterModels   = models.map(x => x.name);
+  // Rebuild all existing product item dropdowns with fresh data
+  document.querySelectorAll(".product-item").forEach(item => {
+    const idx = item.dataset.idx;
+    populateItemSelects(idx);
+  });
 }
 
-function handleAddNew(select, type) {
-  const input = document.getElementById("new_" + type);
-  const button = document.getElementById("btn_" + type);
+function buildSelectOptions(arr, selectedVal) {
+  let html = arr.map(name =>
+    `<option value="${escHtml(name)}" ${name === selectedVal ? "selected" : ""}>${escHtml(name)}</option>`
+  ).join("");
+  html += `<option value="add_new">+ Add New</option>`;
+  return html;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function populateItemSelects(idx) {
+  const item = document.querySelector(`.product-item[data-idx="${idx}"]`);
+  if (!item) return;
+  const ps = item.querySelector(`[data-field="product_select"]`);
+  const ms = item.querySelector(`[data-field="make_select"]`);
+  const mo = item.querySelector(`[data-field="model_select"]`);
+  if (ps) ps.innerHTML = buildSelectOptions(masterProducts, ps.dataset.val || "");
+  if (ms) ms.innerHTML = buildSelectOptions(masterMakes,    ms.dataset.val || "");
+  if (mo) mo.innerHTML = buildSelectOptions(masterModels,   mo.dataset.val || "");
+}
+
+/* ══════════════════════════════════════════
+   MULTI-PRODUCT LIST
+══════════════════════════════════════════ */
+let productItemCounter = 0;
+
+function createProductItemHTML(idx) {
+  return `
+  <div class="product-item" data-idx="${idx}">
+    <div class="product-item-header">
+      <span class="product-item-num">Item #${idx}</span>
+      <button type="button" class="product-item-remove" onclick="removeProductItem(${idx})" title="Remove item">×</button>
+    </div>
+
+    <div class="section-title" style="margin-top:0;">Product</div>
+    <select data-field="product_select" onchange="handleItemAddNew(this,${idx},'product')">
+      ${buildSelectOptions(masterProducts, "")}
+    </select>
+    <input data-field="new_product" placeholder="New Product name" style="display:none">
+    <button type="button" class="btn btn-success btn-sm" data-field="btn_product"
+      onclick="saveItemNew(${idx},'product')" style="display:none;margin-bottom:8px;">+ Save Product</button>
+
+    <div class="section-title">Make</div>
+    <select data-field="make_select" onchange="handleItemAddNew(this,${idx},'make')">
+      ${buildSelectOptions(masterMakes, "")}
+    </select>
+    <input data-field="new_make" placeholder="New Make name" style="display:none">
+    <button type="button" class="btn btn-success btn-sm" data-field="btn_make"
+      onclick="saveItemNew(${idx},'make')" style="display:none;margin-bottom:8px;">+ Save Make</button>
+
+    <div class="section-title">Model</div>
+    <select data-field="model_select" onchange="handleItemAddNew(this,${idx},'model')">
+      ${buildSelectOptions(masterModels, "")}
+    </select>
+    <input data-field="new_model" placeholder="New Model name" style="display:none">
+    <button type="button" class="btn btn-success btn-sm" data-field="btn_model"
+      onclick="saveItemNew(${idx},'model')" style="display:none;margin-bottom:8px;">+ Save Model</button>
+
+    <div class="section-title">Serial Number</div>
+    <input data-field="serial" placeholder="Serial Number (optional)">
+
+    <div class="section-title">Invoice Number</div>
+    <input data-field="invoice" placeholder="Invoice Number (optional)">
+  </div>`;
+}
+
+function addProductItem() {
+  productItemCounter++;
+  const idx = productItemCounter;
+  const list = document.getElementById("productList");
+  const div = document.createElement("div");
+  div.innerHTML = createProductItemHTML(idx);
+  list.appendChild(div.firstElementChild);
+  updateProductCount();
+  // Scroll the new item into view smoothly
+  setTimeout(() => {
+    list.lastElementChild.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    list.lastElementChild.classList.add("highlighted");
+    setTimeout(() => list.lastElementChild.classList.remove("highlighted"), 1200);
+  }, 50);
+}
+
+function removeProductItem(idx) {
+  const items = document.querySelectorAll(".product-item");
+  if (items.length <= 1) {
+    // Can't remove last item — just clear its fields instead
+    const item = document.querySelector(`.product-item[data-idx="${idx}"]`);
+    if (item) {
+      item.querySelectorAll("input").forEach(i => i.value = "");
+      item.querySelectorAll("select").forEach(s => { if (s.options.length) s.selectedIndex = 0; });
+    }
+    return;
+  }
+  const item = document.querySelector(`.product-item[data-idx="${idx}"]`);
+  if (item) item.remove();
+  updateProductCount();
+}
+
+function updateProductCount() {
+  const count = document.querySelectorAll(".product-item").length;
+  const pill = document.getElementById("productCountPill");
+  if (pill) pill.textContent = count;
+  const btn = document.getElementById("createBtn");
+  if (btn && !btn.disabled) {
+    btn.textContent = count === 1 ? "Create Delivery" : `Create ${count} Deliveries`;
+  }
+}
+
+function handleItemAddNew(select, idx, field) {
+  const item = document.querySelector(`.product-item[data-idx="${idx}"]`);
+  if (!item) return;
   const isNew = select.value === "add_new";
-  input.style.display = isNew ? "block" : "none";
-  button.style.display = isNew ? "inline-flex" : "none";
+  item.querySelector(`[data-field="new_${field}"]`).style.display = isNew ? "block" : "none";
+  item.querySelector(`[data-field="btn_${field}"]`).style.display = isNew ? "inline-flex" : "none";
 }
 
-async function saveNew(type) {
-  const input = document.getElementById("new_" + type);
-  const select = document.getElementById(type + "_select");
-  const value = input.value.trim();
-  if (!value) { alert("Enter value first"); return; }
+async function saveItemNew(idx, field) {
+  const item = document.querySelector(`.product-item[data-idx="${idx}"]`);
+  if (!item) return;
+  const input  = item.querySelector(`[data-field="new_${field}"]`);
+  const select = item.querySelector(`[data-field="${field}_select"]`);
+  const value  = input.value.trim();
+  if (!value) { alert("Enter a value first"); return; }
 
-  const res = await fetch(`${BASE_URL}/${type}s`, {
+  const res = await fetch(`${BASE_URL}/${field}s`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: value })
   });
   const result = await res.json();
-  if (result.exists) { alert("Already exists"); return; }
+  if (result.exists) { alert("Already exists"); }
 
-  const option = document.createElement("option");
-  option.value = value; option.text = value;
-  select.insertBefore(option, select.firstChild);
+  // Add to master list + all existing selects
+  if (!masterProducts.includes(value) && field === "product") masterProducts.unshift(value);
+  if (!masterMakes.includes(value)    && field === "make")    masterMakes.unshift(value);
+  if (!masterModels.includes(value)   && field === "model")   masterModels.unshift(value);
+
+  // Update just this select and select the new value
+  const newOpt = document.createElement("option");
+  newOpt.value = value; newOpt.text = value;
+  select.insertBefore(newOpt, select.firstChild);
   select.value = value;
+
   input.value = "";
   input.style.display = "none";
-  document.getElementById("btn_" + type).style.display = "none";
+  item.querySelector(`[data-field="btn_${field}"]`).style.display = "none";
 }
+
+// Legacy — kept for backward compat if anything still calls it
+function handleAddNew(select, type) { }
+async function saveNew(type) { }
 
 function toggleInstruction() {
   const input = document.getElementById("instruction");
@@ -1066,149 +1236,208 @@ document.addEventListener("DOMContentLoaded", () => {
 async function createDelivery() {
   const btn = document.getElementById("createBtn");
   if (btn.disabled) return;
-  btn.disabled = true;
-  btn.innerText = "Creating...";
 
-  const firstNameEl     = document.getElementById("first_name");
-  const phoneEl         = document.getElementById("phone");
-  const addr1El         = document.getElementById("addr1");
-  const driverEl        = document.getElementById("driver");
-  const etaEl           = document.getElementById("estimated_time");
+  // ── Validate shared fields ──
+  const firstNameEl = document.getElementById("first_name");
+  const phoneEl     = document.getElementById("phone");
+  const addr1El     = document.getElementById("addr1");
+  const driverEl    = document.getElementById("driver");
+  const etaEl       = document.getElementById("estimated_time");
 
   if (!firstNameEl.value.trim()) {
-    alert("First name is required");
-    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+    alert("First name is required"); return;
   }
   if (!phoneEl.value || phoneEl.value.length !== 10) {
-    alert("Valid 10-digit phone number is required");
-    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+    alert("Valid 10-digit phone number is required"); return;
   }
   if (!addr1El.value.trim()) {
-    alert("Address Line 1 is required");
-    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+    alert("Address Line 1 is required"); return;
   }
   if (!driverEl.value) {
-    alert("Please assign a driver");
-    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+    alert("Please assign a driver"); return;
   }
   if (!etaEl.value) {
-    alert("Estimated delivery time is required");
-    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+    alert("Estimated delivery time is required"); return;
   }
   if (new Date(etaEl.value) < new Date()) {
-    alert("Estimated delivery time cannot be in the past");
-    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+    alert("Estimated delivery time cannot be in the past"); return;
   }
 
-  async function resolveValue(type) {
-    const select = document.getElementById(type + "_select");
-    const input  = document.getElementById("new_" + type);
-    if (select.value === "add_new") {
-      const newValue = input.value.trim();
-      if (!newValue) { alert("Please enter " + type + " name."); throw new Error("Missing " + type); }
-      await fetch(`${BASE_URL}/${type}s`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newValue })
-      });
-      return newValue;
+  // ── Collect product items ──
+  const productItems = document.querySelectorAll(".product-item");
+  const products = [];
+
+  for (let i = 0; i < productItems.length; i++) {
+    const item = productItems[i];
+    const idx  = item.dataset.idx;
+
+    // Resolve product/make/model — handle "add_new" inline
+    async function resolveItemField(fieldName) {
+      const select = item.querySelector(`[data-field="${fieldName}_select"]`);
+      const input  = item.querySelector(`[data-field="new_${fieldName}"]`);
+      if (!select) return "";
+      if (select.value === "add_new") {
+        const val = input ? input.value.trim() : "";
+        if (!val) throw new Error(`Enter ${fieldName} for item #${idx} or select from list`);
+        await fetch(`${BASE_URL}/${fieldName}s`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: val })
+        });
+        return val;
+      }
+      return select.value || "";
     }
-    return select.value;
+
+    let productVal, makeVal, modelVal;
+    try {
+      productVal = await resolveItemField("product");
+      makeVal    = await resolveItemField("make");
+      modelVal   = await resolveItemField("model");
+    } catch(e) {
+      alert(e.message); return;
+    }
+
+    if (!productVal) {
+      alert(`Please select a product for item #${idx}`);
+      return;
+    }
+
+    products.push({
+      product_name:          capitalizeWords([productVal, makeVal, modelVal].filter(x=>x).join(" ")),
+      product_serial_number: (item.querySelector(`[data-field="serial"]`)?.value || "").trim(),
+      invoice_number:        (item.querySelector(`[data-field="invoice"]`)?.value || "").trim()
+    });
   }
 
-  let productVal, makeVal, modelVal;
+  if (products.length === 0) {
+    alert("Add at least one product"); return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = products.length === 1 ? "Creating..." : `Creating ${products.length} deliveries...`;
+
+  // ── Build shared payload ──
+  const middleName = document.getElementById("middle_name").value;
+  const lastName   = document.getElementById("last_name").value;
+  const fullName   = [firstNameEl.value.trim(), middleName, lastName].filter(x=>x).join(" ");
+
+  const addr2      = document.getElementById("addr2").value;
+  const areaSelect = document.getElementById("area");
+  const areaManual = document.getElementById("area_manual");
+  const area       = areaSelect.style.display !== "none" ? areaSelect.value : areaManual.value;
+  const city       = document.getElementById("city").value;
+  const stateVal   = document.getElementById("state_field").value;
+  const pincodeVal = document.getElementById("pincode").value;
+  const fullAddress = [addr1El.value.trim(), addr2, area, city,
+    stateVal + (pincodeVal ? " - " + pincodeVal : "")].filter(x=>x).join(", ");
+
+  const driverSel      = document.getElementById("driver");
+  const hasInstruction = document.getElementById("has_instruction").checked;
+  const freightCharged = document.getElementById("freight_charged").checked;
+
+  const sharedPayload = {
+    customer_name:           capitalizeWords(fullName),
+    phone:                   phoneEl.value,
+    alternate_phone:         document.getElementById("alt_phone").value || "",
+    address:                 capitalizeWords(fullAddress),
+    priority:                document.getElementById("priority").value,
+    estimated_delivery_time: etaEl.value,
+    assigned_driver_id:      driverSel.value,
+    assigned_driver_name:    driverSel.options[driverSel.selectedIndex].text,
+    driver_instructions:     hasInstruction ? document.getElementById("instruction").value.trim() : "none",
+    freight_charged:         freightCharged,
+    freight_amount:          freightCharged ? document.getElementById("freight_amount").value : ""
+  };
+
+  // ── Call server ──
   try {
-    productVal = await resolveValue("product");
-    makeVal    = await resolveValue("make");
-    modelVal   = await resolveValue("model");
-  } catch { btn.disabled = false; btn.innerText = "Create Delivery"; return; }
+    const response = await fetch(`${BASE_URL}/createDeliveries`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + localStorage.getItem("accountantToken")
+      },
+      body: JSON.stringify({ shared: sharedPayload, products })
+    });
 
-  const middleName  = document.getElementById("middle_name").value;
-  const lastName    = document.getElementById("last_name").value;
-  const fullName    = [firstNameEl.value, middleName, lastName].filter(x => x).join(" ");
+    if (!response.ok) {
+      const err = await response.json();
+      alert(err.error || "Something went wrong. Deliveries not created.");
+      btn.disabled = false;
+      updateProductCount();
+      return;
+    }
 
-  const addr2       = document.getElementById("addr2").value;
-  const areaSelect  = document.getElementById("area");
-  const areaManual  = document.getElementById("area_manual");
-  const area        = areaSelect.style.display !== "none" ? areaSelect.value : areaManual.value;
-  const city        = document.getElementById("city").value;
-  const stateVal    = document.getElementById("state_field").value;
-  const pincodeVal  = document.getElementById("pincode").value;
-  // Pincode always at end of address string
-  const fullAddress = [addr1El.value, addr2, area, city, stateVal + (pincodeVal ? " - " + pincodeVal : "")].filter(x => x).join(", ");
+    const result = await response.json();
+    const count  = result.created || products.length;
 
-  const finalProduct     = [productVal, makeVal, modelVal].filter(x => x).join(" ");
-  const driverSel        = document.getElementById("driver");
-  const hasInstruction   = document.getElementById("has_instruction").checked;
-  const freightCharged   = document.getElementById("freight_charged").checked;
+    closePopup();
+    loadDeliveries();
+    resetForm();
+    localStorage.removeItem("deliveryDraft");
 
-  const response = await fetch(`${BASE_URL}/createDelivery`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      customer_name:           capitalizeWords(fullName),
-      phone:                   phoneEl.value,
-      alternate_phone:         document.getElementById("alt_phone").value || "",
-      address:                 capitalizeWords(fullAddress),
-      product_name:            capitalizeWords(finalProduct),
-      product_serial_number:   document.getElementById("serial").value,
-      invoice_number:          document.getElementById("invoice").value,
-      priority:                document.getElementById("priority").value,
-      estimated_delivery_time: etaEl.value,
-      assigned_driver_id:      driverSel.value,
-      assigned_driver_name:    driverSel.options[driverSel.selectedIndex].text,
-      driver_instructions:     hasInstruction ? document.getElementById("instruction").value.trim() : "none",
-      freight_charged:         freightCharged,
-      freight_amount:          freightCharged ? document.getElementById("freight_amount").value : ""
-    })
-  });
+    const msg = count === 1
+      ? "✔ Delivery Created Successfully"
+      : `✔ ${count} Deliveries Created Successfully`;
+    document.getElementById("formMessage").innerHTML = `<span style='color:#16a34a;'>${msg}</span>`;
+    btn.textContent = count === 1 ? "Created ✔" : `${count} Created ✔`;
+    setTimeout(() => { btn.disabled = false; updateProductCount(); }, 1500);
 
-  if (!response.ok) {
-    const err = await response.json();
-    alert(err.error || "Something went wrong. Delivery not created.");
-    btn.disabled = false; btn.innerText = "Create Delivery"; return;
+  } catch(e) {
+    alert("Network error. Please try again.");
+    btn.disabled = false;
+    updateProductCount();
   }
+}
 
-  closePopup();
-  loadDeliveries();
-  resetForm();
-  localStorage.removeItem("deliveryDraft");
-  document.getElementById("formMessage").innerHTML = "<span style='color:#16a34a;'>✔ Delivery Created Successfully</span>";
-  btn.innerText = "Created ✔";
-  setTimeout(() => { btn.disabled = false; btn.innerText = "Create Delivery"; }, 1000);
+/* ── INIT PRODUCT LIST ── */
+function initProductList() {
+  productItemCounter = 0;
+  const list = document.getElementById("productList");
+  list.innerHTML = "";
+  addProductItem(); // always start with 1 clean item
 }
 
 /* ── RESET FORM ── */
 function resetForm() {
-  document.querySelectorAll("#popup input").forEach(i => { i.value = ""; i.classList.remove("error"); });
-  document.querySelectorAll("#popup select").forEach(s => { s.selectedIndex = 0; });
-  ["product", "make", "model"].forEach(type => {
-    const input = document.getElementById("new_" + type);
-    const btn   = document.getElementById("btn_" + type);
-    if (input) input.style.display = "none";
-    if (btn)   btn.style.display = "none";
+  // Clear shared inputs (skip those inside .product-item)
+  document.querySelectorAll("#popup input").forEach(i => {
+    if (!i.closest(".product-item")) { i.value = ""; i.classList.remove("error"); }
   });
+  document.querySelectorAll("#popup select").forEach(s => {
+    if (!s.closest(".product-item")) s.selectedIndex = 0;
+  });
+
   document.getElementById("has_instruction").checked = false;
   document.getElementById("instruction").style.display = "none";
   document.getElementById("instruction").value = "";
   document.getElementById("freight_charged").checked = false;
   document.getElementById("freight_amount").style.display = "none";
   document.getElementById("freight_amount").value = "";
+
   const cityEl  = document.getElementById("city");
   const stateEl = document.getElementById("state_field");
   if (cityEl)  { cityEl.style.background = ""; cityEl.readOnly = true; }
   if (stateEl) { stateEl.style.background = ""; stateEl.readOnly = true; }
-  // Reset area dropdown + manual fallback
+
   const areaSelect = document.getElementById("area");
   const areaManual = document.getElementById("area_manual");
   if (areaSelect) { areaSelect.innerHTML = ""; areaSelect.style.display = "none"; }
   if (areaManual) { areaManual.value = ""; areaManual.style.display = "none"; }
+
   const editStateBtn = document.getElementById("editStateBtn");
   const editCityBtn  = document.getElementById("editCityBtn");
   if (editStateBtn) editStateBtn.style.display = "none";
   if (editCityBtn)  editCityBtn.style.display  = "none";
+
   const pinError = document.getElementById("pinError");
   if (pinError) { pinError.style.display = "none"; pinError.innerText = ""; }
+
   document.getElementById("formMessage").innerHTML = "";
+
+  // Reset product list to one fresh item
+  initProductList();
 }
 
 /* ── DRAFT AUTO-SAVE ── */
