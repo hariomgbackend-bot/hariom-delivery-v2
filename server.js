@@ -113,49 +113,51 @@ function authorize(allowedRoles) {
 }
 
 /* ════════════════════════════════════════════════
-   WHATSAPP
+   WHATSAPP — disabled (not in use)
 ════════════════════════════════════════════════ */
 
-async function sendWhatsapp(phone, message) {
-  try {
-    await fetch(`https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "text",
-        text: { body: message }
-      })
-    });
-  } catch (err) {
-    console.log("WhatsApp error:", err.message);
-  }
-}
+// async function sendWhatsapp(phone, message) {
+//   try {
+//     await fetch(`https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`, {
+//       method: "POST",
+//       headers: {
+//         Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+//         "Content-Type": "application/json"
+//       },
+//       body: JSON.stringify({
+//         messaging_product: "whatsapp",
+//         to: phone,
+//         type: "text",
+//         text: { body: message }
+//       })
+//     });
+//   } catch (err) {
+//     console.log("WhatsApp error:", err.message);
+//   }
+// }
+async function sendWhatsapp(phone, message) { /* disabled */ }
 
 /* ════════════════════════════════════════════════
-   SMS
+   SMS — disabled (not in use)
 ════════════════════════════════════════════════ */
 
-async function sendSMS(phone, message) {
-  try {
-    const r = await fetch("https://www.fast2sms.com/dev/bulkV2", {
-      method: "POST",
-      headers: {
-        authorization: FAST2SMS_API_KEY,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ route: "q", message, language: "english", numbers: phone })
-    });
-    const data = await r.json();
-    console.log("SMS response:", data);
-  } catch (err) {
-    console.log("SMS error:", err.message);
-  }
-}
+// async function sendSMS(phone, message) {
+//   try {
+//     const r = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+//       method: "POST",
+//       headers: {
+//         authorization: FAST2SMS_API_KEY,
+//         "Content-Type": "application/json"
+//       },
+//       body: JSON.stringify({ route: "q", message, language: "english", numbers: phone })
+//     });
+//     const data = await r.json();
+//     console.log("SMS response:", data);
+//   } catch (err) {
+//     console.log("SMS error:", err.message);
+//   }
+// }
+async function sendSMS(phone, message) { /* disabled */ }
 
 /* ════════════════════════════════════════════════
    PUSH HELPER — with automatic stale token cleanup
