@@ -928,6 +928,9 @@
       <div id="payoutEmpty" style="display:none;text-align:center;padding:24px;color:var(--muted);font-size:14px;">
         No delivered deliveries found for this driver on the selected date.
       </div>
+      <div id="payoutNoFreight" style="display:none;text-align:center;padding:12px;background:#fefce8;border:1px solid #fde68a;border-radius:10px;color:#92400e;font-size:13px;margin-bottom:8px;">
+        ℹ️ No driver-collected freight for this day — nothing to settle.
+      </div>
     </div>
   </div>
 
@@ -1722,6 +1725,7 @@ async function loadPayout() {
 
   chips.style.display = "none"; tableWrap.style.display = "none";
   empty.style.display = "none"; markAllWrap.style.display = "none"; allSettled.style.display = "none";
+  const _nf = document.getElementById("payoutNoFreight"); if (_nf) _nf.style.display = "none";
 
   try {
     const res  = await authFetch(`${BASE_URL}/driver-payout?driver_id=${driverId}&date=${date}`);
@@ -1743,7 +1747,7 @@ function renderPayoutTable(data) {
   const allSettled    = document.getElementById("payoutAllSettled");
   const deliveries    = currentPayoutDeliveries;
 
-  const unpaidList  = deliveries.filter(d => d.freight_set_by === "driver" && d.freight_charged && !d.freight_paid);
+  const unpaidList  = deliveries.filter(d => !d.freight_paid);
   const unpaidTotal = unpaidList.reduce((s, d) => s + parseFloat(d.freight_amount || 0), 0);
   const allPaid     = unpaidList.length === 0;
 
@@ -1752,10 +1756,9 @@ function renderPayoutTable(data) {
   document.getElementById("payoutCount").textContent         = data.count;
   chips.style.display = "flex";
 
-  const hasOurFreight = deliveries.some(d => d.freight_set_by === "driver" && d.freight_charged);
-  if (hasOurFreight) {
-    allPaid ? (allSettled.style.display = "block") : (markAllWrap.style.display = "block");
-  }
+  const noFreightEl = document.getElementById("payoutNoFreight");
+  if (noFreightEl) noFreightEl.style.display = "none";
+  allPaid ? (allSettled.style.display = "block") : (markAllWrap.style.display = "block");
 
   const tbody = document.getElementById("payoutTable");
   tbody.innerHTML = deliveries.map((d, i) => {
@@ -1776,9 +1779,7 @@ function renderPayoutTable(data) {
     const custSafe  = (d.customer_name||"").replace(/'/g,"\\'");
     const statusCell = isPaid
       ? `<span style="padding:2px 8px;border-radius:8px;background:#dcfce7;color:#166534;font-size:11px;font-weight:700;">\u2705 Paid</span>`
-      : (isOurFreight
-        ? `<button onclick="markOneFreightPaid('${d.id}','${custSafe}',${amt})" style="padding:4px 10px;background:#dc2626;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Mark Paid</button>`
-        : `<span style="color:#94a3b8;font-size:12px;">\u2014</span>`);
+      : `<button onclick="markOneFreightPaid('${d.id}','${custSafe}',${amt})" style="padding:4px 10px;background:#dc2626;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Mark Paid</button>`;
 
     const rowStyle = isPaid ? "background:rgba(74,222,128,0.05);opacity:0.7;" : "";
     return `<tr style="border-bottom:1px solid var(--border);${rowStyle}" id="payout-row-${d.id}">
@@ -1828,7 +1829,7 @@ async function markOneFreightPaid(deliveryId, customerName, amount) {
 }
 
 async function markAllFreightPaid() {
-  const unpaid = currentPayoutDeliveries.filter(d => d.freight_set_by==="driver" && d.freight_charged && !d.freight_paid);
+  const unpaid = currentPayoutDeliveries.filter(d => !d.freight_paid);
   if (!unpaid.length) { alert("No unpaid deliveries."); return; }
   const total = unpaid.reduce((s,d) => s + parseFloat(d.freight_amount||0), 0);
   const names = unpaid.map(d => `\u2022 ${d.customer_name||"\u2014"} \u2014 \u20b9${parseFloat(d.freight_amount||0).toLocaleString("en-IN")}`).join("\n");
@@ -1857,7 +1858,7 @@ async function markAllFreightPaid() {
 }
 
 function refreshPayoutChips() {
-  const unpaid = currentPayoutDeliveries.filter(d => d.freight_set_by==="driver" && d.freight_charged && !d.freight_paid);
+  const unpaid = currentPayoutDeliveries.filter(d => !d.freight_paid);
   const total  = unpaid.reduce((s,d) => s+parseFloat(d.freight_amount||0), 0);
   document.getElementById("payoutTotalFreight").textContent = "\u20b9" + total.toLocaleString("en-IN");
   const footTd = document.getElementById("payoutFootTotal");
@@ -1865,7 +1866,7 @@ function refreshPayoutChips() {
 }
 
 function checkAllSettled() {
-  const unpaid = currentPayoutDeliveries.filter(d => d.freight_set_by==="driver" && d.freight_charged && !d.freight_paid);
+  const unpaid = currentPayoutDeliveries.filter(d => !d.freight_paid);
   if (unpaid.length === 0) {
     document.getElementById("payoutMarkAllWrap").style.display = "none";
     document.getElementById("payoutAllSettled").style.display  = "block";

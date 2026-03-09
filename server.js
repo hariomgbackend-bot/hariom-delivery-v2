@@ -86,28 +86,27 @@ cron.schedule("30 0 * * *", async () => {
 }, { timezone: "Asia/Kolkata" });
 
 /* ════════════════════════════════════════════════
-   ONE-TIME MIGRATION  POST /migrateBookedStatus
-   Call once after deploy — flips future pending→booked
+   STARTUP MIGRATION — runs every deploy
+   Flips any pending deliveries with future ETA → booked
+   Safe to run repeatedly (only touches pending ones)
 ════════════════════════════════════════════════ */
-app.post("/migrateBookedStatus", authenticate, authorize(["admin"]), async (req, res) => {
+async function runStartupMigration() {
   try {
     const today = todayIST();
     const snap = await getDocs(query(collection(db, "deliveries"), where("status", "==", "pending")));
     let migrated = 0;
-    const ids = [];
     for (const d of snap.docs) {
       const eta = d.data().estimated_delivery_time;
       if (eta && eta.slice(0, 10) > today) {
         await updateDoc(doc(db, "deliveries", d.id), { status: "booked" });
         migrated++;
-        ids.push(d.id);
       }
     }
-    res.json({ success: true, migrated, ids });
+    if (migrated > 0) console.log(`[MIGRATION] Flipped ${migrated} pending → booked`);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[MIGRATION] error:", err.message);
   }
-});
+}
 
 /* ════════════════════════════════════════════════
    RATE LIMITING
@@ -1185,4 +1184,5 @@ process.on("uncaughtException", (err) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
+  runStartupMigration();
 });
