@@ -16,6 +16,7 @@ import dotenv from "dotenv";
 import admin from "firebase-admin";
 import { createRequire } from "module";
 import rateLimit from "express-rate-limit";
+import cron from "node-cron";
 
 dotenv.config();
 
@@ -47,6 +48,65 @@ app.use(express.static("."));
 
 app.get("/", (req, res) => {
   res.sendFile(process.cwd() + "/driver_interface.html");
+});
+
+/* ════════════════════════════════════════════════
+   IST DATE HELPER
+════════════════════════════════════════════════ */
+function todayIST() {
+  return new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split("T")[0];
+}
+
+function statusForETA(etaString) {
+  if (!etaString) return "pending";
+  return etaString.slice(0, 10) > todayIST() ? "booked" : "pending";
+}
+
+/* ════════════════════════════════════════════════
+   CRON — 6:00 AM IST daily
+   Flips booked → pending when delivery date arrives
+════════════════════════════════════════════════ */
+cron.schedule("30 0 * * *", async () => {
+  try {
+    const today = todayIST();
+    console.log(`[CRON] booked→pending flip for ${today}`);
+    const snap = await getDocs(query(collection(db, "deliveries"), where("status", "==", "booked")));
+    let flipped = 0;
+    for (const d of snap.docs) {
+      const eta = d.data().estimated_delivery_time;
+      if (eta && eta.slice(0, 10) <= today) {
+        await updateDoc(doc(db, "deliveries", d.id), { status: "pending" });
+        flipped++;
+      }
+    }
+    console.log(`[CRON] Flipped ${flipped} deliveries`);
+  } catch (err) {
+    console.error("[CRON] error:", err.message);
+  }
+}, { timezone: "Asia/Kolkata" });
+
+/* ════════════════════════════════════════════════
+   ONE-TIME MIGRATION  POST /migrateBookedStatus
+   Call once after deploy — flips future pending→booked
+════════════════════════════════════════════════ */
+app.post("/migrateBookedStatus", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const today = todayIST();
+    const snap = await getDocs(query(collection(db, "deliveries"), where("status", "==", "pending")));
+    let migrated = 0;
+    const ids = [];
+    for (const d of snap.docs) {
+      const eta = d.data().estimated_delivery_time;
+      if (eta && eta.slice(0, 10) > today) {
+        await updateDoc(doc(db, "deliveries", d.id), { status: "booked" });
+        migrated++;
+        ids.push(d.id);
+      }
+    }
+    res.json({ success: true, migrated, ids });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* ════════════════════════════════════════════════
@@ -305,7 +365,7 @@ app.post("/createDelivery", async (req, res) => {
         collection(db, "deliveries"),
         where("phone", "==", data.phone),
         where("product_name", "==", data.product_name),
-        where("status", "==", "pending")
+        where("status", "in", ["pending", "booked"])
       ));
       const isDuplicate = dupeSnap.docs.some(d => {
         const ts = d.data().created_timestamp;
@@ -321,7 +381,7 @@ app.post("/createDelivery", async (req, res) => {
       priority: data.priority || "normal",
       estimated_delivery_time: data.estimated_delivery_time || null,
       created_timestamp: Timestamp.now(),
-      status: "pending"
+      status: statusForETA(data.estimated_delivery_time)
     });
 
     await sendWhatsapp(data.phone,
@@ -386,7 +446,7 @@ app.post("/createDeliveries", async (req, res) => {
         batch_id:              products.length > 1 ? batchId : null,
         priority:              shared.priority || "normal",
         created_timestamp:     Timestamp.now(),
-        status:                "pending"
+        status:                statusForETA(shared.estimated_delivery_time)
       };
 
       const docRef = await addDoc(collection(db, "deliveries"), docData);
@@ -754,7 +814,7 @@ app.post("/driverDeliveries", pinLimiter, async (req, res) => {
     where("assigned_driver_id", "==", driver_id)
   ));
 
-  res.json({ deliveries: snapshot.docs.map(d => ({ id: d.id, ...d.data() })), sessionToken });
+  res.json({ deliveries: snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status !== "booked"), sessionToken });
 });
 
 /* ════════════════════════════════════════════════
@@ -773,7 +833,7 @@ app.post("/driverDeliveriesRefresh", authenticate, authorize(["driver"]), async 
       collection(db, "deliveries"),
       where("assigned_driver_id", "==", driver_id)
     ));
-    res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status !== "booked"));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -978,7 +1038,7 @@ app.post("/rescheduleDelivery/:id", authenticate, authorize(["admin", "accountan
     if (!delivery.product_returned) return res.status(400).json({ error: "Product must be marked as returned before rescheduling" });
 
     await updateDoc(deliveryRef, {
-      status: "pending",
+      status: statusForETA(estimated_delivery_time),
       estimated_delivery_time,
       previous_failures: (delivery.previous_failures || 0) + 1,
       previous_failure_reason: delivery.failure_reason || null,
@@ -1016,7 +1076,85 @@ app.post("/rescheduleDelivery/:id", authenticate, authorize(["admin", "accountan
 });
 
 /* ════════════════════════════════════════════════
-   GLOBAL ERROR HANDLERS
+   MARK FREIGHT PAID
+   POST /markFreightPaid/:id  (admin only)
+   Sets freight_paid: true + timestamp on delivery
+════════════════════════════════════════════════ */
+app.post("/markFreightPaid/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const deliveryRef = doc(db, "deliveries", req.params.id);
+    const snap = await getDoc(deliveryRef);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+    if (snap.data().freight_paid) return res.status(400).json({ error: "Already marked as paid" });
+    await updateDoc(deliveryRef, {
+      freight_paid: true,
+      freight_paid_timestamp: Timestamp.now()
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/markFreightPaid error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   DRIVER OUTSTANDING BALANCE
+   GET /driver-outstanding?driver_id=X&from=YYYY-MM-DD&to=YYYY-MM-DD
+   Returns all unpaid delivered deliveries in range,
+   grouped by date, with per-day and grand totals
+════════════════════════════════════════════════ */
+app.get("/driver-outstanding", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { driver_id, from, to } = req.query;
+    if (!driver_id) return res.status(400).json({ error: "driver_id required" });
+
+    const fromDate = from || todayIST();
+    const toDate   = to   || todayIST();
+
+    const dayStart = new Date(fromDate + "T00:00:00.000+05:30");
+    const dayEnd   = new Date(toDate   + "T23:59:59.999+05:30");
+
+    const snap = await getDocs(query(
+      collection(db, "deliveries"),
+      where("assigned_driver_id", "==", driver_id),
+      where("status", "==", "delivered")
+    ));
+
+    const unpaid = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => {
+        if (d.freight_paid) return false;
+        if (d.freight_set_by !== "driver" || !d.freight_charged) return false;
+        if (!d.delivered_timestamp) return false;
+        const ts = new Date(d.delivered_timestamp.seconds * 1000);
+        return ts >= dayStart && ts <= dayEnd;
+      });
+
+    // Group by date
+    const byDate = {};
+    unpaid.forEach(d => {
+      const dateKey = new Date(d.delivered_timestamp.seconds * 1000)
+        .toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" })
+        .split("/").reverse().join("-"); // YYYY-MM-DD
+      if (!byDate[dateKey]) byDate[dateKey] = { deliveries: [], total: 0 };
+      byDate[dateKey].deliveries.push(d);
+      byDate[dateKey].total += parseFloat(d.freight_amount || 0);
+    });
+
+    const grandTotal = unpaid.reduce((s, d) => s + parseFloat(d.freight_amount || 0), 0);
+
+    res.json({
+      byDate,
+      grandTotal: parseFloat(grandTotal.toFixed(2)),
+      count: unpaid.length,
+      from: fromDate,
+      to: toDate
+    });
+  } catch (err) {
+    console.error("/driver-outstanding error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
    Catches unhandled errors so the server never crashes
 ════════════════════════════════════════════════ */
 

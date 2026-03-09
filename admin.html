@@ -137,6 +137,7 @@
     .stat-delivered::before { background: #4ade80; }
     .stat-urgent::before   { background: #fb923c; }
     .stat-overdue::before  { background: #c084fc; }
+    .stat-booked::before   { background: #6366f1; }
 
     .stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
 
@@ -159,6 +160,7 @@
     .stat-delivered .stat-value { color: #16a34a; }
     .stat-urgent   .stat-value { color: #ea580c; }
     .stat-overdue  .stat-value { color: #9333ea; }
+    .stat-booked   .stat-value { color: #4338ca; }
 
     /* TOOLBAR */
     .toolbar {
@@ -306,6 +308,7 @@
     .badge-loaded    { background: rgba(56,189,248,0.12);  color: #0369a1; }
     .badge-delivered { background: rgba(74,222,128,0.12);  color: #166534; }
     .badge-failed    { background: rgba(248,113,113,0.12); color: #b91c1c; }
+    .badge-booked    { background: rgba(99,102,241,0.12);  color: #4338ca; }
     .badge-urgent    { background: rgba(251,146,60,0.12);  color: #9a3412; }
     .badge-normal    { background: #f1f5f9; color: #475569; }
 
@@ -659,6 +662,7 @@
     .dark-toggle:hover { background: rgba(255,255,255,0.14); color: white; }
 
     .badge-failed { background: rgba(248,113,113,0.12); color: #b91c1c; }
+    .badge-booked { background: rgba(99,102,241,0.12);  color: #4338ca; }
 
     /* ═══════════════════════════════════════
        DARK MODE
@@ -830,7 +834,35 @@
       <span class="payout-chevron" id="payoutChevron">▼</span>
     </div>
     <div class="payout-body" id="payoutBody">
-      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin-top:16px;">
+
+      <!-- Outstanding Balance Section -->
+      <div id="outstandingSection" style="margin-top:16px;padding:14px;background:rgba(99,102,241,0.06);border:1.5px solid rgba(99,102,241,0.2);border-radius:12px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:#4338ca;margin-bottom:10px;">📊 Outstanding Balance</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;">
+          <div>
+            <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);display:block;margin-bottom:5px;">Driver</label>
+            <select id="outstandingDriver" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);outline:none;background:#fafbfc;" onchange="loadOutstanding()">
+              <option value="">Select driver…</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);display:block;margin-bottom:5px;">From</label>
+            <input type="date" id="outstandingFrom" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);outline:none;background:#fafbfc;">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);display:block;margin-bottom:5px;">To</label>
+            <input type="date" id="outstandingTo" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);outline:none;background:#fafbfc;">
+          </div>
+          <button onclick="loadOutstanding()" style="padding:9px 16px;background:#4338ca;color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;height:38px;">Search</button>
+        </div>
+        <div id="outstandingResult" style="margin-top:12px;display:none;"></div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);margin:16px 0 0;padding-top:16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);margin-bottom:12px;">Daily Payout</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;">
         <div>
           <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);display:block;margin-bottom:6px;">Driver</label>
           <select id="payoutDriver" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;background:#fafbfc;transition:border-color 0.2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
@@ -850,7 +882,7 @@
       <div id="payoutChips" style="display:none;gap:12px;flex-wrap:wrap;margin-top:16px;margin-bottom:16px;">
         <div style="background:#eff6ff;border-radius:12px;padding:14px 20px;flex:1;min-width:120px;text-align:center;">
           <div style="font-size:22px;font-weight:700;color:#1d4ed8;" id="payoutTotalFreight">—</div>
-          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:#64748b;margin-top:4px;">Total Freight</div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:#64748b;margin-top:4px;">Unpaid Freight</div>
         </div>
         <div style="background:#f0fdf4;border-radius:12px;padding:14px 20px;flex:1;min-width:120px;text-align:center;">
           <div style="font-size:22px;font-weight:700;color:#16a34a;" id="payoutTotalDistance">—</div>
@@ -862,9 +894,21 @@
         </div>
       </div>
 
+      <!-- Mark all paid button -->
+      <div id="payoutMarkAllWrap" style="display:none;margin-bottom:12px;">
+        <button onclick="markAllFreightPaid()" style="width:100%;padding:10px;background:#059669;color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+          ✅ Mark All Unpaid as Settled
+        </button>
+      </div>
+
+      <!-- All settled banner -->
+      <div id="payoutAllSettled" style="display:none;text-align:center;padding:16px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;color:#166534;font-weight:700;font-size:14px;margin-bottom:12px;">
+        ✅ All deliveries for this day are settled
+      </div>
+
       <!-- Deliveries table -->
       <div id="payoutTableWrap" style="display:none;overflow-x:auto;border-radius:10px;border:1px solid var(--border);">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:560px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:600px;">
           <thead>
             <tr>
               <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:500;">#</th>
@@ -873,6 +917,7 @@
               <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:500;">Delivered At</th>
               <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:500;">Freight (₹)</th>
               <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:500;">Distance</th>
+              <th style="background:#1e293b;color:rgba(255,255,255,0.85);padding:10px 12px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:500;">Status</th>
             </tr>
           </thead>
           <tbody id="payoutTable"></tbody>
@@ -891,6 +936,7 @@
     <button class="filter-btn"        id="btn-today"     onclick="setFilter('today')">Today<span class="filter-count" id="cnt-today"></span></button>
     <button class="filter-btn"        id="btn-date"      onclick="showDatePicker()">📅 Date</button>
     <input type="date" id="adminDate" onchange="applyDateFilter()">
+    <button class="filter-btn"        id="btn-booked"    onclick="setFilter('booked')" style="color:#4338ca;border-color:#a5b4fc;">📅 Booked<span class="filter-count" id="cnt-booked"></span></button>
     <button class="filter-btn"        id="btn-pending"   onclick="setFilter('pending')">Pending<span class="filter-count" id="cnt-pending"></span></button>
     <button class="filter-btn"        id="btn-loaded"    onclick="setFilter('loaded')">Loaded<span class="filter-count" id="cnt-loaded"></span></button>
     <button class="filter-btn"        id="btn-delivered" onclick="setFilter('delivered')">Delivered<span class="filter-count" id="cnt-delivered"></span></button>
@@ -1083,7 +1129,8 @@ async function loadAdmin() {
       if (!d.created_timestamp) return false;
       return new Date(d.created_timestamp.seconds * 1000).toDateString() === sel.toDateString();
     });
-  } else if (currentFilter === "pending")   data = data.filter(d => d.status === "pending");
+  } else if (currentFilter === "booked")    data = data.filter(d => d.status === "booked");
+  else if (currentFilter === "pending")   data = data.filter(d => d.status === "pending");
   else if (currentFilter === "loaded")      data = data.filter(d => d.status === "loaded");
   else if (currentFilter === "delivered")   data = data.filter(d => d.status === "delivered");
   else if (currentFilter === "failed")      data = data.filter(d => d.status === "failed");
@@ -1393,18 +1440,23 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
 }
 
 function updateSummaryCards(data) {
-  let pending = 0, loaded = 0, delivered = 0, urgent = 0, overdue = 0;
+  let pending = 0, loaded = 0, delivered = 0, urgent = 0, overdue = 0, booked = 0;
   const now = new Date();
 
   data.forEach(d => {
-    if (d.status === "pending") pending++;
-    if (d.status === "loaded") loaded++;
+    if (d.status === "booked")    booked++;
+    if (d.status === "pending")   pending++;
+    if (d.status === "loaded")    loaded++;
     if (d.status === "delivered") delivered++;
-    if (d.priority === "urgent") urgent++;
-    if (d.status !== "delivered" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) overdue++;
+    if (d.priority === "urgent")  urgent++;
+    if (d.status !== "delivered" && d.status !== "booked" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) overdue++;
   });
 
   document.getElementById("summaryCards").innerHTML = `
+    <div class="stat-card stat-booked">
+      <div class="stat-value">${booked}</div>
+      <div class="stat-label">Booked</div>
+    </div>
     <div class="stat-card stat-pending">
       <div class="stat-value">${pending}</div>
       <div class="stat-label">Pending</div>
@@ -1591,6 +1643,7 @@ function updateFilterCounts(allData) {
   const counts = {
     all:       full.length,
     today:     full.filter(d => d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === todayStr).length,
+    booked:    full.filter(d => d.status === "booked").length,
     pending:   full.filter(d => d.status === "pending").length,
     loaded:    full.filter(d => d.status === "loaded").length,
     delivered: full.filter(d => d.status === "delivered").length,
@@ -1623,24 +1676,36 @@ function togglePayout() {
   chevron.classList.toggle("open", open);
 }
 
+function istToday() {
+  return new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split("T")[0];
+}
+
 // ── DRIVER PAYOUT ──────────────────────────────
+let currentPayoutDeliveries = [];
+let currentPayoutDriverId   = "";
+let currentPayoutDate       = "";
+
 async function loadPayoutDrivers() {
   try {
     const res     = await fetch(`${BASE_URL}/driver-list-public`);
     const drivers = await res.json();
-    const sel     = document.getElementById("payoutDriver");
-    drivers.forEach(d => {
-      const opt = document.createElement("option");
-      opt.value = d.id;
-      opt.textContent = d.driver_name;
-      sel.appendChild(opt);
+    ["payoutDriver", "outstandingDriver"].forEach(selId => {
+      const sel = document.getElementById(selId);
+      while (sel.options.length > 1) sel.remove(1);
+      drivers.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d.id;
+        opt.textContent = d.driver_name;
+        sel.appendChild(opt);
+      });
     });
   } catch (e) { console.warn("Could not load payout drivers:", e); }
 }
 
-// IST = UTC+5:30 — using toISOString() gives UTC date which is wrong in India before 5:30 AM
-const _istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-document.getElementById("payoutDate").value = _istNow.toISOString().split("T")[0];
+const _istNow = istToday();
+document.getElementById("payoutDate").value = _istNow;
+document.getElementById("outstandingFrom").value = _istNow;
+document.getElementById("outstandingTo").value = _istNow;
 loadPayoutDrivers();
 
 async function loadPayout() {
@@ -1649,82 +1714,214 @@ async function loadPayout() {
   const chips    = document.getElementById("payoutChips");
   const tableWrap= document.getElementById("payoutTableWrap");
   const empty    = document.getElementById("payoutEmpty");
+  const markAllWrap  = document.getElementById("payoutMarkAllWrap");
+  const allSettled   = document.getElementById("payoutAllSettled");
 
   if (!driverId) { alert("Please select a driver"); return; }
   if (!date)     { alert("Please select a date"); return; }
 
-  chips.style.display = "none";
-  tableWrap.style.display = "none";
-  empty.style.display = "none";
+  chips.style.display = "none"; tableWrap.style.display = "none";
+  empty.style.display = "none"; markAllWrap.style.display = "none"; allSettled.style.display = "none";
 
   try {
     const res  = await authFetch(`${BASE_URL}/driver-payout?driver_id=${driverId}&date=${date}`);
     const data = await res.json();
+    if (!res.ok) { alert("\u26a0 Payout error: " + (data.error || "Server error")); return; }
+    if (!data.deliveries?.length) { empty.style.display = "block"; return; }
 
-    if (!res.ok) {
-      alert("⚠ Payout error: " + (data.error || "Server error — check console"));
-      return;
-    }
+    currentPayoutDeliveries = data.deliveries;
+    currentPayoutDriverId   = driverId;
+    currentPayoutDate       = date;
+    renderPayoutTable(data);
+  } catch (e) { alert("Failed to load payout data. Please try again."); }
+}
 
-    if (!data.deliveries?.length) {
-      empty.style.display = "block";
-      return;
-    }
+function renderPayoutTable(data) {
+  const chips     = document.getElementById("payoutChips");
+  const tableWrap = document.getElementById("payoutTableWrap");
+  const markAllWrap   = document.getElementById("payoutMarkAllWrap");
+  const allSettled    = document.getElementById("payoutAllSettled");
+  const deliveries    = currentPayoutDeliveries;
 
-    // Summary chips — only our freight (driver-set) counts
-    document.getElementById("payoutTotalFreight").textContent  = "\u20b9" + (data.total_our_freight || 0).toLocaleString("en-IN");
-    document.getElementById("payoutTotalDistance").textContent = (data.total_distance_km || 0) + " km";
-    document.getElementById("payoutCount").textContent         = data.count;
-    chips.style.display = "flex";
+  const unpaidList  = deliveries.filter(d => d.freight_set_by === "driver" && d.freight_charged && !d.freight_paid);
+  const unpaidTotal = unpaidList.reduce((s, d) => s + parseFloat(d.freight_amount || 0), 0);
+  const allPaid     = unpaidList.length === 0;
 
-    // Table rows
-    const tbody = document.getElementById("payoutTable");
-    tbody.innerHTML = data.deliveries.map((d, i) => {
-      const delivTime = d.delivered_timestamp
-        ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })
-        : "\u2014";
+  document.getElementById("payoutTotalFreight").textContent  = "\u20b9" + unpaidTotal.toLocaleString("en-IN");
+  document.getElementById("payoutTotalDistance").textContent = (data.total_distance_km || 0) + " km";
+  document.getElementById("payoutCount").textContent         = data.count;
+  chips.style.display = "flex";
 
-      // Only show in red if driver set it (we owe); accountant-set = customer paid = grey note
-      const isOurFreight = d.freight_set_by === "driver" && d.freight_charged;
-      const freightCell  = isOurFreight
-        ? `<strong style="color:#dc2626;">\u20b9${parseFloat(d.freight_amount || 0).toLocaleString("en-IN")}</strong>`
-        : d.freight_charged
-          ? `<span style="color:#94a3b8;font-size:12px;">Customer paid</span>`
-          : `<span style="color:#94a3b8;">\u2014</span>`;
-
-      const distCell = d.distance_km != null
-        ? `<strong style="color:#16a34a;">${d.distance_km} km</strong>`
-        : `<span style="color:#94a3b8;">\u2014</span>`;
-
-      return `<tr style="border-bottom:1px solid var(--border);">
-        <td style="padding:10px 12px;color:var(--muted);font-size:12px;">${i + 1}</td>
-        <td style="padding:10px 12px;font-weight:600;">${d.customer_name || "\u2014"}</td>
-        <td style="padding:10px 12px;color:var(--muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${d.address || ""}">${d.address || "\u2014"}</td>
-        <td style="padding:10px 12px;white-space:nowrap;">${delivTime}</td>
-        <td style="padding:10px 12px;text-align:right;">${freightCell}</td>
-        <td style="padding:10px 12px;text-align:right;">${distCell}</td>
-      </tr>`;
-    }).join("");
-
-    // Footer totals
-    document.getElementById("payoutFoot").innerHTML = `
-      <tr style="background:#fef9f0;border-top:2px solid var(--border);">
-        <td colspan="4" style="padding:12px;font-weight:700;font-size:13px;">
-          Total \u2014 ${data.count} deliveries
-          <span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--muted);">Only freight we owe driver shown in red</span>
-        </td>
-        <td style="padding:12px;text-align:right;font-weight:700;font-size:16px;color:#dc2626;">
-          \u20b9${(data.total_our_freight || 0).toLocaleString("en-IN")}
-        </td>
-        <td style="padding:12px;text-align:right;font-weight:700;font-size:16px;color:#16a34a;">
-          ${(data.total_distance_km || 0)} km
-        </td>
-      </tr>`;
-
-    tableWrap.style.display = "block";
-  } catch (e) {
-    alert("Failed to load payout data. Please try again.");
+  const hasOurFreight = deliveries.some(d => d.freight_set_by === "driver" && d.freight_charged);
+  if (hasOurFreight) {
+    allPaid ? (allSettled.style.display = "block") : (markAllWrap.style.display = "block");
   }
+
+  const tbody = document.getElementById("payoutTable");
+  tbody.innerHTML = deliveries.map((d, i) => {
+    const delivTime    = d.delivered_timestamp
+      ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleTimeString("en-IN", {hour:"2-digit",minute:"2-digit",hour12:true})
+      : "\u2014";
+    const isOurFreight = d.freight_set_by === "driver" && d.freight_charged;
+    const isPaid       = d.freight_paid;
+    const amt          = parseFloat(d.freight_amount || 0);
+
+    const freightCell = isOurFreight
+      ? (isPaid
+        ? `<span style="color:#059669;font-weight:600;">\u20b9${amt.toLocaleString("en-IN")}</span>`
+        : `<strong style="color:#dc2626;">\u20b9${amt.toLocaleString("en-IN")}</strong>`)
+      : (d.freight_charged ? `<span style="color:#94a3b8;font-size:12px;">Customer paid</span>` : `<span style="color:#94a3b8;">\u2014</span>`);
+
+    const distCell  = d.distance_km != null ? `<strong style="color:#16a34a;">${d.distance_km} km</strong>` : `<span style="color:#94a3b8;">\u2014</span>`;
+    const custSafe  = (d.customer_name||"").replace(/'/g,"\\'");
+    const statusCell = isPaid
+      ? `<span style="padding:2px 8px;border-radius:8px;background:#dcfce7;color:#166534;font-size:11px;font-weight:700;">\u2705 Paid</span>`
+      : (isOurFreight
+        ? `<button onclick="markOneFreightPaid('${d.id}','${custSafe}',${amt})" style="padding:4px 10px;background:#dc2626;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Mark Paid</button>`
+        : `<span style="color:#94a3b8;font-size:12px;">\u2014</span>`);
+
+    const rowStyle = isPaid ? "background:rgba(74,222,128,0.05);opacity:0.7;" : "";
+    return `<tr style="border-bottom:1px solid var(--border);${rowStyle}" id="payout-row-${d.id}">
+      <td style="padding:10px 12px;color:var(--muted);font-size:12px;">${i+1}</td>
+      <td style="padding:10px 12px;font-weight:600;">${d.customer_name||"\u2014"}</td>
+      <td style="padding:10px 12px;color:var(--muted);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${d.address||""}">${d.address||"\u2014"}</td>
+      <td style="padding:10px 12px;white-space:nowrap;">${delivTime}</td>
+      <td style="padding:10px 12px;text-align:right;">${freightCell}</td>
+      <td style="padding:10px 12px;text-align:right;">${distCell}</td>
+      <td style="padding:10px 12px;text-align:center;">${statusCell}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("payoutFoot").innerHTML = `
+    <tr style="background:#fef9f0;border-top:2px solid var(--border);">
+      <td colspan="4" style="padding:12px;font-weight:700;font-size:13px;">
+        Total \u2014 ${data.count} deliveries
+        <span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--muted);">Unpaid driver freight in red</span>
+      </td>
+      <td style="padding:12px;text-align:right;font-weight:700;font-size:16px;color:#dc2626;" id="payoutFootTotal">\u20b9${unpaidTotal.toLocaleString("en-IN")}</td>
+      <td style="padding:12px;text-align:right;font-weight:700;font-size:16px;color:#16a34a;">${data.total_distance_km||0} km</td>
+      <td></td>
+    </tr>`;
+  tableWrap.style.display = "block";
+}
+
+async function markOneFreightPaid(deliveryId, customerName, amount) {
+  const msg = `Are you sure you want to mark the following delivery paid and settle?\n\nCustomer: ${customerName}\nFreight: \u20b9${amount.toLocaleString("en-IN")}`;
+  if (!confirm(msg)) return;
+  try {
+    const res = await authFetch(`${BASE_URL}/markFreightPaid/${deliveryId}`, {method:"POST"});
+    const data = await res.json();
+    if (!res.ok) { alert("Error: " + (data.error||"Failed")); return; }
+    const d = currentPayoutDeliveries.find(x => x.id === deliveryId);
+    if (d) d.freight_paid = true;
+    const row = document.getElementById(`payout-row-${deliveryId}`);
+    if (row) {
+      row.style.background = "rgba(74,222,128,0.05)"; row.style.opacity = "0.7";
+      const cells = row.querySelectorAll("td");
+      cells[4].innerHTML = `<span style="color:#059669;font-weight:600;">\u20b9${amount.toLocaleString("en-IN")}</span>`;
+      cells[6].innerHTML = `<span style="padding:2px 8px;border-radius:8px;background:#dcfce7;color:#166534;font-size:11px;font-weight:700;">\u2705 Paid</span>`;
+    }
+    refreshPayoutChips();
+    checkAllSettled();
+    if (document.getElementById("outstandingDriver").value === currentPayoutDriverId) loadOutstanding();
+  } catch (e) { alert("Failed to mark paid. Please try again."); }
+}
+
+async function markAllFreightPaid() {
+  const unpaid = currentPayoutDeliveries.filter(d => d.freight_set_by==="driver" && d.freight_charged && !d.freight_paid);
+  if (!unpaid.length) { alert("No unpaid deliveries."); return; }
+  const total = unpaid.reduce((s,d) => s + parseFloat(d.freight_amount||0), 0);
+  const names = unpaid.map(d => `\u2022 ${d.customer_name||"\u2014"} \u2014 \u20b9${parseFloat(d.freight_amount||0).toLocaleString("en-IN")}`).join("\n");
+  if (!confirm(`Are you sure you want to mark the following ${unpaid.length} deliveries paid and settle?\n\n${names}\n\nTotal: \u20b9${total.toLocaleString("en-IN")}`)) return;
+  let failed = 0;
+  for (const d of unpaid) {
+    try {
+      const res = await authFetch(`${BASE_URL}/markFreightPaid/${d.id}`, {method:"POST"});
+      if (res.ok) {
+        d.freight_paid = true;
+        const row = document.getElementById(`payout-row-${d.id}`);
+        if (row) {
+          row.style.background = "rgba(74,222,128,0.05)"; row.style.opacity = "0.7";
+          const cells = row.querySelectorAll("td");
+          const amt = parseFloat(d.freight_amount||0);
+          cells[4].innerHTML = `<span style="color:#059669;font-weight:600;">\u20b9${amt.toLocaleString("en-IN")}</span>`;
+          cells[6].innerHTML = `<span style="padding:2px 8px;border-radius:8px;background:#dcfce7;color:#166534;font-size:11px;font-weight:700;">\u2705 Paid</span>`;
+        }
+      } else { failed++; }
+    } catch { failed++; }
+  }
+  refreshPayoutChips();
+  checkAllSettled();
+  if (document.getElementById("outstandingDriver").value === currentPayoutDriverId) loadOutstanding();
+  if (failed) alert(`${failed} item(s) could not be marked. Please reload and try again.`);
+}
+
+function refreshPayoutChips() {
+  const unpaid = currentPayoutDeliveries.filter(d => d.freight_set_by==="driver" && d.freight_charged && !d.freight_paid);
+  const total  = unpaid.reduce((s,d) => s+parseFloat(d.freight_amount||0), 0);
+  document.getElementById("payoutTotalFreight").textContent = "\u20b9" + total.toLocaleString("en-IN");
+  const footTd = document.getElementById("payoutFootTotal");
+  if (footTd) footTd.textContent = "\u20b9" + total.toLocaleString("en-IN");
+}
+
+function checkAllSettled() {
+  const unpaid = currentPayoutDeliveries.filter(d => d.freight_set_by==="driver" && d.freight_charged && !d.freight_paid);
+  if (unpaid.length === 0) {
+    document.getElementById("payoutMarkAllWrap").style.display = "none";
+    document.getElementById("payoutAllSettled").style.display  = "block";
+  }
+}
+
+async function loadOutstanding() {
+  const driverId = document.getElementById("outstandingDriver").value;
+  const from     = document.getElementById("outstandingFrom").value || istToday();
+  const to       = document.getElementById("outstandingTo").value   || istToday();
+  const result   = document.getElementById("outstandingResult");
+  if (!driverId) return;
+  result.innerHTML = `<div style="color:var(--muted);font-size:13px;">Loading\u2026</div>`;
+  result.style.display = "block";
+  try {
+    const res  = await authFetch(`${BASE_URL}/driver-outstanding?driver_id=${driverId}&from=${from}&to=${to}`);
+    const data = await res.json();
+    if (!res.ok) { result.innerHTML = `<span style="color:#dc2626;font-size:13px;">Error: ${data.error||"Failed"}</span>`; return; }
+    if (data.count === 0) {
+      result.innerHTML = `<div style="color:#059669;font-weight:600;font-size:13px;">\u2705 No outstanding balance for this period.</div>`;
+      return;
+    }
+    const rows = Object.entries(data.byDate)
+      .sort((a,b) => b[0].localeCompare(a[0]))
+      .map(([date, info]) => {
+        const disp = new Date(date + "T12:00:00+05:30").toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
+        return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="jumpToPayoutDate('${date}','${driverId}')" title="Click to load this day">
+          <td style="padding:8px 10px;font-weight:600;">${disp}</td>
+          <td style="padding:8px 10px;color:var(--muted);">${info.deliveries.length} deliveries</td>
+          <td style="padding:8px 10px;text-align:right;font-weight:700;color:#dc2626;">\u20b9${info.total.toLocaleString("en-IN")}</td>
+        </tr>`;
+      }).join("");
+    result.innerHTML = `
+      <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--border);">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr>
+            <th style="background:#1e293b;color:rgba(255,255,255,0.8);padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Date</th>
+            <th style="background:#1e293b;color:rgba(255,255,255,0.8);padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Deliveries</th>
+            <th style="background:#1e293b;color:rgba(255,255,255,0.8);padding:8px 10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Unpaid</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr style="background:#fef9f0;border-top:2px solid var(--border);">
+            <td colspan="2" style="padding:10px;font-weight:700;">Total Outstanding (${data.count} deliveries)</td>
+            <td style="padding:10px;text-align:right;font-weight:800;font-size:16px;color:#dc2626;">\u20b9${data.grandTotal.toLocaleString("en-IN")}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;">Click a row to load that day's payout below.</div>`;
+  } catch (e) { result.innerHTML = `<span style="color:#dc2626;font-size:13px;">Failed to load.</span>`; }
+}
+
+function jumpToPayoutDate(date, driverId) {
+  document.getElementById("payoutDriver").value = driverId;
+  document.getElementById("payoutDate").value   = date;
+  loadPayout();
+  document.getElementById("payoutDate").scrollIntoView({behavior:"smooth",block:"center"});
 }
 // ── END PAYOUT ─────────────────────────────────
 
