@@ -1155,6 +1155,9 @@ app.get("/driver-outstanding", authenticate, authorize(["admin"]), async (req, r
     res.status(500).json({ error: err.message });
   }
 });
+
+/* ════════════════════════════════════════════════
+   GLOBAL ERROR HANDLERS
    Catches unhandled errors so the server never crashes
 ════════════════════════════════════════════════ */
 
