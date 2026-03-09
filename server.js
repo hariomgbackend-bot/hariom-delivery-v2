@@ -525,12 +525,17 @@ app.get("/deliveries", async (req, res) => {
     const snapshot = await getDocs(collection(db, "deliveries"));
     let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const statusOrder = { pending: 0, loaded: 1, delivered: 2 };
+    const statusOrder = { booked: -1, pending: 0, loaded: 1, delivered: 2 };
 
     deliveries.sort((a, b) => {
       // Primary: status group order
       const statusDiff = (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
       if (statusDiff !== 0) return statusDiff;
+
+      // Within booked: soonest ETA first
+      if (a.status === "booked") {
+        return new Date(a.estimated_delivery_time || 0) - new Date(b.estimated_delivery_time || 0);
+      }
 
       // Within pending: urgent first, then newest created first
       if (a.status === "pending") {
