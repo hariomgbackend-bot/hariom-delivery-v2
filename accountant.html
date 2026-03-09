@@ -1679,9 +1679,6 @@ async function loadDeliveries() {
   } else if (currentFilter === "yesterday") {
     finalData = data.filter(d => d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === yestStr);
   } else {
-    // bookedArr: future-dated deliveries, sorted soonest ETA first
-    const bookedArr  = data.filter(d => d.status === "booked")
-      .sort((a, b) => new Date(a.estimated_delivery_time || 0) - new Date(b.estimated_delivery_time || 0));
     const pendingArr = data.filter(d => d.status === "pending")
       .sort((a, b) => (b.created_timestamp?.seconds || 0) - (a.created_timestamp?.seconds || 0));
     const loadedArr  = data.filter(d => d.status === "loaded");
@@ -1690,10 +1687,9 @@ async function loadDeliveries() {
       d.status === "delivered" && d.delivered_timestamp &&
       new Date(d.delivered_timestamp.seconds * 1000).toDateString() === todayStr
     );
-    // Booked always at top so accountant sees upcoming deliveries first
-    finalData = [...bookedArr, ...pendingArr, ...loadedArr, ...failedArr, ...deliveredTodayArr];
+    finalData = [...pendingArr, ...loadedArr, ...failedArr, ...deliveredTodayArr];
 
-    if      (currentFilter === "booked")    finalData = bookedArr;
+    if      (currentFilter === "booked")    finalData = data.filter(d => d.status === "booked");
     else if (currentFilter === "pending")   finalData = pendingArr;
     else if (currentFilter === "loaded")    finalData = loadedArr;
     else if (currentFilter === "failed")    finalData = failedArr;
@@ -1767,7 +1763,7 @@ async function loadDeliveries() {
     return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 Very Late</span>`;
   }
 
-  let booked = 0, pending = 0, loaded = 0, delivered = 0, failed = 0;
+  let pending = 0, loaded = 0, delivered = 0, failed = 0;
   const list = document.getElementById("list");
   list.innerHTML = "";
 
@@ -1781,7 +1777,7 @@ async function loadDeliveries() {
   });
 
   finalData.forEach((d, i) => {
-    if (d.status === "booked")    booked++;
+    if (d.status === "booked")    {} // booked counted in filter only
     if (d.status === "pending")   pending++;
     if (d.status === "loaded")    loaded++;
     if (d.status === "delivered") delivered++;
@@ -1812,7 +1808,6 @@ async function loadDeliveries() {
       batchTag = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bNum}</span>`;
     }
 
-    if (d.status === "booked") tr.style.background = "#eef2ff"; // soft indigo — future-booked
     if (d.status === "failed") tr.style.background = "#fff1f2";
 
     tr.innerHTML = `
@@ -1833,7 +1828,7 @@ async function loadDeliveries() {
   });
 
   document.getElementById("deliverySummary").innerHTML = `
-    ${booked > 0 ? `📅 Booked: <span style="color:#4338ca;font-weight:700;">${booked}</span> &nbsp;|&nbsp; ` : ""}📦 Pending: <span>${pending}</span> &nbsp;|&nbsp;
+    📦 Pending: <span>${pending}</span> &nbsp;|&nbsp;
     🚚 Loaded: <span>${loaded}</span> &nbsp;|&nbsp;
     ✅ Delivered: <span>${delivered}</span>
     ${failed > 0 ? ` &nbsp;|&nbsp; <span style="color:#dc2626;font-weight:700;">❌ Failed: ${failed}</span>` : ""}
@@ -2027,11 +2022,14 @@ function openViewPopup(id) {
         </div>
         <button class="btn btn-success" style="width:100%;margin-top:8px;" onclick="openReschedule('${delivery.id}')">
           🔄 Reschedule Delivery
+        </button>
+        <button class="btn btn-danger" style="width:100%;margin-top:8px;background:#dc2626;" onclick="openDeleteFailed('${delivery.id}')">
+          🗑 Delete This Delivery
         </button>`}
     </div>` : ""}
   `;
 
-  if (delivery.status?.toLowerCase() === "pending") {
+  if (delivery.status === "pending" || delivery.status === "booked") {
     content.innerHTML += `<button class="btn btn-primary" style="margin-top:16px;" onclick="editDelivery('${delivery.id}')">✏ Edit</button>`;
   }
 
@@ -2185,7 +2183,7 @@ async function saveDelivery(id) {
   };
 
   try {
-    const res = await fetch(`${BASE_URL}/delivery/${id}`, {
+    const res = await authFetch(`${BASE_URL}/delivery/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updated)
@@ -2199,6 +2197,80 @@ async function saveDelivery(id) {
     loadDeliveries();
   } catch (e) {
     alert("⚠ Network error. Please try again.");
+  }
+}
+
+/* ── DELETE FAILED DELIVERY ── */
+function openDeleteFailed(id) {
+  const delivery = currentAccountantData.find(d => d.id === id);
+  if (!delivery) return;
+
+  const inputStyle = "width:100%;padding:10px 12px;border:1.5px solid #fca5a5;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;margin-top:8px;outline:none;background:#fff8f8;";
+
+  // Replace viewContent with confirmation form
+  document.getElementById("viewContent").innerHTML = `
+    <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:20px;margin-bottom:16px;">
+      <div style="font-size:16px;font-weight:700;color:#b91c1c;margin-bottom:6px;">🗑 Delete Failed Delivery</div>
+      <div style="font-size:13px;color:#64748b;margin-bottom:14px;">
+        You are about to permanently delete this delivery record.<br>
+        <strong style="color:#0f172a;">${delivery.customer_name}</strong> — ${delivery.product_name}
+      </div>
+
+      <label style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:#b91c1c;">
+        Reason for Deletion <span style="color:#dc2626;">*</span>
+      </label>
+      <textarea id="deleteReason" placeholder="Explain why this delivery is being deleted (mandatory)…"
+        style="${inputStyle}min-height:90px;resize:vertical;"></textarea>
+      <div style="font-size:11px;color:#dc2626;margin-top:5px;font-weight:600;">
+        ⚠ This action is permanent and cannot be undone.
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-danger" style="flex:1;background:#dc2626;" onclick="confirmDeleteFailed('${id}')">
+        🗑 Confirm Delete
+      </button>
+      <button class="btn btn-gray" style="flex:1;" onclick="openViewPopup('${id}')">
+        ← Cancel
+      </button>
+    </div>
+  `;
+}
+
+async function confirmDeleteFailed(id) {
+  const reason = document.getElementById("deleteReason")?.value?.trim();
+  if (!reason) {
+    // Highlight the textarea red
+    const ta = document.getElementById("deleteReason");
+    if (ta) { ta.style.borderColor = "#dc2626"; ta.focus(); }
+    alert("⚠ Please enter a reason for deletion before proceeding.");
+    return;
+  }
+
+  const confirmBtn = document.querySelector("#viewContent .btn-danger");
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = "Deleting…"; }
+
+  try {
+    const res = await authFetch(`${BASE_URL}/deleteFailedDelivery/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert("⚠ " + (err.error || "Delete failed"));
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "🗑 Confirm Delete"; }
+      return;
+    }
+
+    closeViewPopup();
+    loadDeliveries();
+    document.getElementById("formMessage").innerHTML = `<span style='color:#dc2626;'>🗑 Delivery deleted successfully.</span>`;
+    setTimeout(() => { document.getElementById("formMessage").innerHTML = ""; }, 4000);
+  } catch (e) {
+    alert("⚠ Network error. Please try again.");
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "🗑 Confirm Delete"; }
   }
 }
 

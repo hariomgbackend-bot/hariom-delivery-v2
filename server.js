@@ -525,17 +525,12 @@ app.get("/deliveries", async (req, res) => {
     const snapshot = await getDocs(collection(db, "deliveries"));
     let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const statusOrder = { booked: -1, pending: 0, loaded: 1, delivered: 2 };
+    const statusOrder = { pending: 0, loaded: 1, delivered: 2 };
 
     deliveries.sort((a, b) => {
       // Primary: status group order
       const statusDiff = (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
       if (statusDiff !== 0) return statusDiff;
-
-      // Within booked: soonest ETA first
-      if (a.status === "booked") {
-        return new Date(a.estimated_delivery_time || 0) - new Date(b.estimated_delivery_time || 0);
-      }
 
       // Within pending: urgent first, then newest created first
       if (a.status === "pending") {
@@ -585,13 +580,15 @@ app.put("/delivery/:id", async (req, res) => {
   const snap = await getDoc(refDoc);
   if (!snap.exists()) return res.status(404).json({ error: "Not found" });
   const delivery = snap.data();
-  if (delivery.status !== "pending") {
-    return res.status(400).json({ error: "Only pending deliveries can be edited" });
+  if (delivery.status !== "pending" && delivery.status !== "booked") {
+    return res.status(400).json({ error: "Only pending or booked deliveries can be edited" });
   }
   if (req.body.estimated_delivery_time) {
     if (new Date(req.body.estimated_delivery_time) < new Date()) {
       return res.status(400).json({ error: "ETA cannot be in the past" });
     }
+    // Re-evaluate booked/pending status based on new ETA
+    req.body.status = statusForETA(req.body.estimated_delivery_time);
   }
   await updateDoc(refDoc, req.body);
   res.json({ success: true });
@@ -600,6 +597,38 @@ app.put("/delivery/:id", async (req, res) => {
 app.delete("/delivery/:id", authenticate, authorize(["admin"]), async (req, res) => {
   await deleteDoc(doc(db, "deliveries", req.params.id));
   res.json({ success: true });
+});
+
+/* ════════════════════════════════════════════════
+   DELETE FAILED DELIVERY (accountant)
+   Only allows deletion of failed-status deliveries.
+   Requires a deletion reason for audit trail.
+════════════════════════════════════════════════ */
+app.post("/deleteFailedDelivery/:id", authenticate, authorize(["accountant", "admin"]), async (req, res) => {
+  try {
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Deletion reason is required" });
+    }
+
+    const refDoc = doc(db, "deliveries", req.params.id);
+    const snap   = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    const delivery = snap.data();
+    if (delivery.status !== "failed") {
+      return res.status(400).json({ error: "Only failed deliveries can be deleted by accountant" });
+    }
+
+    // Soft audit: log the deletion before deleting
+    console.log(`[DELETE] Failed delivery ${req.params.id} deleted by accountant. Reason: ${reason.trim()}. Customer: ${delivery.customer_name}, Product: ${delivery.product_name}`);
+
+    await deleteDoc(refDoc);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("/deleteFailedDelivery error:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /* ════════════════════════════════════════════════
