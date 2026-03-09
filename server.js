@@ -419,7 +419,7 @@ app.post("/createDelivery", async (req, res) => {
 ════════════════════════════════════════════════ */
 app.post("/createDeliveries", async (req, res) => {
   try {
-    const { shared, products } = req.body;
+    const { shared, products, requestId } = req.body;
 
     if (!shared || !products || !Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ error: "shared payload and products array required" });
@@ -430,6 +430,24 @@ app.post("/createDeliveries", async (req, res) => {
     if (new Date(shared.estimated_delivery_time) < new Date()) {
       return res.status(400).json({ error: "ETA cannot be in the past" });
     }
+
+    // ── Idempotency check ──────────────────────────────────────────────────
+    // If client sends a requestId (UUID generated before first submit),
+    // check if we already created deliveries for this exact request.
+    // Handles the case where: server wrote to Firestore, then timed out
+    // waiting for WhatsApp/SMS — client saw "network error" and retried.
+    if (requestId) {
+      const existingSnap = await getDocs(query(
+        collection(db, "deliveries"),
+        where("request_id", "==", requestId)
+      ));
+      if (!existingSnap.empty) {
+        const existingIds = existingSnap.docs.map(d => d.id);
+        console.log(`[createDeliveries] Duplicate requestId ${requestId} — returning existing ${existingIds.length} docs`);
+        return res.json({ success: true, created: existingIds.length, ids: existingIds, duplicate: true });
+      }
+    }
+    // ──────────────────────────────────────────────────────────────────────
 
     // Generate one batch_id shared across all deliveries in this group
     const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
@@ -445,42 +463,53 @@ app.post("/createDeliveries", async (req, res) => {
         batch_id:              products.length > 1 ? batchId : null,
         priority:              shared.priority || "normal",
         created_timestamp:     Timestamp.now(),
-        status:                statusForETA(shared.estimated_delivery_time)
+        status:                statusForETA(shared.estimated_delivery_time),
+        // Store requestId so retry attempts can detect this was already created
+        ...(requestId ? { request_id: requestId } : {})
       };
 
       const docRef = await addDoc(collection(db, "deliveries"), docData);
       createdIds.push(docRef.id);
     }
 
-    // Notify customer once (not once per product)
-    await sendWhatsapp(shared.phone,
-      `Hello ${shared.customer_name}, your ${products.length > 1 ? products.length + " deliveries are" : "delivery is"} scheduled at ${shared.estimated_delivery_time}`
-    );
-    await sendSMS(shared.phone,
-      `Hariom Delivery: Your ${products.length > 1 ? products.length + " items are" : "delivery is"} scheduled at ${shared.estimated_delivery_time}`
-    );
-
-    // Notify driver once
-    if (shared.assigned_driver_id) {
-      const driverSnap = await getDoc(doc(db, "drivers", shared.assigned_driver_id));
-      if (driverSnap.exists()) {
-        const { pushToken } = driverSnap.data();
-        if (pushToken) {
-          const summary = products.length > 1
-            ? `${shared.customer_name} — ${products.length} items`
-            : `${shared.customer_name} - ${products[0].product_name}`;
-          await sendPushToToken(
-            pushToken,
-            products.length > 1 ? `🚚 ${products.length} New Deliveries Assigned` : "🚚 New Delivery Assigned",
-            summary,
-            doc(db, "drivers", shared.assigned_driver_id),
-            "pushToken"
-          );
-        }
-      }
-    }
-
+    // ✅ Respond immediately — notifications run in background (non-blocking)
+    // This is the key fix: previously we awaited WhatsApp/SMS before responding,
+    // causing timeouts on slow APIs which made the client think it failed.
     res.json({ success: true, created: createdIds.length, ids: createdIds, batch_id: batchId });
+
+    // Background notifications — failures here don't affect the client
+    (async () => {
+      try {
+        await sendWhatsapp(shared.phone,
+          `Hello ${shared.customer_name}, your ${products.length > 1 ? products.length + " deliveries are" : "delivery is"} scheduled at ${shared.estimated_delivery_time}`
+        );
+        await sendSMS(shared.phone,
+          `Hariom Delivery: Your ${products.length > 1 ? products.length + " items are" : "delivery is"} scheduled at ${shared.estimated_delivery_time}`
+        );
+
+        if (shared.assigned_driver_id) {
+          const driverSnap = await getDoc(doc(db, "drivers", shared.assigned_driver_id));
+          if (driverSnap.exists()) {
+            const { pushToken } = driverSnap.data();
+            if (pushToken) {
+              const summary = products.length > 1
+                ? `${shared.customer_name} — ${products.length} items`
+                : `${shared.customer_name} - ${products[0].product_name}`;
+              await sendPushToToken(
+                pushToken,
+                products.length > 1 ? `🚚 ${products.length} New Deliveries Assigned` : "🚚 New Delivery Assigned",
+                summary,
+                doc(db, "drivers", shared.assigned_driver_id),
+                "pushToken"
+              );
+            }
+          }
+        }
+      } catch (bgErr) {
+        console.warn("[createDeliveries] Background notification error:", bgErr.message);
+      }
+    })();
+
   } catch (error) {
     console.error("/createDeliveries error:", error);
     res.status(500).json({ error: error.message });

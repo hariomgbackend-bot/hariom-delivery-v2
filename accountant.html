@@ -1496,6 +1496,12 @@ async function createDelivery() {
   btn.disabled = true;
   btn.textContent = products.length === 1 ? "Creating..." : `Creating ${products.length} deliveries...`;
 
+  // Generate a unique requestId for this submission attempt.
+  // Sent to server so that if the network drops after Firestore writes
+  // but before the response arrives, a retry returns the same result
+  // instead of creating duplicates.
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+
   // ── Build shared payload ──
   const middleName = document.getElementById("middle_name").value;
   const lastName   = document.getElementById("last_name").value;
@@ -1534,7 +1540,7 @@ async function createDelivery() {
     const response = await authFetch(`${BASE_URL}/createDeliveries`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shared: sharedPayload, products })
+      body: JSON.stringify({ shared: sharedPayload, products, requestId })
     });
 
     if (!response.ok) {
@@ -1561,9 +1567,13 @@ async function createDelivery() {
     setTimeout(() => { btn.disabled = false; updateProductCount(); }, 1500);
 
   } catch(e) {
-    alert("Network error. Please try again.");
+    // Network error AFTER the server may have already written to Firestore.
+    // The requestId ensures that if the accountant retries, the server will
+    // detect the duplicate and return the original result safely.
+    alert("⚠ Network error — the delivery may have already been created. Please check the table before retrying to avoid duplicates. If it's not there, you can safely try again.");
     btn.disabled = false;
     updateProductCount();
+    loadDeliveries(); // Refresh table so accountant can see if it was created
   }
 }
 
