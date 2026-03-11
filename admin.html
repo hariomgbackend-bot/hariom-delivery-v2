@@ -1766,7 +1766,7 @@ function renderPayoutTable(data) {
       ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleTimeString("en-IN", {hour:"2-digit",minute:"2-digit",hour12:true})
       : "\u2014";
     const isOurFreight     = d.freight_set_by === "driver" && d.freight_charged;
-    const isBatchSecondary = d._batch_freight_note === "batch_secondary";
+    const isBatchSecondary = d.batch_freight_secondary === true;
     const isPaid           = d.freight_paid;
     const amt              = parseFloat(d.freight_amount || 0);
 
@@ -1826,6 +1826,19 @@ async function markOneFreightPaid(deliveryId, customerName, amount) {
       const cells = row.querySelectorAll("td");
       cells[4].innerHTML = `<span style="color:#059669;font-weight:600;">\u20b9${amount.toLocaleString("en-IN")}</span>`;
       cells[6].innerHTML = `<span style="padding:2px 8px;border-radius:8px;background:#dcfce7;color:#166534;font-size:11px;font-weight:700;">\u2705 Paid</span>`;
+    }
+    // Also mark all batch siblings as paid in the UI
+    if (d && d.batch_id) {
+      currentPayoutDeliveries
+        .filter(x => x.batch_id === d.batch_id && x.id !== deliveryId)
+        .forEach(sibling => {
+          sibling.freight_paid = true;
+          const sibRow = document.getElementById(`payout-row-${sibling.id}`);
+          if (sibRow) {
+            sibRow.style.background = "rgba(74,222,128,0.05)";
+            sibRow.style.opacity = "0.7";
+          }
+        });
     }
     refreshPayoutChips();
     checkAllSettled();

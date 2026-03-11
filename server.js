@@ -525,17 +525,12 @@ app.get("/deliveries", async (req, res) => {
     const snapshot = await getDocs(collection(db, "deliveries"));
     let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const statusOrder = { booked: -1, pending: 0, loaded: 1, delivered: 2 };
+    const statusOrder = { pending: 0, loaded: 1, delivered: 2 };
 
     deliveries.sort((a, b) => {
       // Primary: status group order
       const statusDiff = (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
       if (statusDiff !== 0) return statusDiff;
-
-      // Within booked: soonest ETA first
-      if (a.status === "booked") {
-        return new Date(a.estimated_delivery_time || 0) - new Date(b.estimated_delivery_time || 0);
-      }
 
       // Within pending: urgent first, then newest created first
       if (a.status === "pending") {
@@ -667,6 +662,10 @@ app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
       loaded_timestamp: Timestamp.now(),
       loaded_location: { lat: req.body.lat, lng: req.body.lng },
       photo_loaded_url: url,
+      // Save freight charge if driver set it (only when not already set by admin)
+      ...((!delivery.freight_charged && req.body.driver_freight_amount)
+        ? { freight_charged: true, freight_amount: req.body.driver_freight_amount, freight_set_by: "driver" }
+        : {})
     });
 
     // ✅ Respond immediately — push runs in background
@@ -706,23 +705,49 @@ app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
     await uploadBytes(storageRef, req.file.buffer);
     const url = await getDownloadURL(storageRef);
 
-    // Write delivered status + freight (driver sets freight at delivery time)
+    // ── Batch freight check ──────────────────────────────────────────────
+    // If this delivery is part of a batch, check if a sibling already has
+    // driver freight saved — if so, this item is a secondary (no freight saved)
+    let batchFreightAlreadySet = false;
+    if (deliveryData.batch_id) {
+      const batchSnap = await getDocs(query(
+        collection(db, "deliveries"),
+        where("batch_id", "==", deliveryData.batch_id),
+        where("freight_set_by", "==", "driver")
+      ));
+      batchFreightAlreadySet = !batchSnap.empty;
+    }
+
+    // Determine freight fields to save
+    const freightFields = (() => {
+      // Accountant already set freight — don't touch it
+      if (deliveryData.freight_charged) return {};
+      // Batch secondary — freight already counted on primary item
+      if (batchFreightAlreadySet) return { batch_freight_secondary: true, freight_acknowledged: true };
+      // Driver entered an amount — save as primary
+      if (req.body.driver_freight_amount && parseFloat(req.body.driver_freight_amount) > 0) {
+        return {
+          freight_charged: true,
+          freight_amount: parseFloat(req.body.driver_freight_amount),
+          freight_set_by: "driver",
+          freight_acknowledged: true,
+          ...(deliveryData.batch_id ? { batch_freight_primary: true } : {})
+        };
+      }
+      // Driver entered ₹0 — no freight for this delivery
+      return { freight_acknowledged: true };
+    })();
+
+    // Write delivered status + freight
     await updateDoc(refDoc, {
       status: "delivered",
       delivered_timestamp: Timestamp.now(),
       delivered_location: { lat: delivLat, lng: delivLng },
       photo_delivered_url: url,
-      // Save freight if driver entered an amount and accountant hasn't already set it
-      ...((!deliveryData.freight_charged && req.body.driver_freight_amount)
-        ? { freight_charged: true, freight_amount: parseFloat(req.body.driver_freight_amount), freight_set_by: "driver", freight_acknowledged: true }
-        : {}),
-      // Batch siblings send ₹0 — just record acknowledgement, no amount
-      ...(req.body.freight_acknowledged === "true" && !req.body.driver_freight_amount
-        ? { freight_acknowledged: true }
-        : {})
+      ...freightFields
     });
 
-    // ✅ Respond to driver RIGHT NOW — don't make them wait for distance/notifications
+    // ✅ Respond to driver immediately
     res.json({ success: true });
 
     // Run distance calculation + notifications in background (non-blocking)
@@ -1157,10 +1182,26 @@ app.post("/markFreightPaid/:id", authenticate, authorize(["admin"]), async (req,
     const snap = await getDoc(deliveryRef);
     if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
     if (snap.data().freight_paid) return res.status(400).json({ error: "Already marked as paid" });
-    await updateDoc(deliveryRef, {
-      freight_paid: true,
-      freight_paid_timestamp: Timestamp.now()
-    });
+
+    const delivery = snap.data();
+    const paidTimestamp = Timestamp.now();
+
+    // Mark this delivery paid
+    await updateDoc(deliveryRef, { freight_paid: true, freight_paid_timestamp: paidTimestamp });
+
+    // If part of a batch — mark all siblings paid together in one go
+    if (delivery.batch_id) {
+      const batchSnap = await getDocs(query(
+        collection(db, "deliveries"),
+        where("batch_id", "==", delivery.batch_id)
+      ));
+      const siblings = batchSnap.docs.filter(d => d.id !== snap.id);
+      await Promise.all(siblings.map(d =>
+        updateDoc(doc(db, "deliveries", d.id), { freight_paid: true, freight_paid_timestamp: paidTimestamp })
+      ));
+      console.log(`[markFreightPaid] Batch ${delivery.batch_id} — marked ${siblings.length + 1} deliveries paid`);
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error("/markFreightPaid error:", err.message);
@@ -1191,15 +1232,42 @@ app.get("/driver-outstanding", authenticate, authorize(["admin"]), async (req, r
       where("status", "==", "delivered")
     ));
 
-    const unpaid = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(d => {
-        if (d.freight_paid) return false;
-        if (d.freight_set_by !== "driver" || !d.freight_charged) return false;
-        if (!d.delivered_timestamp) return false;
-        const ts = new Date(d.delivered_timestamp.seconds * 1000);
-        return ts >= dayStart && ts <= dayEnd;
-      });
+    const allDelivered = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // ── Batch deduplication ───────────────────────────────────────────────
+    // For batched deliveries, only the primary item (batch_freight_primary: true
+    // OR the one with freight_charged: true) counts for payout.
+    // Siblings are grouped under it in the UI — one row, one amount, one Mark Paid.
+    const seenBatchIds = new Set();
+
+    const unpaid = allDelivered.filter(d => {
+      if (d.freight_paid) return false;
+      if (!d.delivered_timestamp) return false;
+      const ts = new Date(d.delivered_timestamp.seconds * 1000);
+      if (ts < dayStart || ts > dayEnd) return false;
+
+      // Batch secondary — skip (already counted under primary)
+      if (d.batch_freight_secondary) return false;
+
+      // Must be driver-set freight with an amount
+      if (d.freight_set_by !== "driver" || !d.freight_charged) return false;
+
+      // Batch primary — only count once
+      if (d.batch_id) {
+        if (seenBatchIds.has(d.batch_id)) return false;
+        seenBatchIds.add(d.batch_id);
+      }
+
+      return true;
+    }).map(d => {
+      // Annotate batch primaries with sibling customer names for display
+      if (d.batch_id) {
+        const siblings = allDelivered.filter(x => x.batch_id === d.batch_id && x.id !== d.id);
+        return { ...d, _batch_siblings: siblings, _batch_size: siblings.length + 1 };
+      }
+      return d;
+    });
+    // ─────────────────────────────────────────────────────────────────────
 
     // Group by date
     const byDate = {};

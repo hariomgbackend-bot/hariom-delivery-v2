@@ -1680,6 +1680,8 @@ async function loadDeliveries() {
   } else if (currentFilter === "yesterday") {
     finalData = data.filter(d => d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === yestStr);
   } else {
+    const bookedArr  = data.filter(d => d.status === "booked")
+      .sort((a, b) => new Date(a.estimated_delivery_time || 0) - new Date(b.estimated_delivery_time || 0));
     const pendingArr = data.filter(d => d.status === "pending")
       .sort((a, b) => (b.created_timestamp?.seconds || 0) - (a.created_timestamp?.seconds || 0));
     const loadedArr  = data.filter(d => d.status === "loaded");
@@ -1688,9 +1690,9 @@ async function loadDeliveries() {
       d.status === "delivered" && d.delivered_timestamp &&
       new Date(d.delivered_timestamp.seconds * 1000).toDateString() === todayStr
     );
-    finalData = [...pendingArr, ...loadedArr, ...failedArr, ...deliveredTodayArr];
+    finalData = [...bookedArr, ...pendingArr, ...loadedArr, ...failedArr, ...deliveredTodayArr];
 
-    if      (currentFilter === "booked")    finalData = data.filter(d => d.status === "booked");
+    if      (currentFilter === "booked")    finalData = bookedArr;
     else if (currentFilter === "pending")   finalData = pendingArr;
     else if (currentFilter === "loaded")    finalData = loadedArr;
     else if (currentFilter === "failed")    finalData = failedArr;
@@ -1764,7 +1766,7 @@ async function loadDeliveries() {
     return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 Very Late</span>`;
   }
 
-  let pending = 0, loaded = 0, delivered = 0, failed = 0;
+  let booked = 0, pending = 0, loaded = 0, delivered = 0, failed = 0;
   const list = document.getElementById("list");
   list.innerHTML = "";
 
@@ -1778,7 +1780,7 @@ async function loadDeliveries() {
   });
 
   finalData.forEach((d, i) => {
-    if (d.status === "booked")    {} // booked counted in filter only
+    if (d.status === "booked")    booked++;
     if (d.status === "pending")   pending++;
     if (d.status === "loaded")    loaded++;
     if (d.status === "delivered") delivered++;
@@ -1809,6 +1811,7 @@ async function loadDeliveries() {
       batchTag = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bNum}</span>`;
     }
 
+    if (d.status === "booked") tr.style.background = "#eef2ff";
     if (d.status === "failed") tr.style.background = "#fff1f2";
 
     tr.innerHTML = `
@@ -1829,7 +1832,7 @@ async function loadDeliveries() {
   });
 
   document.getElementById("deliverySummary").innerHTML = `
-    📦 Pending: <span>${pending}</span> &nbsp;|&nbsp;
+    ${booked > 0 ? `📅 Booked: <span style="color:#4338ca;font-weight:700;">${booked}</span> &nbsp;|&nbsp; ` : ""}📦 Pending: <span>${pending}</span> &nbsp;|&nbsp;
     🚚 Loaded: <span>${loaded}</span> &nbsp;|&nbsp;
     ✅ Delivered: <span>${delivered}</span>
     ${failed > 0 ? ` &nbsp;|&nbsp; <span style="color:#dc2626;font-weight:700;">❌ Failed: ${failed}</span>` : ""}
@@ -1968,7 +1971,14 @@ function openViewPopup(id) {
 
     <div class="section-title">Freight</div>
     <div class="detail-row"><b>Freight Applied</b><span>${delivery.freight_charged ? "Yes" : "No"}</span></div>
-    <div class="detail-row"><b>Amount</b><span>${delivery.freight_amount || "—"}</span></div>
+    <div class="detail-row"><b>Amount</b><span>${delivery.freight_amount ? "₹" + delivery.freight_amount : "—"}</span></div>
+    <div class="detail-row"><b>Set By</b><span>${
+      delivery.freight_set_by === "accountant" ? "🧾 Accountant (customer pays)" :
+      delivery.freight_set_by === "driver"     ? "🚚 Driver (company pays)" :
+      "—"
+    }</span></div>
+    ${delivery.batch_freight_primary ? `<div class="detail-row"><b>Batch Freight</b><span style="color:#7c3aed;font-weight:600;">Primary — covers all items in this batch</span></div>` : ""}
+    ${delivery.batch_freight_secondary ? `<div class="detail-row"><b>Batch Freight</b><span style="color:#94a3b8;">Secondary — counted on first batch item</span></div>` : ""}
 
     ${delivery.photo_loaded_url || delivery.photo_delivered_url ? `<div class="section-title">Photos</div>` : ""}
     ${delivery.photo_loaded_url || delivery.photo_delivered_url ? `

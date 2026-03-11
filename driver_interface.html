@@ -1677,31 +1677,30 @@ async function openDelivery(id) {
         ? `<span style="font-weight:700;color:#166534;">₹${d.freight_amount || "—"} (already set)</span>`
         : d.status === "loaded"
           ? (() => {
-              // Batch: check if sibling deliveries exist in this batch
+              // Batch: check if sibling deliveries already have driver freight set
               const batchSiblings = d.batch_id
                 ? allDeliveriesData.filter(x => x.batch_id === d.batch_id && x.id !== d.id)
                 : [];
-              const batchFreightAlreadySet = batchSiblings.some(x => x.freight_set_by === "driver" && x.freight_charged);
-              if (batchFreightAlreadySet) {
-                const setter = batchSiblings.find(x => x.freight_set_by === "driver" && x.freight_charged);
-                return `<span style="color:#166534;font-weight:600;">₹${setter.freight_amount} — shared batch freight already set on another item in this order. Enter ₹0 below to confirm.</span>
-                  <div style="margin-top:8px;">
-                    <label style="font-size:12px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Confirm Freight (₹) *</label>
-                    <input id="freightInput" type="number" min="0" step="1" value="0"
-                      style="width:100%;padding:11px 14px;border:2px solid #dc2626;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;background:#fff;color:var(--text);"
-                      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='#dc2626'">
-                    <div style="font-size:11px;color:#dc2626;margin-top:5px;font-weight:600;">⚠ Batch delivery — enter ₹0 since freight is already counted on the first item. Required to proceed.</div>
-                  </div>`;
+              const batchPrimary = batchSiblings.find(x => x.freight_set_by === "driver" && x.freight_charged);
+
+              // Batch secondary — freight already counted on another item, no input needed
+              if (batchPrimary) {
+                return `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 12px;">
+                  <div style="font-weight:700;color:#166534;font-size:14px;">✅ ₹${batchPrimary.freight_amount} — Batch freight already set</div>
+                  <div style="font-size:12px;color:#4b7c5e;margin-top:4px;">Freight for this batch was entered on another item. No action needed.</div>
+                </div>`;
               }
+
+              // First item in batch OR single delivery — show mandatory input
               return `<div style="margin-top:8px;">
                 <label style="font-size:12px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">
-                  ${d.batch_id ? "Freight Charge for this batch (₹) *" : "Freight Charge (₹) *"}
+                  ${d.batch_id ? "🔗 Freight for entire batch (₹) *" : "Freight Charge (₹) *"}
                 </label>
                 <input id="freightInput" type="number" min="0" step="1" placeholder="Enter ₹0 if no freight"
                   style="width:100%;padding:11px 14px;border:2px solid #dc2626;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;background:#fff;color:var(--text);"
                   onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='#dc2626'">
                 <div style="font-size:11px;color:#dc2626;margin-top:5px;font-weight:600;">
-                  ⚠ Required — enter ₹0 if no freight charges${d.batch_id ? " (this covers the whole batch)" : ""}
+                  ⚠ Required — enter ₹0 if no freight${d.batch_id ? " (this covers all items in the batch)" : ""}
                 </div>
               </div>`;
             })()
@@ -1851,32 +1850,40 @@ async function updateDelivery() {
       formData.append("serial", serialInput.value.trim());
     }
 
-    // Freight is now captured at delivery time (loaded → delivered)
+    // Freight is captured at delivery time (loaded → delivered)
     if (currentStatus === "loaded" && !currentDeliveryData.freight_charged) {
-      const freightInput = document.getElementById("freightInput");
-      const freightVal = freightInput?.value?.trim();
+      // Check if this is a batch secondary (sibling already has freight set)
+      const batchSiblings = currentDeliveryData.batch_id
+        ? allDeliveriesData.filter(x => x.batch_id === currentDeliveryData.batch_id && x.id !== currentDeliveryData.id)
+        : [];
+      const isBatchSecondary = batchSiblings.some(x => x.freight_set_by === "driver" && x.freight_charged);
 
-      // Mandatory — driver must explicitly enter a value (even ₹0)
-      if (freightVal === "" || freightVal === null || freightVal === undefined) {
-        showToast("⚠ Please enter freight amount (₹0 if none)");
-        if (widget) widget.style.pointerEvents = "auto";
-        return;
-      }
+      if (isBatchSecondary) {
+        // Batch secondary — server handles it, just send acknowledgement flag
+        formData.append("freight_acknowledged", "true");
+      } else {
+        // Primary item or single delivery — freight input is mandatory
+        const freightInput = document.getElementById("freightInput");
+        const freightVal = freightInput?.value?.trim();
 
-      const freightNum = parseFloat(freightVal);
-      if (isNaN(freightNum) || freightNum < 0) {
-        showToast("⚠ Invalid freight amount");
-        if (widget) widget.style.pointerEvents = "auto";
-        return;
-      }
+        if (freightVal === "" || freightVal === null || freightVal === undefined) {
+          showToast("⚠ Please enter freight amount (₹0 if none)");
+          if (widget) widget.style.pointerEvents = "auto";
+          return;
+        }
 
-      // For batched deliveries: only send freight on first item (where amount > 0)
-      // Siblings with 0 just skip sending freight so payout deduplication works cleanly
-      if (freightNum > 0) {
-        formData.append("driver_freight_amount", freightVal);
+        const freightNum = parseFloat(freightVal);
+        if (isNaN(freightNum) || freightNum < 0) {
+          showToast("⚠ Invalid freight amount");
+          if (widget) widget.style.pointerEvents = "auto";
+          return;
+        }
+
+        if (freightNum > 0) {
+          formData.append("driver_freight_amount", freightVal);
+        }
+        formData.append("freight_acknowledged", "true");
       }
-      // Always mark that driver has acknowledged freight (even for ₹0 / batch siblings)
-      formData.append("freight_acknowledged", "true");
     }
 
     const endpoint = currentStatus === "pending" ? `/markLoaded/${currentDeliveryId}` : `/markDelivered/${currentDeliveryId}`;
