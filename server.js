@@ -525,12 +525,17 @@ app.get("/deliveries", async (req, res) => {
     const snapshot = await getDocs(collection(db, "deliveries"));
     let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const statusOrder = { pending: 0, loaded: 1, delivered: 2 };
+    const statusOrder = { booked: -1, pending: 0, loaded: 1, delivered: 2 };
 
     deliveries.sort((a, b) => {
       // Primary: status group order
       const statusDiff = (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
       if (statusDiff !== 0) return statusDiff;
+
+      // Within booked: soonest ETA first
+      if (a.status === "booked") {
+        return new Date(a.estimated_delivery_time || 0) - new Date(b.estimated_delivery_time || 0);
+      }
 
       // Within pending: urgent first, then newest created first
       if (a.status === "pending") {
@@ -662,10 +667,6 @@ app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
       loaded_timestamp: Timestamp.now(),
       loaded_location: { lat: req.body.lat, lng: req.body.lng },
       photo_loaded_url: url,
-      // Save freight charge if driver set it (only when not already set by admin)
-      ...((!delivery.freight_charged && req.body.driver_freight_amount)
-        ? { freight_charged: true, freight_amount: req.body.driver_freight_amount, freight_set_by: "driver" }
-        : {})
     });
 
     // ✅ Respond immediately — push runs in background
@@ -705,12 +706,20 @@ app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
     await uploadBytes(storageRef, req.file.buffer);
     const url = await getDownloadURL(storageRef);
 
-    // Write delivered status immediately
+    // Write delivered status + freight (driver sets freight at delivery time)
     await updateDoc(refDoc, {
       status: "delivered",
       delivered_timestamp: Timestamp.now(),
       delivered_location: { lat: delivLat, lng: delivLng },
       photo_delivered_url: url,
+      // Save freight if driver entered an amount and accountant hasn't already set it
+      ...((!deliveryData.freight_charged && req.body.driver_freight_amount)
+        ? { freight_charged: true, freight_amount: parseFloat(req.body.driver_freight_amount), freight_set_by: "driver", freight_acknowledged: true }
+        : {}),
+      // Batch siblings send ₹0 — just record acknowledgement, no amount
+      ...(req.body.freight_acknowledged === "true" && !req.body.driver_freight_amount
+        ? { freight_acknowledged: true }
+        : {})
     });
 
     // ✅ Respond to driver RIGHT NOW — don't make them wait for distance/notifications

@@ -1532,7 +1532,8 @@ async function createDelivery() {
     assigned_driver_name:    driverSel.options[driverSel.selectedIndex].text,
     driver_instructions:     hasInstruction ? document.getElementById("instruction").value.trim() : "none",
     freight_charged:         freightCharged,
-    freight_amount:          freightCharged ? document.getElementById("freight_amount").value : ""
+    freight_amount:          freightCharged ? document.getElementById("freight_amount").value : "",
+    freight_set_by:          freightCharged ? "accountant" : ""
   };
 
   // ── Call server ──
