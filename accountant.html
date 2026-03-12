@@ -647,7 +647,14 @@
 <!-- CREATE DELIVERY POPUP -->
 <div class="popup-overlay" id="popup">
   <div class="popup-card">
-    <h3>Create Delivery</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="margin:0;">Create Delivery</h3>
+      <button type="button" onclick="document.getElementById('invoiceFileInput').click()"
+        style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        📄 Import Invoice
+      </button>
+    </div>
+    <input type="file" id="invoiceFileInput" accept=".pdf" style="display:none" onchange="handleInvoiceImport(this)">
     <div id="formMessage" style="margin-bottom:10px;font-size:14px;font-weight:500;"></div>
 
     <div class="section-title">Customer Name</div>
@@ -1137,7 +1144,6 @@ function toggleTallyInput(checkbox, idx) {
     tallySection.style.display  = "block";
     normalSection.style.display = "none";
     tallyInput.value = "";
-    // Populate datalist lazily — only on first check
     if (datalist && datalist.children.length === 0) {
       const frag = document.createDocumentFragment();
       tallyProducts.forEach(name => {
@@ -1153,6 +1159,97 @@ function toggleTallyInput(checkbox, idx) {
     normalSection.style.display = "block";
     tallyInput.value = "";
   }
+}
+
+/* ── IMPORT INVOICE PDF ── */
+async function handleInvoiceImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const btn = document.querySelector('button[onclick*="invoiceFileInput"]');
+  const origText = btn.innerHTML;
+  btn.innerHTML = "⏳ Reading...";
+  btn.disabled  = true;
+
+  try {
+    const formData = new FormData();
+    formData.append("invoice", file);
+
+    const res  = await authFetch(`${BASE_URL}/parse-invoice`, { method: "POST", body: formData });
+    const data = await res.json();
+
+    if (!res.ok) { alert("Could not read invoice: " + (data.error || "Unknown error")); return; }
+
+    // ── Fill customer name ──
+    if (data.customer_name) {
+      const parts = data.customer_name.trim().split(/\s+/);
+      const fn = document.getElementById("first_name");
+      const mn = document.getElementById("middle_name");
+      const ln = document.getElementById("last_name");
+      if (fn) fn.value = parts[0] || "";
+      if (mn) mn.value = parts.length === 3 ? parts[1] : "";
+      if (ln) ln.value = parts.length >= 2 ? parts[parts.length - 1] : "";
+    }
+
+    // ── Fill phone ──
+    if (data.phone) {
+      const ph = document.getElementById("phone");
+      if (ph) ph.value = data.phone;
+    }
+
+    // ── Fill address ──
+    if (data.address) {
+      const addr1 = document.getElementById("addr1");
+      if (addr1) addr1.value = data.address;
+    }
+
+    // ── Fill products ──
+    if (data.products && data.products.length > 0) {
+      // Reset product list to match invoice product count
+      const list = document.getElementById("productList");
+      list.innerHTML = "";
+      productItemCounter = 0;
+
+      data.products.forEach(p => {
+        productItemCounter++;
+        const idx = productItemCounter;
+        const div = document.createElement("div");
+        div.innerHTML = createProductItemHTML(idx);
+        list.appendChild(div.firstElementChild);
+
+        const item = list.lastElementChild;
+
+        // Check Tally toggle and fill product name
+        const tallyToggle = item.querySelector(`[data-field="tally_toggle"]`);
+        if (tallyToggle) {
+          tallyToggle.checked = true;
+          toggleTallyInput(tallyToggle, idx);
+          const tallyInput = item.querySelector(`[data-field="tally_input"]`);
+          if (tallyInput) tallyInput.value = p.product_name || "";
+        }
+
+        // Fill serial number
+        const serial = item.querySelector(`[data-field="serial"]`);
+        if (serial) serial.value = p.serial_number || "";
+
+        // Fill invoice number
+        const invoice = item.querySelector(`[data-field="invoice"]`);
+        if (invoice && data.invoice_number) invoice.value = data.invoice_number;
+      });
+
+      updateProductCount();
+    }
+
+    btn.innerHTML = "✅ Imported!";
+    setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000);
+
+  } catch (e) {
+    alert("Error importing invoice: " + e.message);
+    btn.innerHTML = origText;
+    btn.disabled  = false;
+  }
+
+  input.value = ""; // allow re-import same file
 }
 
 function buildSelectOptions(arr, selectedVal) {

@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import db from "./firestore.js";
 import { storage } from "./storage.js";
 import fetch from "node-fetch";
@@ -1297,10 +1298,7 @@ app.get("/driver-outstanding", authenticate, authorize(["admin"]), async (req, r
 
 /* ════════════════════════════════════════════════
    TALLY PRODUCTS
-   GET /tally/products
-   Reads from Firestore tally_products/index doc.
-   Data uploaded once via upload_tally.js script.
-   To update: re-run upload_tally.js with new JSON.
+   GET /tally/products — reads from Firestore
 ════════════════════════════════════════════════ */
 app.get("/tally/products", async (req, res) => {
   try {
@@ -1311,6 +1309,82 @@ app.get("/tally/products", async (req, res) => {
   } catch (err) {
     console.error("/tally/products error:", err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   PARSE INVOICE PDF
+   POST /parse-invoice
+   Accepts a Tally GST invoice PDF, extracts:
+   customer_name, phone, address, invoice_number,
+   products[{ product_name, serial_number }]
+════════════════════════════════════════════════ */
+app.post("/parse-invoice", authenticate, authorize(["accountant", "admin"]), upload.single("invoice"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const data = await pdfParse(req.file.buffer);
+    const text = data.text;
+    const lines = text.split("\n").map(l => l.trim()).filter(l => l);
+
+    const result = {};
+
+    // ── Invoice Number ──
+    const invMatch = text.match(/(\d{4}-\d{2}\/\d+)/);
+    result.invoice_number = invMatch ? invMatch[1] : "";
+
+    // ── Customer Name — line after "Buyer" ──
+    const buyerIdx = lines.findIndex(l => l === "Buyer");
+    if (buyerIdx !== -1) {
+      result.customer_name = lines[buyerIdx + 1] || "";
+    }
+
+    // ── Phone — 10 digit Indian mobile ──
+    const phones = text.match(/\b[6-9]\d{9}\b/g) || [];
+    result.phone = phones[0] || "";
+
+    // ── Address — lines between customer name and phone ──
+    const NOISE = /^(State Name|Despatch|Despatched|Terms|Buyer|GST|E-Mail|GSTIN|Invoice|Delivery|Mode|Supplier|Other|Dated|Buyer's Order)/i;
+    if (buyerIdx !== -1) {
+      const nameLine = buyerIdx + 1;
+      const phoneLine = lines.findIndex((l, i) => i > nameLine && /^[6-9]\d{9}$/.test(l));
+      if (phoneLine !== -1) {
+        const addrLines = lines.slice(nameLine + 1, phoneLine).filter(l => l && !NOISE.test(l));
+        result.address = addrLines.map(l => l.replace(/^,|,$/g, "").trim()).filter(Boolean).join(", ");
+      }
+    }
+
+    // ── Products + Serial Numbers ──
+    const products = [];
+    for (let i = 0; i < lines.length; i++) {
+      // Match product row: starts with number, contains 8-digit HSN code
+      const m = lines[i].match(/^\d+\s+(.+?)\s+\d{8}\s+\d+\s+NOS/);
+      if (m) {
+        let productName = m[1].trim();
+        // Continuation line (e.g. "-Z")
+        if (i + 1 < lines.length && /^-\w/.test(lines[i + 1])) {
+          productName += lines[i + 1];
+          i++;
+        }
+        // Find serial number in next few lines — long digit string
+        let serial = "";
+        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+          if (/^\d{10,}$/.test(lines[j])) {
+            serial = lines[j];
+            break;
+          }
+        }
+        products.push({ product_name: productName, serial_number: serial });
+      }
+    }
+    result.products = products;
+
+    console.log(`[parse-invoice] Extracted: ${result.customer_name}, ${result.phone}, ${products.length} product(s)`);
+    res.json(result);
+
+  } catch (err) {
+    console.error("/parse-invoice error:", err.message);
+    res.status(500).json({ error: "Failed to parse invoice: " + err.message });
   }
 });
 
