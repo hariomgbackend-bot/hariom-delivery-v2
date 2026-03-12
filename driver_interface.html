@@ -2344,14 +2344,15 @@ function toggleHistory() {
    BARCODE / QR SCANNER
    Uses the browser-native BarcodeDetector API first
    (supported on Android Chrome 83+, Safari 17.4+).
-   Falls back to a pure-JS ZXing WASM decoder for
-   older devices / Firefox — loaded lazily only if needed.
+   Falls back to html5-qrcode library for iOS Safari
+   compatibility — handles playsinline, permissions,
+   and WASM correctly on all iOS versions.
 ═══════════════════════════════════════════════════ */
 
 let scannerStream   = null;   // active MediaStream
-let scannerTimer    = null;   // rAF / interval loop
+let scannerTimer    = null;   // rAF loop handle
 let scannerActive   = false;
-let zxingReader     = null;   // lazy-loaded fallback
+let html5QrScanner  = null;   // html5-qrcode instance (fallback)
 
 // Which decoder is available
 const HAS_NATIVE_DETECTOR = ("BarcodeDetector" in window);
@@ -2375,7 +2376,7 @@ async function openScanner() {
     return;
   }
 
-  const video   = document.getElementById("scannerVideo");
+  const video = document.getElementById("scannerVideo");
   video.srcObject = scannerStream;
   await video.play().catch(() => {});
 
@@ -2390,11 +2391,11 @@ async function openScanner() {
   if (HAS_NATIVE_DETECTOR) {
     startNativeDetector(video);
   } else {
-    await startZXingDetector(video);
+    await startHtml5QrDetector(video);
   }
 }
 
-/* ── Native BarcodeDetector (Chrome Android 83+) ── */
+/* ── Native BarcodeDetector (Chrome Android 83+, Safari 17.4+) ── */
 function startNativeDetector(video) {
   const formats = [
     "qr_code","code_128","code_39","ean_13","ean_8",
@@ -2405,9 +2406,8 @@ function startNativeDetector(video) {
   try {
     detector = new BarcodeDetector({ formats });
   } catch {
-    // Format list rejected — try with just common ones
     try { detector = new BarcodeDetector({ formats: ["qr_code","code_128","ean_13","upc_a"] }); }
-    catch { startZXingDetector(video); return; }
+    catch { startHtml5QrDetector(video); return; }
   }
 
   async function detect() {
@@ -2417,7 +2417,7 @@ function startNativeDetector(video) {
         const results = await detector.detect(video);
         if (results.length > 0) {
           handleScanResult(results[0].rawValue);
-          return; // stop loop after hit
+          return;
         }
       } catch (_) {}
     }
@@ -2426,56 +2426,70 @@ function startNativeDetector(video) {
   detect();
 }
 
-/* ── ZXing-WASM fallback (loads lazily) ── */
-async function startZXingDetector(video) {
-  if (!zxingReader) {
-    try {
-      // Load ZXing from CDN
-      await loadScript("https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js");
-      const hints = new Map();
-      const formats = [
-        ZXing.BarcodeFormat.QR_CODE,
-        ZXing.BarcodeFormat.CODE_128,
-        ZXing.BarcodeFormat.CODE_39,
-        ZXing.BarcodeFormat.EAN_13,
-        ZXing.BarcodeFormat.EAN_8,
-        ZXing.BarcodeFormat.UPC_A,
-        ZXing.BarcodeFormat.UPC_E,
-        ZXing.BarcodeFormat.DATA_MATRIX,
-        ZXing.BarcodeFormat.PDF_417
-      ];
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-      zxingReader = new ZXing.MultiFormatReader();
-      zxingReader.setHints(hints);
-    } catch (e) {
-      showToast("⚠ Scanner library failed to load");
-      closeScanner();
-      return;
-    }
+/* ── html5-qrcode fallback (iOS Safari compatible) ── */
+async function startHtml5QrDetector(video) {
+  try {
+    await loadScript("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js");
+  } catch (e) {
+    showToast("⚠ Scanner library failed to load");
+    closeScanner();
+    return;
   }
 
-  const canvas = document.createElement("canvas");
-  const ctx    = canvas.getContext("2d");
+  // html5-qrcode needs its own video element — hide ours, create its container
+  video.style.display = "none";
+  const container = document.createElement("div");
+  container.id = "html5qr-container";
+  container.style.cssText = "width:100%;height:100%;position:absolute;top:0;left:0;";
+  document.getElementById("scannerViewport").appendChild(container);
 
-  function decodeFrame() {
-    if (!scannerActive) return;
-    if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
-      canvas.width  = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      try {
-        const imgData   = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
-        const binary    = new ZXing.HybridBinarizer(luminance);
-        const bitmap    = new ZXing.BinaryBitmap(binary);
-        const result    = zxingReader.decode(bitmap);
-        if (result) { handleScanResult(result.getText()); return; }
-      } catch (_) {}
-    }
-    scannerTimer = requestAnimationFrame(decodeFrame);
+  const config = {
+    fps: 15,
+    qrbox: { width: 250, height: 150 },
+    aspectRatio: 1.7,
+    supportedScanTypes: [
+      Html5QrcodeScanType.SCAN_TYPE_CAMERA
+    ],
+    formatsToSupport: [
+      Html5QrcodeScanner ? undefined : null,
+      0,  // QR_CODE
+      1,  // AZTEC
+      2,  // CODABAR
+      3,  // CODE_39
+      4,  // CODE_93
+      5,  // CODE_128
+      8,  // DATA_MATRIX
+      10, // EAN_8
+      11, // EAN_13
+      16, // ITF
+      25, // PDF_417
+      28, // UPC_A
+      29, // UPC_E
+    ].filter(x => x !== null)
+  };
+
+  // Use the lower-level Html5Qrcode (not scanner widget) so we keep our own UI
+  html5QrScanner = new Html5Qrcode("html5qr-container");
+
+  const constraints = {
+    facingMode: "environment",
+    // iOS Safari requires these exact constraints
+    advanced: [{ facingMode: "environment" }]
+  };
+
+  try {
+    await html5QrScanner.start(
+      constraints,
+      { fps: 15, qrbox: { width: 250, height: 150 } },
+      (decodedText) => {
+        if (scannerActive) handleScanResult(decodedText);
+      },
+      () => {} // ignore decode failures (fires every frame)
+    );
+  } catch (err) {
+    showToast("📷 Could not start scanner: " + err);
+    closeScanner();
   }
-  decodeFrame();
 }
 
 function loadScript(src) {
@@ -2525,6 +2539,18 @@ function handleScanResult(value) {
 function closeScanner() {
   scannerActive = false;
   cancelAnimationFrame(scannerTimer);
+
+  // Stop html5-qrcode if it was used
+  if (html5QrScanner) {
+    html5QrScanner.stop().catch(() => {}).finally(() => {
+      html5QrScanner.clear();
+      html5QrScanner = null;
+      const c = document.getElementById("html5qr-container");
+      if (c) c.remove();
+      const video = document.getElementById("scannerVideo");
+      if (video) video.style.display = "";
+    });
+  }
 
   if (scannerStream) {
     scannerStream.getTracks().forEach(t => t.stop());
