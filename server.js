@@ -1395,7 +1395,7 @@ app.post("/parse-invoice", authenticate, authorize(["accountant", "admin"]), upl
    POST /storage/cleanup       — delete photos in date range (triple confirmed client side)
 ════════════════════════════════════════════════ */
 
-const adminBucket    = admin.storage().bucket(serviceAccount.project_id + ".appspot.com");
+const adminBucket    = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET || "hariom-delivery.firebasestorage.app");
 const PHOTO_FOLDERS  = ["delivery_proofs_loaded", "delivery_proofs_delivered", "delivery_failures"];
 
 // Files are named <timestamp>_<suffix> — parse upload date from filename
