@@ -1389,9 +1389,111 @@ app.post("/parse-invoice", authenticate, authorize(["accountant", "admin"]), upl
 });
 
 /* ════════════════════════════════════════════════
-   GLOBAL ERROR HANDLERS
-   Catches unhandled errors so the server never crashes
+   FIREBASE STORAGE MANAGEMENT
+   GET  /storage/stats         — total size + per-folder breakdown
+   GET  /storage/download-zip  — download photos in date range as ZIP
+   POST /storage/cleanup       — delete photos in date range (triple confirmed client side)
 ════════════════════════════════════════════════ */
+
+const adminBucket    = admin.storage().bucket(serviceAccount.project_id + ".appspot.com");
+const PHOTO_FOLDERS  = ["delivery_proofs_loaded", "delivery_proofs_delivered", "delivery_failures"];
+
+// Files are named <timestamp>_<suffix> — parse upload date from filename
+function fileDate(name) {
+  const base = name.split("/").pop();
+  const ts   = parseInt(base.split("_")[0]);
+  return isNaN(ts) ? null : new Date(ts);
+}
+
+async function listPhotos(fromDate, toDate) {
+  const files = [];
+  for (const folder of PHOTO_FOLDERS) {
+    try {
+      const [list] = await adminBucket.getFiles({ prefix: folder + "/" });
+      for (const f of list) {
+        const d = fileDate(f.name);
+        if (fromDate && d && d < fromDate) continue;
+        if (toDate   && d && d > toDate)   continue;
+        files.push({ file: f, folder, sizeBytes: parseInt(f.metadata.size || 0), date: d });
+      }
+    } catch (e) { console.warn(`[storage] list ${folder}:`, e.message); }
+  }
+  return files;
+}
+
+function fmtBytes(b) {
+  return b >= 1073741824 ? (b / 1073741824).toFixed(2) + " GB" : (b / 1048576).toFixed(2) + " MB";
+}
+
+// GET /storage/stats
+app.get("/storage/stats", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const all = await listPhotos();
+    let totalBytes = 0;
+    const byFolder = Object.fromEntries(PHOTO_FOLDERS.map(f => [f, { count: 0, bytes: 0 }]));
+    for (const f of all) {
+      totalBytes += f.sizeBytes;
+      if (byFolder[f.folder]) { byFolder[f.folder].count++; byFolder[f.folder].bytes += f.sizeBytes; }
+    }
+    res.json({
+      totalFiles: all.length,
+      totalBytes,
+      totalFormatted: fmtBytes(totalBytes),
+      byFolder: Object.fromEntries(Object.entries(byFolder).map(([k, v]) => [k, { ...v, formatted: fmtBytes(v.bytes) }]))
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /storage/download-zip?from=YYYY-MM-DD&to=YYYY-MM-DD
+app.get("/storage/download-zip", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const fromDate = req.query.from ? new Date(req.query.from + "T00:00:00.000+05:30") : null;
+    const toDate   = req.query.to   ? new Date(req.query.to   + "T23:59:59.999+05:30") : null;
+    const files    = await listPhotos(fromDate, toDate);
+    if (!files.length) return res.status(404).json({ error: "No photos found in that date range" });
+
+    const { default: JSZip } = await import("jszip");
+    const zip = new JSZip();
+    const CHUNK = 20;
+    for (let i = 0; i < files.length; i += CHUNK) {
+      await Promise.all(files.slice(i, i + CHUNK).map(async ({ file }) => {
+        try {
+          const [buf] = await file.download();
+          zip.file(file.name.replace(/\//g, "_"), buf);
+        } catch (e) { console.warn(`[zip] skip ${file.name}`); }
+      }));
+    }
+    const buf   = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } });
+    const label = req.query.from && req.query.to ? `${req.query.from}_to_${req.query.to}` : "all";
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="hariom_photos_${label}.zip"`);
+    res.send(buf);
+  } catch (e) { console.error("/storage/download-zip:", e.message); res.status(500).json({ error: e.message }); }
+});
+
+// POST /storage/cleanup  { from, to, confirm_phrase }
+app.post("/storage/cleanup", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { from, to, confirm_phrase } = req.body;
+    if (confirm_phrase !== "DELETE ALL PHOTOS") return res.status(400).json({ error: "Invalid confirmation" });
+    const fromDate = from ? new Date(from + "T00:00:00.000+05:30") : null;
+    const toDate   = to   ? new Date(to   + "T23:59:59.999+05:30") : null;
+    const files    = await listPhotos(fromDate, toDate);
+    if (!files.length) return res.json({ deleted: 0, failed: 0, message: "No photos found in that range" });
+    let deleted = 0, failed = 0;
+    const CHUNK = 20;
+    for (let i = 0; i < files.length; i += CHUNK) {
+      await Promise.all(files.slice(i, i + CHUNK).map(async ({ file }) => {
+        try { await file.delete(); deleted++; }
+        catch (e) { console.warn(`[cleanup] ${file.name}:`, e.message); failed++; }
+      }));
+    }
+    console.log(`[storage/cleanup] deleted=${deleted} failed=${failed}`);
+    res.json({ deleted, failed, message: `Deleted ${deleted} photo(s)` });
+  } catch (e) { console.error("/storage/cleanup:", e.message); res.status(500).json({ error: e.message }); }
+});
+
+
 
 // Express async error handler
 app.use((err, req, res, next) => {

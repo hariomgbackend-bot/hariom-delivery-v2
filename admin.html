@@ -804,6 +804,108 @@
     .filter-btn:not(.active) .filter-count { background: rgba(0,0,0,0.08); color: var(--text); }
     .filter-count.count-red { background: #fee2e2 !important; color: #b91c1c !important; }
     .filter-btn.active-orange .filter-count { background: rgba(255,255,255,0.3); }
+    /* ── STORAGE MANAGEMENT PANEL ── */
+    .storage-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .storage-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 20px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .storage-header:hover { background: rgba(0,0,0,0.02); }
+    [data-theme="dark"] .storage-header:hover { background: rgba(255,255,255,0.02); }
+    .storage-title { font-family: var(--font-display); font-size: 15px; font-weight: 700; flex: 1; }
+    .storage-chip { font-size: 12px; color: var(--muted); }
+    .storage-body { padding: 0 20px 20px; display: none; }
+    .storage-body.open { display: block; }
+
+    /* Stats row */
+    .storage-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .storage-stat {
+      background: #f8faff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    [data-theme="dark"] .storage-stat { background: #111927; }
+    .storage-stat-val { font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: var(--text); }
+    .storage-stat-lbl { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); margin-top: 3px; }
+
+    /* Range section */
+    .storage-range-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.7px; color: var(--muted); margin-bottom: 10px;
+    }
+    .storage-presets {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;
+    }
+    .storage-preset {
+      padding: 6px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-family: var(--font-body);
+      font-size: 12px; font-weight: 600;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .storage-preset:hover { border-color: var(--accent); color: var(--accent); background: rgba(37,99,235,0.04); }
+    .storage-preset.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+    /* Custom date row */
+    .storage-date-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .storage-date-row input {
+      width: 100%; padding: 9px 11px;
+      border: 1.5px solid var(--border); border-radius: 9px;
+      font-family: var(--font-body); font-size: 13px;
+      color: var(--text); outline: none; background: #fafbfc;
+    }
+    [data-theme="dark"] .storage-date-row input { background: #111927; }
+    .storage-date-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+    .storage-range-info {
+      font-size: 12px; color: var(--muted); margin-bottom: 16px; min-height: 16px;
+    }
+
+    /* Action buttons */
+    .storage-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .btn-dl-zip {
+      padding: 9px 20px; background: #2563eb; color: white;
+      border: none; border-radius: 9px;
+      font-family: var(--font-body); font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn-dl-zip:hover { opacity: 0.85; }
+    .btn-dl-zip:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-delete-photos {
+      padding: 9px 20px; background: #dc2626; color: white;
+      border: none; border-radius: 9px;
+      font-family: var(--font-body); font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn-delete-photos:hover { opacity: 0.85; }
+    .btn-delete-photos:disabled { opacity: 0.5; cursor: not-allowed; }
+    .storage-action-msg { margin-top: 10px; font-size: 13px; min-height: 18px; }
+
   </style>
 </head>
 <body>
@@ -826,6 +928,71 @@
 <div class="container">
 
   <div class="summary-grid" id="summaryCards"></div>
+
+  <!-- FIREBASE STORAGE PANEL -->
+  <div class="storage-panel">
+    <div class="storage-header" onclick="toggleStorage()">
+      <span class="storage-title">🗄️ Firebase Storage</span>
+      <span class="storage-chip" id="storageSummaryChip"></span>
+      <span id="storageChevron" style="color:var(--muted);font-size:12px;">▼</span>
+    </div>
+    <div class="storage-body" id="storageBody">
+
+      <!-- Usage stats -->
+      <div class="storage-stats">
+        <div class="storage-stat">
+          <div class="storage-stat-val" id="sSzTotal">—</div>
+          <div class="storage-stat-lbl">Total Used</div>
+        </div>
+        <div class="storage-stat">
+          <div class="storage-stat-val" id="sSzLoaded">—</div>
+          <div class="storage-stat-lbl">Loaded Photos</div>
+        </div>
+        <div class="storage-stat">
+          <div class="storage-stat-val" id="sSzDelivered">—</div>
+          <div class="storage-stat-lbl">Delivered Photos</div>
+        </div>
+        <div class="storage-stat">
+          <div class="storage-stat-val" id="sSzFailed">—</div>
+          <div class="storage-stat-lbl">Failure Photos</div>
+        </div>
+      </div>
+
+      <!-- Date range picker -->
+      <div class="storage-range-label">📅 Select Date Range for Download / Delete</div>
+
+      <div class="storage-presets">
+        <button class="storage-preset active" onclick="setStoragePreset(this,'month')">This Month</button>
+        <button class="storage-preset" onclick="setStoragePreset(this,'3m')">Last 3 Months</button>
+        <button class="storage-preset" onclick="setStoragePreset(this,'6m')">Last 6 Months</button>
+        <button class="storage-preset" onclick="setStoragePreset(this,'1y')">Last 1 Year</button>
+        <button class="storage-preset" onclick="setStoragePreset(this,'all')">All Time</button>
+        <button class="storage-preset" onclick="setStoragePreset(this,'custom')">Custom Dates</button>
+      </div>
+
+      <!-- Custom date inputs — hidden unless Custom selected -->
+      <div class="storage-date-row" id="storageDateRow" style="display:none;">
+        <div>
+          <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);display:block;margin-bottom:5px;">From</label>
+          <input type="date" id="storageFrom" onchange="updateStorageInfo()">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);display:block;margin-bottom:5px;">To</label>
+          <input type="date" id="storageTo" onchange="updateStorageInfo()">
+        </div>
+      </div>
+
+      <div class="storage-range-info" id="storageRangeInfo"></div>
+
+      <!-- Buttons -->
+      <div class="storage-actions">
+        <button class="btn-dl-zip" id="btnDlZip" onclick="downloadStorageZip()">⬇ Download as ZIP</button>
+        <button class="btn-delete-photos" id="btnDeletePhotos" onclick="deletePhotosStep1()">🗑 Delete Photos</button>
+      </div>
+      <div class="storage-action-msg" id="storageActionMsg"></div>
+
+    </div>
+  </div>
 
   <!-- DRIVER PAYOUT PANEL -->
   <div class="payout-panel" id="payoutPanel">
@@ -1945,6 +2112,155 @@ function jumpToPayoutDate(date, driverId) {
   document.getElementById("payoutDate").scrollIntoView({behavior:"smooth",block:"center"});
 }
 // ── END PAYOUT ─────────────────────────────────
+
+/* ═══════════════════════════════════════
+   FIREBASE STORAGE MANAGEMENT
+═══════════════════════════════════════ */
+let storageOpen    = false;
+let storagePreset  = "month";   // current active preset
+let storageFrom    = null;      // YYYY-MM-DD or null
+let storageTo      = null;      // YYYY-MM-DD or null
+
+function toggleStorage() {
+  storageOpen = !storageOpen;
+  document.getElementById("storageBody").classList.toggle("open", storageOpen);
+  document.getElementById("storageChevron").textContent = storageOpen ? "▲" : "▼";
+  if (storageOpen && document.getElementById("sSzTotal").textContent === "—") {
+    loadStorageStats();
+    setStoragePreset(document.querySelector(".storage-preset.active"), "month");
+  }
+}
+
+async function loadStorageStats() {
+  document.getElementById("sSzTotal").textContent = "…";
+  try {
+    const res  = await authFetch(`${BASE_URL}/storage/stats`);
+    const data = await res.json();
+    if (!res.ok) { document.getElementById("sSzTotal").textContent = "Err"; return; }
+    document.getElementById("sSzTotal").textContent     = data.totalFormatted;
+    document.getElementById("sSzLoaded").textContent    = data.byFolder["delivery_proofs_loaded"]?.formatted    || "0 MB";
+    document.getElementById("sSzDelivered").textContent = data.byFolder["delivery_proofs_delivered"]?.formatted || "0 MB";
+    document.getElementById("sSzFailed").textContent    = data.byFolder["delivery_failures"]?.formatted         || "0 MB";
+    document.getElementById("storageSummaryChip").textContent = `${data.totalFiles} files · ${data.totalFormatted}`;
+  } catch (e) { document.getElementById("sSzTotal").textContent = "Err"; }
+}
+
+function setStoragePreset(btn, preset) {
+  storagePreset = preset;
+  document.querySelectorAll(".storage-preset").forEach(b => b.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+
+  const customRow = document.getElementById("storageDateRow");
+  customRow.style.display = preset === "custom" ? "grid" : "none";
+
+  if (preset !== "custom") {
+    const now   = new Date();
+    const today = now.toISOString().split("T")[0];
+    if (preset === "month") {
+      storageFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+      storageTo   = today;
+    } else if (preset === "3m") {
+      const d = new Date(now); d.setMonth(d.getMonth() - 3);
+      storageFrom = d.toISOString().split("T")[0]; storageTo = today;
+    } else if (preset === "6m") {
+      const d = new Date(now); d.setMonth(d.getMonth() - 6);
+      storageFrom = d.toISOString().split("T")[0]; storageTo = today;
+    } else if (preset === "1y") {
+      const d = new Date(now); d.setFullYear(d.getFullYear() - 1);
+      storageFrom = d.toISOString().split("T")[0]; storageTo = today;
+    } else if (preset === "all") {
+      storageFrom = null; storageTo = null;
+    }
+  }
+  updateStorageInfo();
+}
+
+function updateStorageInfo() {
+  if (storagePreset === "custom") {
+    storageFrom = document.getElementById("storageFrom").value || null;
+    storageTo   = document.getElementById("storageTo").value   || null;
+  }
+  const fmtD = d => d ? new Date(d + "T12:00:00+05:30").toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : null;
+  const info  = document.getElementById("storageRangeInfo");
+  if (!storageFrom && !storageTo) {
+    info.textContent = "Range: All photos ever uploaded";
+  } else {
+    info.textContent = `Range: ${fmtD(storageFrom) || "beginning"} → ${fmtD(storageTo) || "today"}`;
+  }
+}
+
+async function downloadStorageZip() {
+  const btn = document.getElementById("btnDlZip");
+  const msg = document.getElementById("storageActionMsg");
+  if (storagePreset === "custom") updateStorageInfo();
+  btn.disabled = true; btn.textContent = "⏳ Preparing ZIP…"; msg.textContent = "";
+  try {
+    const p = new URLSearchParams();
+    if (storageFrom) p.set("from", storageFrom);
+    if (storageTo)   p.set("to",   storageTo);
+    const res = await authFetch(`${BASE_URL}/storage/download-zip?${p}`);
+    if (!res.ok) {
+      const e = await res.json();
+      msg.style.color = "#dc2626"; msg.textContent = "⚠ " + (e.error || "Download failed"); return;
+    }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    a.download = `hariom_photos_${storageFrom || "all"}_to_${storageTo || "all"}.zip`;
+    a.click(); URL.revokeObjectURL(url);
+    msg.style.color = "#16a34a"; msg.textContent = "✅ Download started!";
+  } catch (e) {
+    msg.style.color = "#dc2626"; msg.textContent = "⚠ Failed. Please try again.";
+  } finally {
+    btn.disabled = false; btn.textContent = "⬇ Download as ZIP";
+    setTimeout(() => { msg.textContent = ""; }, 4000);
+  }
+}
+
+function deletePhotosStep1() {
+  if (storagePreset === "custom") updateStorageInfo();
+  const rangeLabel = (!storageFrom && !storageTo)
+    ? "ALL photos ever uploaded"
+    : `photos from ${storageFrom || "beginning"} to ${storageTo || "today"}`;
+
+  // Confirm 1
+  if (!confirm(`⚠️ STEP 1 of 3\n\nYou are about to permanently delete:\n${rangeLabel}\n\nThis CANNOT be undone.\n\nContinue?`)) return;
+  // Confirm 2
+  if (!confirm(`⚠️ STEP 2 of 3\n\nDeleting ${rangeLabel}\n\nDrivers will no longer be able to view these photos in delivery records.\n\nAre you absolutely sure?`)) return;
+  // Confirm 3 — must type phrase
+  const typed = prompt(`⚠️ STEP 3 of 3 — FINAL CONFIRMATION\n\nType exactly:   DELETE ALL PHOTOS\n\nto permanently delete ${rangeLabel}`);
+  if (typed !== "DELETE ALL PHOTOS") {
+    alert("❌ Text didn't match. Deletion cancelled."); return;
+  }
+  executeDeletePhotos();
+}
+
+async function executeDeletePhotos() {
+  const btn = document.getElementById("btnDeletePhotos");
+  const msg = document.getElementById("storageActionMsg");
+  btn.disabled = true; btn.textContent = "⏳ Deleting…"; msg.textContent = "";
+  try {
+    const res  = await authFetch(`${BASE_URL}/storage/cleanup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm_phrase: "DELETE ALL PHOTOS", from: storageFrom, to: storageTo })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      msg.style.color = "#dc2626"; msg.textContent = "⚠ " + (data.error || "Delete failed"); return;
+    }
+    msg.style.color = "#16a34a";
+    msg.textContent = `✅ ${data.message}${data.failed ? ` (${data.failed} could not be deleted)` : ""}`;
+    loadStorageStats();  // refresh usage numbers
+  } catch (e) {
+    msg.style.color = "#dc2626"; msg.textContent = "⚠ Failed. Please try again.";
+  } finally {
+    btn.disabled = false; btn.textContent = "🗑 Delete Photos";
+  }
+}
+
+// ── END STORAGE MANAGEMENT ─────────────────────
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/firebase-messaging-sw.js")
