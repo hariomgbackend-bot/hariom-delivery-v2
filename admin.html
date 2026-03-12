@@ -804,7 +804,66 @@
     .filter-btn:not(.active) .filter-count { background: rgba(0,0,0,0.08); color: var(--text); }
     .filter-count.count-red { background: #fee2e2 !important; color: #b91c1c !important; }
     .filter-btn.active-orange .filter-count { background: rgba(255,255,255,0.3); }
-    /* ── STORAGE MANAGEMENT PANEL ── */
+    /* ── DOWNLOAD CONFIRM MODAL ── */
+    .dl-confirm-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+    }
+    .dl-confirm-overlay.open { display: flex; }
+    .dl-confirm-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 32px 28px;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    .dl-confirm-title {
+      font-family: var(--font-display);
+      font-size: 18px; font-weight: 700;
+      margin-bottom: 18px; color: var(--text);
+    }
+    .dl-confirm-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .dl-confirm-row:last-of-type { border-bottom: none; }
+    .dl-confirm-key { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+    .dl-confirm-val { font-family: var(--font-mono); font-weight: 700; color: var(--text); font-size: 14px; }
+    .dl-confirm-note {
+      margin-top: 14px; margin-bottom: 20px;
+      font-size: 12px; color: var(--muted);
+      background: #fefce8; border: 1px solid #fde68a;
+      border-radius: 8px; padding: 10px 12px; line-height: 1.5;
+    }
+    [data-theme="dark"] .dl-confirm-note { background: rgba(253,230,138,0.08); border-color: rgba(253,230,138,0.2); }
+    .dl-confirm-btns { display: flex; gap: 10px; }
+    .dl-confirm-btns .btn-cancel {
+      flex: 1; padding: 10px;
+      background: transparent; border: 1.5px solid var(--border);
+      border-radius: 9px; font-family: var(--font-body);
+      font-size: 13px; font-weight: 600; color: var(--muted);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .dl-confirm-btns .btn-cancel:hover { border-color: var(--text); color: var(--text); }
+    .dl-confirm-btns .btn-confirm-dl {
+      flex: 2; padding: 10px;
+      background: #2563eb; color: white; border: none;
+      border-radius: 9px; font-family: var(--font-body);
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .dl-confirm-btns .btn-confirm-dl:hover { opacity: 0.85; }
+
+
     .storage-panel {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -2190,9 +2249,59 @@ function updateStorageInfo() {
 }
 
 async function downloadStorageZip() {
+  if (storagePreset === "custom") updateStorageInfo();
   const btn = document.getElementById("btnDlZip");
   const msg = document.getElementById("storageActionMsg");
-  if (storagePreset === "custom") updateStorageInfo();
+  btn.disabled = true; btn.textContent = "⏳ Checking…"; msg.textContent = "";
+
+  try {
+    // Fetch range stats first for confirmation dialog
+    const p = new URLSearchParams();
+    if (storageFrom) p.set("from", storageFrom);
+    if (storageTo)   p.set("to",   storageTo);
+    const res  = await authFetch(`${BASE_URL}/storage/range-stats?${p}`);
+    const data = await res.json();
+    if (!res.ok) { msg.style.color = "#dc2626"; msg.textContent = "⚠ " + (data.error || "Failed"); return; }
+
+    // Populate confirmation modal
+    const fmtD = d => d ? new Date(d + "T12:00:00+05:30").toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : null;
+    const rangeLabel = (!storageFrom && !storageTo)
+      ? "All time"
+      : `${fmtD(storageFrom) || "Beginning"} → ${fmtD(storageTo) || "Today"}`;
+
+    // Estimate: ~30s per 10MB for ZIP preparation on server (conservative)
+    const mb      = data.totalBytes / 1048576;
+    const estSecs = Math.max(10, Math.round(mb * 3));
+    const estLabel = estSecs < 60
+      ? `~${estSecs} seconds`
+      : `~${Math.ceil(estSecs / 60)} minute${Math.ceil(estSecs / 60) > 1 ? "s" : ""}`;
+
+    document.getElementById("dlConfirmRange").textContent = rangeLabel;
+    document.getElementById("dlConfirmCount").textContent = data.count === 0 ? "No photos" : `${data.count} photo${data.count !== 1 ? "s" : ""}`;
+    document.getElementById("dlConfirmSize").textContent  = data.totalFormatted;
+    document.getElementById("dlConfirmTime").textContent  = data.count === 0 ? "—" : estLabel;
+
+    // Disable confirm if no files
+    const confirmBtn = document.getElementById("btnConfirmDl");
+    confirmBtn.disabled = data.count === 0;
+    confirmBtn.textContent = data.count === 0 ? "No photos to download" : "⬇ Download ZIP";
+
+    document.getElementById("dlConfirmOverlay").classList.add("open");
+  } catch (e) {
+    msg.style.color = "#dc2626"; msg.textContent = "⚠ Failed to check. Please try again.";
+  } finally {
+    btn.disabled = false; btn.textContent = "⬇ Download as ZIP";
+  }
+}
+
+function closeDlConfirm() {
+  document.getElementById("dlConfirmOverlay").classList.remove("open");
+}
+
+async function confirmDownload() {
+  closeDlConfirm();
+  const btn = document.getElementById("btnDlZip");
+  const msg = document.getElementById("storageActionMsg");
   btn.disabled = true; btn.textContent = "⏳ Preparing ZIP…"; msg.textContent = "";
   try {
     const p = new URLSearchParams();
@@ -2268,5 +2377,35 @@ if ("serviceWorker" in navigator) {
     .catch(err => console.log("SW error", err));
 }
 </script>
+<!-- DOWNLOAD CONFIRMATION MODAL -->
+<div class="dl-confirm-overlay" id="dlConfirmOverlay">
+  <div class="dl-confirm-card">
+    <div class="dl-confirm-title">⬇ Confirm Download</div>
+    <div class="dl-confirm-row">
+      <span class="dl-confirm-key">Date Range</span>
+      <span class="dl-confirm-val" id="dlConfirmRange">—</span>
+    </div>
+    <div class="dl-confirm-row">
+      <span class="dl-confirm-key">Photos</span>
+      <span class="dl-confirm-val" id="dlConfirmCount">—</span>
+    </div>
+    <div class="dl-confirm-row">
+      <span class="dl-confirm-key">File Size</span>
+      <span class="dl-confirm-val" id="dlConfirmSize">—</span>
+    </div>
+    <div class="dl-confirm-row">
+      <span class="dl-confirm-key">Est. Prep Time</span>
+      <span class="dl-confirm-val" id="dlConfirmTime">—</span>
+    </div>
+    <div class="dl-confirm-note" id="dlConfirmNote">
+      ⚠️ The server needs to download and ZIP all photos before sending. Keep this tab open until the download starts.
+    </div>
+    <div class="dl-confirm-btns">
+      <button class="btn-cancel" onclick="closeDlConfirm()">Cancel</button>
+      <button class="btn-confirm-dl" id="btnConfirmDl" onclick="confirmDownload()">⬇ Download ZIP</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

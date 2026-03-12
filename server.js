@@ -1444,7 +1444,19 @@ app.get("/storage/stats", authenticate, authorize(["admin"]), async (req, res) =
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /storage/download-zip?from=YYYY-MM-DD&to=YYYY-MM-DD
+// GET /storage/range-stats?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Returns file count + total size for a date range — used for download confirmation
+app.get("/storage/range-stats", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const fromDate = req.query.from ? new Date(req.query.from + "T00:00:00.000+05:30") : null;
+    const toDate   = req.query.to   ? new Date(req.query.to   + "T23:59:59.999+05:30") : null;
+    const files    = await listPhotos(fromDate, toDate);
+    const totalBytes = files.reduce((s, f) => s + f.sizeBytes, 0);
+    res.json({ count: files.length, totalBytes, totalFormatted: fmtBytes(totalBytes) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+
 app.get("/storage/download-zip", authenticate, authorize(["admin"]), async (req, res) => {
   try {
     const fromDate = req.query.from ? new Date(req.query.from + "T00:00:00.000+05:30") : null;
