@@ -1748,7 +1748,9 @@ function renderPayoutTable(data) {
   const deliveries    = currentPayoutDeliveries;
 
   const unpaidList  = deliveries.filter(d => !d.freight_paid);
-  const unpaidTotal = unpaidList.reduce((s, d) => s + parseFloat(d.freight_amount || 0), 0);
+  const unpaidTotal = unpaidList
+    .filter(d => d.freight_set_by === "driver" && d.freight_charged)
+    .reduce((s, d) => s + parseFloat(d.freight_amount || 0), 0);
   const allPaid     = unpaidList.length === 0;
 
   document.getElementById("payoutTotalFreight").textContent  = "\u20b9" + unpaidTotal.toLocaleString("en-IN");
