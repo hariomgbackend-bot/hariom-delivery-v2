@@ -1137,7 +1137,7 @@ function toggleTallyInput(checkbox, idx) {
     tallySection.style.display  = "block";
     normalSection.style.display = "none";
     tallyInput.value = "";
-    // Populate datalist once (lazy — only when first opened)
+    // Populate datalist lazily — only on first check
     if (datalist && datalist.children.length === 0) {
       const frag = document.createDocumentFragment();
       tallyProducts.forEach(name => {
@@ -1517,7 +1517,7 @@ async function createDelivery() {
     let productName = "";
 
     if (isTally) {
-      // ── Tally mode — read directly from searchable input ──
+      // ── Tally mode — read from searchable input ──
       const tallyInput = item.querySelector(`[data-field="tally_input"]`);
       productName = tallyInput ? tallyInput.value.trim() : "";
       if (!productName) {

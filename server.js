@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import { readFileSync, existsSync } from "fs";
 import db from "./firestore.js";
 import { storage } from "./storage.js";
 import fetch from "node-fetch";
@@ -20,19 +19,6 @@ import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 
 dotenv.config();
-
-/* ── TALLY PRODUCTS — loaded from file at startup ── */
-let tallyProductNames = [];
-try {
-  if (existsSync("./tally_products.json")) {
-    tallyProductNames = JSON.parse(readFileSync("./tally_products.json", "utf-8"));
-    console.log(`[tally] Loaded ${tallyProductNames.length} products from tally_products.json`);
-  } else {
-    console.log("[tally] tally_products.json not found — Tally dropdown will be empty");
-  }
-} catch (err) {
-  console.warn("[tally] Failed to load tally_products.json:", err.message);
-}
 
 const require = createRequire(import.meta.url);
 //const serviceAccount = require("./firebase-service-account.json");
@@ -1311,12 +1297,21 @@ app.get("/driver-outstanding", authenticate, authorize(["admin"]), async (req, r
 
 /* ════════════════════════════════════════════════
    TALLY PRODUCTS
-   GET /tally/products — returns flat name array
-   Served from tally_products.json in repo root.
-   To update: replace file → git push → auto-redeploy
+   GET /tally/products
+   Reads from Firestore tally_products/index doc.
+   Data uploaded once via upload_tally.js script.
+   To update: re-run upload_tally.js with new JSON.
 ════════════════════════════════════════════════ */
-app.get("/tally/products", (req, res) => {
-  res.json({ names: tallyProductNames, count: tallyProductNames.length });
+app.get("/tally/products", async (req, res) => {
+  try {
+    const snap = await getDoc(doc(db, "tally_products", "index"));
+    if (!snap.exists()) return res.json({ names: [], count: 0 });
+    const data = snap.data();
+    res.json({ names: data.names || [], count: data.count || 0 });
+  } catch (err) {
+    console.error("/tally/products error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* ════════════════════════════════════════════════
