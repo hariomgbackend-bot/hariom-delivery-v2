@@ -647,7 +647,14 @@
 <!-- CREATE DELIVERY POPUP -->
 <div class="popup-overlay" id="popup">
   <div class="popup-card">
-    <h3>Create Delivery</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="margin:0;">Create Delivery</h3>
+      <button type="button" onclick="document.getElementById('invoiceFileInput').click()"
+        style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        📄 Import Invoice
+      </button>
+    </div>
+    <input type="file" id="invoiceFileInput" accept=".pdf" style="display:none" onchange="handleInvoiceImport(this)">
     <div id="formMessage" style="margin-bottom:10px;font-size:14px;font-weight:500;"></div>
 
     <div class="section-title">Customer Name</div>
@@ -789,6 +796,7 @@ let currentFilter       = "all";
 let customSelectedDate  = null;
 let searchQuery         = "";
 let currentAccountantData = [];
+let tallyProducts = [];
 let autoRefreshInterval = null;
 let batchPhones    = [];
 let batchNumberMap = {};
@@ -1006,6 +1014,7 @@ function initApp() {
   loadDrivers();
   loadDeliveries();
   loadAllMasters();
+  loadTallyProducts();
   startAutoRefresh();
 
   // Set ETA min on DOMContentLoaded if popup already open
@@ -1112,6 +1121,137 @@ async function loadAllMasters() {
   });
 }
 
+/* ── TALLY PRODUCTS ── */
+async function loadTallyProducts() {
+  try {
+    const res  = await fetch(`${BASE_URL}/tally/products`);
+    const data = await res.json();
+    tallyProducts = data.names || [];
+    console.log(`[tally] ${tallyProducts.length} products loaded`);
+  } catch (e) {
+    console.warn("[tally] Failed to load:", e.message);
+  }
+}
+
+function toggleTallyInput(checkbox, idx) {
+  const item          = document.querySelector(`.product-item[data-idx="${idx}"]`);
+  const tallySection  = item.querySelector(`[data-field="tally_section"]`);
+  const normalSection = item.querySelector(`[data-field="normal_section"]`);
+  const tallyInput    = item.querySelector(`[data-field="tally_input"]`);
+  const datalist      = document.getElementById(`tallyList_${idx}`);
+
+  if (checkbox.checked) {
+    tallySection.style.display  = "block";
+    normalSection.style.display = "none";
+    tallyInput.value = "";
+    if (datalist && datalist.children.length === 0) {
+      const frag = document.createDocumentFragment();
+      tallyProducts.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        frag.appendChild(opt);
+      });
+      datalist.appendChild(frag);
+    }
+    tallyInput.focus();
+  } else {
+    tallySection.style.display  = "none";
+    normalSection.style.display = "block";
+    tallyInput.value = "";
+  }
+}
+
+/* ── IMPORT INVOICE PDF ── */
+async function handleInvoiceImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const btn = document.querySelector('button[onclick*="invoiceFileInput"]');
+  const origText = btn.innerHTML;
+  btn.innerHTML = "⏳ Reading...";
+  btn.disabled  = true;
+
+  try {
+    const formData = new FormData();
+    formData.append("invoice", file);
+
+    const res  = await authFetch(`${BASE_URL}/parse-invoice`, { method: "POST", body: formData });
+    const data = await res.json();
+
+    if (!res.ok) { alert("Could not read invoice: " + (data.error || "Unknown error")); return; }
+
+    // ── Fill customer name ──
+    if (data.customer_name) {
+      const parts = data.customer_name.trim().split(/\s+/);
+      const fn = document.getElementById("first_name");
+      const mn = document.getElementById("middle_name");
+      const ln = document.getElementById("last_name");
+      if (fn) fn.value = parts[0] || "";
+      if (mn) mn.value = parts.length === 3 ? parts[1] : "";
+      if (ln) ln.value = parts.length >= 2 ? parts[parts.length - 1] : "";
+    }
+
+    // ── Fill phone ──
+    if (data.phone) {
+      const ph = document.getElementById("phone");
+      if (ph) ph.value = data.phone;
+    }
+
+    // ── Fill address ──
+    if (data.address) {
+      const addr1 = document.getElementById("addr1");
+      if (addr1) addr1.value = data.address;
+    }
+
+    // ── Fill products ──
+    if (data.products && data.products.length > 0) {
+      // Reset product list to match invoice product count
+      const list = document.getElementById("productList");
+      list.innerHTML = "";
+      productItemCounter = 0;
+
+      data.products.forEach(p => {
+        productItemCounter++;
+        const idx = productItemCounter;
+        const div = document.createElement("div");
+        div.innerHTML = createProductItemHTML(idx);
+        list.appendChild(div.firstElementChild);
+
+        const item = list.lastElementChild;
+
+        // Check Tally toggle and fill product name
+        const tallyToggle = item.querySelector(`[data-field="tally_toggle"]`);
+        if (tallyToggle) {
+          tallyToggle.checked = true;
+          toggleTallyInput(tallyToggle, idx);
+          const tallyInput = item.querySelector(`[data-field="tally_input"]`);
+          if (tallyInput) tallyInput.value = p.product_name || "";
+        }
+
+        // Fill serial number
+        const serial = item.querySelector(`[data-field="serial"]`);
+        if (serial) serial.value = p.serial_number || "";
+
+        // Fill invoice number
+        const invoice = item.querySelector(`[data-field="invoice"]`);
+        if (invoice && data.invoice_number) invoice.value = data.invoice_number;
+      });
+
+      updateProductCount();
+    }
+
+    btn.innerHTML = "✅ Imported!";
+    setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000);
+
+  } catch (e) {
+    alert("Error importing invoice: " + e.message);
+    btn.innerHTML = origText;
+    btn.disabled  = false;
+  }
+
+  input.value = ""; // allow re-import same file
+}
+
 function buildSelectOptions(arr, selectedVal) {
   let html = arr.map(name =>
     `<option value="${escHtml(name)}" ${name === selectedVal ? "selected" : ""}>${escHtml(name)}</option>`
@@ -1148,29 +1288,48 @@ function createProductItemHTML(idx) {
       <button type="button" class="product-item-remove" onclick="removeProductItem(${idx})" title="Remove item">×</button>
     </div>
 
-    <div class="section-title" style="margin-top:0;">Product</div>
-    <select data-field="product_select" onchange="handleItemAddNew(this,${idx},'product')">
-      ${buildSelectOptions(masterProducts, "")}
-    </select>
-    <input data-field="new_product" placeholder="New Product name" style="display:none">
-    <button type="button" class="btn btn-success btn-sm" data-field="btn_product"
-      onclick="saveItemNew(${idx},'product')" style="display:none;margin-bottom:8px;">+ Save Product</button>
+    <!-- Tally toggle -->
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer;font-size:13px;font-weight:600;color:#166534;">
+      <input type="checkbox" data-field="tally_toggle" onchange="toggleTallyInput(this,${idx})"
+        style="width:15px;height:15px;accent-color:#16a34a;cursor:pointer;">
+      🔗 Add from Tally
+    </label>
 
-    <div class="section-title">Make</div>
-    <select data-field="make_select" onchange="handleItemAddNew(this,${idx},'make')">
-      ${buildSelectOptions(masterMakes, "")}
-    </select>
-    <input data-field="new_make" placeholder="New Make name" style="display:none">
-    <button type="button" class="btn btn-success btn-sm" data-field="btn_make"
-      onclick="saveItemNew(${idx},'make')" style="display:none;margin-bottom:8px;">+ Save Make</button>
+    <!-- Tally searchable input (hidden by default) -->
+    <div data-field="tally_section" style="display:none;margin-bottom:10px;">
+      <input data-field="tally_input" list="tallyList_${idx}"
+        placeholder="Type to search Tally products..."
+        style="width:100%;padding:10px 12px;border:2px solid #86efac;border-radius:9px;font-size:14px;outline:none;background:#f0fdf4;color:var(--text);">
+      <datalist id="tallyList_${idx}"></datalist>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Type at least 2 characters to search</div>
+    </div>
 
-    <div class="section-title">Model</div>
-    <select data-field="model_select" onchange="handleItemAddNew(this,${idx},'model')">
-      ${buildSelectOptions(masterModels, "")}
-    </select>
-    <input data-field="new_model" placeholder="New Model name" style="display:none">
-    <button type="button" class="btn btn-success btn-sm" data-field="btn_model"
-      onclick="saveItemNew(${idx},'model')" style="display:none;margin-bottom:8px;">+ Save Model</button>
+    <!-- Normal product/make/model (shown by default) -->
+    <div data-field="normal_section">
+      <div class="section-title" style="margin-top:0;">Product</div>
+      <select data-field="product_select" onchange="handleItemAddNew(this,${idx},'product')">
+        ${buildSelectOptions(masterProducts, "")}
+      </select>
+      <input data-field="new_product" placeholder="New Product name" style="display:none">
+      <button type="button" class="btn btn-success btn-sm" data-field="btn_product"
+        onclick="saveItemNew(${idx},'product')" style="display:none;margin-bottom:8px;">+ Save Product</button>
+
+      <div class="section-title">Make</div>
+      <select data-field="make_select" onchange="handleItemAddNew(this,${idx},'make')">
+        ${buildSelectOptions(masterMakes, "")}
+      </select>
+      <input data-field="new_make" placeholder="New Make name" style="display:none">
+      <button type="button" class="btn btn-success btn-sm" data-field="btn_make"
+        onclick="saveItemNew(${idx},'make')" style="display:none;margin-bottom:8px;">+ Save Make</button>
+
+      <div class="section-title">Model</div>
+      <select data-field="model_select" onchange="handleItemAddNew(this,${idx},'model')">
+        ${buildSelectOptions(masterModels, "")}
+      </select>
+      <input data-field="new_model" placeholder="New Model name" style="display:none">
+      <button type="button" class="btn btn-success btn-sm" data-field="btn_model"
+        onclick="saveItemNew(${idx},'model')" style="display:none;margin-bottom:8px;">+ Save Model</button>
+    </div>
 
     <div class="section-title">Serial Number</div>
     <input data-field="serial" placeholder="Serial Number (optional)">
@@ -1447,43 +1606,57 @@ async function createDelivery() {
   const products = [];
 
   for (let i = 0; i < productItems.length; i++) {
-    const item = productItems[i];
-    const idx  = item.dataset.idx;
+    const item        = productItems[i];
+    const idx         = item.dataset.idx;
+    const tallyToggle = item.querySelector(`[data-field="tally_toggle"]`);
+    const isTally     = tallyToggle && tallyToggle.checked;
 
-    // Resolve product/make/model — handle "add_new" inline
-    async function resolveItemField(fieldName) {
-      const select = item.querySelector(`[data-field="${fieldName}_select"]`);
-      const input  = item.querySelector(`[data-field="new_${fieldName}"]`);
-      if (!select) return "";
-      if (select.value === "add_new") {
-        const val = input ? input.value.trim() : "";
-        if (!val) throw new Error(`Enter ${fieldName} for item #${idx} or select from list`);
-        await fetch(`${BASE_URL}/${fieldName}s`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: val })
-        });
-        return val;
+    let productName = "";
+
+    if (isTally) {
+      // ── Tally mode — read from searchable input ──
+      const tallyInput = item.querySelector(`[data-field="tally_input"]`);
+      productName = tallyInput ? tallyInput.value.trim() : "";
+      if (!productName) {
+        alert(`Please select a product from Tally for item #${idx}`); return;
       }
-      return select.value || "";
-    }
+    } else {
+      // ── Normal mode — product + make + model ──
+      async function resolveItemField(fieldName) {
+        const select = item.querySelector(`[data-field="${fieldName}_select"]`);
+        const input  = item.querySelector(`[data-field="new_${fieldName}"]`);
+        if (!select) return "";
+        if (select.value === "add_new") {
+          const val = input ? input.value.trim() : "";
+          if (!val) throw new Error(`Enter ${fieldName} for item #${idx} or select from list`);
+          await fetch(`${BASE_URL}/${fieldName}s`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: val })
+          });
+          return val;
+        }
+        return select.value || "";
+      }
 
-    let productVal, makeVal, modelVal;
-    try {
-      productVal = await resolveItemField("product");
-      makeVal    = await resolveItemField("make");
-      modelVal   = await resolveItemField("model");
-    } catch(e) {
-      alert(e.message); return;
-    }
+      let productVal, makeVal, modelVal;
+      try {
+        productVal = await resolveItemField("product");
+        makeVal    = await resolveItemField("make");
+        modelVal   = await resolveItemField("model");
+      } catch(e) {
+        alert(e.message); return;
+      }
 
-    if (!productVal) {
-      alert(`Please select a product for item #${idx}`);
-      return;
+      if (!productVal) {
+        alert(`Please select a product for item #${idx}`); return;
+      }
+
+      productName = capitalizeWords([productVal, makeVal, modelVal].filter(x => x).join(" "));
     }
 
     products.push({
-      product_name:          capitalizeWords([productVal, makeVal, modelVal].filter(x=>x).join(" ")),
+      product_name:          productName,
       product_serial_number: (item.querySelector(`[data-field="serial"]`)?.value || "").trim(),
       invoice_number:        (item.querySelector(`[data-field="invoice"]`)?.value || "").trim()
     });
@@ -1564,9 +1737,8 @@ async function createDelivery() {
     document.getElementById("formMessage").innerHTML = `<span style='color:#16a34a;'>${msg}</span>`;
     btn.textContent = count === 1 ? "Created ✔" : `${count} Created ✔`;
 
-    // Ask if they want to create another
     setTimeout(() => {
-      const another = confirm(`${count === 1 ? "Delivery" : count + " deliveries"} created successfully!\n\nCreate another delivery?`);
+      const another = confirm(`${count === 1 ? "Delivery" : count + " deliveries"} created!\n\nCreate another delivery?`);
       if (another) {
         resetForm();
         btn.disabled = false;
