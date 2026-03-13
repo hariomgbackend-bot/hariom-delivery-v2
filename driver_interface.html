@@ -2448,42 +2448,40 @@ async function startHtml5QrDetector(video) {
   if (!container) {
     container = document.createElement("div");
     container.id = "html5qr-container";
-    // z-index:1 so our decorative frame/laser sit on top visually
     container.style.cssText = "width:100%;height:100%;position:absolute;top:0;left:0;z-index:1;overflow:hidden;";
     document.getElementById("scannerViewport").appendChild(container);
   }
+
+  // Watch for anything the library injects and immediately hide its UI chrome
+  // (stop button, file input, etc.) so they can't be accidentally tapped
+  const observer = new MutationObserver(() => {
+    container.querySelectorAll("button, select, input[type=file], #html5-qrcode-anchor-scan-type-change, img[alt='Info icon']").forEach(el => {
+      el.style.cssText = "display:none !important;pointer-events:none !important;";
+    });
+    // Make library video fill the viewport
+    const libVideo = container.querySelector("video");
+    if (libVideo) {
+      libVideo.setAttribute("playsinline", "");
+      libVideo.setAttribute("webkit-playsinline", "");
+      libVideo.style.cssText = "width:100% !important;height:100% !important;object-fit:cover !important;position:absolute !important;top:0 !important;left:0 !important;";
+    }
+  });
+  observer.observe(container, { childList: true, subtree: true });
 
   html5QrScanner = new Html5Qrcode("html5qr-container", { verbose: false });
 
   try {
     await html5QrScanner.start(
       { facingMode: "environment" },
-      {
-        fps: 15,
-        // No qrbox — scan the full frame. Our decorative frame is just visual.
-        // qrbox restricts the decode area and conflicts with our custom UI layers.
-      },
+      { fps: 15 },  // no qrbox — scan full frame
       (decodedText) => {
+        observer.disconnect();  // stop watching once scanned
         if (scannerActive) handleScanResult(decodedText);
       },
       () => {}  // per-frame failure — ignore silently
     );
-
-    // Style the library's injected video to fill viewport
-    setTimeout(() => {
-      const libVideo = container.querySelector("video");
-      if (libVideo) {
-        libVideo.setAttribute("playsinline", "");
-        libVideo.setAttribute("webkit-playsinline", "");
-        libVideo.style.cssText = "width:100% !important;height:100% !important;object-fit:cover !important;position:absolute !important;top:0 !important;left:0 !important;";
-      }
-      // Hide the library's own UI chrome (shaded region box, buttons etc.)
-      container.querySelectorAll("img, button, select, #html5-qrcode-anchor-scan-type-change").forEach(el => {
-        el.style.display = "none";
-      });
-    }, 600);
-
   } catch (err) {
+    observer.disconnect();
     showToast("📷 Camera error: " + (err?.message || err));
     closeScanner();
   }
@@ -2578,8 +2576,10 @@ if (_closeBtn) {
 window.addEventListener("popstate", () => {
   if (scannerActive) { closeScanner(); history.pushState(null, ""); }
 });
-// Push state so back button is interceptable
-history.pushState(null, "");
+// Push state so back button is interceptable — but NOT on iOS (causes spurious popstate)
+if (!/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+  history.pushState(null, "");
+}
 
 
 /* ═══════════════════════════════════════
