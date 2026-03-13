@@ -657,15 +657,6 @@
       object-fit: cover;
       display: block;
     }
-    /* Force library-injected video to stay inline on iOS — prevents Safari
-       hijacking it into fullscreen which breaks pixel access for decoding */
-    #html5qr-container video {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover !important;
-      position: absolute !important;
-      top: 0 !important; left: 0 !important;
-    }
 
     .scanner-frame-wrap {
       position: absolute;
@@ -1144,15 +1135,22 @@
   </div>
 
   <div id="scannerViewport">
+    <!-- Layer 1 (z:1): our video for native BarcodeDetector path -->
     <video id="scannerVideo" autoplay muted playsinline webkit-playsinline></video>
-    <div class="scanner-dim"></div>
-    <div class="scanner-frame-wrap">
-      <div class="scanner-frame">
-        <span class="sf-bl"></span>
-        <span class="sf-br"></span>
-        <div class="scanner-laser"></div>
+    <!-- Layer 2 (z:2): html5-qrcode injects its video+canvas here — NO overflow:hidden so canvas is never clipped -->
+    <div id="html5qr-container" style="display:none;position:absolute;inset:0;z-index:2;"></div>
+    <!-- Layer 3 (z:3): purely decorative — pointer-events:none so nothing blocks library canvas touches -->
+    <div id="scannerDecor" style="position:absolute;inset:0;z-index:3;pointer-events:none;">
+      <div class="scanner-dim"></div>
+      <div class="scanner-frame-wrap">
+        <div class="scanner-frame">
+          <span class="sf-bl"></span>
+          <span class="sf-br"></span>
+          <div class="scanner-laser"></div>
+        </div>
       </div>
     </div>
+    <!-- Layer 4 (z:4): flash + result feedback -->
     <div class="scanner-flash" id="scannerFlash"></div>
     <div class="scanner-result" id="scannerResult">
       <div class="scanner-result-label">✅ Scanned Successfully</div>
@@ -2351,10 +2349,13 @@ function toggleHistory() {
 
 /* ═══════════════════════════════════════════════════
    BARCODE / QR SCANNER
-   - iOS Safari: html5-qrcode owns the camera fully
-     (no pre-acquired stream — that causes black screen)
-   - Android / Safari 17.4+: native BarcodeDetector
-     (fastest, no library needed)
+   Test results: iOS has no BarcodeDetector, but
+   getUserMedia + html5-qrcode both work fine.
+   Root cause of scan failure: decorative overlay
+   layers were blocking the library's canvas.
+   Fix: html5qr-container is pre-created in HTML at
+   z-index:2, decorative layer at z-index:3 with
+   pointer-events:none — library canvas is never blocked.
 ═══════════════════════════════════════════════════ */
 
 let scannerStream   = null;
@@ -2371,15 +2372,14 @@ async function openScanner() {
   if (screen.orientation?.lock) screen.orientation.lock("portrait").catch(() => {});
 
   if (HAS_NATIVE_DETECTOR && !IS_IOS) {
-    // Android Chrome — acquire stream ourselves, use native API
+    // Android Chrome — native BarcodeDetector path
     try {
       scannerStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
       });
     } catch (err) {
       closeScanner();
-      showToast(err.name === "NotAllowedError"
-        ? "📷 Camera permission denied." : "📷 Camera error: " + err.message);
+      showToast(err.name === "NotAllowedError" ? "📷 Camera permission denied." : "📷 Camera error: " + err.message);
       return;
     }
     const video = document.getElementById("scannerVideo");
@@ -2388,8 +2388,7 @@ async function openScanner() {
     await video.play().catch(() => {});
     startNativeDetector(video);
   } else {
-    // iOS Safari — let html5-qrcode own the camera entirely
-    // Pre-acquiring a stream then handing it off causes the black screen
+    // iOS — html5-qrcode owns the camera entirely
     document.getElementById("scannerVideo").style.display = "none";
     await startHtml5QrDetector();
   }
@@ -2414,52 +2413,48 @@ function startNativeDetector(video) {
   detect();
 }
 
-/* ── html5-qrcode — iOS Safari (library owns the stream) ── */
+/* ── html5-qrcode — iOS Safari ── */
 async function startHtml5QrDetector() {
   try {
     await loadScript("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js");
   } catch {
-    showToast("⚠ Scanner library failed to load. Check internet connection.");
+    showToast("⚠ Scanner library failed to load.");
     closeScanner();
     return;
   }
 
-  // Give the library its own container inside our viewport
-  let container = document.getElementById("html5qr-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.id = "html5qr-container";
-    container.style.cssText = "width:100%;height:100%;position:absolute;top:0;left:0;z-index:1;overflow:hidden;";
-    document.getElementById("scannerViewport").appendChild(container);
-  }
+  // Container is pre-created in HTML at z-index:2
+  // Show it and make sure it's clean
+  const container = document.getElementById("html5qr-container");
+  container.style.display = "block";
+  container.innerHTML = "";
 
-  // MutationObserver hides library UI chrome the instant it's injected —
-  // prevents accidental taps on library's own stop/file buttons
+  html5QrScanner = new Html5Qrcode("html5qr-container", { verbose: false });
+
+  // Hide library UI chrome instantly as it's injected
   const observer = new MutationObserver(() => {
     container.querySelectorAll("button,select,input[type=file],#html5-qrcode-anchor-scan-type-change").forEach(el => {
       el.style.cssText = "display:none !important;pointer-events:none !important;";
     });
+    // Stretch library video to fill container
+    const libVid = container.querySelector("video");
+    if (libVid) {
+      libVid.setAttribute("playsinline", "");
+      libVid.setAttribute("webkit-playsinline", "");
+      libVid.style.cssText = "position:absolute !important;inset:0 !important;width:100% !important;height:100% !important;object-fit:cover !important;";
+    }
   });
   observer.observe(container, { childList: true, subtree: true });
 
-  html5QrScanner = new Html5Qrcode("html5qr-container", { verbose: false });
-
-  const config = {
-    fps: 10,
-    qrbox: { width: 250, height: 150 },
-    aspectRatio: 1.777778,          // widescreen — better for long barcodes
-    videoConstraints: { facingMode: "environment" }
-  };
-
   try {
     await html5QrScanner.start(
-      { facingMode: "environment" }, // exactly 1 key — library requirement
-      config,
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.777778 },
       (decodedText) => {
         observer.disconnect();
         if (scannerActive) handleScanResult(decodedText);
       },
-      () => {}  // per-frame not-found — ignore silently
+      () => {}
     );
   } catch (err) {
     observer.disconnect();
@@ -2516,15 +2511,14 @@ function closeScanner() {
   scannerActive = false;
   cancelAnimationFrame(scannerTimer);
 
-  // Stop html5-qrcode if it was used
   if (html5QrScanner) {
     html5QrScanner.stop().catch(() => {}).finally(() => {
       html5QrScanner.clear();
       html5QrScanner = null;
+      // Hide + clear container (don't remove — it's in HTML)
       const c = document.getElementById("html5qr-container");
-      if (c) c.remove();
-      const video = document.getElementById("scannerVideo");
-      if (video) video.style.display = "";
+      if (c) { c.style.display = "none"; c.innerHTML = ""; }
+      document.getElementById("scannerVideo").style.display = "";
     });
   }
 
@@ -2534,9 +2528,8 @@ function closeScanner() {
   }
 
   const video = document.getElementById("scannerVideo");
-  if (video) { video.srcObject = null; }
+  if (video) video.srcObject = null;
 
-  // Reset UI state
   document.getElementById("scannerOverlay").classList.remove("active");
   const flash  = document.getElementById("scannerFlash");
   const result = document.getElementById("scannerResult");
@@ -2546,15 +2539,7 @@ function closeScanner() {
   if (screen.orientation?.unlock) screen.orientation.unlock();
 }
 
-// Close scanner if user taps outside the frame (on the dim area)
-document.getElementById("scannerOverlay")?.addEventListener("click", e => {
-  if (e.target === document.getElementById("scannerOverlay") ||
-      e.target.classList.contains("scanner-dim")) closeScanner();
-});
-
-// Hardware back button (Android only) closes scanner first
-// Disabled on iOS — history.pushState triggers spurious popstate on Safari
-// which immediately closes the scanner after opening
+// Hardware back button — Android only (iOS popstate fires spuriously)
 if (!IS_IOS) {
   window.addEventListener("popstate", () => {
     if (scannerActive) { closeScanner(); history.pushState(null, ""); }
