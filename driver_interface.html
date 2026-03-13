@@ -2442,58 +2442,38 @@ async function startHtml5QrDetector(video) {
     return;
   }
 
-  // html5-qrcode needs its own video element — hide ours, create its container
+  // html5-qrcode manages its own video — hide ours, give it a container
   video.style.display = "none";
   const container = document.createElement("div");
   container.id = "html5qr-container";
-  container.style.cssText = "width:100%;height:100%;position:absolute;top:0;left:0;";
+  container.style.cssText = "width:100%;height:100%;position:absolute;top:0;left:0;overflow:hidden;";
   document.getElementById("scannerViewport").appendChild(container);
-
-  const config = {
-    fps: 15,
-    qrbox: { width: 250, height: 150 },
-    aspectRatio: 1.7,
-    supportedScanTypes: [
-      Html5QrcodeScanType.SCAN_TYPE_CAMERA
-    ],
-    formatsToSupport: [
-      Html5QrcodeScanner ? undefined : null,
-      0,  // QR_CODE
-      1,  // AZTEC
-      2,  // CODABAR
-      3,  // CODE_39
-      4,  // CODE_93
-      5,  // CODE_128
-      8,  // DATA_MATRIX
-      10, // EAN_8
-      11, // EAN_13
-      16, // ITF
-      25, // PDF_417
-      28, // UPC_A
-      29, // UPC_E
-    ].filter(x => x !== null)
-  };
 
   // Use the lower-level Html5Qrcode (not scanner widget) so we keep our own UI
   html5QrScanner = new Html5Qrcode("html5qr-container");
 
-  const constraints = {
-    facingMode: "environment",
-    // iOS Safari requires these exact constraints
-    advanced: [{ facingMode: "environment" }]
-  };
-
   try {
     await html5QrScanner.start(
-      constraints,
-      { fps: 15, qrbox: { width: 250, height: 150 } },
+      { facingMode: "environment" },  // must be exactly 1 key — html5-qrcode requirement
+      { fps: 10, qrbox: { width: 240, height: 180 } },
       (decodedText) => {
         if (scannerActive) handleScanResult(decodedText);
       },
-      () => {} // ignore decode failures (fires every frame)
+      () => {}  // per-frame failure — ignore
     );
+
+    // Make the library's injected video fill our viewport
+    setTimeout(() => {
+      const libVideo = document.querySelector("#html5qr-container video");
+      if (libVideo) {
+        libVideo.style.cssText = "width:100% !important;height:100% !important;object-fit:cover !important;position:absolute;top:0;left:0;";
+        libVideo.setAttribute("playsinline", "");
+        libVideo.setAttribute("webkit-playsinline", "");
+      }
+    }, 500);
+
   } catch (err) {
-    showToast("📷 Could not start scanner: " + err);
+    showToast("📷 Camera error: " + (err?.message || err));
     closeScanner();
   }
 }
