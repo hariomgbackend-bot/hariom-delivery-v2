@@ -612,13 +612,41 @@
     .btn-scan:active { transform: scale(0.96); opacity: 0.88; }
 
     /* ─── SCANNER OVERLAY ─── */
+    /* ── Scanner: html5qr-container lives directly under body at z:9000
+          Overlay UI sits at z:9001 with pointer-events:none except header
+          This avoids iOS Safari compositor bug where video renders behind
+          everything when inside nested stacking contexts ── */
+    #html5qr-container {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      background: #000;
+    }
+    #html5qr-container video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      position: absolute !important;
+      inset: 0 !important;
+      transform: translateZ(0); /* force GPU layer stabilisation */
+    }
+    /* Hide library's own UI chrome via CSS — no JS needed */
+    #html5qr-container button,
+    #html5qr-container select,
+    #html5qr-container input,
+    #html5qr-container img,
+    #html5qr-container #html5-qrcode-anchor-scan-type-change {
+      display: none !important;
+    }
+
     #scannerOverlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: #000;
-      z-index: 9000;
+      z-index: 9001;
       flex-direction: column;
+      pointer-events: none; /* entire overlay passes touches through to video */
     }
     #scannerOverlay.active { display: flex; }
 
@@ -630,6 +658,9 @@
       background: rgba(0,0,0,0.85);
       color: white;
       flex-shrink: 0;
+      pointer-events: auto; /* header receives touches */
+      position: relative;
+      z-index: 10;
     }
     .scanner-title { font-size: 16px; font-weight: 700; }
     .scanner-sub   { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px; }
@@ -638,25 +669,24 @@
       color: white;
       border: none;
       border-radius: 50%;
-      width: 36px; height: 36px;
+      width: 44px; height: 44px;
       font-size: 18px;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      pointer-events: auto;
     }
 
     #scannerViewport {
       flex: 1;
       position: relative;
-      overflow: hidden;
-      background: #000;
+      /* NO overflow:hidden — kills iOS video layer */
+      background: transparent;
+      pointer-events: none;
     }
-    #scannerVideo {
-      width: 100%; height: 100%;
-      object-fit: cover;
-      display: block;
-    }
+    #scannerVideo { display: none; } /* not used on iOS — library creates its own */
 
     .scanner-frame-wrap {
       position: absolute;
@@ -699,14 +729,10 @@
       position: absolute;
       inset: 0;
       background: rgba(0,0,0,0.52);
-      clip-path: polygon(
-        0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
-        calc(50% - min(36vw,140px)) calc(50% - min(36vw,140px)),
-        calc(50% - min(36vw,140px)) calc(50% + min(36vw,140px)),
-        calc(50% + min(36vw,140px)) calc(50% + min(36vw,140px)),
-        calc(50% + min(36vw,140px)) calc(50% - min(36vw,140px)),
-        calc(50% - min(36vw,140px)) calc(50% - min(36vw,140px))
-      );
+      /* clip-path REMOVED — was killing iOS video compositor */
+      -webkit-mask-image: radial-gradient(ellipse min(72vw,280px) min(72vw,280px) at 50% 50%, transparent 99%, black 100%);
+      mask-image: radial-gradient(ellipse min(72vw,280px) min(72vw,280px) at 50% 50%, transparent 99%, black 100%);
+      pointer-events: none;
     }
     .scanner-flash {
       position: absolute; inset: 0;
@@ -725,7 +751,7 @@
       padding: 14px 20px;
       transform: translateY(100%);
       transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
-      z-index: 5;
+      pointer-events: none;
     }
     .scanner-result.show { transform: translateY(0); }
     .scanner-result-label { font-size: 12px; opacity: 0.8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -738,6 +764,7 @@
       padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
       background: rgba(0,0,0,0.85);
       flex-shrink: 0;
+      pointer-events: none;
     }
 
 
@@ -1131,26 +1158,19 @@
       <div class="scanner-title">📷 Scan Barcode / QR Code</div>
       <div class="scanner-sub">Point camera at the code on the product</div>
     </div>
-    <button class="btn-scanner-close" onclick="closeScanner()">✕</button>
+    <button id="btnScannerClose" class="btn-scanner-close">✕</button>
   </div>
 
   <div id="scannerViewport">
-    <!-- Layer 1 (z:1): our video for native BarcodeDetector path -->
-    <video id="scannerVideo" autoplay muted playsinline webkit-playsinline></video>
-    <!-- Layer 2 (z:2): html5-qrcode injects its video+canvas here — NO overflow:hidden so canvas is never clipped -->
-    <div id="html5qr-container" style="display:none;position:absolute;inset:0;z-index:2;"></div>
-    <!-- Layer 3 (z:3): purely decorative — pointer-events:none so nothing blocks library canvas touches -->
-    <div id="scannerDecor" style="position:absolute;inset:0;z-index:3;pointer-events:none;">
-      <div class="scanner-dim"></div>
-      <div class="scanner-frame-wrap">
-        <div class="scanner-frame">
-          <span class="sf-bl"></span>
-          <span class="sf-br"></span>
-          <div class="scanner-laser"></div>
-        </div>
+    <video id="scannerVideo"></video>
+    <div class="scanner-frame-wrap">
+      <div class="scanner-frame">
+        <span class="sf-bl"></span>
+        <span class="sf-br"></span>
+        <div class="scanner-laser"></div>
       </div>
     </div>
-    <!-- Layer 4 (z:4): flash + result feedback -->
+    <div class="scanner-dim"></div>
     <div class="scanner-flash" id="scannerFlash"></div>
     <div class="scanner-result" id="scannerResult">
       <div class="scanner-result-label">✅ Scanned Successfully</div>
@@ -2349,30 +2369,32 @@ function toggleHistory() {
 
 /* ═══════════════════════════════════════════════════
    BARCODE / QR SCANNER
-   Test results: iOS has no BarcodeDetector, but
-   getUserMedia + html5-qrcode both work fine.
-   Root cause of scan failure: decorative overlay
-   layers were blocking the library's canvas.
-   Fix: html5qr-container is pre-created in HTML at
-   z-index:2, decorative layer at z-index:3 with
-   pointer-events:none — library canvas is never blocked.
+   Root cause of iOS black screen: video inside nested
+   stacking contexts (position:fixed > overflow:hidden >
+   clip-path) causes Safari to render video on a separate
+   GPU layer BEHIND everything.
+   Fix: html5qr-container is a direct <body> child at
+   z:9000. Overlay UI sits at z:9001 with pointer-events:none.
+   No overflow:hidden. No clip-path. 150ms start delay.
 ═══════════════════════════════════════════════════ */
 
-let scannerStream   = null;
-let scannerTimer    = null;
-let scannerActive   = false;
-let html5QrScanner  = null;
+let scannerStream  = null;
+let scannerTimer   = null;
+let scannerActive  = false;
+let html5QrScanner = null;
 
 const HAS_NATIVE_DETECTOR = ("BarcodeDetector" in window);
 const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
 async function openScanner() {
+  // Show UI overlay first
   document.getElementById("scannerOverlay").classList.add("active");
+  document.getElementById("html5qr-container").style.display = "block";
   scannerActive = true;
   if (screen.orientation?.lock) screen.orientation.lock("portrait").catch(() => {});
 
   if (HAS_NATIVE_DETECTOR && !IS_IOS) {
-    // Android Chrome — native BarcodeDetector path
+    // Android Chrome — native BarcodeDetector, we manage the stream
     try {
       scannerStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
@@ -2384,12 +2406,16 @@ async function openScanner() {
     }
     const video = document.getElementById("scannerVideo");
     video.srcObject = scannerStream;
-    video.style.display = "block";
+    video.setAttribute("playsinline", "");
+    video.setAttribute("muted", "");
+    video.setAttribute("autoplay", "");
+    video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;";
     await video.play().catch(() => {});
     startNativeDetector(video);
   } else {
-    // iOS — html5-qrcode owns the camera entirely
-    document.getElementById("scannerVideo").style.display = "none";
+    // iOS — html5-qrcode owns the camera
+    // 150ms delay: iOS Safari sometimes renders black if camera starts during layout
+    await new Promise(r => setTimeout(r, 150));
     await startHtml5QrDetector();
   }
 }
@@ -2399,14 +2425,10 @@ function startNativeDetector(video) {
   let detector;
   try { detector = new BarcodeDetector({ formats: ["qr_code","code_128","code_39","ean_13","ean_8","upc_a","upc_e","data_matrix","itf","codabar","aztec","pdf417"] }); }
   catch { try { detector = new BarcodeDetector({ formats: ["qr_code","code_128","ean_13","upc_a"] }); } catch { startHtml5QrDetector(); return; } }
-
   async function detect() {
     if (!scannerActive) return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      try {
-        const results = await detector.detect(video);
-        if (results.length > 0) { handleScanResult(results[0].rawValue); return; }
-      } catch (_) {}
+      try { const r = await detector.detect(video); if (r.length) { handleScanResult(r[0].rawValue); return; } } catch (_) {}
     }
     scannerTimer = requestAnimationFrame(detect);
   }
@@ -2423,41 +2445,26 @@ async function startHtml5QrDetector() {
     return;
   }
 
-  // Container is pre-created in HTML at z-index:2
-  // Show it and make sure it's clean
   const container = document.getElementById("html5qr-container");
-  container.style.display = "block";
-  container.innerHTML = "";
+  container.innerHTML = ""; // clean slate
 
   html5QrScanner = new Html5Qrcode("html5qr-container", { verbose: false });
-
-  // Hide library UI chrome instantly as it's injected
-  const observer = new MutationObserver(() => {
-    container.querySelectorAll("button,select,input[type=file],#html5-qrcode-anchor-scan-type-change").forEach(el => {
-      el.style.cssText = "display:none !important;pointer-events:none !important;";
-    });
-    // Stretch library video to fill container
-    const libVid = container.querySelector("video");
-    if (libVid) {
-      libVid.setAttribute("playsinline", "");
-      libVid.setAttribute("webkit-playsinline", "");
-      libVid.style.cssText = "position:absolute !important;inset:0 !important;width:100% !important;height:100% !important;object-fit:cover !important;";
-    }
-  });
-  observer.observe(container, { childList: true, subtree: true });
 
   try {
     await html5QrScanner.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.777778 },
-      (decodedText) => {
-        observer.disconnect();
-        if (scannerActive) handleScanResult(decodedText);
-      },
+      { fps: 10, qrbox: { width: 250, height: 200 }, aspectRatio: 1.0 },
+      (decodedText) => { if (scannerActive) handleScanResult(decodedText); },
       () => {}
     );
+    // Force playsinline on library's injected video after start
+    const libVid = container.querySelector("video");
+    if (libVid) {
+      libVid.setAttribute("playsinline", "");
+      libVid.setAttribute("webkit-playsinline", "");
+      libVid.style.objectFit = "cover";
+    }
   } catch (err) {
-    observer.disconnect();
     showToast("📷 Camera error: " + (err?.message || err));
     closeScanner();
   }
@@ -2472,32 +2479,25 @@ function loadScript(src) {
   });
 }
 
-/* ── Handle a successful scan ── */
+/* ── Successful scan ── */
 function handleScanResult(value) {
   if (!value || !scannerActive) return;
-  scannerActive = false;   // prevent double-fire
+  scannerActive = false;
   cancelAnimationFrame(scannerTimer);
-
-  // Haptic + visual feedback
   vibrate([50, 30, 80]);
 
   const flash = document.getElementById("scannerFlash");
   flash.classList.add("active");
-
   const resultEl = document.getElementById("scannerResult");
   document.getElementById("scannerResultValue").innerText = value;
   resultEl.classList.add("show");
 
-  // Close scanner after short delay so user sees the result
   setTimeout(() => {
     closeScanner();
-
-    // Fill the serial input
     const input = document.getElementById("serialInput");
     if (input) {
       input.value = value;
       input.dispatchEvent(new Event("input", { bubbles: true }));
-      // Brief highlight to confirm fill
       input.style.borderColor = "#16a34a";
       input.style.boxShadow   = "0 0 0 3px rgba(22,163,74,0.2)";
       setTimeout(() => { input.style.borderColor = ""; input.style.boxShadow = ""; }, 1800);
@@ -2506,7 +2506,7 @@ function handleScanResult(value) {
   }, 950);
 }
 
-/* ── Close / cleanup scanner ── */
+/* ── Close / cleanup ── */
 function closeScanner() {
   scannerActive = false;
   cancelAnimationFrame(scannerTimer);
@@ -2515,35 +2515,29 @@ function closeScanner() {
     html5QrScanner.stop().catch(() => {}).finally(() => {
       html5QrScanner.clear();
       html5QrScanner = null;
-      // Hide + clear container (don't remove — it's in HTML)
       const c = document.getElementById("html5qr-container");
       if (c) { c.style.display = "none"; c.innerHTML = ""; }
-      document.getElementById("scannerVideo").style.display = "";
     });
   }
 
-  if (scannerStream) {
-    scannerStream.getTracks().forEach(t => t.stop());
-    scannerStream = null;
-  }
-
-  const video = document.getElementById("scannerVideo");
-  if (video) video.srcObject = null;
+  if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
 
   document.getElementById("scannerOverlay").classList.remove("active");
-  const flash  = document.getElementById("scannerFlash");
-  const result = document.getElementById("scannerResult");
-  if (flash)  flash.classList.remove("active");
-  if (result) result.classList.remove("show");
-
+  document.getElementById("scannerFlash")?.classList.remove("active");
+  document.getElementById("scannerResult")?.classList.remove("show");
   if (screen.orientation?.unlock) screen.orientation.unlock();
 }
 
-// Hardware back button — Android only (iOS popstate fires spuriously)
+// Close button — touchend bypasses iOS 300ms delay
+document.getElementById("btnScannerClose")?.addEventListener("touchend", e => {
+  e.preventDefault();
+  closeScanner();
+}, { passive: false });
+document.getElementById("btnScannerClose")?.addEventListener("click", closeScanner);
+
+// Android back button only
 if (!IS_IOS) {
-  window.addEventListener("popstate", () => {
-    if (scannerActive) { closeScanner(); history.pushState(null, ""); }
-  });
+  window.addEventListener("popstate", () => { if (scannerActive) { closeScanner(); history.pushState(null, ""); } });
   history.pushState(null, "");
 }
 
@@ -2553,5 +2547,11 @@ if (!IS_IOS) {
 ═══════════════════════════════════════ */
 loadDrivers();
 </script>
+
+<!-- html5qr-container is a DIRECT child of body at z:9000
+     NOT nested inside overlay — avoids iOS Safari compositor bug
+     where video renders behind everything in nested stacking contexts -->
+<div id="html5qr-container"></div>
+
 </body>
 </html>
