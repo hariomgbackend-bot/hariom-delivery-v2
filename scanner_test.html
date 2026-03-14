@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Server Barcode Test</title>
+<title>Server Barcode Test v2</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#000; font-family:sans-serif; color:#fff; }
@@ -13,8 +13,7 @@
   #barcodeFrame {
     position:absolute; left:50%; top:50%;
     transform:translate(-50%,-50%);
-    width:85vw; height:110px;
-    border-radius:8px;
+    width:85vw; height:110px; border-radius:8px;
   }
   #barcodeFrame::before,#barcodeFrame::after,#barcodeFrame .bl,#barcodeFrame .br {
     content:""; position:absolute; width:24px; height:24px;
@@ -30,14 +29,14 @@
     animation:laserAnim 2s ease-in-out infinite; box-shadow:0 0 8px #3b82f6;
   }
   @keyframes laserAnim{0%,100%{top:8px;}50%{top:calc(100% - 10px);}}
-  #scanHint{position:absolute;bottom:90px;width:100%;text-align:center;color:rgba(255,255,255,0.75);font-size:14px;}
-  #closeBtn{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));right:16px;width:44px;height:44px;background:rgba(255,255,255,0.2);border:none;border-radius:50%;color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:10;display:flex;align-items:center;justify-content:center;}
-  #statusBar{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:16px;background:rgba(0,0,0,0.65);padding:6px 14px;border-radius:20px;font-size:12px;font-family:monospace;pointer-events:none;}
-  #mainPage{padding:24px 16px;}
-  #log{background:#1a1a1a;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;min-height:80px;max-height:220px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:12px 0;}
-  .ok{color:#4ade80;}.err{color:#f87171;}.inf{color:#60a5fa;}
+  #scanHint{position:absolute;bottom:80px;width:100%;text-align:center;color:rgba(255,255,255,0.8);font-size:14px;}
+  #closeBtn{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));right:16px;width:44px;height:44px;background:rgba(255,255,255,0.25);border:none;border-radius:50%;color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:10;display:flex;align-items:center;justify-content:center;}
+  #statusBar{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:16px;right:70px;background:rgba(0,0,0,0.7);padding:6px 12px;border-radius:20px;font-size:11px;font-family:monospace;pointer-events:none;}
+  #mainPage{padding:20px 16px;}
+  #log{background:#1a1a1a;border-radius:8px;padding:10px;font-size:11px;font-family:monospace;min-height:100px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:10px 0;}
+  .ok{color:#4ade80;}.err{color:#f87171;}.inf{color:#60a5fa;}.warn{color:#fbbf24;}
   #result{font-size:20px;font-weight:800;background:#16a34a;padding:16px;border-radius:10px;text-align:center;display:none;margin:8px 0;word-break:break-all;}
-  .btn{display:block;width:100%;padding:16px;margin:8px 0;font-size:17px;border-radius:10px;border:none;cursor:pointer;font-weight:bold;}
+  .btn{display:block;width:100%;padding:14px;margin:6px 0;font-size:16px;border-radius:10px;border:none;cursor:pointer;font-weight:bold;}
 </style>
 </head>
 <body>
@@ -59,10 +58,10 @@
   style="position:absolute;width:1px;height:1px;opacity:0.01;pointer-events:none;top:0;left:0;"></video>
 
 <div id="mainPage">
-  <h2 style="margin-bottom:4px">Server Barcode Test</h2>
-  <p style="color:#aaa;font-size:13px;margin-bottom:4px">Canvas → capture frame → POST to /decode-barcode → pyzbar Python</p>
+  <h2 style="margin-bottom:4px">Server Barcode Test v2</h2>
   <div id="log">Ready.\n</div>
   <button class="btn" onclick="openScanner()" style="background:#1d4ed8">📷 Open Scanner</button>
+  <button class="btn" onclick="testEndpoint()" style="background:#7c3aed">🔌 Test /decode-barcode endpoint</button>
   <div id="result"></div>
   <button class="btn" onclick="document.getElementById('log').innerHTML='Ready.\n';document.getElementById('result').style.display='none';" style="background:#374151;font-size:13px;padding:10px">🔄 Clear</button>
 </div>
@@ -74,16 +73,39 @@ function log(msg, type='') {
   d.scrollTop = d.scrollHeight;
 }
 
+// Test endpoint is alive with a blank image
+async function testEndpoint() {
+  log('Testing /decode-barcode endpoint...', 'inf');
+  try {
+    // Send a tiny blank canvas as test
+    const c = document.createElement('canvas');
+    c.width = 10; c.height = 10;
+    await new Promise(res => c.toBlob(async blob => {
+      const fd = new FormData();
+      fd.append('image', blob, 'test.jpg');
+      const r = await fetch('/decode-barcode', { method:'POST', body:fd });
+      const d = await r.json();
+      log('Endpoint response: ' + JSON.stringify(d), r.ok ? 'ok' : 'err');
+      res();
+    }, 'image/jpeg'));
+  } catch(e) {
+    log('Endpoint error: ' + e.message, 'err');
+  }
+}
+
 let isScanning = false;
 let frameCount = 0;
 let animFrame  = null;
 let stream     = null;
-let sending    = false; // prevent concurrent POSTs
+let sending    = false;
+let decodeCount = 0;
+let successCount = 0;
 
 async function openScanner() {
-  log('Starting camera...', 'inf');
+  log('Opening scanner...', 'inf');
   document.getElementById('scannerOverlay').style.display = 'block';
-  document.getElementById('statusBar').textContent = 'Starting...';
+  document.getElementById('statusBar').textContent = 'Starting camera...';
+  document.getElementById('result').style.display = 'none';
 
   const video  = document.getElementById('hiddenVideo');
   const canvas = document.getElementById('viewfinderCanvas');
@@ -101,8 +123,10 @@ async function openScanner() {
     closeScanner(); return;
   }
 
-  isScanning = true;
-  frameCount = 0;
+  isScanning  = true;
+  frameCount  = 0;
+  decodeCount = 0;
+  sending     = false;
   document.getElementById('statusBar').textContent = '● Scanning...';
 
   async function renderLoop() {
@@ -111,31 +135,38 @@ async function openScanner() {
     if (video.videoWidth > 0 && canvas.width !== video.videoWidth) {
       canvas.width  = video.videoWidth;
       canvas.height = video.videoHeight;
-      log(`Canvas ${canvas.width}x${canvas.height}`, 'inf');
     }
 
     if (video.readyState >= 2 && canvas.width > 0) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Send to server every 10 frames (~3x/sec at 30fps), don't stack requests
-      if (frameCount % 10 === 0 && !sending) {
+      // Send every 15 frames, don't stack requests
+      if (frameCount % 15 === 0 && !sending) {
         sending = true;
+        decodeCount++;
+        const attempt = decodeCount;
+        document.getElementById('statusBar').textContent = `● Sending frame #${attempt}...`;
+
         canvas.toBlob(async (blob) => {
+          log(`→ Sending frame #${attempt} (${(blob.size/1024).toFixed(0)}KB)`, 'inf');
           try {
             const fd = new FormData();
             fd.append('image', blob, 'frame.jpg');
             const res  = await fetch('/decode-barcode', { method: 'POST', body: fd });
             const data = await res.json();
+            log(`← Frame #${attempt}: ${JSON.stringify(data)}`, data.found ? 'ok' : 'warn');
             if (data.found) {
-              log('✅ DECODED: ' + data.value, 'ok');
               onScanned(data.value);
+            } else {
+              document.getElementById('statusBar').textContent = `● Scanning... (${attempt} tried)`;
             }
           } catch(e) {
-            log('Server error: ' + e.message, 'err');
+            log(`← Frame #${attempt} ERROR: ${e.message}`, 'err');
+            document.getElementById('statusBar').textContent = '⚠ Server error';
           } finally {
             sending = false;
           }
-        }, 'image/jpeg', 0.85);
+        }, 'image/jpeg', 0.9);
       }
     }
 
@@ -150,7 +181,6 @@ function onScanned(value) {
   isScanning = false;
   cancelAnimationFrame(animFrame);
   if (navigator.vibrate) navigator.vibrate([50,30,80]);
-  document.getElementById('statusBar').textContent = '✅ Done!';
   setTimeout(() => {
     closeScanner();
     const r = document.getElementById('result');
@@ -166,7 +196,7 @@ function closeScanner() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   document.getElementById('hiddenVideo').srcObject = null;
   document.getElementById('scannerOverlay').style.display = 'none';
-  log('Closed', 'inf');
+  log(`Closed after ${decodeCount} decode attempts`, 'inf');
 }
 
 document.getElementById('closeBtn').addEventListener('touchend', e => {
