@@ -322,28 +322,34 @@ async function toggleTorch() {
 
   const newState = !torchOn;
   const btn = document.getElementById('torchBtn');
-  log('Toggling torch → ' + newState, 'inf');
-
   const caps = track.getCapabilities?.() || {};
-  log('caps.torch=' + caps.torch + ' caps.fillLightMode=' + JSON.stringify(caps.fillLightMode), 'inf');
+  log('Toggling torch → ' + newState + ' | caps.torch=' + caps.torch + ' caps.fillLightMode=' + JSON.stringify(caps.fillLightMode), 'inf');
 
-  try {
-    if (caps.torch !== undefined) {
-      await track.applyConstraints({ advanced: [{ torch: newState }] });
-      log('✅ torch via advanced succeeded', 'ok');
-    } else if (caps.fillLightMode) {
-      await track.applyConstraints({ advanced: [{ fillLightMode: newState ? 'torch' : 'none' }] });
-      log('✅ fillLightMode succeeded', 'ok');
-    } else {
-      // Try anyway
-      await track.applyConstraints({ advanced: [{ torch: newState }] });
-      log('✅ torch (blind try) succeeded', 'ok');
+  // Try all methods — caps can lie (diagnostic proved fillLightMode works even when caps say undefined)
+  const tryMethods = [
+    { name: 'fillLightMode',       fn: () => track.applyConstraints({ advanced: [{ fillLightMode: newState ? 'torch' : 'none' }] }) },
+    { name: 'torch (advanced)',    fn: () => track.applyConstraints({ advanced: [{ torch: newState }] }) },
+    { name: 'torch (top-level)',   fn: () => track.applyConstraints({ torch: newState }) },
+  ];
+
+  let succeeded = false;
+  for (const m of tryMethods) {
+    try {
+      await m.fn();
+      log('✅ ' + m.name + ' succeeded', 'ok');
+      succeeded = true;
+      break;
+    } catch(e) {
+      log('✗ ' + m.name + ' failed: ' + e.name, 'warn');
     }
+  }
+
+  if (succeeded) {
     torchOn = newState;
-    btn.style.background = torchOn ? 'rgba(253,224,71,0.5)' : 'rgba(255,255,255,0.25)';
-    btn.style.borderColor = torchOn ? '#fde047' : 'rgba(255,255,255,0.4)';
-  } catch(e) {
-    log('❌ Torch toggle failed: ' + e.name + ' — ' + e.message, 'err');
+    btn.style.background   = torchOn ? 'rgba(253,224,71,0.5)' : 'rgba(255,255,255,0.25)';
+    btn.style.borderColor  = torchOn ? '#fde047' : 'rgba(255,255,255,0.4)';
+  } else {
+    log('❌ All torch methods failed', 'err');
   }
 }
 
