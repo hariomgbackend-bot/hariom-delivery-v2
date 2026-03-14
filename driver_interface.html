@@ -619,6 +619,7 @@
       background: #000;
       z-index: 9000;
       flex-direction: column;
+      height: 100%;          /* ensures footer is always visible at bottom */
     }
     #scannerOverlay.active { display: flex; }
 
@@ -648,6 +649,7 @@
 
     #scannerViewport {
       flex: 1;
+      min-height: 0;      /* critical: allows flex child to shrink below content size */
       position: relative;
       overflow: hidden;
       background: #000;
