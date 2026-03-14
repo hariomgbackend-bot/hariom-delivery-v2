@@ -20,6 +20,7 @@ import { writeFileSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { createRequire } from "module";
+import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 
 dotenv.config();
@@ -1422,11 +1423,6 @@ process.on("uncaughtException", (err) => {
 
 app.post("/decode-barcode", upload.single("image"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No image provided" });
-
-  const { execFile } = require("child_process");
-  const { writeFileSync, unlinkSync } = require("fs");
-  const { tmpdir } = require("os");
-  const { join } = require("path");
 
   const tmpImg    = join(tmpdir(), `bc_${Date.now()}.jpg`);
   const tmpScript = join(tmpdir(), `bc_${Date.now()}.py`);
