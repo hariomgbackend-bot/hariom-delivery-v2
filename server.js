@@ -15,10 +15,6 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import admin from "firebase-admin";
-import { execFile } from "child_process";
-import { writeFileSync, unlinkSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
 import { createRequire } from "module";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
@@ -31,8 +27,7 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_KEY;
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  storageBucket: `${serviceAccount.project_id}.appspot.com`
+  credential: admin.credential.cert(serviceAccount)
 });
 
 const JWT_SECRET       = process.env.JWT_SECRET;
@@ -667,11 +662,8 @@ app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
       product_serial_number: finalSerial,
       loaded_timestamp: Timestamp.now(),
       loaded_location: { lat: req.body.lat, lng: req.body.lng },
-      photo_loaded_url: url,
-      // Save freight charge if driver set it (only when not already set by admin)
-      ...((!delivery.freight_charged && req.body.driver_freight_amount)
-        ? { freight_charged: true, freight_amount: req.body.driver_freight_amount, freight_set_by: "driver" }
-        : {})
+      photo_loaded_url: url
+      // Freight is captured at delivery time (markDelivered), not here
     });
 
     // ✅ Respond immediately — push runs in background
@@ -725,23 +717,21 @@ app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
     }
 
     // Determine freight fields to save
+    // Freight is always set at delivery time — ₹0 is valid (driver pays nothing but still logged)
     const freightFields = (() => {
-      // Accountant already set freight — don't touch it
+      // Accountant already set freight at creation — don't touch it
       if (deliveryData.freight_charged) return {};
-      // Batch secondary — freight already counted on primary item
-      if (batchFreightAlreadySet) return { batch_freight_secondary: true, freight_acknowledged: true };
-      // Driver entered an amount — save as primary
-      if (req.body.driver_freight_amount && parseFloat(req.body.driver_freight_amount) > 0) {
-        return {
-          freight_charged: true,
-          freight_amount: parseFloat(req.body.driver_freight_amount),
-          freight_set_by: "driver",
-          freight_acknowledged: true,
-          ...(deliveryData.batch_id ? { batch_freight_primary: true } : {})
-        };
-      }
-      // Driver entered ₹0 — no freight for this delivery
-      return { freight_acknowledged: true };
+      // Batch secondary — freight already entered on primary item
+      if (batchFreightAlreadySet) return { batch_freight_secondary: true };
+      // Parse driver-entered amount (mandatory — ₹0 is valid)
+      const freightNum = parseFloat(req.body.driver_freight_amount ?? 0);
+      const amount = isNaN(freightNum) ? 0 : Math.max(0, freightNum);
+      return {
+        freight_charged: true,
+        freight_amount: amount,
+        freight_set_by: "driver",
+        ...(deliveryData.batch_id ? { batch_freight_primary: true } : {})
+      };
     })();
 
     // Write delivered status + freight
@@ -1394,171 +1384,111 @@ app.post("/parse-invoice", authenticate, authorize(["accountant", "admin"]), upl
 });
 
 /* ════════════════════════════════════════════════
-   FIREBASE STORAGE — helper
-   bucket() is safe to call after admin.initializeApp
+   FIREBASE STORAGE MANAGEMENT
+   GET  /storage/stats         — total size + per-folder breakdown
+   GET  /storage/download-zip  — download photos in date range as ZIP
+   POST /storage/cleanup       — delete photos in date range (triple confirmed client side)
 ════════════════════════════════════════════════ */
-function getBucket() {
-  return admin.storage().bucket();
+
+const adminBucket    = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET || "hariom-delivery.firebasestorage.app");
+const PHOTO_FOLDERS  = ["delivery_proofs_loaded", "delivery_proofs_delivered", "delivery_failures"];
+
+// Files are named <timestamp>_<suffix> — parse upload date from filename
+function fileDate(name) {
+  const base = name.split("/").pop();
+  const ts   = parseInt(base.split("_")[0]);
+  return isNaN(ts) ? null : new Date(ts);
 }
 
-// Helper: parse IST date string to UTC Date boundaries
-function istBoundary(dateStr, endOfDay = false) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  // IST = UTC+5:30
-  const offset = 5.5 * 60 * 60 * 1000;
-  const base   = Date.UTC(y, m - 1, d) - offset;
-  return new Date(endOfDay ? base + 86399999 : base);
+async function listPhotos(fromDate, toDate) {
+  const files = [];
+  for (const folder of PHOTO_FOLDERS) {
+    try {
+      const [list] = await adminBucket.getFiles({ prefix: folder + "/" });
+      for (const f of list) {
+        const d = fileDate(f.name);
+        if (fromDate && d && d < fromDate) continue;
+        if (toDate   && d && d > toDate)   continue;
+        files.push({ file: f, folder, sizeBytes: parseInt(f.metadata.size || 0), date: d });
+      }
+    } catch (e) { console.warn(`[storage] list ${folder}:`, e.message); }
+  }
+  return files;
 }
 
-// Helper: format bytes
-function fmtBytes(bytes) {
-  if (bytes < 1024)        return bytes + " B";
-  if (bytes < 1048576)     return (bytes / 1024).toFixed(1) + " KB";
-  if (bytes < 1073741824)  return (bytes / 1048576).toFixed(1) + " MB";
-  return (bytes / 1073741824).toFixed(2) + " GB";
+function fmtBytes(b) {
+  return b >= 1073741824 ? (b / 1073741824).toFixed(2) + " GB" : (b / 1048576).toFixed(2) + " MB";
 }
 
-// Helper: get all files from a folder, optionally filtered by date range
-async function getFilesInRange(folder, from, to) {
-  const bucket = getBucket();
-  const [files] = await bucket.getFiles({ prefix: folder + "/" });
-  return files.filter(f => {
-    if (!f.metadata?.timeCreated) return true;
-    const created = new Date(f.metadata.timeCreated);
-    if (from && created < istBoundary(from, false)) return false;
-    if (to   && created > istBoundary(to,   true))  return false;
-    return true;
-  });
-}
-
-/* ── GET /storage/stats — total size + per-folder ── */
+// GET /storage/stats
 app.get("/storage/stats", authenticate, authorize(["admin"]), async (req, res) => {
   try {
-    const folders = ["delivery_proofs_loaded", "delivery_proofs_delivered", "delivery_failures"];
-    const byFolder = {};
+    const all = await listPhotos();
     let totalBytes = 0;
-    let totalFiles = 0;
-
-    for (const folder of folders) {
-      const [files] = await getBucket().getFiles({ prefix: folder + "/" });
-      const bytes   = files.reduce((s, f) => s + parseInt(f.metadata?.size || 0), 0);
-      byFolder[folder] = { count: files.length, bytes, formatted: fmtBytes(bytes) };
-      totalBytes += bytes;
-      totalFiles += files.length;
+    const byFolder = Object.fromEntries(PHOTO_FOLDERS.map(f => [f, { count: 0, bytes: 0 }]));
+    for (const f of all) {
+      totalBytes += f.sizeBytes;
+      if (byFolder[f.folder]) { byFolder[f.folder].count++; byFolder[f.folder].bytes += f.sizeBytes; }
     }
-
-    res.json({ totalBytes, totalFormatted: fmtBytes(totalBytes), totalFiles, byFolder });
-  } catch (err) {
-    console.error("/storage/stats error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
+    res.json({
+      totalFiles: all.length,
+      totalBytes,
+      totalFormatted: fmtBytes(totalBytes),
+      byFolder: Object.fromEntries(Object.entries(byFolder).map(([k, v]) => [k, { ...v, formatted: fmtBytes(v.bytes) }]))
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-/* ── GET /storage/range-stats?from=&to= — count + size for date range ── */
-app.get("/storage/range-stats", authenticate, authorize(["admin"]), async (req, res) => {
-  try {
-    const { from, to } = req.query;
-    const folders = ["delivery_proofs_loaded", "delivery_proofs_delivered", "delivery_failures"];
-    let totalBytes = 0;
-    let count      = 0;
-
-    for (const folder of folders) {
-      const files = await getFilesInRange(folder, from || null, to || null);
-      files.forEach(f => {
-        totalBytes += parseInt(f.metadata?.size || 0);
-        count++;
-      });
-    }
-
-    res.json({ count, totalBytes, totalFormatted: fmtBytes(totalBytes) });
-  } catch (err) {
-    console.error("/storage/range-stats error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* ── GET /storage/download-zip?from=&to= — stream ZIP of photos ── */
+// GET /storage/download-zip?from=YYYY-MM-DD&to=YYYY-MM-DD
 app.get("/storage/download-zip", authenticate, authorize(["admin"]), async (req, res) => {
   try {
-    const { from, to } = req.query;
-    const folders      = ["delivery_proofs_loaded", "delivery_proofs_delivered", "delivery_failures"];
+    const fromDate = req.query.from ? new Date(req.query.from + "T00:00:00.000+05:30") : null;
+    const toDate   = req.query.to   ? new Date(req.query.to   + "T23:59:59.999+05:30") : null;
+    const files    = await listPhotos(fromDate, toDate);
+    if (!files.length) return res.status(404).json({ error: "No photos found in that date range" });
 
-    // Collect all matching files
-    let allFiles = [];
-    for (const folder of folders) {
-      const files = await getFilesInRange(folder, from || null, to || null);
-      allFiles = allFiles.concat(files.map(f => ({ file: f, folder })));
+    const { default: JSZip } = await import("jszip");
+    const zip = new JSZip();
+    const CHUNK = 20;
+    for (let i = 0; i < files.length; i += CHUNK) {
+      await Promise.all(files.slice(i, i + CHUNK).map(async ({ file }) => {
+        try {
+          const [buf] = await file.download();
+          zip.file(file.name.replace(/\//g, "_"), buf);
+        } catch (e) { console.warn(`[zip] skip ${file.name}`); }
+      }));
     }
-
-    if (allFiles.length === 0) {
-      return res.status(404).json({ error: "No photos found for this date range" });
-    }
-
-    // Stream ZIP using archiver
-    let archiver;
-    try {
-      archiver = (await import("archiver")).default;
-    } catch {
-      return res.status(500).json({ error: "archiver package not installed. Run: npm install archiver" });
-    }
-
-    const label = (from || "all") + "_to_" + (to || "all");
+    const buf   = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } });
+    const label = req.query.from && req.query.to ? `${req.query.from}_to_${req.query.to}` : "all";
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="hariom_photos_${label}.zip"`);
-
-    const archive = archiver("zip", { zlib: { level: 1 } }); // level 1 = fast, JPEGs won't compress much anyway
-    archive.pipe(res);
-
-    for (const { file, folder } of allFiles) {
-      const name     = file.name.split("/").pop();
-      const [buffer] = await file.download();
-      archive.append(buffer, { name: `${folder}/${name}` });
-    }
-
-    await archive.finalize();
-  } catch (err) {
-    console.error("/storage/download-zip error:", err.message);
-    if (!res.headersSent) res.status(500).json({ error: err.message });
-  }
+    res.send(buf);
+  } catch (e) { console.error("/storage/download-zip:", e.message); res.status(500).json({ error: e.message }); }
 });
 
-/* ── POST /storage/cleanup — delete photos in date range ── */
+// POST /storage/cleanup  { from, to, confirm_phrase }
 app.post("/storage/cleanup", authenticate, authorize(["admin"]), async (req, res) => {
   try {
-    const { confirm_phrase, from, to } = req.body;
-    if (confirm_phrase !== "DELETE ALL PHOTOS") {
-      return res.status(400).json({ error: "Invalid confirmation phrase" });
+    const { from, to, confirm_phrase } = req.body;
+    if (confirm_phrase !== "DELETE ALL PHOTOS") return res.status(400).json({ error: "Invalid confirmation" });
+    const fromDate = from ? new Date(from + "T00:00:00.000+05:30") : null;
+    const toDate   = to   ? new Date(to   + "T23:59:59.999+05:30") : null;
+    const files    = await listPhotos(fromDate, toDate);
+    if (!files.length) return res.json({ deleted: 0, failed: 0, message: "No photos found in that range" });
+    let deleted = 0, failed = 0;
+    const CHUNK = 20;
+    for (let i = 0; i < files.length; i += CHUNK) {
+      await Promise.all(files.slice(i, i + CHUNK).map(async ({ file }) => {
+        try { await file.delete(); deleted++; }
+        catch (e) { console.warn(`[cleanup] ${file.name}:`, e.message); failed++; }
+      }));
     }
-
-    const folders = ["delivery_proofs_loaded", "delivery_proofs_delivered", "delivery_failures"];
-    let deleted = 0;
-    let failed  = 0;
-
-    for (const folder of folders) {
-      const files = await getFilesInRange(folder, from || null, to || null);
-      for (const file of files) {
-        try {
-          await file.delete();
-          deleted++;
-        } catch (_) {
-          failed++;
-        }
-      }
-    }
-
-    const label = (from && to) ? `from ${from} to ${to}` : from ? `from ${from}` : to ? `up to ${to}` : "all time";
-    console.log(`[storage/cleanup] Deleted ${deleted} files (${failed} failed) — ${label}`);
-    res.json({ success: true, deleted, failed, message: `Deleted ${deleted} photo${deleted !== 1 ? "s" : ""} ${label}` });
-  } catch (err) {
-    console.error("/storage/cleanup error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
+    console.log(`[storage/cleanup] deleted=${deleted} failed=${failed}`);
+    res.json({ deleted, failed, message: `Deleted ${deleted} photo(s)` });
+  } catch (e) { console.error("/storage/cleanup:", e.message); res.status(500).json({ error: e.message }); }
 });
 
-/* ════════════════════════════════════════════════
-   GLOBAL ERROR HANDLERS
-   Catches unhandled errors so the server never crashes
-════════════════════════════════════════════════ */
+
 
 // Express async error handler
 app.use((err, req, res, next) => {
@@ -1575,54 +1505,6 @@ process.on("unhandledRejection", (reason, promise) => {
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
   process.exit(1);
-});
-
-/* ════════════════════════════════════════════════
-   BARCODE DECODE — Python zxing-cpp
-   zxing-cpp is a pure Python wheel with no system
-   library dependency (unlike pyzbar which needs libzbar0)
-   POST /decode-barcode  (multipart, field: "image")
-   Returns { found: true, value: "..." }
-        or { found: false }
-════════════════════════════════════════════════ */
-
-app.post("/decode-barcode", upload.single("image"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No image provided" });
-
-  const tmpImg    = join(tmpdir(), `bc_${Date.now()}.jpg`);
-  const tmpScript = join(tmpdir(), `bc_${Date.now()}.py`);
-
-  writeFileSync(tmpImg, req.file.buffer);
-  writeFileSync(tmpScript, `
-import sys
-import zxingcpp
-from PIL import Image
-try:
-    img = Image.open(sys.argv[1]).convert('RGB')
-    results = zxingcpp.read_barcodes(img)
-    if results:
-        print(results[0].text)
-    else:
-        print('NOTFOUND')
-except Exception as e:
-    import traceback
-    traceback.print_exc(file=sys.stderr)
-    print('NOTFOUND')
-`);
-
-  execFile("python3", [tmpScript, tmpImg], { timeout: 15000 }, (err, stdout, stderr) => {
-    try { unlinkSync(tmpImg); }    catch(_) {}
-    try { unlinkSync(tmpScript); } catch(_) {}
-
-    if (err && !stdout) {
-      console.error("barcode decode error:", stderr);
-      return res.status(500).json({ error: "Decode failed", detail: stderr });
-    }
-    const val = stdout.trim();
-    console.log("decode result:", val);
-    if (!val || val === "NOTFOUND") return res.json({ found: false });
-    res.json({ found: true, value: val });
-  });
 });
 
 /* ════════════════════════════════════════════════
