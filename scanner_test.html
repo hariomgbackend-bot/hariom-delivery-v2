@@ -3,160 +3,181 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ZXing Photo Test</title>
+<title>ZXing Photo Test v2</title>
 <style>
   body { font-family: sans-serif; background: #111; color: #fff; padding: 16px; margin: 0; }
   button { display: block; width: 100%; padding: 16px; margin: 8px 0; font-size: 17px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; }
-  #log { background: #1a1a1a; border-radius: 8px; padding: 12px; font-size: 13px; font-family: monospace; min-height: 120px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 12px 0; }
+  #log { background: #1a1a1a; border-radius: 8px; padding: 12px; font-size: 13px; font-family: monospace; min-height: 120px; max-height: 280px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 12px 0; }
   .ok  { color: #4ade80; }
   .err { color: #f87171; }
   .inf { color: #60a5fa; }
-  #result { font-size: 22px; font-weight: 800; background: #16a34a; padding: 16px; border-radius: 10px; text-align: center; display: none; margin-top: 10px; }
-  #photoPreview { width: 100%; border-radius: 8px; display: none; margin: 10px 0; }
+  #result { font-size: 20px; font-weight: 800; background: #16a34a; padding: 16px; border-radius: 10px; text-align: center; display: none; margin-top: 10px; word-break: break-all; }
+  #photoPreview { width: 100%; border-radius: 8px; display: none; margin: 10px 0; max-height: 200px; object-fit: contain; background:#000; }
 </style>
 </head>
 <body>
-
-<h2>📷 ZXing Barcode Photo Test</h2>
-<p style="color:#aaa;font-size:14px">Take a photo of a barcode — ZXing decodes it locally, no internet needed.</p>
-
-<div id="log">Ready. Tap button to start.\n</div>
-
-<button id="scanBtn" onclick="triggerPhoto()" style="background:#1d4ed8">📷 Take Photo of Barcode</button>
+<h2>📷 ZXing Test v2</h2>
+<div id="log">Loading ZXing...\n</div>
+<button id="scanBtn" onclick="triggerPhoto()" style="background:#1d4ed8" disabled>⏳ Loading...</button>
 <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" onchange="decodePhoto(this)">
-
 <img id="photoPreview">
 <div id="result"></div>
-
-<button onclick="document.getElementById('log').innerHTML='Ready.\n'; document.getElementById('result').style.display='none'; document.getElementById('photoPreview').style.display='none';" style="background:#374151;margin-top:8px">🔄 Reset</button>
+<button onclick="reset()" style="background:#374151;margin-top:4px;font-size:14px;padding:10px">🔄 Reset</button>
 
 <script>
-let zxingReady = false;
-
 function log(msg, type='') {
   const d = document.getElementById('log');
-  const t = new Date().toLocaleTimeString();
-  d.innerHTML += `<span class="${type}">[${t}] ${msg}</span>\n`;
+  d.innerHTML += `<span class="${type}">[${new Date().toLocaleTimeString()}] ${msg}</span>\n`;
   d.scrollTop = d.scrollHeight;
 }
+function reset() {
+  document.getElementById('log').innerHTML = 'Ready.\n';
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('photoPreview').style.display = 'none';
+}
+function triggerPhoto() { document.getElementById('photoInput').click(); }
 
-// Load ZXing on page load so it's ready instantly when photo is taken
-log('Loading ZXing library...', 'inf');
+// Load ZXing
 const s = document.createElement('script');
 s.src = 'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js';
-s.onload = () => { zxingReady = true; log('ZXing loaded ✓ — ready to scan', 'ok'); };
-s.onerror = () => log('ZXing failed to load — check internet', 'err');
+s.onload = () => {
+  log('ZXing ready ✓', 'ok');
+  const btn = document.getElementById('scanBtn');
+  btn.textContent = '📷 Take Photo of Barcode';
+  btn.disabled = false;
+};
+s.onerror = () => log('ZXing failed to load', 'err');
 document.head.appendChild(s);
-
-function triggerPhoto() {
-  document.getElementById('photoInput').click();
-}
 
 async function decodePhoto(inputEl) {
   const file = inputEl.files[0];
   if (!file) return;
   inputEl.value = '';
 
-  log(`Photo received: ${file.name} (${(file.size/1024).toFixed(1)}KB, ${file.type})`, 'inf');
-
-  // Show preview
-  const preview = document.getElementById('photoPreview');
-  preview.src = URL.createObjectURL(file);
-  preview.style.display = 'block';
-
-  if (!zxingReady) {
-    log('ZXing not loaded yet — please wait and try again', 'err');
-    return;
-  }
+  log(`File: ${file.name} ${(file.size/1024).toFixed(0)}KB`, 'inf');
 
   const btn = document.getElementById('scanBtn');
   btn.textContent = '⏳ Decoding...';
   btn.disabled = true;
 
-  const reader = new ZXing.BrowserMultiFormatReader();
+  // Show preview
+  const objUrl = URL.createObjectURL(file);
+  const preview = document.getElementById('photoPreview');
+  preview.src = objUrl;
+  preview.style.display = 'block';
 
+  // Wait for image to load
   const img = await new Promise((res, rej) => {
     const i = new Image();
     i.onload = () => res(i);
     i.onerror = rej;
-    i.src = URL.createObjectURL(file);
+    i.src = objUrl;
   });
+  log(`Image: ${img.naturalWidth}x${img.naturalHeight}`, 'inf');
 
-  log(`Image size: ${img.naturalWidth}x${img.naturalHeight}`, 'inf');
-
-  const canvas = document.createElement('canvas');
-  canvas.width  = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  canvas.getContext('2d').drawImage(img, 0, 0);
-
+  const reader = new ZXing.BrowserMultiFormatReader();
   let result = null;
 
-  // Attempt 1: full image
-  log('Attempt 1: full image...', 'inf');
-  try {
-    const lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-    const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
-    result = reader.decodeBitmap(bmp).getText();
-    log('✓ Full image decoded!', 'ok');
-  } catch(e) { log('Full image: no barcode found', 'err'); }
-
-  // Attempt 2: centre rectangle crop (wide)
-  if (!result) {
-    log('Attempt 2: centre rectangle crop...', 'inf');
+  // Helper: decode a canvas
+  async function tryCanvas(canvas, label) {
     try {
-      const cw = Math.floor(img.naturalWidth * 0.9);
-      const ch = Math.floor(img.naturalHeight * 0.5);
-      const cx = Math.floor((img.naturalWidth - cw) / 2);
-      const cy = Math.floor((img.naturalHeight - ch) / 2);
-      const c2 = document.createElement('canvas');
-      c2.width = cw; c2.height = ch;
-      c2.getContext('2d').drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
-      const lum2 = new ZXing.HTMLCanvasElementLuminanceSource(c2);
-      result = reader.decodeBitmap(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum2))).getText();
-      log('✓ Centre crop decoded!', 'ok');
-    } catch(e) { log('Centre crop: no barcode found', 'err'); }
+      // Method A: decodeFromCanvas (correct API for still images)
+      const r = await reader.decodeFromCanvas(canvas);
+      log(`✓ ${label} → decodeFromCanvas: ${r.getText()}`, 'ok');
+      return r.getText();
+    } catch(_) {}
+    try {
+      // Method B: via HTMLCanvasElementLuminanceSource
+      const lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+      const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+      const r = reader.decodeBitmap(bmp);
+      log(`✓ ${label} → decodeBitmap: ${r.getText()}`, 'ok');
+      return r.getText();
+    } catch(_) {}
+    log(`✗ ${label}: nothing`, 'err');
+    return null;
   }
 
-  // Attempt 3: top half
+  // Draw original to canvas
+  const orig = document.createElement('canvas');
+  orig.width = img.naturalWidth;
+  orig.height = img.naturalHeight;
+  orig.getContext('2d').drawImage(img, 0, 0);
+
+  // 1. Full original
+  log('--- Attempt 1: full image ---', 'inf');
+  result = await tryCanvas(orig, 'full');
+
+  // 2. Greyscale enhanced version
   if (!result) {
-    log('Attempt 3: top half crop...', 'inf');
-    try {
-      const c3 = document.createElement('canvas');
-      c3.width = img.naturalWidth;
-      c3.height = Math.floor(img.naturalHeight / 2);
-      c3.getContext('2d').drawImage(canvas, 0, 0);
-      const lum3 = new ZXing.HTMLCanvasElementLuminanceSource(c3);
-      result = reader.decodeBitmap(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum3))).getText();
-      log('✓ Top half decoded!', 'ok');
-    } catch(e) { log('Top half: no barcode found', 'err'); }
+    log('--- Attempt 2: greyscale + contrast ---', 'inf');
+    const gc = document.createElement('canvas');
+    gc.width = img.naturalWidth; gc.height = img.naturalHeight;
+    const gctx = gc.getContext('2d');
+    gctx.drawImage(img, 0, 0);
+    const idata = gctx.getImageData(0, 0, gc.width, gc.height);
+    for (let i = 0; i < idata.data.length; i += 4) {
+      const grey = 0.299*idata.data[i] + 0.587*idata.data[i+1] + 0.114*idata.data[i+2];
+      // boost contrast
+      const boosted = grey < 128 ? Math.max(0, grey - 40) : Math.min(255, grey + 40);
+      idata.data[i] = idata.data[i+1] = idata.data[i+2] = boosted;
+    }
+    gctx.putImageData(idata, 0, 0);
+    result = await tryCanvas(gc, 'greyscale+contrast');
   }
 
-  // Attempt 4: bottom half
+  // 3. Centre wide crop (barcode zone)
   if (!result) {
-    log('Attempt 4: bottom half crop...', 'inf');
-    try {
-      const c4 = document.createElement('canvas');
-      c4.width = img.naturalWidth;
-      c4.height = Math.floor(img.naturalHeight / 2);
-      c4.getContext('2d').drawImage(canvas, 0, -Math.floor(img.naturalHeight / 2));
-      const lum4 = new ZXing.HTMLCanvasElementLuminanceSource(c4);
-      result = reader.decodeBitmap(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum4))).getText();
-      log('✓ Bottom half decoded!', 'ok');
-    } catch(e) { log('Bottom half: no barcode found', 'err'); }
+    log('--- Attempt 3: centre wide crop ---', 'inf');
+    const cw = img.naturalWidth;
+    const ch = Math.floor(img.naturalHeight * 0.6);
+    const cy = Math.floor((img.naturalHeight - ch) / 2);
+    const c3 = document.createElement('canvas');
+    c3.width = cw; c3.height = ch;
+    c3.getContext('2d').drawImage(orig, 0, cy, cw, ch, 0, 0, cw, ch);
+    result = await tryCanvas(c3, 'centre crop');
   }
 
+  // 4. Scaled down (sometimes helps ZXing)
+  if (!result) {
+    log('--- Attempt 4: scaled to 800px wide ---', 'inf');
+    const scale = 800 / img.naturalWidth;
+    const c4 = document.createElement('canvas');
+    c4.width = 800; c4.height = Math.floor(img.naturalHeight * scale);
+    c4.getContext('2d').drawImage(img, 0, 0, c4.width, c4.height);
+    result = await tryCanvas(c4, 'scaled 800px');
+  }
+
+  // 5. Scaled down greyscale
+  if (!result) {
+    log('--- Attempt 5: scaled + greyscale ---', 'inf');
+    const scale = 800 / img.naturalWidth;
+    const c5 = document.createElement('canvas');
+    c5.width = 800; c5.height = Math.floor(img.naturalHeight * scale);
+    const c5ctx = c5.getContext('2d');
+    c5ctx.drawImage(img, 0, 0, c5.width, c5.height);
+    const idata = c5ctx.getImageData(0, 0, c5.width, c5.height);
+    for (let i = 0; i < idata.data.length; i += 4) {
+      const grey = 0.299*idata.data[i] + 0.587*idata.data[i+1] + 0.114*idata.data[i+2];
+      const boosted = grey < 128 ? Math.max(0, grey - 50) : Math.min(255, grey + 50);
+      idata.data[i] = idata.data[i+1] = idata.data[i+2] = boosted;
+    }
+    c5ctx.putImageData(idata, 0, 0);
+    result = await tryCanvas(c5, 'scaled+grey');
+  }
+
+  URL.revokeObjectURL(objUrl);
   btn.textContent = '📷 Take Photo of Barcode';
   btn.disabled = false;
 
   if (result) {
-    log(`\n🎉 RESULT: ${result}`, 'ok');
+    log(`\n🎉 SUCCESS: ${result}`, 'ok');
     const r = document.getElementById('result');
     r.textContent = '✅ ' + result;
     r.style.display = 'block';
-    if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
+    if (navigator.vibrate) navigator.vibrate([50,30,80]);
   } else {
-    log('\n❌ All attempts failed — try closer, better lighting, less blur', 'err');
-    setTimeout(() => document.getElementById('photoInput').click(), 1500);
+    log('\n❌ All failed. Tips: real barcode (not screen), close up, good light', 'err');
   }
 }
 </script>
