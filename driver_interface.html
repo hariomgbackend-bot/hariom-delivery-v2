@@ -731,14 +731,42 @@
     .scanner-result-label { font-size: 12px; opacity: 0.8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     .scanner-result-value { font-size: 19px; font-weight: 800; margin-top: 4px; word-break: break-all; }
 
-    .scanner-hint {
-      color: rgba(255,255,255,0.6);
-      font-size: 13px;
-      text-align: center;
-      padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+    .scanner-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 24px calc(10px + env(safe-area-inset-bottom, 0px));
       background: rgba(0,0,0,0.85);
       flex-shrink: 0;
+      gap: 12px;
     }
+    .scanner-hint {
+      color: rgba(255,255,255,0.6);
+      font-size: 12px;
+      flex: 1;
+      text-align: center;
+    }
+    /* Shared torch button style — used by both Android and iOS scanners */
+    .torch-btn {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.1);
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .torch-btn:active { transform: scale(0.93); }
+    .torch-btn.torch-on {
+      background: rgba(255,214,0,0.25);
+      border-color: #fde047;
+      box-shadow: 0 0 12px rgba(253,224,71,0.4);
+    }
+    .torch-btn.torch-unavailable { opacity: 0.3; pointer-events: none; }
 
 
     /* ─── SWIPE TO CONFIRM ─── */
@@ -1110,9 +1138,15 @@
       font-size:22px; cursor:pointer;
       display:flex; align-items:center; justify-content:center;
       -webkit-tap-highlight-color:transparent;
-      transition:background 0.2s, border-color 0.2s;
+      transition:background 0.2s, border-color 0.2s, box-shadow 0.2s;
     }
-    .ios-torch-btn.torch-on { background:rgba(255,220,0,0.25); border-color:#fde047; }
+    .ios-torch-btn:active { transform: scale(0.93); }
+    .ios-torch-btn.torch-on {
+      background: rgba(255,214,0,0.25);
+      border-color: #fde047;
+      box-shadow: 0 0 12px rgba(253,224,71,0.4);
+    }
+    .ios-torch-btn.torch-unavailable { opacity: 0.3; pointer-events: none; }
     .ios-close-btn {
       width:36px; height:36px; border-radius:50%;
       background:rgba(255,255,255,0.15); border:none;
@@ -1316,7 +1350,10 @@
     </div>
   </div>
 
-  <div class="scanner-hint">Supports QR Code · Barcode · Code128 · EAN · UPC</div>
+  <div class="scanner-footer">
+    <div class="scanner-hint">QR · Code128 · EAN · UPC</div>
+    <button class="torch-btn" id="androidTorchBtn" onclick="toggleAndroidTorch()" title="Toggle flashlight">🔦</button>
+  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -2548,8 +2585,10 @@ async function openIosScanner() {
   overlay.classList.add("active");
   statusEl.textContent = "Starting camera…";
   document.getElementById("iosScanResult").classList.remove("show");
-  document.getElementById("iosTorchBtn").classList.remove("torch-on");
-  iosTorchOn    = false;
+  // Reset torch button fully each open
+  const _tb = document.getElementById("iosTorchBtn");
+  if (_tb) { _tb.classList.remove("torch-on", "torch-unavailable"); _tb.style.opacity = ""; }
+  iosTorchOn      = false;
   iosImageCapture = null;
 
   try {
@@ -2564,17 +2603,13 @@ async function openIosScanner() {
     return;
   }
 
-  // Try to set up ImageCapture for torch (supported on iOS 17.4+)
+  // Check if torch is supported on this device/iOS version
+  // applyConstraints({torch}) requires iOS 17.4+ on Safari
   try {
-    const track = iosStream.getVideoTracks()[0];
-    if (track && typeof ImageCapture !== "undefined") {
-      iosImageCapture = new ImageCapture(track);
-    }
-    // Check if torch is actually supported
-    const caps = iosStream.getVideoTracks()[0]?.getCapabilities?.();
-    if (!caps?.torch) {
-      document.getElementById("iosTorchBtn").style.opacity = "0.35";
-      document.getElementById("iosTorchBtn").title = "Torch not supported on this device";
+    const _caps = iosStream.getVideoTracks()[0]?.getCapabilities?.();
+    if (_caps && !_caps.torch) {
+      const _tb = document.getElementById("iosTorchBtn");
+      if (_tb) _tb.classList.add("torch-unavailable");
     }
   } catch (_) {}
 
@@ -2671,29 +2706,22 @@ function handleIosScanResult(value) {
 }
 
 async function toggleIosTorch() {
-  const btn = document.getElementById("iosTorchBtn");
+  const btn   = document.getElementById("iosTorchBtn");
+  const track = iosStream?.getVideoTracks?.()[0];
+  if (!track) { showToast("⚠ Camera not ready"); return; }
+
+  const newState = !iosTorchOn;
   try {
-    const track = iosStream?.getVideoTracks?.()?.[0];
-    if (!track) return;
-
-    // Try ImageCapture setOptions first (newer iOS)
-    if (iosImageCapture) {
-      try {
-        await iosImageCapture.setOptions?.({ torch: !iosTorchOn });
-        iosTorchOn = !iosTorchOn;
-        btn.classList.toggle("torch-on", iosTorchOn);
-        return;
-      } catch (_) {}
-    }
-
-    // Fallback: applyConstraints (works on some iOS 17+ versions)
-    await track.applyConstraints({ advanced: [{ torch: !iosTorchOn }] });
-    iosTorchOn = !iosTorchOn;
-    btn.classList.toggle("torch-on", iosTorchOn);
-
-  } catch (err) {
-    showToast("⚠ Torch not available on this device");
-    btn.style.opacity = "0.35";
+    // applyConstraints with torch is the correct API on iOS 17.4+ and Android
+    // ImageCapture.setOptions does NOT exist — applyConstraints is the standard
+    await track.applyConstraints({ advanced: [{ torch: newState }] });
+    iosTorchOn = newState;
+    btn?.classList.toggle("torch-on", iosTorchOn);
+  } catch (_) {
+    iosTorchOn = false;
+    btn?.classList.remove("torch-on");
+    btn?.classList.add("torch-unavailable");
+    showToast("⚠ Torch not supported on this device");
   }
 }
 
@@ -2701,22 +2729,17 @@ function closeIosScanner() {
   iosScanning = false;
   iosSending  = false;
   cancelAnimationFrame(iosAnimFrame);
+  // Must turn off torch BEFORE stopping the stream — once tracks stop, constraint calls fail silently
+  if (iosTorchOn && iosStream) {
+    try { iosStream.getVideoTracks()[0]?.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {}); } catch (_) {}
+    iosTorchOn = false;
+  }
   if (iosStream) { iosStream.getTracks().forEach(t => t.stop()); iosStream = null; }
   const video = document.getElementById("iosHiddenVideo");
   if (video) video.srcObject = null;
-
-  // Turn off torch before closing
-  if (iosTorchOn) {
-    try {
-      const track = iosStream?.getVideoTracks?.()?.[0];
-      if (track) track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
-    } catch (_) {}
-    iosTorchOn = false;
-  }
-
-  document.getElementById("iosScannerOverlay").classList.remove("active");
-  document.getElementById("iosScanResult").classList.remove("show");
-  document.getElementById("iosTorchBtn").classList.remove("torch-on");
+  document.getElementById("iosScannerOverlay")?.classList.remove("active");
+  document.getElementById("iosScanResult")?.classList.remove("show");
+  document.getElementById("iosTorchBtn")?.classList.remove("torch-on");
 }
 
 // Wire up iOS close button
@@ -2729,6 +2752,23 @@ document.getElementById("iosCloseBtn")?.addEventListener("click", closeIosScanne
 let scannerStream  = null;
 let scannerTimer   = null;
 let scannerActive  = false;
+let androidTorchOn = false;
+
+async function toggleAndroidTorch() {
+  const btn   = document.getElementById("androidTorchBtn");
+  const track = scannerStream?.getVideoTracks?.()[0];
+  if (!track) return;
+  const newState = !androidTorchOn;
+  try {
+    await track.applyConstraints({ advanced: [{ torch: newState }] });
+    androidTorchOn = newState;
+    btn?.classList.toggle("torch-on", androidTorchOn);
+  } catch (_) {
+    androidTorchOn = false;
+    btn?.classList.add("torch-unavailable");
+    showToast("⚠ Torch not supported on this device");
+  }
+}
 
 async function openScanner() {
   try {
@@ -2745,7 +2785,10 @@ async function openScanner() {
   await video.play().catch(() => {});
 
   document.getElementById("scannerOverlay").classList.add("active");
-  scannerActive = true;
+  scannerActive  = true;
+  androidTorchOn = false;
+  const _ab = document.getElementById("androidTorchBtn");
+  if (_ab) { _ab.classList.remove("torch-on", "torch-unavailable"); }
   if (screen.orientation?.lock) screen.orientation.lock("portrait").catch(() => {});
 
   if (HAS_NATIVE_DETECTOR) {
@@ -2831,6 +2874,12 @@ function handleScanResult(value) {
 function closeScanner() {
   scannerActive = false;
   cancelAnimationFrame(scannerTimer);
+  // Must turn off torch BEFORE stopping the stream — track dies with the stream
+  if (androidTorchOn && scannerStream) {
+    try { scannerStream.getVideoTracks()[0]?.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {}); } catch (_) {}
+    androidTorchOn = false;
+    document.getElementById("androidTorchBtn")?.classList.remove("torch-on");
+  }
   if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
   const video = document.getElementById("scannerVideo");
   if (video) video.srcObject = null;
