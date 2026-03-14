@@ -3,111 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Canvas Bridge Scanner Test</title>
+<title>Canvas Bridge Scanner Test v2</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#000; font-family:sans-serif; color:#fff; }
-
-  #scannerOverlay {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    background: #000;
-    display: none;
-  }
-
-  #viewfinderCanvas {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  /* Decorative UI — pointer-events:none so canvas gets all touches */
-  #scanUi {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-
-  /* Rectangular barcode frame */
+  #scannerOverlay { position:fixed; inset:0; z-index:9999; background:#000; display:none; }
+  #viewfinderCanvas { width:100%; height:100%; object-fit:cover; display:block; }
+  #scanUi { position:absolute; inset:0; pointer-events:none; }
   #barcodeFrame {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 80vw;
-    height: 120px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-radius: 8px;
+    position:absolute; left:50%; top:50%;
+    transform:translate(-50%,-50%);
+    width:80vw; height:120px;
+    border:2px solid rgba(255,255,255,0.2); border-radius:8px;
   }
-  #barcodeFrame::before, #barcodeFrame::after,
-  #barcodeFrame .bl, #barcodeFrame .br {
-    content: "";
-    position: absolute;
-    width: 20px; height: 20px;
-    border-color: #3b82f6; border-style: solid;
+  #barcodeFrame::before,#barcodeFrame::after,#barcodeFrame .bl,#barcodeFrame .br {
+    content:""; position:absolute; width:20px; height:20px;
+    border-color:#3b82f6; border-style:solid;
   }
-  #barcodeFrame::before { top:-2px; left:-2px; border-width:3px 0 0 3px; border-radius:4px 0 0 0; }
-  #barcodeFrame::after  { top:-2px; right:-2px; border-width:3px 3px 0 0; border-radius:0 4px 0 0; }
-  #barcodeFrame .bl { bottom:-2px; left:-2px; border-width:0 0 3px 3px; border-radius:0 0 0 4px; }
-  #barcodeFrame .br { bottom:-2px; right:-2px; border-width:0 3px 3px 0; border-radius:0 0 4px 0; }
-
+  #barcodeFrame::before{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
+  #barcodeFrame::after{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 4px 0 0;}
+  #barcodeFrame .bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 4px;}
+  #barcodeFrame .br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
   #laser {
-    position: absolute;
-    left: 10px; right: 10px; height: 2px;
-    background: linear-gradient(90deg, transparent, #3b82f6, #93c5fd, #3b82f6, transparent);
-    animation: laserAnim 2s ease-in-out infinite;
-    box-shadow: 0 0 8px #3b82f6;
+    position:absolute; left:10px; right:10px; height:2px;
+    background:linear-gradient(90deg,transparent,#3b82f6,#93c5fd,#3b82f6,transparent);
+    animation:laserAnim 2s ease-in-out infinite; box-shadow:0 0 8px #3b82f6;
   }
-  @keyframes laserAnim { 0%,100% { top:8px; } 50% { bottom:8px; top:auto; } }
-
-  #scanHint {
-    position: absolute;
-    bottom: 120px;
-    width: 100%;
-    text-align: center;
-    color: rgba(255,255,255,0.8);
-    font-size: 14px;
-  }
-
-  #closeBtn {
-    position: absolute;
-    top: calc(16px + env(safe-area-inset-top, 0px));
-    right: 16px;
-    width: 44px; height: 44px;
-    background: rgba(255,255,255,0.2);
-    border: none; border-radius: 50%;
-    color: #fff; font-size: 20px;
-    cursor: pointer;
-    pointer-events: auto;
-    z-index: 10;
-    display: flex; align-items: center; justify-content: center;
-  }
-
-  #statusBar {
-    position: absolute;
-    top: calc(16px + env(safe-area-inset-top, 0px));
-    left: 16px;
-    background: rgba(0,0,0,0.6);
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-family: monospace;
-    pointer-events: none;
-  }
-
-  /* Main page */
-  #mainPage { padding: 24px 16px; }
-  #log { background:#1a1a1a; border-radius:8px; padding:12px; font-size:12px; font-family:monospace; min-height:80px; max-height:200px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; margin:12px 0; }
-  .ok{color:#4ade80;} .err{color:#f87171;} .inf{color:#60a5fa;}
-  #result { font-size:20px; font-weight:800; background:#16a34a; padding:16px; border-radius:10px; text-align:center; display:none; margin:8px 0; word-break:break-all; }
-  button.main { display:block; width:100%; padding:16px; margin:8px 0; font-size:17px; border-radius:10px; border:none; cursor:pointer; font-weight:bold; }
+  @keyframes laserAnim{0%,100%{top:8px;}50%{top:calc(100% - 10px);}}
+  #scanHint{position:absolute;bottom:100px;width:100%;text-align:center;color:rgba(255,255,255,0.7);font-size:13px;}
+  #closeBtn{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));right:16px;width:44px;height:44px;background:rgba(255,255,255,0.2);border:none;border-radius:50%;color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:10;}
+  #statusBar{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));left:16px;background:rgba(0,0,0,0.6);padding:6px 12px;border-radius:20px;font-size:12px;font-family:monospace;pointer-events:none;}
+  #mainPage{padding:24px 16px;}
+  #log{background:#1a1a1a;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;min-height:80px;max-height:220px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:12px 0;}
+  .ok{color:#4ade80;}.err{color:#f87171;}.inf{color:#60a5fa;}
+  #result{font-size:20px;font-weight:800;background:#16a34a;padding:16px;border-radius:10px;text-align:center;display:none;margin:8px 0;word-break:break-all;}
+  button.main{display:block;width:100%;padding:16px;margin:8px 0;font-size:17px;border-radius:10px;border:none;cursor:pointer;font-weight:bold;}
 </style>
 </head>
 <body>
 
-<!-- SCANNER OVERLAY — video is hidden, canvas shows the frames -->
 <div id="scannerOverlay">
   <canvas id="viewfinderCanvas"></canvas>
   <div id="scanUi">
@@ -117,24 +51,23 @@
     </div>
     <div id="scanHint">Align barcode within the frame</div>
   </div>
-  <button id="closeBtn" ontouchend="closeScanner()" onclick="closeScanner()">✕</button>
-  <div id="statusBar">Loading...</div>
+  <button id="closeBtn" ontouchend="e=>{e.preventDefault();closeScanner();}" onclick="closeScanner()">✕</button>
+  <div id="statusBar">Starting...</div>
 </div>
 
-<!-- Hidden video — camera stream goes here, never shown to user -->
-<video id="hiddenVideo" muted playsinline webkit-playsinline style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;"></video>
+<!-- video is hidden — never shown to user, no compositor bug -->
+<video id="hiddenVideo" muted playsinline webkit-playsinline
+  style="position:absolute;width:1px;height:1px;opacity:0.01;pointer-events:none;top:0;left:0;"></video>
 
-<!-- MAIN PAGE -->
 <div id="mainPage">
-  <h2>Canvas Bridge Test</h2>
-  <p style="color:#aaa;font-size:13px;margin-bottom:8px">Hidden video → canvas bridge. Bypasses iOS compositor bug.</p>
-  <div id="log">Tap Scan to start.\n</div>
+  <h2 style="margin-bottom:8px">Canvas Bridge Test v2</h2>
+  <p style="color:#aaa;font-size:13px;margin-bottom:4px">Uses ZXing decodeFromCanvas on each frame.</p>
+  <div id="log">Ready.\n</div>
   <button class="main" onclick="openScanner()" style="background:#1d4ed8">📷 Open Scanner</button>
   <div id="result"></div>
-  <button class="main" onclick="document.getElementById('log').innerHTML=''; document.getElementById('result').style.display='none';" style="background:#374151;font-size:13px;padding:10px">🔄 Clear</button>
+  <button class="main" onclick="document.getElementById('log').innerHTML='Ready.\n';document.getElementById('result').style.display='none';" style="background:#374151;font-size:13px;padding:10px">🔄 Clear</button>
 </div>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 function log(msg, type='') {
   const d = document.getElementById('log');
@@ -144,66 +77,78 @@ function log(msg, type='') {
 
 let isScanning = false;
 let frameCount = 0;
-let animFrame = null;
-let stream = null;
-let html5QrScanner = null;
+let animFrame  = null;
+let stream     = null;
+let zxingReader = null;
+
+// Load ZXing upfront
+log('Loading ZXing...', 'inf');
+const zScript = document.createElement('script');
+zScript.src = 'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js';
+zScript.onload = () => {
+  zxingReader = new ZXing.BrowserMultiFormatReader();
+  log('ZXing ready ✓', 'ok');
+};
+zScript.onerror = () => log('ZXing failed to load', 'err');
+document.head.appendChild(zScript);
 
 async function openScanner() {
-  log('Opening scanner...', 'inf');
-  document.getElementById('scannerOverlay').style.display = 'block';
-  document.getElementById('statusBar').textContent = 'Starting camera...';
+  if (!zxingReader) { log('ZXing not loaded yet', 'err'); return; }
 
-  const video = document.getElementById('hiddenVideo');
+  log('Starting camera...', 'inf');
+  document.getElementById('scannerOverlay').style.display = 'block';
+  document.getElementById('statusBar').textContent = 'Starting...';
+
+  const video  = document.getElementById('hiddenVideo');
   const canvas = document.getElementById('viewfinderCanvas');
+  const ctx    = canvas.getContext('2d', { alpha: false });
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: {
+        facingMode: 'environment',
+        width:  { ideal: 1280 },
+        height: { ideal: 720 }
+      }
     });
     video.srcObject = stream;
     await video.play();
-    log('Camera started ✓', 'ok');
-    document.getElementById('statusBar').textContent = '● Scanning...';
+    log(`Camera OK — ${video.videoWidth}x${video.videoHeight}`, 'ok');
   } catch(e) {
     log('Camera error: ' + e.message, 'err');
     closeScanner();
     return;
   }
 
-  // Init html5-qrcode scanner (we'll use scanFile/scanImage method)
-  html5QrScanner = new Html5Qrcode("viewfinderCanvas", { verbose: false });
-
   isScanning = true;
   frameCount = 0;
-
-  const ctx = canvas.getContext('2d', { alpha: false });
+  document.getElementById('statusBar').textContent = '● Scanning...';
 
   async function renderLoop() {
     if (!isScanning) return;
 
-    // Sync canvas size to video
-    if (video.videoWidth && canvas.width !== video.videoWidth) {
+    // Sync canvas to video dimensions
+    if (video.videoWidth > 0 && canvas.width !== video.videoWidth) {
       canvas.width  = video.videoWidth;
       canvas.height = video.videoHeight;
-      log(`Canvas set to ${canvas.width}x${canvas.height}`, 'inf');
+      log(`Canvas: ${canvas.width}x${canvas.height}`, 'inf');
     }
 
     if (video.readyState >= 2 && canvas.width > 0) {
-      // Draw video frame to canvas — user sees this
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Scan every 5th frame to save battery
-      if (frameCount % 5 === 0) {
+      // Attempt decode every 6th frame
+      if (frameCount % 6 === 0) {
         try {
-          // scanImage on canvas directly — avoids creating a second video element
-          const result = await html5QrScanner.scanAsync(canvas);
+          // ZXing decodeFromCanvas — correct API for canvas element
+          const result = await zxingReader.decodeFromCanvas(canvas);
           if (result) {
-            log('✅ SCANNED: ' + result, 'ok');
-            onScanned(result);
+            log('✅ DECODED: ' + result.getText() + ' (' + result.getBarcodeFormat() + ')', 'ok');
+            onScanned(result.getText());
             return;
           }
         } catch(_) {
-          // Not found this frame — normal, keep looping
+          // NotFoundException every frame is normal — keep going
         }
       }
     }
@@ -218,31 +163,28 @@ async function openScanner() {
 function onScanned(value) {
   isScanning = false;
   cancelAnimationFrame(animFrame);
-  document.getElementById('statusBar').textContent = '✅ Scanned!';
-
   if (navigator.vibrate) navigator.vibrate([50,30,80]);
-
+  document.getElementById('statusBar').textContent = '✅ Got it!';
   setTimeout(() => {
     closeScanner();
     const r = document.getElementById('result');
     r.textContent = '✅ ' + value;
     r.style.display = 'block';
-    log('Filled: ' + value, 'ok');
-  }, 400);
+  }, 300);
 }
 
 function closeScanner() {
   isScanning = false;
   cancelAnimationFrame(animFrame);
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  document.getElementById('scannerOverlay').style.display = 'none';
   document.getElementById('hiddenVideo').srcObject = null;
-  log('Scanner closed', 'inf');
+  document.getElementById('scannerOverlay').style.display = 'none';
+  log('Closed', 'inf');
 }
 
-// Close on back button
-window.addEventListener('popstate', () => { if (isScanning) closeScanner(); });
-history.pushState(null, '');
+document.getElementById('closeBtn').addEventListener('touchend', e => {
+  e.preventDefault(); closeScanner();
+}, { passive: false });
 </script>
 </body>
 </html>
