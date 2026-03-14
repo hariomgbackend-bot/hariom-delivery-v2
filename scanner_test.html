@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Canvas Bridge Scanner Test v2</title>
+<title>Server Barcode Test</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#000; font-family:sans-serif; color:#fff; }
@@ -13,31 +13,31 @@
   #barcodeFrame {
     position:absolute; left:50%; top:50%;
     transform:translate(-50%,-50%);
-    width:80vw; height:120px;
-    border:2px solid rgba(255,255,255,0.2); border-radius:8px;
+    width:85vw; height:110px;
+    border-radius:8px;
   }
   #barcodeFrame::before,#barcodeFrame::after,#barcodeFrame .bl,#barcodeFrame .br {
-    content:""; position:absolute; width:20px; height:20px;
+    content:""; position:absolute; width:24px; height:24px;
     border-color:#3b82f6; border-style:solid;
   }
-  #barcodeFrame::before{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
-  #barcodeFrame::after{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 4px 0 0;}
-  #barcodeFrame .bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 4px;}
-  #barcodeFrame .br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
+  #barcodeFrame::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
+  #barcodeFrame::after{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0;}
+  #barcodeFrame .bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 4px;}
+  #barcodeFrame .br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
   #laser {
-    position:absolute; left:10px; right:10px; height:2px;
+    position:absolute; left:10px; right:10px; height:2px; top:10px;
     background:linear-gradient(90deg,transparent,#3b82f6,#93c5fd,#3b82f6,transparent);
     animation:laserAnim 2s ease-in-out infinite; box-shadow:0 0 8px #3b82f6;
   }
   @keyframes laserAnim{0%,100%{top:8px;}50%{top:calc(100% - 10px);}}
-  #scanHint{position:absolute;bottom:100px;width:100%;text-align:center;color:rgba(255,255,255,0.7);font-size:13px;}
-  #closeBtn{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));right:16px;width:44px;height:44px;background:rgba(255,255,255,0.2);border:none;border-radius:50%;color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:10;}
-  #statusBar{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));left:16px;background:rgba(0,0,0,0.6);padding:6px 12px;border-radius:20px;font-size:12px;font-family:monospace;pointer-events:none;}
+  #scanHint{position:absolute;bottom:90px;width:100%;text-align:center;color:rgba(255,255,255,0.75);font-size:14px;}
+  #closeBtn{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));right:16px;width:44px;height:44px;background:rgba(255,255,255,0.2);border:none;border-radius:50%;color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:10;display:flex;align-items:center;justify-content:center;}
+  #statusBar{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:16px;background:rgba(0,0,0,0.65);padding:6px 14px;border-radius:20px;font-size:12px;font-family:monospace;pointer-events:none;}
   #mainPage{padding:24px 16px;}
   #log{background:#1a1a1a;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;min-height:80px;max-height:220px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:12px 0;}
   .ok{color:#4ade80;}.err{color:#f87171;}.inf{color:#60a5fa;}
   #result{font-size:20px;font-weight:800;background:#16a34a;padding:16px;border-radius:10px;text-align:center;display:none;margin:8px 0;word-break:break-all;}
-  button.main{display:block;width:100%;padding:16px;margin:8px 0;font-size:17px;border-radius:10px;border:none;cursor:pointer;font-weight:bold;}
+  .btn{display:block;width:100%;padding:16px;margin:8px 0;font-size:17px;border-radius:10px;border:none;cursor:pointer;font-weight:bold;}
 </style>
 </head>
 <body>
@@ -51,21 +51,20 @@
     </div>
     <div id="scanHint">Align barcode within the frame</div>
   </div>
-  <button id="closeBtn" ontouchend="e=>{e.preventDefault();closeScanner();}" onclick="closeScanner()">✕</button>
+  <button id="closeBtn">✕</button>
   <div id="statusBar">Starting...</div>
 </div>
 
-<!-- video is hidden — never shown to user, no compositor bug -->
 <video id="hiddenVideo" muted playsinline webkit-playsinline
   style="position:absolute;width:1px;height:1px;opacity:0.01;pointer-events:none;top:0;left:0;"></video>
 
 <div id="mainPage">
-  <h2 style="margin-bottom:8px">Canvas Bridge Test v2</h2>
-  <p style="color:#aaa;font-size:13px;margin-bottom:4px">Uses ZXing decodeFromCanvas on each frame.</p>
+  <h2 style="margin-bottom:4px">Server Barcode Test</h2>
+  <p style="color:#aaa;font-size:13px;margin-bottom:4px">Canvas → capture frame → POST to /decode-barcode → pyzbar Python</p>
   <div id="log">Ready.\n</div>
-  <button class="main" onclick="openScanner()" style="background:#1d4ed8">📷 Open Scanner</button>
+  <button class="btn" onclick="openScanner()" style="background:#1d4ed8">📷 Open Scanner</button>
   <div id="result"></div>
-  <button class="main" onclick="document.getElementById('log').innerHTML='Ready.\n';document.getElementById('result').style.display='none';" style="background:#374151;font-size:13px;padding:10px">🔄 Clear</button>
+  <button class="btn" onclick="document.getElementById('log').innerHTML='Ready.\n';document.getElementById('result').style.display='none';" style="background:#374151;font-size:13px;padding:10px">🔄 Clear</button>
 </div>
 
 <script>
@@ -79,22 +78,9 @@ let isScanning = false;
 let frameCount = 0;
 let animFrame  = null;
 let stream     = null;
-let zxingReader = null;
-
-// Load ZXing upfront
-log('Loading ZXing...', 'inf');
-const zScript = document.createElement('script');
-zScript.src = 'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js';
-zScript.onload = () => {
-  zxingReader = new ZXing.BrowserMultiFormatReader();
-  log('ZXing ready ✓', 'ok');
-};
-zScript.onerror = () => log('ZXing failed to load', 'err');
-document.head.appendChild(zScript);
+let sending    = false; // prevent concurrent POSTs
 
 async function openScanner() {
-  if (!zxingReader) { log('ZXing not loaded yet', 'err'); return; }
-
   log('Starting camera...', 'inf');
   document.getElementById('scannerOverlay').style.display = 'block';
   document.getElementById('statusBar').textContent = 'Starting...';
@@ -105,19 +91,14 @@ async function openScanner() {
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: 'environment',
-        width:  { ideal: 1280 },
-        height: { ideal: 720 }
-      }
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
     });
     video.srcObject = stream;
     await video.play();
-    log(`Camera OK — ${video.videoWidth}x${video.videoHeight}`, 'ok');
+    log(`Camera OK ${video.videoWidth}x${video.videoHeight}`, 'ok');
   } catch(e) {
     log('Camera error: ' + e.message, 'err');
-    closeScanner();
-    return;
+    closeScanner(); return;
   }
 
   isScanning = true;
@@ -127,29 +108,34 @@ async function openScanner() {
   async function renderLoop() {
     if (!isScanning) return;
 
-    // Sync canvas to video dimensions
     if (video.videoWidth > 0 && canvas.width !== video.videoWidth) {
       canvas.width  = video.videoWidth;
       canvas.height = video.videoHeight;
-      log(`Canvas: ${canvas.width}x${canvas.height}`, 'inf');
+      log(`Canvas ${canvas.width}x${canvas.height}`, 'inf');
     }
 
     if (video.readyState >= 2 && canvas.width > 0) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Attempt decode every 6th frame
-      if (frameCount % 6 === 0) {
-        try {
-          // ZXing decodeFromCanvas — correct API for canvas element
-          const result = await zxingReader.decodeFromCanvas(canvas);
-          if (result) {
-            log('✅ DECODED: ' + result.getText() + ' (' + result.getBarcodeFormat() + ')', 'ok');
-            onScanned(result.getText());
-            return;
+      // Send to server every 10 frames (~3x/sec at 30fps), don't stack requests
+      if (frameCount % 10 === 0 && !sending) {
+        sending = true;
+        canvas.toBlob(async (blob) => {
+          try {
+            const fd = new FormData();
+            fd.append('image', blob, 'frame.jpg');
+            const res  = await fetch('/decode-barcode', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (data.found) {
+              log('✅ DECODED: ' + data.value, 'ok');
+              onScanned(data.value);
+            }
+          } catch(e) {
+            log('Server error: ' + e.message, 'err');
+          } finally {
+            sending = false;
           }
-        } catch(_) {
-          // NotFoundException every frame is normal — keep going
-        }
+        }, 'image/jpeg', 0.85);
       }
     }
 
@@ -164,7 +150,7 @@ function onScanned(value) {
   isScanning = false;
   cancelAnimationFrame(animFrame);
   if (navigator.vibrate) navigator.vibrate([50,30,80]);
-  document.getElementById('statusBar').textContent = '✅ Got it!';
+  document.getElementById('statusBar').textContent = '✅ Done!';
   setTimeout(() => {
     closeScanner();
     const r = document.getElementById('result');
@@ -175,6 +161,7 @@ function onScanned(value) {
 
 function closeScanner() {
   isScanning = false;
+  sending = false;
   cancelAnimationFrame(animFrame);
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   document.getElementById('hiddenVideo').srcObject = null;
@@ -185,6 +172,7 @@ function closeScanner() {
 document.getElementById('closeBtn').addEventListener('touchend', e => {
   e.preventDefault(); closeScanner();
 }, { passive: false });
+document.getElementById('closeBtn').addEventListener('click', closeScanner);
 </script>
 </body>
 </html>
