@@ -298,22 +298,34 @@ async function runTorchDiagnostic() {
       try {
         ts = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cam.deviceId } } });
         const tk = ts.getVideoTracks()[0];
-        // Try fillLightMode first
+        const settingsBefore = tk.getSettings?.() || {};
+        // Try fillLightMode
         try {
           await tk.applyConstraints({ advanced: [{ fillLightMode: 'torch' }] });
-          log('  ✅ ' + label + ' → fillLightMode:torch accepted — IS LIGHT ON?', 'ok');
-          await new Promise(r => setTimeout(r, 2000));
+          const settingsAfter = tk.getSettings?.() || {};
+          const actuallyChanged = settingsAfter.fillLightMode === 'torch' || settingsAfter.torch === true;
+          if (actuallyChanged) {
+            log('  ✅ ' + label + ' → fillLightMode:torch VERIFIED in settings — should be ON', 'ok');
+          } else {
+            log('  ⚠ ' + label + ' → constraint accepted but settings unchanged (Chrome silent-accept bug)', 'warn');
+            log('    settingsBefore.fillLightMode=' + settingsBefore.fillLightMode + ' after=' + settingsAfter.fillLightMode, 'warn');
+          }
+          await new Promise(r => setTimeout(r, 1500));
           await tk.applyConstraints({ advanced: [{ fillLightMode: 'none' }] });
-          log('  ✅ ' + label + ' → fillLightMode:none (off)', 'ok');
         } catch(_) {
-          // Try torch
           try {
             await tk.applyConstraints({ advanced: [{ torch: true }] });
-            log('  ✅ ' + label + ' → torch:true accepted — IS LIGHT ON?', 'ok');
-            await new Promise(r => setTimeout(r, 2000));
+            const settingsAfter = tk.getSettings?.() || {};
+            const actuallyChanged = settingsAfter.torch === true;
+            if (actuallyChanged) {
+              log('  ✅ ' + label + ' → torch:true VERIFIED in settings', 'ok');
+            } else {
+              log('  ⚠ ' + label + ' → torch accepted but settings unchanged (Chrome silent-accept bug)', 'warn');
+            }
+            await new Promise(r => setTimeout(r, 1500));
             await tk.applyConstraints({ advanced: [{ torch: false }] });
           } catch(_2) {
-            log('  ✗ ' + label + ' → no torch response', 'warn');
+            log('  ✗ ' + label + ' → no torch response at all', 'warn');
           }
         }
         ts.getTracks().forEach(t => t.stop());
