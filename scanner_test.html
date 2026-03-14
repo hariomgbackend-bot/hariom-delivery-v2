@@ -3,35 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scanner Test</title>
+<title>ZXing Photo Test</title>
 <style>
   body { font-family: sans-serif; background: #111; color: #fff; padding: 16px; margin: 0; }
-  button { display: block; width: 100%; padding: 16px; margin: 10px 0; font-size: 18px; border-radius: 10px; border: none; cursor: pointer; }
-  #log { background: #222; border-radius: 8px; padding: 12px; font-size: 13px; font-family: monospace; min-height: 120px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
-  #viewfinder { width: 100%; max-width: 400px; background: #000; border-radius: 8px; display: none; }
-  #viewfinder video { width: 100%; border-radius: 8px; display: block; }
-  .ok { color: #4ade80; } .err { color: #f87171; } .info { color: #60a5fa; }
-  #photoPreview { width: 100%; border-radius: 8px; display: none; margin-top: 10px; }
+  button { display: block; width: 100%; padding: 16px; margin: 8px 0; font-size: 17px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; }
+  #log { background: #1a1a1a; border-radius: 8px; padding: 12px; font-size: 13px; font-family: monospace; min-height: 120px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 12px 0; }
+  .ok  { color: #4ade80; }
+  .err { color: #f87171; }
+  .inf { color: #60a5fa; }
+  #result { font-size: 22px; font-weight: 800; background: #16a34a; padding: 16px; border-radius: 10px; text-align: center; display: none; margin-top: 10px; }
+  #photoPreview { width: 100%; border-radius: 8px; display: none; margin: 10px 0; }
 </style>
 </head>
 <body>
-<h2>iOS Scanner Debug</h2>
-<div id="log">Tap a button to test...\n</div>
 
-<button onclick="testBasicCamera()" style="background:#1d4ed8">1. Basic Camera Test</button>
-<button onclick="testHtml5Qr()" style="background:#7c3aed">2. html5-qrcode Test</button>
-<button onclick="testClaudeVision()" style="background:#065f46">3. Photo → Claude Vision Test</button>
-<button onclick="stopAll()" style="background:#dc2626">STOP / RESET</button>
+<h2>📷 ZXing Barcode Photo Test</h2>
+<p style="color:#aaa;font-size:14px">Take a photo of a barcode — ZXing decodes it locally, no internet needed.</p>
 
-<div id="viewfinder">
-  <video id="testVideo" autoplay muted playsinline webkit-playsinline></video>
-</div>
-<img id="photoPreview" />
-<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" onchange="runClaudeVision(this)">
+<div id="log">Ready. Tap button to start.\n</div>
+
+<button id="scanBtn" onclick="triggerPhoto()" style="background:#1d4ed8">📷 Take Photo of Barcode</button>
+<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" onchange="decodePhoto(this)">
+
+<img id="photoPreview">
+<div id="result"></div>
+
+<button onclick="document.getElementById('log').innerHTML='Ready.\n'; document.getElementById('result').style.display='none'; document.getElementById('photoPreview').style.display='none';" style="background:#374151;margin-top:8px">🔄 Reset</button>
 
 <script>
-let stream = null;
-let scanner = null;
+let zxingReady = false;
 
 function log(msg, type='') {
   const d = document.getElementById('log');
@@ -40,167 +40,124 @@ function log(msg, type='') {
   d.scrollTop = d.scrollHeight;
 }
 
-// TEST 1: Raw getUserMedia
-async function testBasicCamera() {
-  stopAll();
-  log('Testing basic getUserMedia...', 'info');
-  log('UserAgent: ' + navigator.userAgent.substring(0,80), 'info');
-  log('HTTPS: ' + (location.protocol === 'https:'), location.protocol === 'https:' ? 'ok' : 'err');
-  log('mediaDevices exists: ' + !!navigator.mediaDevices, !!navigator.mediaDevices ? 'ok' : 'err');
-  log('BarcodeDetector: ' + ('BarcodeDetector' in window), 'info');
+// Load ZXing on page load so it's ready instantly when photo is taken
+log('Loading ZXing library...', 'inf');
+const s = document.createElement('script');
+s.src = 'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js';
+s.onload = () => { zxingReady = true; log('ZXing loaded ✓ — ready to scan', 'ok'); };
+s.onerror = () => log('ZXing failed to load — check internet', 'err');
+document.head.appendChild(s);
 
-  if (!navigator.mediaDevices) { log('FAIL: No mediaDevices API', 'err'); return; }
-
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    log('getUserMedia SUCCESS', 'ok');
-    log('Tracks: ' + stream.getVideoTracks().map(t => t.label).join(', '), 'ok');
-
-    const vf = document.getElementById('viewfinder');
-    const vid = document.getElementById('testVideo');
-    vf.style.display = 'block';
-    vid.srcObject = stream;
-
-    vid.onloadedmetadata = () => log('Video metadata loaded: ' + vid.videoWidth + 'x' + vid.videoHeight, 'ok');
-    vid.onplaying = () => log('Video IS PLAYING ✓', 'ok');
-    vid.onpause = () => log('Video PAUSED (bad on iOS)', 'err');
-    vid.onstalled = () => log('Video STALLED', 'err');
-
-    await vid.play();
-    log('play() called', 'info');
-
-    setTimeout(() => {
-      log('After 2s — paused: ' + vid.paused + ', readyState: ' + vid.readyState, vid.paused ? 'err' : 'ok');
-    }, 2000);
-
-  } catch(e) {
-    log('FAIL: ' + e.name + ': ' + e.message, 'err');
-  }
-}
-
-// TEST 2: html5-qrcode
-async function testHtml5Qr() {
-  stopAll();
-  log('Loading html5-qrcode...', 'info');
-
-  await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-    s.onload = () => { log('Library loaded ✓', 'ok'); res(); };
-    s.onerror = () => { log('Library FAILED to load', 'err'); rej(); };
-    document.head.appendChild(s);
-  }).catch(() => {});
-
-  if (typeof Html5Qrcode === 'undefined') { log('Html5Qrcode not defined', 'err'); return; }
-
-  const vf = document.getElementById('viewfinder');
-  vf.style.display = 'block';
-  vf.innerHTML = '<div id="qrbox" style="width:100%;height:300px;background:#000;border-radius:8px;overflow:hidden;"></div>';
-
-  scanner = new Html5Qrcode('qrbox', { verbose: true });
-  log('Starting scanner with facingMode:environment...', 'info');
-
-  try {
-    await scanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.777 },
-      (text) => { log('SCANNED: ' + text, 'ok'); },
-      (err) => { /* silent */ }
-    );
-    log('Scanner started ✓', 'ok');
-    setTimeout(() => {
-      const vid = vf.querySelector('video');
-      if (vid) {
-        log('Library video — paused:' + vid.paused + ' size:' + vid.videoWidth + 'x' + vid.videoHeight, vid.paused ? 'err' : 'ok');
-      } else {
-        log('No video element found inside container!', 'err');
-      }
-    }, 2000);
-  } catch(e) {
-    log('Scanner FAIL: ' + e, 'err');
-  }
-}
-
-// TEST 3: Photo → Claude Vision
-function testClaudeVision() {
-  stopAll();
-  log('Opening camera to take photo...', 'info');
-  log('Take a photo of a barcode/serial number label', 'info');
+function triggerPhoto() {
   document.getElementById('photoInput').click();
 }
 
-async function runClaudeVision(inputEl) {
+async function decodePhoto(inputEl) {
   const file = inputEl.files[0];
-  if (!file) { log('No file selected', 'err'); return; }
+  if (!file) return;
+  inputEl.value = '';
 
-  log('Photo taken: ' + file.name + ' (' + Math.round(file.size/1024) + ' KB, ' + file.type + ')', 'ok');
+  log(`Photo received: ${file.name} (${(file.size/1024).toFixed(1)}KB, ${file.type})`, 'inf');
 
   // Show preview
   const preview = document.getElementById('photoPreview');
   preview.src = URL.createObjectURL(file);
   preview.style.display = 'block';
 
-  log('Converting to base64...', 'info');
-  let base64;
-  try {
-    base64 = await new Promise((res, rej) => {
-      const reader = new FileReader();
-      reader.onload = e => res(e.target.result.split(',')[1]);
-      reader.onerror = rej;
-      reader.readAsDataURL(file);
-    });
-    log('Base64 OK — length: ' + base64.length + ' chars', 'ok');
-  } catch(e) {
-    log('Base64 FAIL: ' + e, 'err');
+  if (!zxingReady) {
+    log('ZXing not loaded yet — please wait and try again', 'err');
     return;
   }
 
-  log('Calling Claude Vision API...', 'info');
+  const btn = document.getElementById('scanBtn');
+  btn.textContent = '⏳ Decoding...';
+  btn.disabled = true;
+
+  const reader = new ZXing.BrowserMultiFormatReader();
+
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = URL.createObjectURL(file);
+  });
+
+  log(`Image size: ${img.naturalWidth}x${img.naturalHeight}`, 'inf');
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  canvas.getContext('2d').drawImage(img, 0, 0);
+
+  let result = null;
+
+  // Attempt 1: full image
+  log('Attempt 1: full image...', 'inf');
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 200,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 } },
-            { type: 'text', text: 'This image may contain a barcode, QR code, or serial number label. Extract the serial number or barcode value. Return ONLY the value, nothing else. If unreadable reply: UNREADABLE' }
-          ]
-        }]
-      })
-    });
+    const lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+    const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+    result = reader.decodeBitmap(bmp).getText();
+    log('✓ Full image decoded!', 'ok');
+  } catch(e) { log('Full image: no barcode found', 'err'); }
 
-    log('HTTP status: ' + response.status, response.ok ? 'ok' : 'err');
-    const data = await response.json();
-    log('API response: ' + JSON.stringify(data).substring(0, 300), 'info');
-
-    if (data.error) {
-      log('API ERROR: ' + data.error.type + ' — ' + data.error.message, 'err');
-      return;
-    }
-
-    const result = data?.content?.[0]?.text?.trim();
-    log('Extracted value: ' + result, result && result !== 'UNREADABLE' ? 'ok' : 'err');
-
-  } catch(e) {
-    log('Fetch FAIL: ' + e.name + ': ' + e.message, 'err');
+  // Attempt 2: centre rectangle crop (wide)
+  if (!result) {
+    log('Attempt 2: centre rectangle crop...', 'inf');
+    try {
+      const cw = Math.floor(img.naturalWidth * 0.9);
+      const ch = Math.floor(img.naturalHeight * 0.5);
+      const cx = Math.floor((img.naturalWidth - cw) / 2);
+      const cy = Math.floor((img.naturalHeight - ch) / 2);
+      const c2 = document.createElement('canvas');
+      c2.width = cw; c2.height = ch;
+      c2.getContext('2d').drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
+      const lum2 = new ZXing.HTMLCanvasElementLuminanceSource(c2);
+      result = reader.decodeBitmap(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum2))).getText();
+      log('✓ Centre crop decoded!', 'ok');
+    } catch(e) { log('Centre crop: no barcode found', 'err'); }
   }
 
-  inputEl.value = '';
-}
+  // Attempt 3: top half
+  if (!result) {
+    log('Attempt 3: top half crop...', 'inf');
+    try {
+      const c3 = document.createElement('canvas');
+      c3.width = img.naturalWidth;
+      c3.height = Math.floor(img.naturalHeight / 2);
+      c3.getContext('2d').drawImage(canvas, 0, 0);
+      const lum3 = new ZXing.HTMLCanvasElementLuminanceSource(c3);
+      result = reader.decodeBitmap(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum3))).getText();
+      log('✓ Top half decoded!', 'ok');
+    } catch(e) { log('Top half: no barcode found', 'err'); }
+  }
 
-function stopAll() {
-  if (scanner) { scanner.stop().catch(()=>{}); scanner = null; }
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  const vid = document.getElementById('testVideo');
-  if (vid) { vid.srcObject = null; }
-  document.getElementById('viewfinder').style.display = 'none';
-  document.getElementById('viewfinder').innerHTML = '<video id="testVideo" autoplay muted playsinline webkit-playsinline></video>';
-  document.getElementById('photoPreview').style.display = 'none';
-  log('--- Stopped & reset ---', 'info');
+  // Attempt 4: bottom half
+  if (!result) {
+    log('Attempt 4: bottom half crop...', 'inf');
+    try {
+      const c4 = document.createElement('canvas');
+      c4.width = img.naturalWidth;
+      c4.height = Math.floor(img.naturalHeight / 2);
+      c4.getContext('2d').drawImage(canvas, 0, -Math.floor(img.naturalHeight / 2));
+      const lum4 = new ZXing.HTMLCanvasElementLuminanceSource(c4);
+      result = reader.decodeBitmap(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum4))).getText();
+      log('✓ Bottom half decoded!', 'ok');
+    } catch(e) { log('Bottom half: no barcode found', 'err'); }
+  }
+
+  btn.textContent = '📷 Take Photo of Barcode';
+  btn.disabled = false;
+
+  if (result) {
+    log(`\n🎉 RESULT: ${result}`, 'ok');
+    const r = document.getElementById('result');
+    r.textContent = '✅ ' + result;
+    r.style.display = 'block';
+    if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
+  } else {
+    log('\n❌ All attempts failed — try closer, better lighting, less blur', 'err');
+    setTimeout(() => document.getElementById('photoInput').click(), 1500);
+  }
 }
 </script>
 </body>
