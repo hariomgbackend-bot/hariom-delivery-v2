@@ -31,7 +31,7 @@
   @keyframes laserAnim{0%,100%{top:8px;}50%{top:calc(100% - 10px);}}
   #scanHint{position:absolute;bottom:80px;width:100%;text-align:center;color:rgba(255,255,255,0.8);font-size:14px;}
   #closeBtn{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));right:16px;width:44px;height:44px;background:rgba(255,255,255,0.25);border:none;border-radius:50%;color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:10;display:flex;align-items:center;justify-content:center;}
-  #statusBar{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:16px;right:70px;background:rgba(0,0,0,0.7);padding:6px 12px;border-radius:20px;font-size:11px;font-family:monospace;pointer-events:none;}
+  #statusBar{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:72px;right:70px;background:rgba(0,0,0,0.7);padding:6px 12px;border-radius:20px;font-size:11px;font-family:monospace;pointer-events:none;}
   #mainPage{padding:20px 16px;}
   #log{background:#1a1a1a;border-radius:8px;padding:10px;font-size:11px;font-family:monospace;min-height:100px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:10px 0;}
   .ok{color:#4ade80;}.err{color:#f87171;}.inf{color:#60a5fa;}.warn{color:#fbbf24;}
@@ -198,9 +198,14 @@ function closeScanner() {
   isScanning = false;
   sending = false;
   cancelAnimationFrame(animFrame);
-  // Turn off torch BEFORE stopping stream
+  // Turn off torch BEFORE stopping stream — try fillLightMode first (works on this device)
   if (torchOn && stream) {
-    try { stream.getVideoTracks()[0]?.applyConstraints({ advanced: [{ torch: false }] }).catch(()=>{}); } catch(_) {}
+    const t = stream.getVideoTracks()[0];
+    if (t) {
+      t.applyConstraints({ advanced: [{ fillLightMode: 'none' }] }).catch(() =>
+        t.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {})
+      );
+    }
     torchOn = false;
   }
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
