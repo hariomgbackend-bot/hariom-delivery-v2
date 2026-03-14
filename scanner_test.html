@@ -68,7 +68,7 @@
     <div id="log">Ready.\n</div>
   </div>
   <button class="btn" onclick="openScanner()" style="background:#1d4ed8">📷 Open Scanner</button>
-  <button class="btn" id="flashScanBtn" onclick="flashScan()" style="background:#b45309">⚡ Flash Scan (Dark Mode)</button>
+  <button class="btn" id="nightScanBtn" onclick="nightScan()" style="background:#1e3a5f">🌙 Night Scan</button>
   <button class="btn" onclick="runTorchDiagnostic()" style="background:#b45309">🔦 Torch Diagnostic (no camera needed)</button>
   <button class="btn" onclick="localStorage.removeItem('torchCameraId');log('Torch camera cache cleared','ok')" style="background:#374151;font-size:13px;padding:10px">🗑 Clear Torch Camera Cache</button>
   <button class="btn" onclick="testEndpoint()" style="background:#7c3aed">🔌 Test /decode-barcode endpoint</button>
@@ -522,97 +522,119 @@ async function toggleTorch() {
 }
 
 /* ═══════════════════════════════════════
-   FLASH SCAN
-   Opens camera → fires flash → takes photo →
-   greyscale → POST to /decode-barcode → show result
-   No video loop, no overlay, single shot.
+   NIGHT SCAN
+   Opens camera once → loop: flash photo → greyscale
+   → POST → decoded: done | not found: retry
+   Tap again to cancel.
 ═══════════════════════════════════════ */
-async function flashScan() {
-  const btn = document.getElementById('flashScanBtn');
-  btn.textContent = '⏳ Opening camera...';
-  btn.disabled = true;
+let nightScanActive = false;
+
+async function nightScan() {
+  const btn = document.getElementById('nightScanBtn');
+
+  // Second tap = cancel
+  if (nightScanActive) {
+    nightScanActive = false;
+    return;
+  }
+
+  nightScanActive = true;
+  btn.textContent = '⏹ Cancel';
+  btn.style.background = '#7f1d1d';
+
+  if (typeof ImageCapture === 'undefined') {
+    log('❌ ImageCapture not supported on this browser', 'err');
+    nightScanActive = false;
+    btn.textContent = '🌙 Night Scan';
+    btn.style.background = '#1e3a5f';
+    return;
+  }
 
   let camStream = null;
+  let attempt   = 0;
+
   try {
-    // Open rear camera
+    log('Night scan: opening camera...', 'inf');
     camStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
     });
     const track = camStream.getVideoTracks()[0];
-    log('Flash scan: ' + track.label, 'inf');
-
-    // ImageCapture — uses still-capture pipeline, flash works here even when torch doesn't
-    if (typeof ImageCapture === 'undefined') {
-      log('❌ ImageCapture not supported on this browser', 'err');
-      return;
-    }
+    log('Camera: ' + track.label, 'inf');
     const ic = new ImageCapture(track);
 
-    // Brief settle time so camera exposure adjusts
-    btn.textContent = '📸 Capturing...';
+    // Let camera warm up once
     await new Promise(r => setTimeout(r, 400));
 
-    // Take photo with flash
-    let bitmap;
-    try {
-      bitmap = await ic.takePhoto({ fillLightMode: 'flash', redEyeReduction: false });
-      log('Photo taken: ' + bitmap.width + 'x' + bitmap.height, 'ok');
-    } catch(e) {
-      log('Flash failed (' + e.message + ') — retrying without flash', 'warn');
-      bitmap = await ic.takePhoto();
-      log('Photo taken (no flash): ' + bitmap.width + 'x' + bitmap.height, 'ok');
-    }
+    while (nightScanActive) {
+      attempt++;
+      btn.textContent = `⏹ Cancel  (#${attempt})`;
 
-    // Stop camera immediately — done with hardware
-    camStream.getTracks().forEach(t => t.stop());
-    camStream = null;
+      // ── Take photo with flash ──
+      let bitmap;
+      try {
+        bitmap = await ic.takePhoto({ fillLightMode: 'flash', redEyeReduction: false });
+      } catch(e) {
+        bitmap = await ic.takePhoto();
+        if (attempt === 1) log('Flash not supported — shooting without', 'warn');
+      }
 
-    // Draw to canvas + convert to greyscale
-    btn.textContent = '🔄 Processing...';
-    const canvas = document.createElement('canvas');
-    canvas.width  = bitmap.width;
-    canvas.height = bitmap.height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(bitmap, 0, 0);
-    bitmap.close();
+      // ── Greyscale ──
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
 
-    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const d = img.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const g = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-      d[i] = d[i+1] = d[i+2] = g;
-    }
-    ctx.putImageData(img, 0, 0);
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const g = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+        d[i] = d[i+1] = d[i+2] = g;
+      }
+      ctx.putImageData(img, 0, 0);
 
-    // Encode to JPEG and POST
-    btn.textContent = '🔍 Decoding...';
-    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
-    log('Sending ' + (blob.size/1024).toFixed(0) + 'KB to server...', 'inf');
+      // ── POST ──
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+      log(`#${attempt} → ${(blob.size/1024).toFixed(0)}KB`, 'inf');
 
-    const fd = new FormData();
-    fd.append('image', blob, 'flash.jpg');
-    const res  = await fetch('/decode-barcode', { method: 'POST', body: fd });
-    const data = await res.json();
+      const fd = new FormData();
+      fd.append('image', blob, 'night.jpg');
 
-    if (data.found) {
-      log('✅ Decoded: ' + data.value, 'ok');
-      const r = document.getElementById('result');
-      r.textContent = '✅ ' + data.value;
-      r.style.display = 'block';
-      if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
-    } else {
-      log('⚠ No barcode found — try again closer/straighter', 'warn');
+      let data;
+      try {
+        const res = await fetch('/decode-barcode', { method: 'POST', body: fd });
+        data = await res.json();
+      } catch(e) {
+        log(`#${attempt} server error: ` + e.message, 'err');
+        await new Promise(r => setTimeout(r, 300));
+        continue;
+      }
+
+      if (data.found) {
+        log(`✅ Decoded on attempt ${attempt}: ` + data.value, 'ok');
+        const r = document.getElementById('result');
+        r.textContent = '✅ ' + data.value;
+        r.style.display = 'block';
+        if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
+        nightScanActive = false;
+        break;
+      } else {
+        log(`#${attempt} not found — retrying...`, 'warn');
+        // Brief gap so flash capacitor can recharge
+        await new Promise(r => setTimeout(r, 300));
+      }
     }
 
   } catch(e) {
-    log('❌ Flash scan error: ' + e.message, 'err');
+    log('❌ Night scan error: ' + e.message, 'err');
   } finally {
     if (camStream) camStream.getTracks().forEach(t => t.stop());
-    btn.textContent = '⚡ Flash Scan (Dark Mode)';
+    nightScanActive = false;
+    btn.textContent = '🌙 Night Scan';
+    btn.style.background = '#1e3a5f';
     btn.disabled = false;
   }
 }
 
 
-</body>
-</html>
