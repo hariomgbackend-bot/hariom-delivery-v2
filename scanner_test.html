@@ -68,7 +68,8 @@
     <div id="log">Ready.\n</div>
   </div>
   <button class="btn" onclick="openScanner()" style="background:#1d4ed8">📷 Open Scanner</button>
-  <button class="btn" id="nightScanBtn" onclick="nightScan()" style="background:#1e3a5f">🌙 Night Scan</button>
+  <button class="btn" onclick="openNightScan()" style="background:#1c1917">🌙 Night Scan</button>
+  <input type="file" id="nightScanInput" accept="image/*" capture="environment" style="display:none;">
   <button class="btn" onclick="runTorchDiagnostic()" style="background:#b45309">🔦 Torch Diagnostic (no camera needed)</button>
   <button class="btn" onclick="localStorage.removeItem('torchCameraId');log('Torch camera cache cleared','ok')" style="background:#374151;font-size:13px;padding:10px">🗑 Clear Torch Camera Cache</button>
   <button class="btn" onclick="testEndpoint()" style="background:#7c3aed">🔌 Test /decode-barcode endpoint</button>
@@ -521,123 +522,119 @@ async function toggleTorch() {
   }
 }
 
-/* ═══════════════════════════════════════
+document.getElementById('torchBtn').addEventListener('click', toggleTorch);
+document.getElementById('torchBtn').addEventListener('touchend', e => { e.preventDefault(); toggleTorch(); }, { passive: false });
+
+/* ═══════════════════════════════════════════════════
    NIGHT SCAN
-   Opens camera once → loop: flash photo → greyscale
-   → POST → decoded: done | not found: retry
-   Tap again to cancel.
-═══════════════════════════════════════ */
-let nightScanActive = false;
+   Opens native Android camera (full flash + autofocus)
+   via <input capture="environment"> — no WebRTC needed.
+   Photo → greyscale → BarcodeDetector → ZXing fallback
+   → found: show result | not found: retry automatically
+═══════════════════════════════════════════════════ */
 
-async function nightScan() {
-  const btn = document.getElementById('nightScanBtn');
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Failed to load ' + src));
+    document.head.appendChild(s);
+  });
+}
 
-  // Second tap = cancel
-  if (nightScanActive) {
-    nightScanActive = false;
-    return;
-  }
+function openNightScan() {
+  const input = document.getElementById('nightScanInput');
+  if (!input) return;
+  input.onchange = onNightScanPhoto;
+  input.value = ''; // reset so same photo can retrigger
+  input.click();
+}
 
-  nightScanActive = true;
-  btn.textContent = '⏹ Cancel';
-  btn.style.background = '#7f1d1d';
+async function onNightScanPhoto(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-  if (typeof ImageCapture === 'undefined') {
-    log('❌ ImageCapture not supported on this browser', 'err');
-    nightScanActive = false;
-    btn.textContent = '🌙 Night Scan';
-    btn.style.background = '#1e3a5f';
-    return;
-  }
-
-  let camStream = null;
-  let attempt   = 0;
+  log('Night scan: photo received — ' + (file.size/1024).toFixed(0) + 'KB', 'inf');
 
   try {
-    log('Night scan: opening camera...', 'inf');
-    camStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-    });
-    const track = camStream.getVideoTracks()[0];
-    log('Camera: ' + track.label, 'inf');
-    const ic = new ImageCapture(track);
+    // ── Draw to canvas ──
+    const img = await createImageBitmap(file);
+    log('Image size: ' + img.width + 'x' + img.height, 'inf');
 
-    // Let camera warm up once
-    await new Promise(r => setTimeout(r, 400));
+    const canvas = document.createElement('canvas');
+    canvas.width  = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    img.close();
 
-    while (nightScanActive) {
-      attempt++;
-      btn.textContent = `⏹ Cancel  (#${attempt})`;
+    // ── Greyscale — boosts barcode contrast ──
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = imageData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const g = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+      d[i] = d[i+1] = d[i+2] = g;
+    }
+    ctx.putImageData(imageData, 0, 0);
+    log('Greyscale done', 'inf');
 
-      // ── Take photo with flash ──
-      let bitmap;
+    // ── Try BarcodeDetector (Chrome Android built-in, fast) ──
+    let result = null;
+
+    if ('BarcodeDetector' in window) {
+      log('Trying BarcodeDetector...', 'inf');
       try {
-        bitmap = await ic.takePhoto({ fillLightMode: 'flash', redEyeReduction: false });
+        const formats = ['qr_code','code_128','code_39','ean_13','ean_8','upc_a','upc_e','data_matrix','itf','codabar','aztec','pdf417'];
+        let detector;
+        try { detector = new BarcodeDetector({ formats }); }
+        catch { detector = new BarcodeDetector(); }
+        const barcodes = await detector.detect(canvas);
+        if (barcodes.length > 0) {
+          result = barcodes[0].rawValue;
+          log('BarcodeDetector found: ' + result, 'ok');
+        } else {
+          log('BarcodeDetector: nothing found', 'warn');
+        }
       } catch(e) {
-        bitmap = await ic.takePhoto();
-        if (attempt === 1) log('Flash not supported — shooting without', 'warn');
+        log('BarcodeDetector error: ' + e.message, 'warn');
       }
+    } else {
+      log('BarcodeDetector not available — skipping to ZXing', 'warn');
+    }
 
-      // ── Greyscale ──
-      const canvas = document.createElement('canvas');
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(bitmap, 0, 0);
-      bitmap.close();
-
-      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = img.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const g = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-        d[i] = d[i+1] = d[i+2] = g;
-      }
-      ctx.putImageData(img, 0, 0);
-
-      // ── POST ──
-      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
-      log(`#${attempt} → ${(blob.size/1024).toFixed(0)}KB`, 'inf');
-
-      const fd = new FormData();
-      fd.append('image', blob, 'night.jpg');
-
-      let data;
+    // ── ZXing fallback ──
+    if (!result) {
+      log('Trying ZXing...', 'inf');
       try {
-        const res = await fetch('/decode-barcode', { method: 'POST', body: fd });
-        data = await res.json();
+        await loadScript('https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js');
+        const reader = new ZXing.BrowserMultiFormatReader();
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        const decoded = await reader.decodeFromImageUrl(dataUrl);
+        result = decoded?.getText?.();
+        if (result) log('ZXing found: ' + result, 'ok');
       } catch(e) {
-        log(`#${attempt} server error: ` + e.message, 'err');
-        await new Promise(r => setTimeout(r, 300));
-        continue;
-      }
-
-      if (data.found) {
-        log(`✅ Decoded on attempt ${attempt}: ` + data.value, 'ok');
-        const r = document.getElementById('result');
-        r.textContent = '✅ ' + data.value;
-        r.style.display = 'block';
-        if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
-        nightScanActive = false;
-        break;
-      } else {
-        log(`#${attempt} not found — retrying...`, 'warn');
-        // Brief gap so flash capacitor can recharge
-        await new Promise(r => setTimeout(r, 300));
+        log('ZXing: nothing found — ' + e.message, 'warn');
       }
     }
 
-  } catch(e) {
-    log('❌ Night scan error: ' + e.message, 'err');
-  } finally {
-    if (camStream) camStream.getTracks().forEach(t => t.stop());
-    nightScanActive = false;
-    btn.textContent = '🌙 Night Scan';
-    btn.style.background = '#1e3a5f';
-    btn.disabled = false;
+    // ── Result ──
+    if (result) {
+      if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
+      const r = document.getElementById('result');
+      r.textContent = '✅ ' + result;
+      r.style.display = 'block';
+      log('✅ Decoded: ' + result, 'ok');
+    } else {
+      log('Not found — retrying in 800ms...', 'warn');
+      setTimeout(() => openNightScan(), 800);
+    }
+
+  } catch(err) {
+    log('❌ Night scan error: ' + err.message, 'err');
   }
 }
-
-
 </script>
 </body>
 </html>
