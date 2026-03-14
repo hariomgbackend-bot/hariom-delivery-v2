@@ -38,6 +38,8 @@
   #copyLogBtn{position:absolute;top:6px;right:6px;background:#374151;color:#9ca3af;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:monospace;z-index:2;}
   #copyLogBtn:active{background:#4b5563;}
   .ok{color:#4ade80;}.err{color:#f87171;}.inf{color:#60a5fa;}.warn{color:#fbbf24;}
+  @keyframes flashFlicker { 0%{opacity:1} 50%{opacity:0.1} 100%{opacity:1} }
+  .flash-flicker { animation: flashFlicker 0.15s ease-out; }
   #result{font-size:20px;font-weight:800;background:#16a34a;padding:16px;border-radius:10px;text-align:center;display:none;margin:8px 0;word-break:break-all;}
   .btn{display:block;width:100%;padding:14px;margin:6px 0;font-size:16px;border-radius:10px;border:none;cursor:pointer;font-weight:bold;}
 </style>
@@ -55,6 +57,10 @@
   </div>
   <button id="closeBtn">✕</button>
   <button id="torchBtn" style="position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:16px;width:44px;height:44px;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.4);border-radius:50%;color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:10;display:flex;align-items:center;justify-content:center;">🔦</button>
+  <!-- Flash photo scan button — shown when torch unavailable (Android fallback) -->
+  <button id="flashScanBtn" style="display:none;position:absolute;bottom:30px;left:50%;transform:translateX(-50%);padding:14px 28px;background:rgba(59,130,246,0.85);border:2px solid rgba(147,197,253,0.6);border-radius:50px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;pointer-events:auto;z-index:10;letter-spacing:0.3px;backdrop-filter:blur(4px);">
+    ⚡ Flash Scan
+  </button>
   <div id="statusBar">Starting...</div>
 </div>
 
@@ -69,6 +75,7 @@
   </div>
   <button class="btn" onclick="openScanner()" style="background:#1d4ed8">📷 Open Scanner</button>
   <button class="btn" onclick="runTorchDiagnostic()" style="background:#b45309">🔦 Torch Diagnostic (no camera needed)</button>
+  <button class="btn" onclick="testFlashPhoto()" style="background:#0f766e">⚡ Flash Photo Diagnostic</button>
   <button class="btn" onclick="localStorage.removeItem('torchCameraId');log('Torch camera cache cleared','ok')" style="background:#374151;font-size:13px;padding:10px">🗑 Clear Torch Camera Cache</button>
   <button class="btn" onclick="testEndpoint()" style="background:#7c3aed">🔌 Test /decode-barcode endpoint</button>
   <div id="result"></div>
@@ -166,6 +173,39 @@ async function openScanner() {
     video.srcObject = stream;
     await video.play();
     log('Resolution: ' + video.videoWidth + 'x' + video.videoHeight, 'ok');
+
+    // ── Probe torch + show flash button if unavailable ──
+    // Run async after stream settles — doesn't block scanner start
+    setTimeout(async () => {
+      if (!stream) return;
+      const tk   = stream.getVideoTracks()[0];
+      const caps = tk?.getCapabilities?.() || {};
+      const hasTorchCap = !!(caps.torch || caps.fillLightMode);
+
+      if (!hasTorchCap && hasImageCapture) {
+        // Torch not in caps AND ImageCapture available → show flash scan button immediately
+        log('Torch caps absent — showing ⚡ Flash Scan button', 'inf');
+        const _fsBtn = document.getElementById('flashScanBtn');
+        if (_fsBtn) _fsBtn.style.display = 'block';
+        const hint = document.getElementById('scanHint');
+        if (hint) hint.textContent = '📷 Tap ⚡ Flash Scan for dark areas';
+      } else if (hasTorchCap) {
+        // Has caps — torch button is active, flash button stays hidden
+        log('Torch caps present — torch button active', 'ok');
+      } else {
+        // No torch caps AND no ImageCapture — nothing we can do
+        log('No torch AND no ImageCapture — exposure boosted only', 'warn');
+      }
+
+      // Boost exposure regardless
+      if (tk) {
+        if (caps.exposureCompensation) {
+          const maxEC = caps.exposureCompensation.max ?? 2;
+          tk.applyConstraints({ advanced: [{ exposureCompensation: Math.min(1.5, maxEC) }] })
+            .then(() => log('Exposure boosted', 'ok')).catch(() => {});
+        }
+      }
+    }, 800);
   } catch(e) {
     log('❌ Camera error: ' + e.message, 'err');
     closeScanner(); return;
@@ -176,8 +216,20 @@ async function openScanner() {
   decodeCount = 0;
   sending     = false;
   torchOn     = false;
+  flashScanBusy = false;
+  imageCapturer = null;
   const _tb = document.getElementById('torchBtn');
   if (_tb) { _tb.style.background = 'rgba(255,255,255,0.25)'; _tb.style.borderColor = 'rgba(255,255,255,0.4)'; }
+
+  // Show flash scan button only if ImageCapture is available
+  // It appears after torch check fails (below) OR immediately if no ImageCapture (won't show)
+  const _fsBtn = document.getElementById('flashScanBtn');
+  const hasImageCapture = typeof ImageCapture !== 'undefined';
+  if (_fsBtn) _fsBtn.style.display = 'none'; // hidden until torch confirmed unavailable
+
+  // If torch is definitely unavailable (caps said so) AND ImageCapture exists → show flash button
+  // This gets called after stream opens — see post-stream init below
+
   document.getElementById('statusBar').textContent = '● Scanning...';
 
   async function renderLoop() {
@@ -242,7 +294,9 @@ function onScanned(value) {
 
 function closeScanner() {
   isScanning = false;
-  sending = false;
+  sending    = false;
+  flashScanBusy = false;
+  imageCapturer = null;
   cancelAnimationFrame(animFrame);
   // Turn off torch BEFORE stopping stream — try fillLightMode first (works on this device)
   if (torchOn && stream) {
@@ -257,6 +311,12 @@ function closeScanner() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   document.getElementById('hiddenVideo').srcObject = null;
   document.getElementById('scannerOverlay').style.display = 'none';
+  // Reset flash scan button
+  const _fsBtn = document.getElementById('flashScanBtn');
+  if (_fsBtn) { _fsBtn.style.display = 'none'; _fsBtn.textContent = '⚡ Flash Scan'; _fsBtn.style.opacity = '1'; }
+  // Reset hint
+  const hint = document.getElementById('scanHint');
+  if (hint) hint.textContent = 'Align barcode within the frame';
   log(`Closed after ${decodeCount} decode attempts`, 'inf');
 }
 
@@ -498,11 +558,263 @@ async function toggleTorch() {
     btn.style.borderColor  = torchOn ? '#fde047' : 'rgba(255,255,255,0.4)';
   } else {
     log('❌ All torch methods failed', 'err');
+    // Torch confirmed non-functional — show flash scan button if ImageCapture available
+    if (typeof ImageCapture !== 'undefined') {
+      const _fsBtn = document.getElementById('flashScanBtn');
+      if (_fsBtn) _fsBtn.style.display = 'block';
+      const hint = document.getElementById('scanHint');
+      if (hint) hint.textContent = '📷 Tap ⚡ Flash Scan for dark areas';
+      log('Showing ⚡ Flash Scan as torch fallback', 'inf');
+    }
   }
 }
 
 document.getElementById('torchBtn').addEventListener('click', toggleTorch);
 document.getElementById('torchBtn').addEventListener('touchend', e => { e.preventDefault(); toggleTorch(); }, { passive: false });
+
+/* ═══════════════════════════════════════════
+   FLASH PHOTO SCAN
+   Uses ImageCapture.takePhoto({ fillLightMode:'flash' }) — fires the
+   physical camera flash (still-capture pipeline) which works on Android
+   even when continuous torch via WebRTC preview does not.
+
+   Flow:
+   1. takePhoto() → flash fires + autofocus locks → ImageBitmap
+   2. Draw to offscreen canvas → greyscale conversion (1ms, client-side)
+   3. Encode as JPEG → POST to /decode-barcode (same endpoint as video scan)
+   4. On success → onScanned(value) — same handler as video mode
+   5. On failure → shake hint, stay open for retry
+
+   Speed target: flash+AF ~300-600ms, greyscale ~1ms, encode ~10ms, server ~100ms
+   Total: ~500-750ms per flash scan attempt — fast enough for warehouse use.
+═══════════════════════════════════════════ */
+
+let flashScanBusy = false;   // prevent double-tap during in-flight request
+let imageCapturer = null;    // ImageCapture instance, created once per stream
+
+function _getOrCreateImageCapture() {
+  if (!stream) return null;
+  if (typeof ImageCapture === 'undefined') return null;
+  const track = stream.getVideoTracks()[0];
+  if (!track) return null;
+  // Recreate if track changed
+  if (!imageCapturer || imageCapturer.track !== track) {
+    imageCapturer = new ImageCapture(track);
+  }
+  return imageCapturer;
+}
+
+async function flashScan() {
+  if (flashScanBusy) return;
+  if (!stream) { log('No active stream', 'warn'); return; }
+
+  const ic = _getOrCreateImageCapture();
+  if (!ic) {
+    log('ImageCapture not available on this browser', 'err');
+    return;
+  }
+
+  flashScanBusy = true;
+  const btn     = document.getElementById('flashScanBtn');
+  const overlay = document.getElementById('viewfinderCanvas');
+  const status  = document.getElementById('statusBar');
+
+  if (btn) { btn.textContent = '⏳ Capturing...'; btn.style.opacity = '0.7'; }
+  status.textContent = '⚡ Flash capturing...';
+
+  try {
+    // ── Step 1: takePhoto with flash ──
+    // fillLightMode:'flash' fires the LED for the duration of the shutter.
+    // redEyeReduction:false skips the pre-flash which adds ~300ms latency.
+    // imageWidth/Height: smaller = faster encode, still plenty for barcode read.
+    const photoSettings = {
+      fillLightMode: 'flash',
+      redEyeReduction: false,
+      imageWidth:  1280,
+      imageHeight: 720
+    };
+
+    let bitmap;
+    try {
+      bitmap = await ic.takePhoto(photoSettings);
+    } catch(photoErr) {
+      // Some devices reject fillLightMode in takePhoto — retry without it
+      log('Flash photo failed (' + photoErr.message + ') — retrying without flash setting', 'warn');
+      bitmap = await ic.takePhoto({ redEyeReduction: false, imageWidth: 1280, imageHeight: 720 });
+    }
+
+    // ── Step 2: Draw to offscreen canvas + greyscale ──
+    const offscreen = document.createElement('canvas');
+    offscreen.width  = bitmap.width  || 1280;
+    offscreen.height = bitmap.height || 720;
+    const ctx = offscreen.getContext('2d', { alpha: false, willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0, offscreen.width, offscreen.height);
+    bitmap.close?.(); // free ImageBitmap memory
+
+    // Greyscale: read pixel data, apply luminance formula, write back
+    // Using in-place pixel manipulation — faster than filter:'grayscale(1)' which
+    // requires a compositing step. ~1ms for 1280x720.
+    const imgData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const grey = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+      d[i] = d[i+1] = d[i+2] = grey;
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    // Flash the viewfinder canvas white briefly — visual feedback that shot was taken
+    const vCtx = overlay.getContext('2d', { alpha: false });
+    vCtx.fillStyle = 'rgba(255,255,255,0.7)';
+    vCtx.fillRect(0, 0, overlay.width, overlay.height);
+    setTimeout(() => {
+      // Let the render loop restore the video frame naturally
+    }, 80);
+
+    // ── Step 3: Encode to JPEG + POST ──
+    status.textContent = '⚡ Decoding...';
+    const blob = await new Promise(res => offscreen.toBlob(res, 'image/jpeg', 0.92));
+    log('Flash photo: ' + (offscreen.width) + 'x' + (offscreen.height) + ' → ' + (blob.size/1024).toFixed(0) + 'KB (greyscale)', 'inf');
+
+    const fd = new FormData();
+    fd.append('image', blob, 'flash.jpg');
+
+    const res  = await fetch('/decode-barcode', { method: 'POST', body: fd });
+    const data = await res.json();
+    log('Flash decode: ' + JSON.stringify(data), data.found ? 'ok' : 'warn');
+
+    if (data.found) {
+      onScanned(data.value);
+    } else {
+      // Not found — give visual shake feedback, stay open for retry
+      status.textContent = '⚡ Not found — align barcode and try again';
+      const hint = document.getElementById('scanHint');
+      if (hint) {
+        hint.style.color = '#f87171';
+        setTimeout(() => { hint.style.color = 'rgba(255,255,255,0.8)'; }, 1200);
+      }
+    }
+
+  } catch(e) {
+    log('Flash scan error: ' + e.message, 'err');
+    status.textContent = '⚠ Flash scan failed';
+  } finally {
+    flashScanBusy = false;
+    if (btn) { btn.textContent = '⚡ Flash Scan'; btn.style.opacity = '1'; }
+    // Restore scanning status after short delay if still open
+    setTimeout(() => {
+      if (isScanning) status.textContent = '● Scanning...';
+    }, 1500);
+  }
+}
+
+// Wire up flash scan button
+const _fsBtn = document.getElementById('flashScanBtn');
+if (_fsBtn) {
+  _fsBtn.addEventListener('click', flashScan);
+  _fsBtn.addEventListener('touchend', e => { e.preventDefault(); flashScan(); }, { passive: false });
+}
+
+/* ═══════════════════════════════════════════
+   FLASH PHOTO DIAGNOSTIC
+   Standalone test — no scanner open needed.
+   Tests ImageCapture availability + flash photo + greyscale + server decode.
+═══════════════════════════════════════════ */
+async function testFlashPhoto() {
+  log('━━━ FLASH PHOTO DIAGNOSTIC ━━━', 'inf');
+
+  // 1. Check ImageCapture API availability
+  if (typeof ImageCapture === 'undefined') {
+    log('❌ ImageCapture API not available on this browser', 'err');
+    log('Firefox does not support ImageCapture. Use Chrome/Edge/Safari.', 'warn');
+    return;
+  }
+  log('✅ ImageCapture API available', 'ok');
+
+  // 2. Open a camera stream
+  let diagStream;
+  try {
+    diagStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    log('✅ Stream: ' + diagStream.getVideoTracks()[0]?.label, 'ok');
+  } catch(e) {
+    log('❌ Camera open failed: ' + e.message, 'err');
+    return;
+  }
+
+  const track = diagStream.getVideoTracks()[0];
+  const ic    = new ImageCapture(track);
+
+  // 3. Check getPhotoCapabilities
+  try {
+    const photoCaps = await ic.getPhotoCapabilities();
+    log('fillLightMode options: ' + JSON.stringify(photoCaps.fillLightMode), 'inf');
+    log('redEyeReduction: ' + JSON.stringify(photoCaps.redEyeReduction), 'inf');
+    const hasFlash = photoCaps.fillLightMode?.includes?.('flash');
+    log(hasFlash ? '✅ flash mode available' : '⚠ flash mode not listed (will try anyway)', hasFlash ? 'ok' : 'warn');
+  } catch(e) {
+    log('⚠ getPhotoCapabilities failed: ' + e.message + ' — will try takePhoto anyway', 'warn');
+  }
+
+  // 4. Take a photo with flash
+  log('Taking photo with fillLightMode:flash...', 'inf');
+  const t0 = performance.now();
+  let bitmap;
+  try {
+    bitmap = await ic.takePhoto({ fillLightMode: 'flash', redEyeReduction: false, imageWidth: 1280, imageHeight: 720 });
+    log('✅ takePhoto succeeded in ' + (performance.now()-t0).toFixed(0) + 'ms | size: ' + bitmap.width + 'x' + bitmap.height, 'ok');
+    log('DID THE FLASH FIRE? Check physically ↑↑↑', 'warn');
+  } catch(e) {
+    log('❌ takePhoto with flash failed: ' + e.message, 'err');
+    log('Trying without fillLightMode...', 'inf');
+    try {
+      bitmap = await ic.takePhoto({ imageWidth: 1280, imageHeight: 720 });
+      log('✅ takePhoto without flash succeeded', 'ok');
+    } catch(e2) {
+      log('❌ takePhoto also failed: ' + e2.message, 'err');
+      diagStream.getTracks().forEach(t => t.stop());
+      return;
+    }
+  }
+
+  // 5. Greyscale + encode
+  const offscreen = document.createElement('canvas');
+  offscreen.width = bitmap.width; offscreen.height = bitmap.height;
+  const ctx = offscreen.getContext('2d', { alpha: false, willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+
+  const t1 = performance.now();
+  const imgData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    d[i] = d[i+1] = d[i+2] = g;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  log('✅ Greyscale in ' + (performance.now()-t1).toFixed(1) + 'ms', 'ok');
+
+  // 6. Encode
+  const t2 = performance.now();
+  const blob = await new Promise(res => offscreen.toBlob(res, 'image/jpeg', 0.92));
+  log('✅ JPEG encoded: ' + (blob.size/1024).toFixed(0) + 'KB in ' + (performance.now()-t2).toFixed(1) + 'ms', 'ok');
+
+  // 7. POST to server
+  log('POSTing to /decode-barcode...', 'inf');
+  try {
+    const fd = new FormData();
+    fd.append('image', blob, 'flash_diag.jpg');
+    const t3  = performance.now();
+    const res  = await fetch('/decode-barcode', { method: 'POST', body: fd });
+    const data = await res.json();
+    log('✅ Server responded in ' + (performance.now()-t3).toFixed(0) + 'ms: ' + JSON.stringify(data), data.found ? 'ok' : 'warn');
+  } catch(e) {
+    log('❌ Server POST failed: ' + e.message, 'err');
+  }
+
+  diagStream.getTracks().forEach(t => t.stop());
+  log('━━━ FLASH PHOTO DIAGNOSTIC COMPLETE ━━━', 'inf');
+}
 </script>
 </body>
 </html>
