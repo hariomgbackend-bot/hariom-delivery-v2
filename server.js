@@ -1415,7 +1415,9 @@ process.on("uncaughtException", (err) => {
 });
 
 /* ════════════════════════════════════════════════
-   BARCODE DECODE — Python pyzbar
+   BARCODE DECODE — Python zxing-cpp
+   zxing-cpp is a pure Python wheel with no system
+   library dependency (unlike pyzbar which needs libzbar0)
    POST /decode-barcode  (multipart, field: "image")
    Returns { found: true, value: "..." }
         or { found: false }
@@ -1430,25 +1432,31 @@ app.post("/decode-barcode", upload.single("image"), (req, res) => {
   writeFileSync(tmpImg, req.file.buffer);
   writeFileSync(tmpScript, `
 import sys
+import zxingcpp
 from PIL import Image
-from pyzbar.pyzbar import decode
 try:
-    results = decode(Image.open(sys.argv[1]))
-    print(results[0].data.decode('utf-8') if results else 'NOTFOUND')
+    img = Image.open(sys.argv[1]).convert('RGB')
+    results = zxingcpp.read_barcodes(img)
+    if results:
+        print(results[0].text)
+    else:
+        print('NOTFOUND')
 except Exception as e:
-    print('ERROR:' + str(e), file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
     print('NOTFOUND')
 `);
 
-  execFile("python3", [tmpScript, tmpImg], { timeout: 10000 }, (err, stdout, stderr) => {
+  execFile("python3", [tmpScript, tmpImg], { timeout: 15000 }, (err, stdout, stderr) => {
     try { unlinkSync(tmpImg); }    catch(_) {}
     try { unlinkSync(tmpScript); } catch(_) {}
 
     if (err && !stdout) {
-      console.error("pyzbar error:", stderr);
-      return res.status(500).json({ error: "Python decode failed", detail: stderr });
+      console.error("barcode decode error:", stderr);
+      return res.status(500).json({ error: "Decode failed", detail: stderr });
     }
     const val = stdout.trim();
+    console.log("decode result:", val);
     if (!val || val === "NOTFOUND") return res.json({ found: false });
     res.json({ found: true, value: val });
   });
