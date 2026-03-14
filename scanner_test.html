@@ -51,6 +51,7 @@
     <div id="scanHint">Align barcode within the frame</div>
   </div>
   <button id="closeBtn">✕</button>
+  <button id="torchBtn" style="position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:16px;width:44px;height:44px;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.4);border-radius:50%;color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:10;display:flex;align-items:center;justify-content:center;">🔦</button>
   <div id="statusBar">Starting...</div>
 </div>
 
@@ -61,6 +62,7 @@
   <h2 style="margin-bottom:4px">Server Barcode Test v2</h2>
   <div id="log">Ready.\n</div>
   <button class="btn" onclick="openScanner()" style="background:#1d4ed8">📷 Open Scanner</button>
+  <button class="btn" onclick="runTorchDiagnostic()" style="background:#b45309">🔦 Torch Diagnostic (no camera needed)</button>
   <button class="btn" onclick="testEndpoint()" style="background:#7c3aed">🔌 Test /decode-barcode endpoint</button>
   <div id="result"></div>
   <button class="btn" onclick="document.getElementById('log').innerHTML='Ready.\n';document.getElementById('result').style.display='none';" style="background:#374151;font-size:13px;padding:10px">🔄 Clear</button>
@@ -127,6 +129,9 @@ async function openScanner() {
   frameCount  = 0;
   decodeCount = 0;
   sending     = false;
+  torchOn     = false;
+  const _tb = document.getElementById('torchBtn');
+  if (_tb) { _tb.style.background = 'rgba(255,255,255,0.25)'; _tb.style.borderColor = 'rgba(255,255,255,0.4)'; }
   document.getElementById('statusBar').textContent = '● Scanning...';
 
   async function renderLoop() {
@@ -193,6 +198,11 @@ function closeScanner() {
   isScanning = false;
   sending = false;
   cancelAnimationFrame(animFrame);
+  // Turn off torch BEFORE stopping stream
+  if (torchOn && stream) {
+    try { stream.getVideoTracks()[0]?.applyConstraints({ advanced: [{ torch: false }] }).catch(()=>{}); } catch(_) {}
+    torchOn = false;
+  }
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   document.getElementById('hiddenVideo').srcObject = null;
   document.getElementById('scannerOverlay').style.display = 'none';
@@ -203,6 +213,142 @@ document.getElementById('closeBtn').addEventListener('touchend', e => {
   e.preventDefault(); closeScanner();
 }, { passive: false });
 document.getElementById('closeBtn').addEventListener('click', closeScanner);
+
+/* ═══════════════════════════════════════════
+   TORCH DIAGNOSTIC — runs without opening scanner
+   Opens its own stream just to probe capabilities
+═══════════════════════════════════════════ */
+async function runTorchDiagnostic() {
+  log('━━━ TORCH DIAGNOSTIC ━━━', 'inf');
+  log('Step 1: Requesting camera stream (rear)...', 'inf');
+
+  let diagStream;
+  try {
+    diagStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    log('✅ Camera stream acquired', 'ok');
+  } catch(e) {
+    log('❌ getUserMedia failed: ' + e.name + ' — ' + e.message, 'err');
+    return;
+  }
+
+  const track = diagStream.getVideoTracks()[0];
+  if (!track) { log('❌ No video track found', 'err'); diagStream.getTracks().forEach(t=>t.stop()); return; }
+
+  log('Track label: ' + (track.label || '(empty)'), 'inf');
+  log('Track readyState: ' + track.readyState, 'inf');
+
+  // 1. getCapabilities
+  log('─── getCapabilities() ───', 'inf');
+  try {
+    const caps = track.getCapabilities?.();
+    if (!caps) {
+      log('⚠ getCapabilities() returned undefined/null', 'warn');
+    } else {
+      log('Full capabilities: ' + JSON.stringify(caps, null, 2), 'inf');
+      log('caps.torch = ' + caps.torch, caps.torch ? 'ok' : 'warn');
+      log('caps.fillLightMode = ' + JSON.stringify(caps.fillLightMode), caps.fillLightMode ? 'ok' : 'warn');
+    }
+  } catch(e) {
+    log('❌ getCapabilities() threw: ' + e.message, 'err');
+  }
+
+  // 2. getSettings
+  log('─── getSettings() ───', 'inf');
+  try {
+    const settings = track.getSettings?.();
+    if (!settings) {
+      log('⚠ getSettings() returned undefined/null', 'warn');
+    } else {
+      log('Full settings: ' + JSON.stringify(settings), 'inf');
+      log('settings.torch = ' + settings.torch, 'inf');
+    }
+  } catch(e) {
+    log('❌ getSettings() threw: ' + e.message, 'err');
+  }
+
+  // 3. Try applyConstraints torch:true directly
+  log('─── applyConstraints({ advanced:[{torch:true}] }) ───', 'inf');
+  try {
+    await track.applyConstraints({ advanced: [{ torch: true }] });
+    log('✅ torch:true SUCCEEDED — flashlight should be ON now', 'ok');
+    await new Promise(r => setTimeout(r, 1500));
+    await track.applyConstraints({ advanced: [{ torch: false }] });
+    log('✅ torch:false SUCCEEDED — flashlight OFF', 'ok');
+  } catch(e) {
+    log('❌ applyConstraints torch failed: ' + e.name + ' — ' + e.message, 'err');
+
+    // 4. Try fillLightMode fallback
+    log('─── applyConstraints({ advanced:[{fillLightMode:"torch"}] }) ───', 'inf');
+    try {
+      await track.applyConstraints({ advanced: [{ fillLightMode: 'torch' }] });
+      log('✅ fillLightMode:torch SUCCEEDED', 'ok');
+      await new Promise(r => setTimeout(r, 1500));
+      await track.applyConstraints({ advanced: [{ fillLightMode: 'none' }] });
+      log('✅ fillLightMode:none (off) SUCCEEDED', 'ok');
+    } catch(e2) {
+      log('❌ fillLightMode also failed: ' + e2.name + ' — ' + e2.message, 'err');
+
+      // 5. Try top-level constraint (not inside advanced)
+      log('─── applyConstraints({ torch:true }) (top-level, no advanced) ───', 'inf');
+      try {
+        await track.applyConstraints({ torch: true });
+        log('✅ top-level torch:true SUCCEEDED', 'ok');
+        await new Promise(r => setTimeout(r, 1500));
+        await track.applyConstraints({ torch: false });
+        log('✅ top-level torch:false SUCCEEDED', 'ok');
+      } catch(e3) {
+        log('❌ top-level torch also failed: ' + e3.name + ' — ' + e3.message, 'err');
+        log('━━━ CONCLUSION: Torch API not available on this device/browser ━━━', 'warn');
+      }
+    }
+  }
+
+  log('─── Stopping diagnostic stream ───', 'inf');
+  diagStream.getTracks().forEach(t => t.stop());
+  log('━━━ DIAGNOSTIC COMPLETE ━━━', 'inf');
+}
+
+/* ═══════════════════════════════════════════
+   TORCH TOGGLE — inside active scanner stream
+═══════════════════════════════════════════ */
+let torchOn = false;
+
+async function toggleTorch() {
+  if (!stream) { log('⚠ No active stream — open scanner first', 'warn'); return; }
+  const track = stream.getVideoTracks()[0];
+  if (!track) { log('⚠ No video track', 'warn'); return; }
+
+  const newState = !torchOn;
+  const btn = document.getElementById('torchBtn');
+  log('Toggling torch → ' + newState, 'inf');
+
+  const caps = track.getCapabilities?.() || {};
+  log('caps.torch=' + caps.torch + ' caps.fillLightMode=' + JSON.stringify(caps.fillLightMode), 'inf');
+
+  try {
+    if (caps.torch !== undefined) {
+      await track.applyConstraints({ advanced: [{ torch: newState }] });
+      log('✅ torch via advanced succeeded', 'ok');
+    } else if (caps.fillLightMode) {
+      await track.applyConstraints({ advanced: [{ fillLightMode: newState ? 'torch' : 'none' }] });
+      log('✅ fillLightMode succeeded', 'ok');
+    } else {
+      // Try anyway
+      await track.applyConstraints({ advanced: [{ torch: newState }] });
+      log('✅ torch (blind try) succeeded', 'ok');
+    }
+    torchOn = newState;
+    btn.style.background = torchOn ? 'rgba(253,224,71,0.5)' : 'rgba(255,255,255,0.25)';
+    btn.style.borderColor = torchOn ? '#fde047' : 'rgba(255,255,255,0.4)';
+  } catch(e) {
+    log('❌ Torch toggle failed: ' + e.name + ' — ' + e.message, 'err');
+  }
+}
+
+document.getElementById('torchBtn').addEventListener('click', toggleTorch);
+document.getElementById('torchBtn').addEventListener('touchend', e => { e.preventDefault(); toggleTorch(); }, { passive: false });
 </script>
 </body>
 </html>
