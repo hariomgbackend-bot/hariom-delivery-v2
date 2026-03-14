@@ -11,6 +11,7 @@
   #viewfinder { width: 100%; max-width: 400px; background: #000; border-radius: 8px; display: none; }
   #viewfinder video { width: 100%; border-radius: 8px; display: block; }
   .ok { color: #4ade80; } .err { color: #f87171; } .info { color: #60a5fa; }
+  #photoPreview { width: 100%; border-radius: 8px; display: none; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -19,11 +20,14 @@
 
 <button onclick="testBasicCamera()" style="background:#1d4ed8">1. Basic Camera Test</button>
 <button onclick="testHtml5Qr()" style="background:#7c3aed">2. html5-qrcode Test</button>
+<button onclick="testClaudeVision()" style="background:#065f46">3. Photo → Claude Vision Test</button>
 <button onclick="stopAll()" style="background:#dc2626">STOP / RESET</button>
 
 <div id="viewfinder">
   <video id="testVideo" autoplay muted playsinline webkit-playsinline></video>
 </div>
+<img id="photoPreview" />
+<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" onchange="runClaudeVision(this)">
 
 <script>
 let stream = null;
@@ -117,6 +121,77 @@ async function testHtml5Qr() {
   }
 }
 
+// TEST 3: Photo → Claude Vision
+function testClaudeVision() {
+  stopAll();
+  log('Opening camera to take photo...', 'info');
+  log('Take a photo of a barcode/serial number label', 'info');
+  document.getElementById('photoInput').click();
+}
+
+async function runClaudeVision(inputEl) {
+  const file = inputEl.files[0];
+  if (!file) { log('No file selected', 'err'); return; }
+
+  log('Photo taken: ' + file.name + ' (' + Math.round(file.size/1024) + ' KB, ' + file.type + ')', 'ok');
+
+  // Show preview
+  const preview = document.getElementById('photoPreview');
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+
+  log('Converting to base64...', 'info');
+  let base64;
+  try {
+    base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+    log('Base64 OK — length: ' + base64.length + ' chars', 'ok');
+  } catch(e) {
+    log('Base64 FAIL: ' + e, 'err');
+    return;
+  }
+
+  log('Calling Claude Vision API...', 'info');
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 200,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 } },
+            { type: 'text', text: 'This image may contain a barcode, QR code, or serial number label. Extract the serial number or barcode value. Return ONLY the value, nothing else. If unreadable reply: UNREADABLE' }
+          ]
+        }]
+      })
+    });
+
+    log('HTTP status: ' + response.status, response.ok ? 'ok' : 'err');
+    const data = await response.json();
+    log('API response: ' + JSON.stringify(data).substring(0, 300), 'info');
+
+    if (data.error) {
+      log('API ERROR: ' + data.error.type + ' — ' + data.error.message, 'err');
+      return;
+    }
+
+    const result = data?.content?.[0]?.text?.trim();
+    log('Extracted value: ' + result, result && result !== 'UNREADABLE' ? 'ok' : 'err');
+
+  } catch(e) {
+    log('Fetch FAIL: ' + e.name + ': ' + e.message, 'err');
+  }
+
+  inputEl.value = '';
+}
+
 function stopAll() {
   if (scanner) { scanner.stop().catch(()=>{}); scanner = null; }
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
@@ -124,6 +199,7 @@ function stopAll() {
   if (vid) { vid.srcObject = null; }
   document.getElementById('viewfinder').style.display = 'none';
   document.getElementById('viewfinder').innerHTML = '<video id="testVideo" autoplay muted playsinline webkit-playsinline></video>';
+  document.getElementById('photoPreview').style.display = 'none';
   log('--- Stopped & reset ---', 'info');
 }
 </script>
