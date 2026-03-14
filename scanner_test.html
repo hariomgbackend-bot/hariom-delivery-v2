@@ -33,7 +33,10 @@
   #closeBtn{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));right:16px;width:44px;height:44px;background:rgba(255,255,255,0.25);border:none;border-radius:50%;color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:10;display:flex;align-items:center;justify-content:center;}
   #statusBar{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:72px;right:70px;background:rgba(0,0,0,0.7);padding:6px 12px;border-radius:20px;font-size:11px;font-family:monospace;pointer-events:none;}
   #mainPage{padding:20px 16px;}
-  #log{background:#1a1a1a;border-radius:8px;padding:10px;font-size:11px;font-family:monospace;min-height:100px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:10px 0;}
+  #logWrap { position:relative; margin:10px 0; }
+  #log{background:#1a1a1a;border-radius:8px;padding:10px;padding-top:36px;font-size:11px;font-family:monospace;min-height:100px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;}
+  #copyLogBtn{position:absolute;top:6px;right:6px;background:#374151;color:#9ca3af;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:monospace;z-index:2;}
+  #copyLogBtn:active{background:#4b5563;}
   .ok{color:#4ade80;}.err{color:#f87171;}.inf{color:#60a5fa;}.warn{color:#fbbf24;}
   #result{font-size:20px;font-weight:800;background:#16a34a;padding:16px;border-radius:10px;text-align:center;display:none;margin:8px 0;word-break:break-all;}
   .btn{display:block;width:100%;padding:14px;margin:6px 0;font-size:16px;border-radius:10px;border:none;cursor:pointer;font-weight:bold;}
@@ -60,7 +63,10 @@
 
 <div id="mainPage">
   <h2 style="margin-bottom:4px">Server Barcode Test v2</h2>
-  <div id="log">Ready.\n</div>
+  <div id="logWrap">
+    <button id="copyLogBtn" onclick="copyLog()">📋 Copy</button>
+    <div id="log">Ready.\n</div>
+  </div>
   <button class="btn" onclick="openScanner()" style="background:#1d4ed8">📷 Open Scanner</button>
   <button class="btn" onclick="runTorchDiagnostic()" style="background:#b45309">🔦 Torch Diagnostic (no camera needed)</button>
   <button class="btn" onclick="localStorage.removeItem('torchCameraId');log('Torch camera cache cleared','ok')" style="background:#374151;font-size:13px;padding:10px">🗑 Clear Torch Camera Cache</button>
@@ -74,6 +80,28 @@ function log(msg, type='') {
   const d = document.getElementById('log');
   d.innerHTML += `<span class="${type}">[${new Date().toLocaleTimeString()}] ${msg}</span>\n`;
   d.scrollTop = d.scrollHeight;
+}
+
+function copyLog() {
+  const d = document.getElementById('log');
+  const text = d.innerText || d.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyLogBtn');
+    btn.textContent = '✅ Copied';
+    setTimeout(() => btn.textContent = '📋 Copy', 1500);
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.getElementById('copyLogBtn');
+    btn.textContent = '✅ Copied';
+    setTimeout(() => btn.textContent = '📋 Copy', 1500);
+  });
 }
 
 // Test endpoint is alive with a blank image
@@ -114,102 +142,33 @@ async function openScanner() {
   const canvas = document.getElementById('viewfinderCanvas');
   const ctx    = canvas.getContext('2d', { alpha: false });
 
-  // Try cached torch camera first (avoids re-enumeration on repeat opens)
-  const cachedId = localStorage.getItem('torchCameraId');
-
-  async function tryOpenWithId(deviceId) {
-    const constraints = deviceId
-      ? { video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } }
-      : { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } };
-    const s = await navigator.mediaDevices.getUserMedia(constraints);
-    return s;
-  }
-
-  async function findTorchCamera() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cameras = devices.filter(d => d.kind === 'videoinput');
-    log('Found ' + cameras.length + ' camera(s): ' + cameras.map(c => c.label || c.deviceId.slice(0,8)).join(', '), 'inf');
-
-    // Try each camera — only the one with LED will actually respond to fillLightMode
-    for (const cam of cameras) {
-      // Skip front cameras
-      if (cam.label && /front|selfie|user/i.test(cam.label)) {
-        log('Skipping front camera: ' + cam.label, 'inf');
-        continue;
-      }
-      log('Trying: ' + (cam.label || cam.deviceId.slice(0,12)) + '...', 'inf');
-      let testStream;
-      try {
-        testStream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: cam.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        const track = testStream.getVideoTracks()[0];
-        // Test if this camera actually fires the LED
-        await track.applyConstraints({ advanced: [{ fillLightMode: 'torch' }] });
-        // If we get here without throwing, verify the LED by checking settings
-        // then immediately turn off
-        await track.applyConstraints({ advanced: [{ fillLightMode: 'none' }] });
-        log('✅ Torch camera found: ' + (cam.label || cam.deviceId.slice(0,12)), 'ok');
-        localStorage.setItem('torchCameraId', cam.deviceId);
-        // Re-open cleanly (the test above left it in a state)
-        testStream.getTracks().forEach(t => t.stop());
-        return cam.deviceId;
-      } catch(_) {
-        log('✗ No torch: ' + (cam.label || cam.deviceId.slice(0,12)), 'warn');
-        if (testStream) testStream.getTracks().forEach(t => t.stop());
-      }
-    }
-    return null; // no torch camera found
-  }
-
   try {
-    let torchCameraId = cachedId;
-
-    if (cachedId) {
-      log('Using cached torch camera: ' + cachedId.slice(0,12), 'inf');
-    } else {
-      log('No cached camera — scanning all cameras for torch...', 'inf');
-      torchCameraId = await findTorchCamera();
-      if (!torchCameraId) {
-        log('⚠ No torch-capable camera found — using default rear camera', 'warn');
-      }
+    // CRITICAL: fillLightMode must be declared at stream-open time.
+    // applyConstraints alone succeeds silently but doesn't fire the LED.
+    // Pre-declaring it here tells Chrome to open the camera pipeline with
+    // torch capability registered, so applyConstraints activates the LED.
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 }, height: { ideal: 720 },
+          advanced: [{ fillLightMode: 'none' }]
+        }
+      });
+      log('✅ Camera open with fillLightMode pre-declared: ' + stream.getVideoTracks()[0]?.label, 'ok');
+    } catch(_) {
+      // Fallback for devices that don't accept fillLightMode in getUserMedia
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      log('✅ Camera open (plain stream): ' + stream.getVideoTracks()[0]?.label, 'ok');
     }
-
-    stream = await tryOpenWithId(torchCameraId);
     video.srcObject = stream;
     await video.play();
-    const label = stream.getVideoTracks()[0]?.label || 'unknown';
-    log('✅ Camera open: ' + label + ' ' + video.videoWidth + 'x' + video.videoHeight, 'ok');
-
-    // If this was a cached ID, quickly verify torch still works on it
-    if (cachedId) {
-      const track = stream.getVideoTracks()[0];
-      track.applyConstraints({ advanced: [{ fillLightMode: 'torch' }] })
-        .then(() => track.applyConstraints({ advanced: [{ fillLightMode: 'none' }] }))
-        .catch(() => {
-          // Cached camera lost torch (e.g. app restarted) — clear cache and re-find next open
-          log('⚠ Cached camera lost torch capability — cache cleared', 'warn');
-          localStorage.removeItem('torchCameraId');
-        });
-    }
+    log('Resolution: ' + video.videoWidth + 'x' + video.videoHeight, 'ok');
   } catch(e) {
-    // If cached camera fails, clear cache and try default
-    if (cachedId) {
-      log('Cached camera failed (' + e.message + ') — clearing cache', 'warn');
-      localStorage.removeItem('torchCameraId');
-      try {
-        stream = await tryOpenWithId(null);
-        video.srcObject = stream;
-        await video.play();
-        log('✅ Fallback camera open: ' + video.videoWidth + 'x' + video.videoHeight, 'ok');
-      } catch(e2) {
-        log('❌ Camera error: ' + e2.message, 'err');
-        closeScanner(); return;
-      }
-    } else {
-      log('❌ Camera error: ' + e.message, 'err');
-      closeScanner(); return;
-    }
+    log('❌ Camera error: ' + e.message, 'err');
+    closeScanner(); return;
   }
 
   isScanning  = true;
@@ -312,7 +271,63 @@ document.getElementById('closeBtn').addEventListener('click', closeScanner);
 ═══════════════════════════════════════════ */
 async function runTorchDiagnostic() {
   log('━━━ TORCH DIAGNOSTIC ━━━', 'inf');
-  log('Step 1: Requesting camera stream (rear)...', 'inf');
+
+  // ── Step 0: List ALL cameras ──
+  log('─── Step 0: Enumerating all cameras ───', 'inf');
+  try {
+    // Need to request camera permission first so labels are visible
+    const tmpStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    tmpStream.getTracks().forEach(t => t.stop());
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === 'videoinput');
+    log('Total cameras found: ' + cams.length, 'inf');
+    cams.forEach((c, i) => log('  [' + i + '] ' + (c.label || '(no label)') + ' | id: ' + c.deviceId.slice(0,16), 'inf'));
+  } catch(e) {
+    log('Enumeration failed: ' + e.message, 'err');
+  }
+
+  log('─── Step 1: Testing each rear camera for torch ───', 'inf');
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === 'videoinput');
+    for (const cam of cams) {
+      const label = cam.label || cam.deviceId.slice(0, 16);
+      if (/front|selfie|user/i.test(cam.label)) { log('  SKIP (front): ' + label, 'warn'); continue; }
+      log('  Testing: ' + label, 'inf');
+      let ts;
+      try {
+        ts = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cam.deviceId } } });
+        const tk = ts.getVideoTracks()[0];
+        // Try fillLightMode first
+        try {
+          await tk.applyConstraints({ advanced: [{ fillLightMode: 'torch' }] });
+          log('  ✅ ' + label + ' → fillLightMode:torch accepted — IS LIGHT ON?', 'ok');
+          await new Promise(r => setTimeout(r, 2000));
+          await tk.applyConstraints({ advanced: [{ fillLightMode: 'none' }] });
+          log('  ✅ ' + label + ' → fillLightMode:none (off)', 'ok');
+        } catch(_) {
+          // Try torch
+          try {
+            await tk.applyConstraints({ advanced: [{ torch: true }] });
+            log('  ✅ ' + label + ' → torch:true accepted — IS LIGHT ON?', 'ok');
+            await new Promise(r => setTimeout(r, 2000));
+            await tk.applyConstraints({ advanced: [{ torch: false }] });
+          } catch(_2) {
+            log('  ✗ ' + label + ' → no torch response', 'warn');
+          }
+        }
+        ts.getTracks().forEach(t => t.stop());
+      } catch(e) {
+        log('  ✗ ' + label + ' → failed to open: ' + e.message, 'err');
+        if (ts) ts.getTracks().forEach(t => t.stop());
+      }
+    }
+  } catch(e) {
+    log('Camera loop failed: ' + e.message, 'err');
+  }
+
+  log('─── Step 2: Default environment camera test ───', 'inf');
+  log('Requesting camera stream (rear)...', 'inf');
 
   let diagStream;
   try {
