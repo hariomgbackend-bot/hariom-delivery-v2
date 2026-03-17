@@ -151,7 +151,14 @@
       cursor: pointer; transition: all 0.15s;
     }
     .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .filter-btn.activeFilter { background: var(--accent); border-color: var(--accent); color: white; }
+    .active-route {
+  background: #0f172a !important;
+  color: #f59e0b !important;
+  border-color: #f59e0b !important;
+  font-weight: 700 !important;
+}
+
+.filter-btn.activeFilter { background: var(--accent); border-color: var(--accent); color: white; }
     .filter-count {
       display: inline-block; background: rgba(0,0,0,0.12);
       border-radius: 10px; padding: 1px 6px; font-size: 11px; font-weight: 700;
@@ -591,30 +598,9 @@
     <span id="lastUpdated"></span>
     <span id="pushIndicator" style="font-size:12px;color:rgba(255,255,255,0.55);"></span>
     <a href="driver_interface.html" style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:13px;font-weight:600;padding:7px 13px;border-radius:9px;background:rgba(255,255,255,0.1);">🚚 Driver View</a>
-    <a href="https://hariom-delivery.web.app"
-       onclick="openTagPrint(event)"
-       style="display:inline-flex;align-items:center;gap:5px;
-              background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.08));
-              border:1px solid rgba(245,158,11,0.45);
-              color:#fbbf24;text-decoration:none;
-              font-size:13px;font-weight:700;padding:7px 14px;border-radius:9px;
-              letter-spacing:0.02em;transition:all 0.18s;"
-       onmouseover="this.style.background='linear-gradient(135deg,rgba(245,158,11,0.32),rgba(245,158,11,0.18))';this.style.borderColor='rgba(245,158,11,0.75)'"
-       onmouseout="this.style.background='linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.08))';this.style.borderColor='rgba(245,158,11,0.45)'">
-      🏷️ TagPrint
-    </a>
     <button onclick="accountantLogout()" style="background:rgba(255,255,255,0.12);border:none;color:rgba(255,255,255,0.75);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;padding:7px 13px;border-radius:9px;cursor:pointer;">Logout</button>
   </nav>
 </div>
-
-<script>
-function openTagPrint(e) {
-  e.preventDefault();
-  const token = localStorage.getItem('accountantToken');
-  if (!token) { alert('Please log in first'); return; }
-  window.open('https://hariom-delivery.web.app/#token=' + encodeURIComponent(token), '_blank');
-}
-</script>
 
 <div class="container">
 
@@ -638,6 +624,18 @@ function openTagPrint(e) {
       <button class="filter-btn" data-filter="yesterday" onclick="setFilter('yesterday')">Yesterday</button>
       <button class="filter-btn" data-filter="custom"    onclick="showCustomDate()">📅 Custom</button>
       <input type="date" id="customDate" style="display:none;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;" onchange="applyCustomDate()">
+    </div>
+
+    <!-- ── Route filter bar ── -->
+    <div class="filter-bar" id="routeFilterBar" style="margin-top:6px;padding-top:10px;border-top:1px solid var(--border);">
+      <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;align-self:center;">Route:</span>
+      <button class="filter-btn route-btn active-route" data-route="all"      onclick="setRoute('all')">🗺 All <span class="filter-count" id="rc-all"></span></button>
+      <button class="filter-btn route-btn" data-route="bhosari"   onclick="setRoute('bhosari')">Bhosari <span class="filter-count" id="rc-bhosari"></span></button>
+      <button class="filter-btn route-btn" data-route="moshi"     onclick="setRoute('moshi')">Moshi <span class="filter-count" id="rc-moshi"></span></button>
+      <button class="filter-btn route-btn" data-route="wadgaon"   onclick="setRoute('wadgaon')">Wadgaon <span class="filter-count" id="rc-wadgaon"></span></button>
+      <button class="filter-btn route-btn" data-route="markal"    onclick="setRoute('markal')">Markal <span class="filter-count" id="rc-markal"></span></button>
+      <button class="filter-btn route-btn" data-route="charholi"  onclick="setRoute('charholi')">Charholi <span class="filter-count" id="rc-charholi"></span></button>
+      <button class="filter-btn route-btn" data-route="other"     onclick="setRoute('other')" style="color:var(--muted);">Other <span class="filter-count" id="rc-other"></span></button>
     </div>
 
     <input class="search-input" id="searchInput" placeholder="🔍 Search by name or phone..." oninput="applySearch()" style="margin-bottom:14px;">
@@ -815,6 +813,7 @@ const BASE_URL = window.location.origin;
 /* ── STATE — must be declared before any function runs ── */
 let swRegistration      = null;
 let currentFilter       = "all";
+let currentRoute        = "all";
 let customSelectedDate  = null;
 let searchQuery         = "";
 let currentAccountantData = [];
@@ -1070,6 +1069,34 @@ function setFilter(type) {
   currentFilter = type;
   if (type !== "custom") document.getElementById("customDate").style.display = "none";
   highlightActiveFilter(type);
+  loadDeliveries();
+}
+
+/* ── ROUTE FILTER ─────────────────────────────────────────────────
+   Keywords per route — case-insensitive match against address field
+─────────────────────────────────────────────────────────────────── */
+const ROUTE_KEYWORDS = {
+  bhosari:  ["bhosari"],
+  moshi:    ["moshi"],
+  wadgaon:  ["wadgaon", "wadgoan", "vadgaon", "vadgoan"],
+  markal:   ["markal"],
+  charholi: ["charholi", "charoli"]
+};
+
+function getDeliveryRoute(delivery) {
+  const addr = ((delivery.address || "") + " " + (delivery.area || "")).toLowerCase();
+  for (const [route, keywords] of Object.entries(ROUTE_KEYWORDS)) {
+    if (keywords.some(kw => addr.includes(kw))) return route;
+  }
+  return "other";
+}
+
+function setRoute(route) {
+  currentRoute = route;
+  // Highlight active route button
+  document.querySelectorAll(".route-btn").forEach(btn => {
+    btn.classList.toggle("active-route", btn.dataset.route === route);
+  });
   loadDeliveries();
 }
 
@@ -1917,6 +1944,11 @@ async function loadDeliveries() {
     );
   }
 
+  // ── Route filter (applied after status + search filters) ──
+  if (currentRoute !== "all") {
+    finalData = finalData.filter(d => getDeliveryRoute(d) === currentRoute);
+  }
+
   currentAccountantData = finalData;
 
   // Update filter count badges (based on all unfiltered data)
@@ -1933,6 +1965,26 @@ async function loadDeliveries() {
   ["all","booked","pending","loaded","delivered","failed","urgent","today"].forEach(k => {
     const el = document.getElementById("fc-" + k);
     if (el) el.innerText = counts[k] || "";
+  });
+
+  // ── Update route counts (based on current status-filtered data, before route filter) ──
+  // Use the pre-route-filter data so counts reflect current status filter
+  const routeSource = (() => {
+    // Re-apply only status/date filter to get base for route counts
+    let base = [...data];
+    if (currentFilter === "booked")    base = data.filter(d => d.status === "booked");
+    else if (currentFilter === "pending")   base = data.filter(d => d.status === "pending");
+    else if (currentFilter === "loaded")    base = data.filter(d => d.status === "loaded");
+    else if (currentFilter === "failed")    base = data.filter(d => d.status === "failed");
+    else if (currentFilter === "urgent")    base = data.filter(d => d.priority === "urgent");
+    return base;
+  })();
+
+  const routeCounts = { all: routeSource.length, bhosari:0, moshi:0, wadgaon:0, markal:0, charholi:0, other:0 };
+  routeSource.forEach(d => { routeCounts[getDeliveryRoute(d)]++; });
+  Object.keys(routeCounts).forEach(r => {
+    const el = document.getElementById("rc-" + r);
+    if (el) el.innerText = routeCounts[r] || "";
   });
 
   // Update page tab title with pending count
