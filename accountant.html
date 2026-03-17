@@ -612,7 +612,7 @@ function openTagPrint(e) {
   e.preventDefault();
   const token = localStorage.getItem('accountantToken');
   if (!token) { alert('Please log in first'); return; }
-  window.open('https://hariom-delivery.web.app', '_blank');
+  window.open('https://hariom-delivery.web.app/#token=' + encodeURIComponent(token), '_blank');
 }
 </script>
 

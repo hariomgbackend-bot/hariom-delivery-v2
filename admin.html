@@ -1001,7 +1001,8 @@ function openTagPrint(e) {
   e.preventDefault();
   const token = localStorage.getItem('adminToken');
   if (!token) { alert('Please log in first'); return; }
-  window.open('https://hariom-delivery.web.app', '_blank');
+  // Pass token in URL hash so TagPrint can read it on load
+  window.open('https://hariom-delivery.web.app/#token=' + encodeURIComponent(token), '_blank');
 }
 </script>
 
