@@ -981,8 +981,29 @@
     <span id="lastUpdated"></span>
     <a href="accountant.html">🧾 Accountant</a>
     <a href="drivers.html">👤 Drivers</a>
+    <a href="https://hariom-delivery.web.app"
+       onclick="openTagPrint(event)"
+       style="display:inline-flex;align-items:center;gap:5px;
+              background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.08));
+              border:1px solid rgba(245,158,11,0.45);
+              color:#fbbf24;text-decoration:none;
+              font-size:13px;font-weight:700;padding:7px 14px;border-radius:9px;
+              letter-spacing:0.02em;transition:all 0.18s;"
+       onmouseover="this.style.background='linear-gradient(135deg,rgba(245,158,11,0.32),rgba(245,158,11,0.18))';this.style.borderColor='rgba(245,158,11,0.75)'"
+       onmouseout="this.style.background='linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.08))';this.style.borderColor='rgba(245,158,11,0.45)'">
+      🏷️ TagPrint
+    </a>
   </nav>
 </div>
+
+<script>
+function openTagPrint(e) {
+  e.preventDefault();
+  const token = localStorage.getItem('adminToken');
+  if (!token) { alert('Please log in first'); return; }
+  window.open('https://hariom-delivery.web.app', '_blank');
+}
+</script>
 
 <div class="container">
 

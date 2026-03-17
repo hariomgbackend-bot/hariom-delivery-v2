@@ -43,7 +43,14 @@ const upload = multer({
 
 const app = express();
 app.set("trust proxy", 1); // Required on Render — sits behind a reverse proxy
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://hariom-delivery.onrender.com',
+    'https://hariom-delivery-v2.onrender.com',
+    'https://hariom-delivery.web.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.static("."));
 
@@ -296,6 +303,23 @@ app.post("/accountant/login", adminLoginLimiter, async (req, res) => {
   }
   const token = jwt.sign({ role: "accountant" }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
   res.json({ success: true, token });
+});
+
+/* ════════════════════════════════════════════════
+   TAGPRINT — TOKEN VERIFICATION
+════════════════════════════════════════════════ */
+app.post("/verify-token", (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ valid: false, error: "No token" });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!["admin", "accountant"].includes(decoded.role)) {
+      return res.json({ valid: false, error: "Insufficient role" });
+    }
+    res.json({ valid: true, role: decoded.role });
+  } catch (err) {
+    res.json({ valid: false, error: "Invalid or expired token" });
+  }
 });
 
 /* ════════════════════════════════════════════════
