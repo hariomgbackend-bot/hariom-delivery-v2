@@ -1754,7 +1754,15 @@ function viewDetails(d) {
     <div class="detail-row"><b>Address</b><span>${d.address || "—"}</span></div>
     <div class="detail-row"><b>Product</b><span>${d.product_name || "—"}</span></div>
     <div class="detail-row"><b>Make / Model</b><span>${[d.product_make, d.product_model].filter(Boolean).join(" / ") || "—"}</span></div>
-    <div class="detail-row"><b>Serial No.</b><span>${d.product_serial_number || "—"}</span></div>
+    <div class="detail-row"><b>Serial No.</b>
+      <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span id="adminSrDisplay">${d.product_serial_number || "—"}</span>
+        <button onclick="openAdminCorrect('${d.id}','sr')"
+          style="padding:2px 8px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:6px;cursor:pointer;">
+          ✏ Edit
+        </button>
+      </span>
+    </div>
     <div class="detail-row"><b>Invoice No.</b><span>${d.invoice_number || "—"}</span></div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${d.status}">${d.status}</span></span></div>
     <div class="detail-row"><b>Priority</b><span><span class="badge badge-${d.priority || "normal"}">${d.priority || "normal"}</span></span></div>
@@ -1769,8 +1777,25 @@ function viewDetails(d) {
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + d.loaded_location.lat + ',' + d.loaded_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
     <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + d.delivered_location.lat + ',' + d.delivered_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Loaded Photo</b><span>${d.photo_loaded_url ? '<a href="' + d.photo_loaded_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Delivered Photo</b><span>${d.photo_delivered_url ? '<a href="' + d.photo_delivered_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Loaded Photo</b>
+      <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span id="adminLoadedPhotoDisplay">${d.photo_loaded_url ? '<a href="' + d.photo_loaded_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span>
+        <button onclick="openAdminCorrect('${d.id}','loaded_photo')"
+          style="padding:2px 8px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:6px;cursor:pointer;">
+          ✏ Edit
+        </button>
+      </span>
+    </div>
+    <div class="detail-row"><b>Delivered Photo</b>
+      <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span id="adminDeliveredPhotoDisplay">${d.photo_delivered_url ? '<a href="' + d.photo_delivered_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span>
+        <button onclick="openAdminCorrect('${d.id}','delivered_photo')"
+          style="padding:2px 8px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:6px;cursor:pointer;">
+          ✏ Edit
+        </button>
+      </span>
+    </div>
+    <div id="adminCorrectArea" style="display:none;margin-top:8px;"></div>
 
     ${d.status === "failed" ? `
     <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:14px;margin-top:16px;">
@@ -1852,6 +1877,124 @@ async function deleteDelivery(id) {
     document.getElementById("popup").classList.remove("is-open");
     loadAdmin();
   } catch (e) { alert("⚠ Network error. Please try again."); }
+}
+
+/* ── ADMIN CORRECT DELIVERY (Feature 2) ── */
+function openAdminCorrect(deliveryId, field) {
+  const area = document.getElementById("adminCorrectArea");
+  if (!area) return;
+
+  // Toggle off if same field already open
+  if (area.style.display !== "none" && area.dataset.field === field) {
+    area.style.display = "none";
+    area.innerHTML = "";
+    area.dataset.field = "";
+    return;
+  }
+  area.dataset.field = field;
+
+  const inputId = "adminCorrectInput_" + field;
+
+  if (field === "sr") {
+    const current = currentDeliveryObj?.product_serial_number || "";
+    area.innerHTML = `
+      <div style="background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.5px;">Edit Serial Number</div>
+        <input id="${inputId}" value="${current}"
+          style="padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;">
+        <div style="display:flex;gap:8px;">
+          <button onclick="saveAdminCorrect('${deliveryId}','sr')"
+            style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">
+            💾 Save
+          </button>
+          <button onclick="document.getElementById('adminCorrectArea').style.display='none'"
+            style="padding:8px 12px;background:#f1f5f9;color:#64748b;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;cursor:pointer;">
+            Cancel
+          </button>
+        </div>
+      </div>`;
+  } else {
+    const label = field === "loaded_photo" ? "Loaded Photo" : "Delivered Photo";
+    area.innerHTML = `
+      <div style="background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.5px;">Replace ${label}</div>
+        <input id="${inputId}" type="file" accept="image/*"
+          style="font-family:'DM Sans',sans-serif;font-size:13px;">
+        <div style="display:flex;gap:8px;">
+          <button onclick="saveAdminCorrect('${deliveryId}','${field}')"
+            style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">
+            📤 Upload & Replace
+          </button>
+          <button onclick="document.getElementById('adminCorrectArea').style.display='none'"
+            style="padding:8px 12px;background:#f1f5f9;color:#64748b;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;cursor:pointer;">
+            Cancel
+          </button>
+        </div>
+        <div id="adminCorrectMsg" style="font-size:12px;"></div>
+      </div>`;
+  }
+
+  area.style.display = "block";
+}
+
+async function saveAdminCorrect(deliveryId, field) {
+  const inputId = "adminCorrectInput_" + field;
+  const inputEl = document.getElementById(inputId);
+  const msgEl   = document.getElementById("adminCorrectMsg");
+  if (!inputEl) return;
+
+  const formData = new FormData();
+
+  if (field === "sr") {
+    const val = inputEl.value.trim();
+    formData.append("serial_number", val);
+  } else {
+    const file = inputEl.files?.[0];
+    if (!file) { alert("Please select a photo file"); return; }
+    formData.append(field, file);
+  }
+
+  const saveBtn = document.querySelector("#adminCorrectArea button");
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+  if (msgEl) msgEl.innerText = "";
+
+  try {
+    const res = await authFetch(`${BASE_URL}/correctDelivery/${deliveryId}`, {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert("⚠ " + (data.error || "Update failed"));
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = field === "sr" ? "💾 Save" : "📤 Upload & Replace"; }
+      return;
+    }
+
+    // Update in-memory object so popup stays accurate
+    if (currentDeliveryObj) {
+      if (field === "sr" && data.updated?.includes("product_serial_number")) {
+        currentDeliveryObj.product_serial_number = inputEl.value.trim();
+        const disp = document.getElementById("adminSrDisplay");
+        if (disp) disp.textContent = currentDeliveryObj.product_serial_number || "—";
+      }
+      if (field === "loaded_photo" && data.updated?.includes("photo_loaded_url")) {
+        const disp = document.getElementById("adminLoadedPhotoDisplay");
+        if (disp) disp.innerHTML = `<a href="${data.photo_loaded_url || '#'}" target="_blank" style="color:var(--accent)">View Photo ✓</a>`;
+      }
+      if (field === "delivered_photo" && data.updated?.includes("photo_delivered_url")) {
+        const disp = document.getElementById("adminDeliveredPhotoDisplay");
+        if (disp) disp.innerHTML = `<a href="${data.photo_delivered_url || '#'}" target="_blank" style="color:var(--accent)">View Photo ✓</a>`;
+      }
+    }
+
+    document.getElementById("adminCorrectArea").style.display = "none";
+    if (msgEl) msgEl.innerHTML = "";
+    loadAdmin();
+  } catch (e) {
+    alert("⚠ Network error. Please try again.");
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = field === "sr" ? "💾 Save" : "📤 Upload & Replace"; }
+  }
 }
 
 function downloadCSV() {

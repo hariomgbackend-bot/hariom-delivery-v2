@@ -5,7 +5,7 @@ import db from "./firestore.js";
 import { storage } from "./storage.js";
 import fetch from "node-fetch";
 import multer from "multer";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import {
   collection, addDoc, getDocs, Timestamp,
   doc, getDoc, updateDoc, deleteDoc,
@@ -18,6 +18,7 @@ import admin from "firebase-admin";
 import { createRequire } from "module";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
+import { spawn } from "child_process";
 
 dotenv.config();
 
@@ -152,6 +153,176 @@ const adminLoginLimiter = rateLimit({
 
 // Apply global limiter to all routes
 app.use(globalLimiter);
+
+/* ════════════════════════════════════════════════
+   TRANSLITERATION — ai4bharat
+   POST /transliterate  { text, lang }
+   Uses Python XlitEngine; engine is warmed up on start.
+════════════════════════════════════════════════ */
+
+let xlitReady = false;
+
+function warmXlit() {
+  const py = spawn("python3", ["-c", `
+from ai4bharat.transliteration import XlitEngine
+e = XlitEngine("mr", beam_width=4, rescore=False)
+print("XLIT_READY")
+`]);
+  py.stdout.on("data", d => { if (d.toString().includes("XLIT_READY")) { xlitReady = true; console.log("[XLIT] Engine warm"); } });
+  py.stderr.on("data", d => console.warn("[XLIT warmup]", d.toString().slice(0, 200)));
+}
+warmXlit();
+
+app.post("/transliterate", async (req, res) => {
+  const { text, lang = "mr" } = req.body;
+  if (!text || !text.trim()) return res.json({ result: "" });
+
+  return new Promise((resolve) => {
+    const safe = text.replace(/'/g, "\\'").replace(/\\/g, "\\\\");
+    const py = spawn("python3", ["-c", `
+from ai4bharat.transliteration import XlitEngine
+import json, sys
+try:
+  e = XlitEngine("mr", beam_width=4, rescore=False)
+  words = '${safe}'.strip().split()
+  out = []
+  for w in words:
+    res = e.translit_word(w, topk=1)
+    best = res.get("mr", [w])
+    out.append(best[0] if best else w)
+  print(json.dumps({"result": " ".join(out)}))
+except Exception as ex:
+  print(json.dumps({"result": '${safe}', "error": str(ex)}))
+`]);
+    let output = "";
+    py.stdout.on("data", d => { output += d.toString(); });
+    py.stderr.on("data", () => {});
+    py.on("close", () => {
+      try {
+        const parsed = JSON.parse(output.trim().split("\n").pop());
+        res.json(parsed);
+      } catch {
+        res.json({ result: text });
+      }
+      resolve();
+    });
+    py.on("error", () => { res.json({ result: text }); resolve(); });
+    setTimeout(() => { try { py.kill(); } catch(_) {} res.json({ result: text }); resolve(); }, 8000);
+  });
+});
+
+/* ════════════════════════════════════════════════
+   ASSIGN DELIVERY (Unassigned dispatcher)
+   POST /assignDelivery/:id
+   Body: { driver_id, driver_name }
+   Updates assigned driver + sends push to new driver
+════════════════════════════════════════════════ */
+app.post("/assignDelivery/:id", async (req, res) => {
+  try {
+    const { driver_id, driver_name } = req.body;
+    if (!driver_id || !driver_name) return res.status(400).json({ error: "driver_id and driver_name required" });
+
+    const deliveryRef = doc(db, "deliveries", req.params.id);
+    const snap = await getDoc(deliveryRef);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    await updateDoc(deliveryRef, {
+      assigned_driver_id:   driver_id,
+      assigned_driver_name: driver_name
+    });
+
+    res.json({ success: true });
+
+    // Push notification to newly assigned driver — in background
+    (async () => {
+      try {
+        const driverSnap = await getDoc(doc(db, "drivers", driver_id));
+        if (!driverSnap.exists()) return;
+        const { pushToken } = driverSnap.data();
+        if (!pushToken) return;
+        const d = snap.data();
+        await sendPushToToken(
+          pushToken,
+          "🚚 New Delivery Assigned",
+          `${d.customer_name || ""} — ${d.address || ""}`,
+          doc(db, "drivers", driver_id),
+          "pushToken"
+        );
+      } catch (bgErr) {
+        console.warn("[assignDelivery] push error:", bgErr.message);
+      }
+    })();
+  } catch (err) {
+    console.error("/assignDelivery error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   CORRECT DELIVERY (admin — edit SR + photos)
+   POST /correctDelivery/:id  (multipart/form-data)
+   Fields: serial_number?, loaded_photo?, delivered_photo?
+   Replaces old photos in Firebase Storage, updates Firestore
+════════════════════════════════════════════════ */
+app.post("/correctDelivery/:id", authenticate, authorize(["admin"]), upload.fields([
+  { name: "loaded_photo", maxCount: 1 },
+  { name: "delivered_photo", maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const deliveryRef = doc(db, "deliveries", req.params.id);
+    const snap = await getDoc(deliveryRef);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    const current = snap.data();
+    const updates = {};
+
+    // SR number
+    if (req.body.serial_number !== undefined) {
+      updates.product_serial_number = req.body.serial_number.trim();
+    }
+
+    // Loaded photo replacement
+    if (req.files?.loaded_photo?.[0]) {
+      // Delete old photo from storage
+      if (current.photo_loaded_url) {
+        try {
+          const oldPath = decodeURIComponent(
+            current.photo_loaded_url.split("/o/")[1].split("?")[0].replace(/%2F/g, "/")
+          );
+          await adminBucket.file(oldPath).delete().catch(() => {});
+        } catch (_) {}
+      }
+      const storageRef = ref(storage, "delivery_proofs_loaded/" + Date.now() + "_corrected");
+      await uploadBytes(storageRef, req.files.loaded_photo[0].buffer, { contentType: req.files.loaded_photo[0].mimetype });
+      updates.photo_loaded_url = await getDownloadURL(storageRef);
+    }
+
+    // Delivered photo replacement
+    if (req.files?.delivered_photo?.[0]) {
+      if (current.photo_delivered_url) {
+        try {
+          const oldPath = decodeURIComponent(
+            current.photo_delivered_url.split("/o/")[1].split("?")[0].replace(/%2F/g, "/")
+          );
+          await adminBucket.file(oldPath).delete().catch(() => {});
+        } catch (_) {}
+      }
+      const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + "_corrected");
+      await uploadBytes(storageRef, req.files.delivered_photo[0].buffer, { contentType: req.files.delivered_photo[0].mimetype });
+      updates.photo_delivered_url = await getDownloadURL(storageRef);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "Nothing to update" });
+    }
+
+    await updateDoc(deliveryRef, updates);
+    res.json({ success: true, updated: Object.keys(updates) });
+  } catch (err) {
+    console.error("/correctDelivery error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 /* ════════════════════════════════════════════════
    AUTH MIDDLEWARE

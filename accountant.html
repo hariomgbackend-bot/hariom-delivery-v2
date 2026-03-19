@@ -626,6 +626,15 @@
       <input type="date" id="customDate" style="display:none;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;" onchange="applyCustomDate()">
     </div>
 
+    <!-- ── Driver filter bar ── -->
+    <div class="filter-bar" id="driverFilterBar" style="margin-top:4px;padding-top:8px;border-top:1px solid var(--border);align-items:center;">
+      <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;white-space:nowrap;align-self:center;">🚚 Driver:</span>
+      <select id="driverFilterSelect" onchange="setDriverFilter(this.value)"
+        style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;background:white;color:var(--text);cursor:pointer;transition:border-color 0.2s;">
+        <option value="all">All Drivers</option>
+      </select>
+    </div>
+
     <!-- ── Route filter bar ── -->
     <div class="filter-bar" id="routeFilterBar" style="margin-top:6px;padding-top:10px;border-top:1px solid var(--border);">
       <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;align-self:center;">Route:</span>
@@ -649,6 +658,7 @@
             <th>Customer</th>
             <th>Phone</th>
             <th>Product</th>
+            <th style="max-width:160px;">Address</th>
             <th>Driver</th>
             <th>ETA</th>
             <th>Status</th>
@@ -753,7 +763,13 @@
       <input type="checkbox" id="has_instruction" onchange="toggleInstruction()">
       <label for="has_instruction">Add Delivery Instruction</label>
     </div>
-    <input id="instruction" placeholder="Enter Instruction" style="display:none">
+    <div id="instructionWrap" style="display:none;">
+      <div style="position:relative;">
+        <input id="instruction" placeholder="Type in English → converts to Marathi" style="padding-right:80px;">
+        <span id="xlitStatus" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);pointer-events:none;white-space:nowrap;"></span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;margin-bottom:4px;">✍ Typing in English will auto-convert to Marathi script</div>
+    </div>
 
     <div class="checkbox-row">
       <input type="checkbox" id="freight_charged" onchange="toggleFreight()">
@@ -814,6 +830,7 @@ const BASE_URL = window.location.origin;
 let swRegistration      = null;
 let currentFilter       = "all";
 let currentRoute        = "all";
+let currentDriverFilter = "all";
 let customSelectedDate  = null;
 let searchQuery         = "";
 let currentAccountantData = [];
@@ -1037,6 +1054,7 @@ function initApp() {
   loadAllMasters();
   loadTallyProducts();
   startAutoRefresh();
+  setupTransliteration();
 
   // Set ETA min on DOMContentLoaded if popup already open
   const etaInput = document.getElementById("estimated_time");
@@ -1123,8 +1141,16 @@ async function openPopup() {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   etaInput.min = now.toISOString().slice(0, 16);
+
+  // Feature 4: default ETA to now + 6 hours
+  const eta6h = new Date(Date.now() + 6 * 60 * 60 * 1000);
+  eta6h.setMinutes(eta6h.getMinutes() - eta6h.getTimezoneOffset());
+  etaInput.value = eta6h.toISOString().slice(0, 16);
+
   if (masterProducts.length === 0) await loadAllMasters();
   resetForm();
+  // resetForm clears inputs including ETA, so re-apply after
+  etaInput.value = eta6h.toISOString().slice(0, 16);
   document.getElementById("popup").classList.add("is-open");
 }
 
@@ -1475,10 +1501,79 @@ function handleAddNew(select, type) { }
 async function saveNew(type) { }
 
 function toggleInstruction() {
-  const input = document.getElementById("instruction");
+  const wrap    = document.getElementById("instructionWrap");
+  const input   = document.getElementById("instruction");
   const checked = document.getElementById("has_instruction").checked;
-  input.style.display = checked ? "block" : "none";
-  if (!checked) input.value = "";
+  wrap.style.display  = checked ? "block" : "none";
+  if (!checked) { input.value = ""; }
+  else          { setTimeout(() => input.focus(), 50); }
+}
+
+/* ── MARATHI TRANSLITERATION (Feature 1) ── */
+let xlitDebounceTimer = null;
+
+function setupTransliteration() {
+  const input  = document.getElementById("instruction");
+  const status = document.getElementById("xlitStatus");
+  if (!input) return;
+
+  input.addEventListener("input", () => {
+    clearTimeout(xlitDebounceTimer);
+    const raw = input.value;
+    if (!raw.trim()) { if (status) status.innerText = ""; return; }
+
+    // Only transliterate if the last word looks like English (ASCII letters)
+    const words = raw.split(/\s+/);
+    const lastWord = words[words.length - 1];
+    const looksEnglish = /^[a-zA-Z]+$/.test(lastWord);
+    if (!looksEnglish) return;
+
+    if (status) status.innerText = "⏳";
+    xlitDebounceTimer = setTimeout(async () => {
+      try {
+        const res  = await authFetch(`${BASE_URL}/transliterate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: raw, lang: "mr" })
+        });
+        const data = await res.json();
+        if (data.result && data.result !== raw) {
+          input.value = data.result;
+          if (status) status.innerText = "✓ मराठी";
+          setTimeout(() => { if (status) status.innerText = ""; }, 2000);
+        } else {
+          if (status) status.innerText = "";
+        }
+      } catch (_) {
+        if (status) status.innerText = "";
+      }
+    }, 400);
+  });
+}
+
+/* ── DRIVER FILTER (Feature 6) ── */
+function setDriverFilter(val) {
+  currentDriverFilter = val;
+  loadDeliveries();
+}
+
+function populateDriverFilterDropdown(deliveries) {
+  const sel = document.getElementById("driverFilterSelect");
+  if (!sel) return;
+  const currentVal = sel.value;
+  // Collect unique driver names
+  const names = [...new Set(
+    deliveries.map(d => d.assigned_driver_name).filter(Boolean)
+  )].sort();
+  // Rebuild options
+  sel.innerHTML = `<option value="all">All Drivers</option>`;
+  names.forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  // Restore previous selection if still valid
+  if ([...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
 }
 
 function toggleFreight() {
@@ -1498,6 +1593,16 @@ async function loadDrivers() {
     o.value = x.id; o.text = x.driver_name;
     d.appendChild(o);
   });
+  // Also populate driver filter dropdown
+  const sel = document.getElementById("driverFilterSelect");
+  if (sel) {
+    sel.innerHTML = `<option value="all">All Drivers</option>`;
+    data.forEach(x => {
+      const opt = document.createElement("option");
+      opt.value = x.driver_name; opt.textContent = x.driver_name;
+      sel.appendChild(opt);
+    });
+  }
 }
 
 function capitalizeWords(str) {
@@ -1949,6 +2054,11 @@ async function loadDeliveries() {
     finalData = finalData.filter(d => getDeliveryRoute(d) === currentRoute);
   }
 
+  // ── Driver filter (Feature 6) ──
+  if (currentDriverFilter !== "all") {
+    finalData = finalData.filter(d => d.assigned_driver_name === currentDriverFilter);
+  }
+
   currentAccountantData = finalData;
 
   // Update filter count badges (based on all unfiltered data)
@@ -1966,6 +2076,9 @@ async function loadDeliveries() {
     const el = document.getElementById("fc-" + k);
     if (el) el.innerText = counts[k] || "";
   });
+
+  // Populate driver filter dropdown from full data
+  populateDriverFilterDropdown(data);
 
   // ── Update route counts (based on current status-filtered data, before route filter) ──
   // Use the pre-route-filter data so counts reflect current status filter
@@ -2077,6 +2190,7 @@ async function loadDeliveries() {
       <td>${d.customer_name}${batchTag}${d.previous_failures > 0 ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;">⚠ Prev. Failed</span>` : ""}</td>
       <td><a class='phone-link' href='tel:${d.phone}'>${d.phone}</a></td>
       <td>${d.product_name}</td>
+      <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${d.address || '—'}</span></td>
       <td>${d.assigned_driver_name || "—"}</td>
       <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
       <td>
@@ -2223,7 +2337,17 @@ function openViewPopup(id) {
     <div class="section-title">Delivery Info</div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${delivery.status}">${delivery.status}</span></span></div>
     <div class="detail-row"><b>Priority</b><span>${delivery.priority}</span></div>
-    <div class="detail-row"><b>Driver</b><span>${delivery.assigned_driver_name || "—"}</span></div>
+    <div class="detail-row" id="driverDetailRow">
+      <b>Driver</b>
+      <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span id="driverNameDisplay">${delivery.assigned_driver_name || "—"}</span>
+        <button onclick="openInlineDriverChange('${delivery.id}')"
+          style="padding:3px 10px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:7px;cursor:pointer;white-space:nowrap;">
+          ✏ Change
+        </button>
+      </span>
+    </div>
+    <div id="inlineDriverChangeArea" style="display:none;padding:10px 0 4px 0;"></div>
     <div class="detail-row"><b>ETA</b><span>${formatDate(delivery.estimated_delivery_time)}</span></div>
     ${ratingRow}
     <div class="detail-row"><b>Instruction</b><span>${delivery.driver_instructions || "—"}</span></div>
@@ -2308,6 +2432,83 @@ function openViewPopup(id) {
 
 function closeViewPopup() {
   document.getElementById("viewPopup").classList.remove("is-open");
+}
+
+/* ── INLINE DRIVER CHANGE (Feature 3) ── */
+async function openInlineDriverChange(deliveryId) {
+  const area = document.getElementById("inlineDriverChangeArea");
+  if (!area) return;
+
+  // If already open, close it
+  if (area.style.display !== "none") {
+    area.style.display = "none";
+    area.innerHTML = "";
+    return;
+  }
+
+  area.innerHTML = `<div style="font-size:12px;color:var(--muted);">Loading drivers…</div>`;
+  area.style.display = "block";
+
+  const res = await fetch(`${BASE_URL}/driver-list-public`);
+  const drivers = await res.json();
+
+  const delivery = currentAccountantData.find(d => d.id === deliveryId);
+  const currentDriverId = delivery ? delivery.assigned_driver_id : "";
+
+  const selectId = "inlineDriverSelect_" + deliveryId;
+  area.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:10px;">
+      <select id="${selectId}"
+        style="flex:1;min-width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+      </select>
+      <button onclick="confirmInlineDriverChange('${deliveryId}','${selectId}')"
+        style="padding:8px 14px;background:#2563eb;color:white;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        ✓ Confirm
+      </button>
+      <button onclick="document.getElementById('inlineDriverChangeArea').style.display='none'"
+        style="padding:8px 10px;background:#f1f5f9;color:#64748b;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;cursor:pointer;">
+        ✕
+      </button>
+    </div>
+  `;
+
+  const sel = document.getElementById(selectId);
+  drivers.forEach(d => {
+    const opt = document.createElement("option");
+    opt.value = d.id;
+    opt.textContent = d.driver_name + (d.id === currentDriverId ? " (current)" : "");
+    if (d.id === currentDriverId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+async function confirmInlineDriverChange(deliveryId, selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const driverId   = sel.value;
+  const driverName = sel.options[sel.selectedIndex].textContent.replace(" (current)", "");
+
+  try {
+    const res = await authFetch(`${BASE_URL}/delivery/${deliveryId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assigned_driver_id: driverId, assigned_driver_name: driverName })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      alert("⚠ " + (err.error || "Failed to update driver")); return;
+    }
+    // Update display inline
+    const nameDisplay = document.getElementById("driverNameDisplay");
+    if (nameDisplay) nameDisplay.textContent = driverName;
+    document.getElementById("inlineDriverChangeArea").style.display = "none";
+    // Update in-memory data so further operations use new driver
+    const d = currentAccountantData.find(x => x.id === deliveryId);
+    if (d) { d.assigned_driver_id = driverId; d.assigned_driver_name = driverName; }
+    loadDeliveries();
+  } catch (e) {
+    alert("⚠ Network error. Try again.");
+  }
 }
 
 /* ── MARK PRODUCT RETURNED ── */
