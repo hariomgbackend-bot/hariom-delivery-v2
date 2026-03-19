@@ -1382,6 +1382,7 @@ function createProductItemHTML(idx) {
     <div data-field="tally_section" style="display:none;margin-bottom:10px;">
       <input data-field="tally_input" list="tallyList_${idx}"
         placeholder="Type to search Tally products..."
+        oninput="this.value=this.value.toUpperCase()"
         style="width:100%;padding:10px 12px;border:2px solid #86efac;border-radius:9px;font-size:14px;outline:none;background:#f0fdf4;color:var(--text);">
       <datalist id="tallyList_${idx}"></datalist>
       <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Type at least 2 characters to search</div>
@@ -1393,7 +1394,8 @@ function createProductItemHTML(idx) {
       <select data-field="product_select" onchange="handleItemAddNew(this,${idx},'product')">
         ${buildSelectOptions(masterProducts, "")}
       </select>
-      <input data-field="new_product" placeholder="New Product name" style="display:none">
+      <input data-field="new_product" placeholder="New Product name" style="display:none"
+        oninput="this.value=this.value.toUpperCase()">
       <button type="button" class="btn btn-success btn-sm" data-field="btn_product"
         onclick="saveItemNew(${idx},'product')" style="display:none;margin-bottom:8px;">+ Save Product</button>
 
@@ -1477,7 +1479,9 @@ async function saveItemNew(idx, field) {
   if (!item) return;
   const input  = item.querySelector(`[data-field="new_${field}"]`);
   const select = item.querySelector(`[data-field="${field}_select"]`);
-  const value  = input.value.trim();
+  // Force uppercase for product names; title-case for make/model
+  const raw   = input.value.trim();
+  const value = field === "product" ? raw.toUpperCase() : raw;
   if (!value) { alert("Enter a value first"); return; }
 
   const res = await fetch(`${BASE_URL}/${field}s`, {
@@ -1843,7 +1847,7 @@ async function createDelivery() {
     if (isTally) {
       // ── Tally mode — read from searchable input ──
       const tallyInput = item.querySelector(`[data-field="tally_input"]`);
-      productName = tallyInput ? tallyInput.value.trim() : "";
+      productName = tallyInput ? tallyInput.value.trim().toUpperCase() : "";
       if (!productName) {
         alert(`Please select a product from Tally for item #${idx}`); return;
       }
@@ -1879,7 +1883,7 @@ async function createDelivery() {
         alert(`Please select a product for item #${idx}`); return;
       }
 
-      productName = capitalizeWords([productVal, makeVal, modelVal].filter(x => x).join(" "));
+      productName = [productVal, makeVal, modelVal].filter(x => x).join(" ").toUpperCase();
     }
 
     products.push({
@@ -2799,7 +2803,7 @@ async function editDelivery(id) {
     <div class="section-title">Address</div>
     <textarea id="edit_address" style="${inputStyle}min-height:70px;">${delivery.address}</textarea>
     <div class="section-title">Product</div>
-    <input id="edit_product" value="${delivery.product_name}" style="${inputStyle}">
+    <input id="edit_product" value="${delivery.product_name}" oninput="this.value=this.value.toUpperCase()" style="${inputStyle}">
     <div class="section-title">Serial Number</div>
     <input id="edit_serial" value="${delivery.product_serial_number || ""}" style="${inputStyle}">
     <div class="section-title">Estimated Delivery Time</div>
@@ -2833,7 +2837,7 @@ async function saveDelivery(id) {
     phone:                   document.getElementById("edit_phone").value,
     alternate_phone:         document.getElementById("edit_alt").value,
     address:                 document.getElementById("edit_address").value,
-    product_name:            document.getElementById("edit_product").value,
+    product_name:            document.getElementById("edit_product").value.trim().toUpperCase(),
     product_serial_number:   document.getElementById("edit_serial").value,
     estimated_delivery_time: document.getElementById("edit_eta").value,
     assigned_driver_id:      driverSelect.value,
