@@ -1402,6 +1402,9 @@ app.post("/reverseDelivery/:id", authenticate, authorize(["admin", "accountant"]
     res.status(500).json({ error: err.message });
   }
 });
+
+/* ════════════════════════════════════════════════
+   MARK FREIGHT PAID
    POST /markFreightPaid/:id  (admin only)
    Sets freight_paid: true + timestamp on delivery
 ════════════════════════════════════════════════ */
