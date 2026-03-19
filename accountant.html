@@ -1557,37 +1557,70 @@ function onXlitToggleChange() {
 
 /* ── MARATHI TRANSLITERATION (Feature 1) ── */
 let xlitDebounceTimer = null;
+let xlitPending = false; // guard against double-firing
 
 function setupTransliteration() {
   const input  = document.getElementById("instruction");
   const status = document.getElementById("xlitStatus");
   if (!input) return;
 
-  input.addEventListener("input", () => {
-    clearTimeout(xlitDebounceTimer);
-    if (!xlitOn) return;                        // only fire when toggle is ON
-    const raw = input.value;
-    if (!raw.trim()) { if (status) status.innerText = ""; return; }
+  // ── Trigger: Space or Enter pressed after typing a word ──
+  // We listen on keydown so we can intercept the space before it lands,
+  // preventing the cursor-jump that happens when value is replaced async.
+  input.addEventListener("keydown", async (e) => {
+    if (!xlitOn) return;
+    if (e.key !== " " && e.key !== "Enter") return;
+
+    const val         = input.value;
+    const cursorPos   = input.selectionStart;
+
+    // Find the word just before the cursor (no spaces)
+    const beforeCursor = val.slice(0, cursorPos);
+    const wordMatch    = beforeCursor.match(/([a-zA-Z]+)$/);
+    if (!wordMatch) return; // last chars aren't English letters — let space through normally
+
+    const word      = wordMatch[1];
+    const wordStart = cursorPos - word.length;
+
+    // Only transliterate English words
+    if (!/^[a-zA-Z]+$/.test(word)) return;
+
+    // Prevent double-fire
+    if (xlitPending) return;
+    xlitPending = true;
+
+    // Block the space/enter so it doesn't land before we replace the word
+    e.preventDefault();
 
     if (status) status.innerText = "⏳";
-    xlitDebounceTimer = setTimeout(async () => {
-      try {
-        const res  = await authFetch(`${BASE_URL}/transliterate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: raw, lang: "mr" })
-        });
-        const data = await res.json();
-        if (data.result && data.result !== raw) {
-          input.value = data.result;
-          if (status) { status.innerText = "✓ मराठी"; setTimeout(() => { status.innerText = ""; }, 2000); }
-        } else {
-          if (status) status.innerText = "";
-        }
-      } catch (_) {
-        if (status) status.innerText = "";
-      }
-    }, 400);
+
+    try {
+      const res  = await authFetch(`${BASE_URL}/transliterate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: word, lang: "mr" })
+      });
+      const data = await res.json();
+      const converted = (data.result && data.result !== word) ? data.result : word;
+
+      // Replace just the typed word with Marathi, then add the space/enter
+      const separator  = e.key === "Enter" ? "\n" : " ";
+      const newVal     = val.slice(0, wordStart) + converted + separator + val.slice(cursorPos);
+      const newCursor  = wordStart + converted.length + 1;
+
+      input.value = newVal;
+      input.setSelectionRange(newCursor, newCursor);
+
+      if (status) { status.innerText = "✓"; setTimeout(() => { status.innerText = ""; }, 1200); }
+    } catch (_) {
+      // On error: just insert the space normally and leave the word as-is
+      const newVal    = val.slice(0, cursorPos) + (e.key === "Enter" ? "\n" : " ") + val.slice(cursorPos);
+      input.value     = newVal;
+      input.setSelectionRange(cursorPos + 1, cursorPos + 1);
+      if (status) status.innerText = "";
+    } finally {
+      xlitPending = false;
+    }
   });
 }
 
