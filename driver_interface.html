@@ -1642,13 +1642,15 @@ async function unlockDriver() {
     document.getElementById("changeDriverBtn").style.display = "inline-flex";
     document.getElementById("rememberedTag").style.display   = "none";
 
-    // Feature 7: if driver name is exactly "Unassigned" → show dispatcher panel
+    // Feature 7: if driver name is exactly "Unassigned" (any case) → show dispatcher panel
     const driverName = driverSelect.options[driverSelect.selectedIndex]?.text || "";
-    if (driverName === "Unassigned") {
+    if (driverName.trim().toLowerCase() === "unassigned") {
       document.getElementById("dispatcherPanel").style.display = "block";
       document.getElementById("deliveryCards").style.display   = "none";
-      document.querySelector(".section-header")?.style && (document.querySelector(".section-header").style.display = "none");
-      document.getElementById("deliverySearch").closest("div").style.display = "none";
+      const secHdr = document.querySelector(".section-header");
+      if (secHdr) secHdr.style.display = "none";
+      const searchEl = document.getElementById("deliverySearch");
+      if (searchEl && searchEl.closest("div")) searchEl.closest("div").style.display = "none";
       loadDispatcherDeliveries();
     } else {
       allDeliveriesData = data;
@@ -3124,12 +3126,12 @@ async function loadDispatcherDeliveries() {
     const allDrivers    = await driverRes.json();
 
     // Cache driver list (exclude the "Unassigned" driver itself)
-    dispatcherDriverList = allDrivers.filter(d => d.driver_name !== "Unassigned");
+    dispatcherDriverList = allDrivers.filter(d => d.driver_name.trim().toLowerCase() !== "unassigned");
 
     const showAll = document.getElementById("showAllUnassigned")?.checked;
 
-    // Filter: assigned to "Unassigned" driver
-    const unassignedDriverId = allDrivers.find(d => d.driver_name === "Unassigned")?.id;
+    // Filter: assigned to "Unassigned" driver (case-insensitive match)
+    const unassignedDriverId = allDrivers.find(d => d.driver_name.trim().toLowerCase() === "unassigned")?.id;
     let deliveries = allDeliveries.filter(d => d.assigned_driver_id === unassignedDriverId);
 
     if (!showAll) {

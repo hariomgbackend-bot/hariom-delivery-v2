@@ -764,11 +764,23 @@
       <label for="has_instruction">Add Delivery Instruction</label>
     </div>
     <div id="instructionWrap" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:11px;color:var(--muted);">✍ Toggle Marathi auto-convert</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--accent);">
+          <span id="xlitToggleLabel">मराठी OFF</span>
+          <div style="position:relative;display:inline-block;width:36px;height:20px;">
+            <input type="checkbox" id="xlitToggle" onchange="onXlitToggleChange()"
+              style="opacity:0;width:0;height:0;position:absolute;">
+            <span id="xlitToggleTrack" style="position:absolute;inset:0;border-radius:20px;background:#cbd5e1;transition:background 0.2s;cursor:pointer;"
+              onclick="document.getElementById('xlitToggle').click()"></span>
+            <span id="xlitToggleThumb" style="position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:white;transition:transform 0.2s;box-shadow:0 1px 4px rgba(0,0,0,0.2);pointer-events:none;"></span>
+          </div>
+        </label>
+      </div>
       <div style="position:relative;">
-        <input id="instruction" placeholder="Type in English → converts to Marathi" style="padding-right:80px;">
+        <input id="instruction" placeholder="Enter delivery instruction…" style="padding-right:70px;">
         <span id="xlitStatus" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);pointer-events:none;white-space:nowrap;"></span>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px;margin-bottom:4px;">✍ Typing in English will auto-convert to Marathi script</div>
     </div>
 
     <div class="checkbox-row">
@@ -1505,8 +1517,27 @@ function toggleInstruction() {
   const input   = document.getElementById("instruction");
   const checked = document.getElementById("has_instruction").checked;
   wrap.style.display  = checked ? "block" : "none";
-  if (!checked) { input.value = ""; }
-  else          { setTimeout(() => input.focus(), 50); }
+  if (!checked) {
+    input.value = "";
+    const status = document.getElementById("xlitStatus");
+    if (status) status.innerText = "";
+  } else {
+    setTimeout(() => input.focus(), 50);
+  }
+}
+
+function onXlitToggleChange() {
+  const on     = document.getElementById("xlitToggle").checked;
+  const track  = document.getElementById("xlitToggleTrack");
+  const thumb  = document.getElementById("xlitToggleThumb");
+  const label  = document.getElementById("xlitToggleLabel");
+  const input  = document.getElementById("instruction");
+  if (track) track.style.background = on ? "var(--accent)" : "#cbd5e1";
+  if (thumb) thumb.style.transform  = on ? "translateX(16px)" : "translateX(0)";
+  if (label) label.textContent      = on ? "मराठी ON" : "मराठी OFF";
+  if (input) input.placeholder      = on ? "Type in English → converts to Marathi…" : "Enter delivery instruction…";
+  const status = document.getElementById("xlitStatus");
+  if (status) status.innerText = "";
 }
 
 /* ── MARATHI TRANSLITERATION (Feature 1) ── */
@@ -1520,13 +1551,12 @@ function setupTransliteration() {
   input.addEventListener("input", () => {
     clearTimeout(xlitDebounceTimer);
     const raw = input.value;
-    if (!raw.trim()) { if (status) status.innerText = ""; return; }
 
-    // Only transliterate if the last word looks like English (ASCII letters)
-    const words = raw.split(/\s+/);
-    const lastWord = words[words.length - 1];
-    const looksEnglish = /^[a-zA-Z]+$/.test(lastWord);
-    if (!looksEnglish) return;
+    // Only fire when Marathi toggle is ON
+    const toggleOn = document.getElementById("xlitToggle")?.checked;
+    if (!toggleOn) return;
+
+    if (!raw.trim()) { if (status) status.innerText = ""; return; }
 
     if (status) status.innerText = "⏳";
     xlitDebounceTimer = setTimeout(async () => {
@@ -1936,8 +1966,12 @@ function resetForm() {
   });
 
   document.getElementById("has_instruction").checked = false;
-  document.getElementById("instruction").style.display = "none";
+  document.getElementById("instructionWrap").style.display = "none";
   document.getElementById("instruction").value = "";
+  const xlitStatus = document.getElementById("xlitStatus");
+  if (xlitStatus) xlitStatus.innerText = "";
+  const xlitToggle = document.getElementById("xlitToggle");
+  if (xlitToggle) xlitToggle.checked = false;
   document.getElementById("freight_charged").checked = false;
   document.getElementById("freight_amount").style.display = "none";
   document.getElementById("freight_amount").value = "";

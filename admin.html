@@ -1754,15 +1754,7 @@ function viewDetails(d) {
     <div class="detail-row"><b>Address</b><span>${d.address || "—"}</span></div>
     <div class="detail-row"><b>Product</b><span>${d.product_name || "—"}</span></div>
     <div class="detail-row"><b>Make / Model</b><span>${[d.product_make, d.product_model].filter(Boolean).join(" / ") || "—"}</span></div>
-    <div class="detail-row"><b>Serial No.</b>
-      <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span id="adminSrDisplay">${d.product_serial_number || "—"}</span>
-        <button onclick="openAdminCorrect('${d.id}','sr')"
-          style="padding:2px 8px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:6px;cursor:pointer;">
-          ✏ Edit
-        </button>
-      </span>
-    </div>
+    <div class="detail-row"><b>Serial No.</b><span id="adminSrDisplay">${d.product_serial_number || "—"}</span></div>
     <div class="detail-row"><b>Invoice No.</b><span>${d.invoice_number || "—"}</span></div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${d.status}">${d.status}</span></span></div>
     <div class="detail-row"><b>Priority</b><span><span class="badge badge-${d.priority || "normal"}">${d.priority || "normal"}</span></span></div>
@@ -1777,24 +1769,8 @@ function viewDetails(d) {
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + d.loaded_location.lat + ',' + d.loaded_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
     <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + d.delivered_location.lat + ',' + d.delivered_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Loaded Photo</b>
-      <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span id="adminLoadedPhotoDisplay">${d.photo_loaded_url ? '<a href="' + d.photo_loaded_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span>
-        <button onclick="openAdminCorrect('${d.id}','loaded_photo')"
-          style="padding:2px 8px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:6px;cursor:pointer;">
-          ✏ Edit
-        </button>
-      </span>
-    </div>
-    <div class="detail-row"><b>Delivered Photo</b>
-      <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span id="adminDeliveredPhotoDisplay">${d.photo_delivered_url ? '<a href="' + d.photo_delivered_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span>
-        <button onclick="openAdminCorrect('${d.id}','delivered_photo')"
-          style="padding:2px 8px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:6px;cursor:pointer;">
-          ✏ Edit
-        </button>
-      </span>
-    </div>
+    <div class="detail-row"><b>Loaded Photo</b><span id="adminLoadedPhotoDisplay">${d.photo_loaded_url ? '<a href="' + d.photo_loaded_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Delivered Photo</b><span id="adminDeliveredPhotoDisplay">${d.photo_delivered_url ? '<a href="' + d.photo_delivered_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
     <div id="adminCorrectArea" style="display:none;margin-top:8px;"></div>
 
     ${d.status === "failed" ? `
@@ -1836,6 +1812,22 @@ function enableEdit() {
       </select>
     </div>
     <div class="edit-field"><label>ETA</label><input id="edit_eta" value="${d.estimated_delivery_time || ""}"></div>
+    <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${d.product_serial_number || ""}"></div>
+
+    <div style="margin-top:12px;padding:12px;background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:10px;">
+      <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📷 Replace Photos (optional — leave blank to keep existing)</div>
+      <div class="edit-field" style="margin-bottom:8px;">
+        <label>Loaded Photo</label>
+        ${d.photo_loaded_url ? `<div style="margin-bottom:4px;"><a href="${d.photo_loaded_url}" target="_blank" style="font-size:12px;color:var(--accent);">View current →</a></div>` : ""}
+        <input type="file" id="edit_loaded_photo" accept="image/*" style="font-size:13px;">
+      </div>
+      <div class="edit-field">
+        <label>Delivered Photo</label>
+        ${d.photo_delivered_url ? `<div style="margin-bottom:4px;"><a href="${d.photo_delivered_url}" target="_blank" style="font-size:12px;color:var(--accent);">View current →</a></div>` : ""}
+        <input type="file" id="edit_delivered_photo" accept="image/*" style="font-size:13px;">
+      </div>
+    </div>
+
     <div style="margin-top:20px;display:flex;gap:10px;">
       <button class="btn-primary" onclick="updateDelivery('${d.id}')">Save Changes</button>
       <button class="btn-gray" onclick="document.getElementById('popup').classList.remove('is-open')">Cancel</button>
@@ -1846,24 +1838,57 @@ function enableEdit() {
 async function updateDelivery(id) {
   if (!confirm("Update this delivery?")) return;
 
+  const saveBtn = document.querySelector("#popupContent .btn-primary");
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+
   try {
+    // 1. Save text/select fields via existing PUT endpoint
     const res = await authFetch(`${BASE_URL}/delivery/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        customer_name: document.getElementById("edit_customer").value,
-        phone: document.getElementById("edit_phone").value,
-        address: document.getElementById("edit_address").value,
-        product_name: document.getElementById("edit_product").value,
-        assigned_driver_name: document.getElementById("edit_driver").value,
-        priority: document.getElementById("edit_priority").value,
-        estimated_delivery_time: document.getElementById("edit_eta").value
+        customer_name:           document.getElementById("edit_customer").value,
+        phone:                   document.getElementById("edit_phone").value,
+        address:                 document.getElementById("edit_address").value,
+        product_name:            document.getElementById("edit_product").value,
+        assigned_driver_name:    document.getElementById("edit_driver").value,
+        priority:                document.getElementById("edit_priority").value,
+        estimated_delivery_time: document.getElementById("edit_eta").value,
+        product_serial_number:   document.getElementById("edit_serial").value
       })
     });
-    if (!res.ok) { const e = await res.json(); alert("⚠ " + (e.error || "Update failed")); return; }
+    if (!res.ok) {
+      const e = await res.json();
+      alert("⚠ " + (e.error || "Update failed"));
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; }
+      return;
+    }
+
+    // 2. If photos were selected, upload them via /correctDelivery
+    const loadedFile    = document.getElementById("edit_loaded_photo")?.files?.[0];
+    const deliveredFile = document.getElementById("edit_delivered_photo")?.files?.[0];
+
+    if (loadedFile || deliveredFile) {
+      const fd = new FormData();
+      if (loadedFile)    fd.append("loaded_photo",    loadedFile);
+      if (deliveredFile) fd.append("delivered_photo", deliveredFile);
+
+      const photoRes = await authFetch(`${BASE_URL}/correctDelivery/${id}`, {
+        method: "POST",
+        body: fd
+      });
+      if (!photoRes.ok) {
+        const e = await photoRes.json();
+        alert("⚠ Text fields saved but photo update failed: " + (e.error || "Unknown error"));
+      }
+    }
+
     document.getElementById("popup").classList.remove("is-open");
     loadAdmin();
-  } catch (e) { alert("⚠ Network error. Please try again."); }
+  } catch (e) {
+    alert("⚠ Network error. Please try again.");
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; }
+  }
 }
 
 async function deleteDelivery(id) {
