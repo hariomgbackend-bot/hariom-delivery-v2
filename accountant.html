@@ -2449,8 +2449,9 @@ function openViewPopup(id) {
     ${delivery.status === "failed" ? `
     <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:16px;margin-top:16px;">
       <div style="font-weight:700;font-size:15px;color:#b91c1c;margin-bottom:10px;">
-        ${delivery.failure_reason === "Product Damaged / Not Working" ? "🔴 URGENT — " : ""}❌ Delivery Failed
+        ${delivery.failure_reason === "Product Damaged / Not Working" ? "🔴 URGENT — " : ""}${delivery.reversed_from_delivered ? "↩ " : ""}❌ Delivery Failed
       </div>
+      ${delivery.reversed_from_delivered ? `<div style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;margin-bottom:8px;">↩ Reversed from Delivered</div>` : ""}
       <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${delivery.failure_reason || "—"}</span></div>
       ${delivery.failure_photo_url ? `
         <div style="margin:10px 0;">
@@ -2482,11 +2483,109 @@ function openViewPopup(id) {
     content.innerHTML += `<button class="btn btn-primary" style="margin-top:16px;" onclick="editDelivery('${delivery.id}')">✏ Edit</button>`;
   }
 
+  if (delivery.status === "delivered") {
+    content.innerHTML += `
+      <div style="margin-top:16px;padding:14px;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;">
+        <div style="font-size:13px;font-weight:700;color:#c2410c;margin-bottom:4px;">↩ Customer returned the product?</div>
+        <div style="font-size:12px;color:#92400e;margin-bottom:10px;">Use this if the customer refused or returned after delivery. This will move it back to failed so you can reschedule.</div>
+        <button class="btn btn-danger btn-sm" style="background:#ea580c;" onclick="openReverseDelivery('${delivery.id}')">
+          ↩ Reverse This Delivery
+        </button>
+      </div>`;
+  }
+
   document.getElementById("viewPopup").classList.add("is-open");
 }
 
 function closeViewPopup() {
   document.getElementById("viewPopup").classList.remove("is-open");
+}
+
+/* ── REVERSE DELIVERY (Option A) ── */
+function openReverseDelivery(id) {
+  const delivery = currentAccountantData.find(d => d.id === id);
+  if (!delivery) return;
+
+  const inputStyle = "width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;margin-bottom:8px;outline:none;background:#fafbfc;";
+
+  document.getElementById("viewContent").innerHTML = `
+    <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:18px;margin-bottom:16px;">
+      <div style="font-size:16px;font-weight:700;color:#c2410c;margin-bottom:4px;">↩ Reverse Delivery</div>
+      <div style="font-size:13px;color:#92400e;">
+        <strong>${delivery.customer_name}</strong> — ${delivery.product_name}
+      </div>
+      <div style="font-size:12px;color:#b45309;margin-top:6px;line-height:1.5;">
+        This will move the delivery back to <strong>Failed</strong> status.<br>
+        You can then mark the product as returned and reschedule as usual.
+      </div>
+    </div>
+
+    <div class="section-title">Reason for Return *</div>
+    <select id="reverseReason" style="${inputStyle}">
+      <option value="">— Select a reason —</option>
+      <option>Customer Rejected — Wrong Color</option>
+      <option>Customer Rejected — Wrong Model / Variant</option>
+      <option>Customer Changed Mind</option>
+      <option>Customer Not Satisfied with Product</option>
+      <option>Delivered to Wrong Address</option>
+      <option>Other</option>
+    </select>
+
+    <div style="background:#fef9c3;border-radius:8px;padding:10px 12px;font-size:12px;color:#854d0e;margin-bottom:14px;">
+      ⚠ The driver will be notified to collect the product back from the customer.
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-danger" style="flex:1;background:#ea580c;" onclick="confirmReverseDelivery('${id}')">
+        ↩ Confirm Reverse
+      </button>
+      <button class="btn btn-gray" style="flex:1;" onclick="openViewPopup('${id}')">
+        ← Cancel
+      </button>
+    </div>
+  `;
+}
+
+async function confirmReverseDelivery(id) {
+  const reason = document.getElementById("reverseReason")?.value;
+  if (!reason) {
+    const sel = document.getElementById("reverseReason");
+    if (sel) sel.style.borderColor = "#dc2626";
+    alert("⚠ Please select a reason before proceeding.");
+    return;
+  }
+
+  const confirmBtn = document.querySelector("#viewContent .btn-danger");
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = "Reversing…"; }
+
+  try {
+    const res = await authFetch(`${BASE_URL}/reverseDelivery/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert("⚠ " + (data.error || "Reverse failed"));
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "↩ Confirm Reverse"; }
+      return;
+    }
+
+    closeViewPopup();
+    loadDeliveries();
+    // Brief confirmation message
+    setTimeout(() => {
+      const msgEl = document.getElementById("formMessage");
+      if (msgEl) {
+        msgEl.innerHTML = `<span style="color:#ea580c;">↩ Delivery reversed — mark product returned then reschedule.</span>`;
+        setTimeout(() => { msgEl.innerHTML = ""; }, 6000);
+      }
+    }, 200);
+  } catch (e) {
+    alert("⚠ Network error. Please try again.");
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "↩ Confirm Reverse"; }
+  }
 }
 
 /* ── INLINE DRIVER CHANGE (Feature 3) ── */

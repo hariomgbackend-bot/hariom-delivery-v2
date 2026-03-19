@@ -18,7 +18,6 @@ import admin from "firebase-admin";
 import { createRequire } from "module";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
-import { spawn } from "child_process";
 
 dotenv.config();
 
@@ -155,60 +154,35 @@ const adminLoginLimiter = rateLimit({
 app.use(globalLimiter);
 
 /* ════════════════════════════════════════════════
-   TRANSLITERATION — ai4bharat
-   POST /transliterate  { text, lang }
-   Uses Python XlitEngine; engine is warmed up on start.
+   TRANSLITERATION — Google Input Tools
+   POST /transliterate  { text }
+   Proxies to Google's free Input Tools API (en→mr)
+   No Python, no ML library — just a fetch call.
 ════════════════════════════════════════════════ */
-
-let xlitReady = false;
-
-function warmXlit() {
-  const py = spawn("python3", ["-c", `
-from ai4bharat.transliteration import XlitEngine
-e = XlitEngine("mr", beam_width=4, rescore=False)
-print("XLIT_READY")
-`]);
-  py.stdout.on("data", d => { if (d.toString().includes("XLIT_READY")) { xlitReady = true; console.log("[XLIT] Engine warm"); } });
-  py.stderr.on("data", d => console.warn("[XLIT warmup]", d.toString().slice(0, 200)));
-}
-warmXlit();
-
 app.post("/transliterate", async (req, res) => {
-  const { text, lang = "mr" } = req.body;
+  const { text } = req.body;
   if (!text || !text.trim()) return res.json({ result: "" });
 
-  return new Promise((resolve) => {
-    const safe = text.replace(/'/g, "\\'").replace(/\\/g, "\\\\");
-    const py = spawn("python3", ["-c", `
-from ai4bharat.transliteration import XlitEngine
-import json, sys
-try:
-  e = XlitEngine("mr", beam_width=4, rescore=False)
-  words = '${safe}'.strip().split()
-  out = []
-  for w in words:
-    res = e.translit_word(w, topk=1)
-    best = res.get("mr", [w])
-    out.append(best[0] if best else w)
-  print(json.dumps({"result": " ".join(out)}))
-except Exception as ex:
-  print(json.dumps({"result": '${safe}', "error": str(ex)}))
-`]);
-    let output = "";
-    py.stdout.on("data", d => { output += d.toString(); });
-    py.stderr.on("data", () => {});
-    py.on("close", () => {
-      try {
-        const parsed = JSON.parse(output.trim().split("\n").pop());
-        res.json(parsed);
-      } catch {
-        res.json({ result: text });
-      }
-      resolve();
-    });
-    py.on("error", () => { res.json({ result: text }); resolve(); });
-    setTimeout(() => { try { py.kill(); } catch(_) {} res.json({ result: text }); resolve(); }, 8000);
-  });
+  try {
+    const words = text.trim().split(/\s+/);
+    const results = [];
+
+    for (const word of words) {
+      if (!word) continue;
+      // Google Input Tools endpoint — same API used by Google Translate virtual keyboard
+      const url = `https://inputtools.google.com/request?text=${encodeURIComponent(word)}&itc=mr-t-i0-und&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=test`;
+      const r = await fetch(url, { headers: { "Accept": "application/json" } });
+      const data = await r.json();
+      // Response shape: ["SUCCESS", [["word", ["transliterated", ...], ...]]]
+      const suggestion = data?.[1]?.[0]?.[1]?.[0];
+      results.push(suggestion || word);
+    }
+
+    res.json({ result: results.join(" ") });
+  } catch (err) {
+    console.warn("[transliterate]", err.message);
+    res.json({ result: text }); // graceful fallback — return original text
+  }
 });
 
 /* ════════════════════════════════════════════════
@@ -1363,7 +1337,71 @@ app.post("/rescheduleDelivery/:id", authenticate, authorize(["admin", "accountan
 });
 
 /* ════════════════════════════════════════════════
-   MARK FREIGHT PAID
+   REVERSE DELIVERY — delivered → failed
+   POST /reverseDelivery/:id
+   Body: { reason }
+   Moves a delivered delivery back to failed so the
+   normal returned → reschedule flow can handle it.
+   Sets reversed_from_delivered: true for audit trail.
+════════════════════════════════════════════════ */
+app.post("/reverseDelivery/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const VALID_REASONS = [
+      "Customer Rejected — Wrong Color",
+      "Customer Rejected — Wrong Model / Variant",
+      "Customer Changed Mind",
+      "Customer Not Satisfied with Product",
+      "Delivered to Wrong Address",
+      "Other"
+    ];
+    if (!reason || !VALID_REASONS.includes(reason)) {
+      return res.status(400).json({ error: "Valid reason is required" });
+    }
+
+    const deliveryRef = doc(db, "deliveries", req.params.id);
+    const snap = await getDoc(deliveryRef);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    const delivery = snap.data();
+    if (delivery.status !== "delivered") {
+      return res.status(400).json({ error: "Only delivered deliveries can be reversed" });
+    }
+
+    await updateDoc(deliveryRef, {
+      status:                   "failed",
+      failure_reason:           reason,
+      failed_timestamp:         Timestamp.now(),
+      product_returned:         false,
+      reversed_from_delivered:  true,
+      // Preserve original delivery timestamps for audit
+      original_delivered_timestamp: delivery.delivered_timestamp || null
+    });
+
+    console.log(`[reverseDelivery] ${req.params.id} reversed. Reason: ${reason}. Customer: ${delivery.customer_name}`);
+    res.json({ success: true });
+
+    // Notify driver that delivery was reversed
+    if (delivery.assigned_driver_id) {
+      getDoc(doc(db, "drivers", delivery.assigned_driver_id)).then(driverSnap => {
+        if (!driverSnap.exists()) return;
+        const { pushToken } = driverSnap.data();
+        if (pushToken) {
+          sendPushToToken(
+            pushToken,
+            "↩ Delivery Reversed",
+            `${delivery.customer_name || "Customer"} — please collect the product back`,
+            doc(db, "drivers", delivery.assigned_driver_id),
+            "pushToken"
+          ).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.error("/reverseDelivery error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
    POST /markFreightPaid/:id  (admin only)
    Sets freight_paid: true + timestamp on delivery
 ════════════════════════════════════════════════ */
