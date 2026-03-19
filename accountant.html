@@ -763,23 +763,19 @@
       <input type="checkbox" id="has_instruction" onchange="toggleInstruction()">
       <label for="has_instruction">Add Delivery Instruction</label>
     </div>
-    <div id="instructionWrap" style="display:none;">
+    <div id="instructionWrap" style="display:none;margin-bottom:8px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <span style="font-size:11px;color:var(--muted);">✍ Toggle Marathi auto-convert</span>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--accent);">
+        <span style="font-size:12px;font-weight:600;color:var(--muted);">Delivery Instruction</span>
+        <button type="button" id="xlitToggleBtn" onclick="onXlitToggleChange()"
+          style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1.5px solid #cbd5e1;background:#f8fafc;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap;">
+          <span id="xlitDot" style="width:8px;height:8px;border-radius:50%;background:#cbd5e1;flex-shrink:0;transition:background 0.2s;"></span>
           <span id="xlitToggleLabel">मराठी OFF</span>
-          <div style="position:relative;display:inline-block;width:36px;height:20px;">
-            <input type="checkbox" id="xlitToggle" onchange="onXlitToggleChange()"
-              style="opacity:0;width:0;height:0;position:absolute;">
-            <span id="xlitToggleTrack" style="position:absolute;inset:0;border-radius:20px;background:#cbd5e1;transition:background 0.2s;cursor:pointer;"
-              onclick="document.getElementById('xlitToggle').click()"></span>
-            <span id="xlitToggleThumb" style="position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:white;transition:transform 0.2s;box-shadow:0 1px 4px rgba(0,0,0,0.2);pointer-events:none;"></span>
-          </div>
-        </label>
+        </button>
       </div>
-      <div style="position:relative;">
-        <input id="instruction" placeholder="Enter delivery instruction…" style="padding-right:70px;">
-        <span id="xlitStatus" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);pointer-events:none;white-space:nowrap;"></span>
+      <div style="position:relative;width:100%;">
+        <input id="instruction" placeholder="Enter delivery instruction…"
+          style="width:100%;padding:10px 80px 10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;background:#fafbfc;transition:border-color 0.2s,box-shadow 0.2s;box-sizing:border-box;margin-bottom:0;">
+        <span id="xlitStatus" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--accent);pointer-events:none;white-space:nowrap;font-weight:600;"></span>
       </div>
     </div>
 
@@ -1516,9 +1512,18 @@ function toggleInstruction() {
   const wrap    = document.getElementById("instructionWrap");
   const input   = document.getElementById("instruction");
   const checked = document.getElementById("has_instruction").checked;
-  wrap.style.display  = checked ? "block" : "none";
+  wrap.style.display = checked ? "block" : "none";
   if (!checked) {
     input.value = "";
+    // Reset Marathi toggle to OFF
+    if (xlitOn) { xlitOn = true; onXlitToggleChange(); }
+    xlitOn = false;
+    const btn = document.getElementById("xlitToggleBtn");
+    const dot = document.getElementById("xlitDot");
+    const lbl = document.getElementById("xlitToggleLabel");
+    if (btn) { btn.style.borderColor = "#cbd5e1"; btn.style.background = "#f8fafc"; btn.style.color = "var(--muted)"; }
+    if (dot) dot.style.background = "#cbd5e1";
+    if (lbl) lbl.textContent = "मराठी OFF";
     const status = document.getElementById("xlitStatus");
     if (status) status.innerText = "";
   } else {
@@ -1526,18 +1531,28 @@ function toggleInstruction() {
   }
 }
 
+let xlitOn = false;
+
 function onXlitToggleChange() {
-  const on     = document.getElementById("xlitToggle").checked;
-  const track  = document.getElementById("xlitToggleTrack");
-  const thumb  = document.getElementById("xlitToggleThumb");
-  const label  = document.getElementById("xlitToggleLabel");
-  const input  = document.getElementById("instruction");
-  if (track) track.style.background = on ? "var(--accent)" : "#cbd5e1";
-  if (thumb) thumb.style.transform  = on ? "translateX(16px)" : "translateX(0)";
-  if (label) label.textContent      = on ? "मराठी ON" : "मराठी OFF";
-  if (input) input.placeholder      = on ? "Type in English → converts to Marathi…" : "Enter delivery instruction…";
+  xlitOn = !xlitOn;
+  const btn   = document.getElementById("xlitToggleBtn");
+  const dot   = document.getElementById("xlitDot");
+  const label = document.getElementById("xlitToggleLabel");
+  const input = document.getElementById("instruction");
   const status = document.getElementById("xlitStatus");
-  if (status) status.innerText = "";
+
+  if (xlitOn) {
+    if (btn)   { btn.style.borderColor = "var(--accent)"; btn.style.background = "rgba(37,99,235,0.06)"; btn.style.color = "var(--accent)"; }
+    if (dot)   dot.style.background = "var(--accent)";
+    if (label) label.textContent = "मराठी ON";
+    if (input) input.placeholder = "Type in English → auto-converts to Marathi…";
+  } else {
+    if (btn)   { btn.style.borderColor = "#cbd5e1"; btn.style.background = "#f8fafc"; btn.style.color = "var(--muted)"; }
+    if (dot)   dot.style.background = "#cbd5e1";
+    if (label) label.textContent = "मराठी OFF";
+    if (input) input.placeholder = "Enter delivery instruction…";
+    if (status) status.innerText = "";
+  }
 }
 
 /* ── MARATHI TRANSLITERATION (Feature 1) ── */
@@ -1550,12 +1565,8 @@ function setupTransliteration() {
 
   input.addEventListener("input", () => {
     clearTimeout(xlitDebounceTimer);
+    if (!xlitOn) return;                        // only fire when toggle is ON
     const raw = input.value;
-
-    // Only fire when Marathi toggle is ON
-    const toggleOn = document.getElementById("xlitToggle")?.checked;
-    if (!toggleOn) return;
-
     if (!raw.trim()) { if (status) status.innerText = ""; return; }
 
     if (status) status.innerText = "⏳";
@@ -1569,8 +1580,7 @@ function setupTransliteration() {
         const data = await res.json();
         if (data.result && data.result !== raw) {
           input.value = data.result;
-          if (status) status.innerText = "✓ मराठी";
-          setTimeout(() => { if (status) status.innerText = ""; }, 2000);
+          if (status) { status.innerText = "✓ मराठी"; setTimeout(() => { status.innerText = ""; }, 2000); }
         } else {
           if (status) status.innerText = "";
         }
@@ -1957,9 +1967,13 @@ function initProductList() {
 
 /* ── RESET FORM ── */
 function resetForm() {
-  // Clear shared inputs (skip those inside .product-item)
+  // Clear shared inputs (skip those inside .product-item, skip ETA, skip hidden toggles)
   document.querySelectorAll("#popup input").forEach(i => {
-    if (!i.closest(".product-item")) { i.value = ""; i.classList.remove("error"); }
+    if (i.closest(".product-item")) return;
+    if (i.id === "estimated_time") return;   // ETA preset handled by openPopup
+    if (i.type === "checkbox")     return;   // checkboxes handled individually below
+    i.value = "";
+    i.classList.remove("error");
   });
   document.querySelectorAll("#popup select").forEach(s => {
     if (!s.closest(".product-item")) s.selectedIndex = 0;
@@ -1968,10 +1982,17 @@ function resetForm() {
   document.getElementById("has_instruction").checked = false;
   document.getElementById("instructionWrap").style.display = "none";
   document.getElementById("instruction").value = "";
+  // Reset Marathi toggle
+  if (xlitOn) { xlitOn = true; onXlitToggleChange(); } // force to OFF via toggle
+  xlitOn = false;
+  const btn = document.getElementById("xlitToggleBtn");
+  const dot = document.getElementById("xlitDot");
+  const lbl = document.getElementById("xlitToggleLabel");
+  if (btn) { btn.style.borderColor = "#cbd5e1"; btn.style.background = "#f8fafc"; btn.style.color = "var(--muted)"; }
+  if (dot) dot.style.background = "#cbd5e1";
+  if (lbl) lbl.textContent = "मराठी OFF";
   const xlitStatus = document.getElementById("xlitStatus");
   if (xlitStatus) xlitStatus.innerText = "";
-  const xlitToggle = document.getElementById("xlitToggle");
-  if (xlitToggle) xlitToggle.checked = false;
   document.getElementById("freight_charged").checked = false;
   document.getElementById("freight_amount").style.display = "none";
   document.getElementById("freight_amount").value = "";
