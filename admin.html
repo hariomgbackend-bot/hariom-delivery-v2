@@ -849,7 +849,12 @@
       max-height: 85vh;
       overflow-y: auto;
       border: 1px solid rgba(173,198,255,0.08);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(173,198,255,0.2) transparent;
     }
+    .popup-card::-webkit-scrollbar { width: 5px; }
+    .popup-card::-webkit-scrollbar-track { background: transparent; }
+    .popup-card::-webkit-scrollbar-thumb { background: rgba(173,198,255,0.2); border-radius: 10px; }
 
     @media (max-width: 767px) {
       .popup-card {
@@ -906,13 +911,14 @@
     }
     .btn-danger {
       padding: 10px 20px;
-      background: rgba(147,0,10,0.6);
+      background: transparent;
       color: var(--error);
-      border: 1px solid rgba(255,180,171,0.2);
+      border: 1.5px solid rgba(255,180,171,0.4);
       border-radius: 10px;
       font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
-      cursor: pointer; transition: opacity 0.2s;
+      cursor: pointer; transition: all 0.2s;
     }
+    .btn-danger:hover { background: rgba(147,0,10,0.3); border-color: var(--error); }
     .btn-gray {
       padding: 10px 20px;
       background: var(--surface-container-highest);
@@ -1071,13 +1077,16 @@
     [data-theme="light"] .stat-card { background: white; border-color: rgba(0,0,0,0.06); }
     [data-theme="light"] .table-wrap { background: white; border-color: rgba(0,0,0,0.06); }
     [data-theme="light"] thead th { background: #f8fafc; color: #64748b; }
-    [data-theme="light"] tbody td { color: #1a2540; border-color: rgba(0,0,0,0.05); }
+    [data-theme="light"] tbody td { color: #1a2540 !important; border-color: rgba(0,0,0,0.05); }
     [data-theme="light"] tbody tr.main-row:hover { background: rgba(37,99,235,0.03) !important; }
     [data-theme="light"] .detail-expand-inner { background: #f8faff; }
     [data-theme="light"] .row-green  { background: #f0fdf4 !important; }
     [data-theme="light"] .row-yellow { background: #fffbeb !important; }
     [data-theme="light"] .row-red    { background: #fff1f2 !important; }
     [data-theme="light"] .row-gray   { background: #f8fafc !important; }
+    [data-theme="light"] #lastUpdated { color: rgba(26,37,64,0.4); }
+    [data-theme="light"] .btn-danger { color: #dc2626; border-color: rgba(220,38,38,0.4); background: transparent; }
+    [data-theme="light"] .btn-danger:hover { background: rgba(220,38,38,0.06); }
     [data-theme="light"] .toolbar { background: white; }
     [data-theme="light"] .filter-btn { border-color: #dde3ed; color: #64748b; background: white; }
     [data-theme="light"] .filter-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
@@ -1594,7 +1603,16 @@ function applyDateFilter() {
   loadAdmin();
 }
 
+let adminTallyProducts = [];
+
 async function loadAdmin() {
+  // Pre-load tally products for edit form (fire-and-forget)
+  if (!adminTallyProducts.length) {
+    fetch(`${BASE_URL}/tally/products`).then(r => r.json()).then(d => {
+      adminTallyProducts = d.names || [];
+    }).catch(() => {});
+  }
+
   const res = await authFetch(`${BASE_URL}/deliveries`);
   let data = await res.json();
   const now = new Date();
@@ -1671,7 +1689,15 @@ async function loadAdmin() {
       batchNumberMap[d.phone] = batchCounter++;
     }
   });
-  const BATCH_PALETTES = [
+  const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  const BATCH_PALETTES = isDark ? [
+    { bg: "rgba(124,58,237,0.15)",  border: "#7c3aed", text: "#c4b5fd" },
+    { bg: "rgba(219,39,119,0.15)",  border: "#db2777", text: "#f9a8d4" },
+    { bg: "rgba(234,88,12,0.15)",   border: "#ea580c", text: "#fdba74" },
+    { bg: "rgba(22,163,74,0.15)",   border: "#16a34a", text: "#86efac" },
+    { bg: "rgba(37,99,235,0.15)",   border: "#2563eb", text: "#93c5fd" },
+    { bg: "rgba(202,138,4,0.15)",   border: "#ca8a04", text: "#fde047" },
+  ] : [
     { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
     { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
     { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
@@ -2029,41 +2055,96 @@ function viewImage(url) {
 
 function enableEdit() {
   const d = currentDeliveryObj;
-  document.getElementById("popupContent").innerHTML = `
-    <h3>Edit Delivery</h3>
-    <div class="edit-field"><label>Customer Name</label><input id="edit_customer" value="${d.customer_name}"></div>
-    <div class="edit-field"><label>Phone</label><input id="edit_phone" value="${d.phone}"></div>
-    <div class="edit-field"><label>Address</label><input id="edit_address" value="${d.address}"></div>
-    <div class="edit-field"><label>Product</label><input id="edit_product" value="${d.product_name}"></div>
-    <div class="edit-field"><label>Driver Name</label><input id="edit_driver" value="${d.assigned_driver_name || ""}"></div>
-    <div class="edit-field"><label>Priority</label>
-      <select id="edit_priority">
-        <option ${d.priority === "normal" ? "selected" : ""}>normal</option>
-        <option ${d.priority === "urgent" ? "selected" : ""}>urgent</option>
-      </select>
-    </div>
-    <div class="edit-field"><label>ETA</label><input id="edit_eta" value="${d.estimated_delivery_time || ""}"></div>
-    <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${d.product_serial_number || ""}"></div>
 
-    <div style="margin-top:12px;padding:12px;background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:10px;">
-      <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📷 Replace Photos (optional — leave blank to keep existing)</div>
-      <div class="edit-field" style="margin-bottom:8px;">
-        <label>Loaded Photo</label>
-        ${d.photo_loaded_url ? `<div style="margin-bottom:4px;"><a href="${d.photo_loaded_url}" target="_blank" style="font-size:12px;color:var(--accent);">View current →</a></div>` : ""}
-        <input type="file" id="edit_loaded_photo" accept="image/*" style="font-size:13px;">
-      </div>
-      <div class="edit-field">
-        <label>Delivered Photo</label>
-        ${d.photo_delivered_url ? `<div style="margin-bottom:4px;"><a href="${d.photo_delivered_url}" target="_blank" style="font-size:12px;color:var(--accent);">View current →</a></div>` : ""}
-        <input type="file" id="edit_delivered_photo" accept="image/*" style="font-size:13px;">
-      </div>
-    </div>
+  // Build driver options — load from server
+  fetch(`${BASE_URL}/driver-list-public`)
+    .then(r => r.json())
+    .then(drivers => {
+      const driverOpts = drivers.map(dr =>
+        `<option value="${dr.id}" data-name="${dr.driver_name}" ${dr.id === d.assigned_driver_id ? "selected" : ""}>${dr.driver_name}</option>`
+      ).join("");
 
-    <div style="margin-top:20px;display:flex;gap:10px;">
-      <button class="btn-primary" onclick="updateDelivery('${d.id}')">Save Changes</button>
-      <button class="btn-gray" onclick="document.getElementById('popup').classList.remove('is-open')">Cancel</button>
-    </div>
-  `;
+      document.getElementById("popupContent").innerHTML = `
+        <h3>Edit Delivery</h3>
+        <div class="edit-field"><label>Customer Name</label><input id="edit_customer" value="${d.customer_name}"></div>
+        <div class="edit-field"><label>Phone</label><input id="edit_phone" value="${d.phone}"></div>
+        <div class="edit-field"><label>Address</label><input id="edit_address" value="${d.address}"></div>
+
+        <div class="edit-field">
+          <label>Product</label>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <label style="font-size:12px;font-weight:600;color:var(--on-surface-variant);display:flex;align-items:center;gap:5px;cursor:pointer;text-transform:none;letter-spacing:0;">
+              <input type="checkbox" id="edit_use_tally" style="accent-color:var(--tertiary);width:14px;height:14px;" onchange="toggleEditProductMode()">
+              Add from Tally
+            </label>
+          </div>
+          <div id="edit_product_normal">
+            <input id="edit_product" value="${d.product_name}" oninput="this.value=this.value.toUpperCase()" placeholder="Product name">
+          </div>
+          <div id="edit_product_tally" style="display:none;">
+            <input id="edit_product_tally_input" list="editTallyList" placeholder="Search Tally products…" oninput="this.value=this.value.toUpperCase()" style="width:100%;">
+            <datalist id="editTallyList"></datalist>
+          </div>
+        </div>
+
+        <div class="edit-field">
+          <label>Assign Driver</label>
+          <select id="edit_driver_select" style="width:100%;padding:9px 12px;border:1px solid rgba(173,198,255,0.15);border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;outline:none;background:var(--surface-container-high);color:var(--on-surface);">
+            ${driverOpts}
+          </select>
+        </div>
+
+        <div class="edit-field"><label>Priority</label>
+          <select id="edit_priority">
+            <option ${d.priority === "normal" ? "selected" : ""}>normal</option>
+            <option ${d.priority === "urgent" ? "selected" : ""}>urgent</option>
+          </select>
+        </div>
+        <div class="edit-field"><label>ETA</label><input id="edit_eta" value="${d.estimated_delivery_time || ""}"></div>
+        <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${d.product_serial_number || ""}"></div>
+
+        <div style="margin-top:12px;padding:14px;background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.15);border-radius:12px;">
+          <div style="font-size:10px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">📷 Replace Photos (optional)</div>
+          <div class="edit-field" style="margin-bottom:10px;">
+            <label>Loaded Photo</label>
+            ${d.photo_loaded_url ? `<div style="margin-bottom:4px;"><a href="${d.photo_loaded_url}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
+            <input type="file" id="edit_loaded_photo" accept="image/*" style="font-size:13px;color:var(--on-surface);">
+          </div>
+          <div class="edit-field">
+            <label>Delivered Photo</label>
+            ${d.photo_delivered_url ? `<div style="margin-bottom:4px;"><a href="${d.photo_delivered_url}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
+            <input type="file" id="edit_delivered_photo" accept="image/*" style="font-size:13px;color:var(--on-surface);">
+          </div>
+        </div>
+
+        <div style="margin-top:20px;display:flex;gap:10px;">
+          <button class="btn-primary" onclick="updateDelivery('${d.id}')">Save Changes</button>
+          <button class="btn-gray" onclick="document.getElementById('popup').classList.remove('is-open')">Cancel</button>
+        </div>
+      `;
+
+      // Populate tally datalist
+      if (typeof adminTallyProducts !== "undefined" && adminTallyProducts.length) {
+        const dl = document.getElementById("editTallyList");
+        adminTallyProducts.forEach(name => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          dl.appendChild(opt);
+        });
+      }
+    })
+    .catch(() => {
+      // Fallback if driver list fails — show plain text input
+      document.getElementById("edit_driver_select")?.insertAdjacentHTML("afterend",
+        `<input id="edit_driver" value="${d.assigned_driver_name || ""}" style="width:100%;">`);
+    });
+}
+
+function toggleEditProductMode() {
+  const useTally = document.getElementById("edit_use_tally")?.checked;
+  document.getElementById("edit_product_normal").style.display = useTally ? "none" : "block";
+  document.getElementById("edit_product_tally").style.display  = useTally ? "block" : "none";
+  if (useTally) document.getElementById("edit_product_tally_input")?.focus();
 }
 
 async function updateDelivery(id) {
@@ -2074,6 +2155,19 @@ async function updateDelivery(id) {
 
   try {
     // 1. Save text/select fields via existing PUT endpoint
+    // Resolve product name — tally or normal
+    const useTally    = document.getElementById("edit_use_tally")?.checked;
+    const productName = useTally
+      ? (document.getElementById("edit_product_tally_input")?.value?.trim()?.toUpperCase() || "")
+      : (document.getElementById("edit_product")?.value?.trim()?.toUpperCase() || "");
+
+    // Resolve driver — from dropdown (has id + name)
+    const driverSel  = document.getElementById("edit_driver_select");
+    const driverName = driverSel
+      ? driverSel.options[driverSel.selectedIndex]?.text
+      : (document.getElementById("edit_driver")?.value || "");
+    const driverId   = driverSel ? driverSel.value : d?.assigned_driver_id;
+
     const res = await authFetch(`${BASE_URL}/delivery/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -2081,8 +2175,9 @@ async function updateDelivery(id) {
         customer_name:           document.getElementById("edit_customer").value,
         phone:                   document.getElementById("edit_phone").value,
         address:                 document.getElementById("edit_address").value,
-        product_name:            document.getElementById("edit_product").value,
-        assigned_driver_name:    document.getElementById("edit_driver").value,
+        product_name:            productName,
+        assigned_driver_name:    driverName,
+        assigned_driver_id:      driverId,
         priority:                document.getElementById("edit_priority").value,
         estimated_delivery_time: document.getElementById("edit_eta").value,
         product_serial_number:   document.getElementById("edit_serial").value

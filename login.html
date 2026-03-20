@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,363 +10,308 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#0b1326">
   <title>Admin Login — Hariom Electronics</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-surface-variant": "#c2c6d6",
+            "outline": "#8c909f",
+            "surface-dim": "#0b1326",
+            "primary-container": "#4d8eff",
+            "error": "#ffb4ab",
+            "on-primary": "#002e6a",
+            "surface": "#0b1326",
+            "surface-container-highest": "#2d3449",
+            "on-secondary-fixed": "#111c2d",
+            "on-secondary-container": "#aeb9d0",
+            "on-primary-fixed-variant": "#004395",
+            "tertiary-fixed": "#6ffbbe",
+            "on-tertiary-fixed-variant": "#005236",
+            "on-error": "#690005",
+            "on-surface": "#dae2fd",
+            "secondary": "#bcc7de",
+            "on-primary-container": "#00285d",
+            "on-error-container": "#ffdad6",
+            "tertiary-fixed-dim": "#4edea3",
+            "surface-container-high": "#222a3d",
+            "secondary-fixed-dim": "#bcc7de",
+            "on-tertiary-fixed": "#002113",
+            "error-container": "#93000a",
+            "primary-fixed-dim": "#adc6ff",
+            "surface-bright": "#31394d",
+            "on-primary-fixed": "#001a42",
+            "tertiary-container": "#00a572",
+            "outline-variant": "#424754",
+            "surface-variant": "#2d3449",
+            "primary": "#adc6ff",
+            "inverse-surface": "#dae2fd",
+            "inverse-primary": "#005ac2",
+            "inverse-on-surface": "#283044",
+            "surface-container-lowest": "#060e20",
+            "on-secondary": "#263143",
+            "secondary-container": "#3e495d",
+            "primary-fixed": "#d8e2ff",
+            "surface-container-low": "#131b2e",
+            "tertiary": "#4edea3",
+            "secondary-fixed": "#d8e3fb",
+            "background": "#0b1326",
+            "surface-tint": "#adc6ff",
+            "on-secondary-fixed-variant": "#3c475a",
+            "on-tertiary": "#003824",
+            "on-background": "#dae2fd",
+            "surface-container": "#171f33",
+            "on-tertiary-container": "#00311f"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" },
+        },
+      },
+    }
+  </script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #0a0f1e;
-      --surface: #111827;
-      --border: rgba(255,255,255,0.08);
-      --accent: #3b82f6;
-      --accent-glow: rgba(59,130,246,0.35);
-      --text: #f1f5f9;
-      --muted: #64748b;
+    body { font-family: 'Inter', sans-serif; min-height: max(884px, 100dvh); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .glass-panel {
+      background: rgba(11, 19, 38, 0.6);
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
     }
-
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .kinetic-bg {
+      background: radial-gradient(circle at 50% 50%, #171f33 0%, #0b1326 100%);
       overflow: hidden;
+      position: relative;
     }
-
-    /* Ambient background orbs */
-    body::before, body::after {
-      content: '';
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.15;
+    .kinetic-light {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(77, 142, 255, 0.05) 0%, transparent 70%);
+      top: -200px;
+      right: -100px;
       pointer-events: none;
     }
-    body::before {
-      width: 500px; height: 500px;
-      background: #3b82f6;
-      top: -100px; left: -100px;
-    }
-    body::after {
-      width: 400px; height: 400px;
-      background: #6366f1;
-      bottom: -80px; right: -80px;
+    .glow-focus:focus-within {
+      box-shadow: 0 0 20px rgba(173, 198, 255, 0.15);
+      background: #222a3d;
     }
 
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 44px 40px;
-      width: 100%;
-      max-width: 400px;
-      position: relative;
-      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
-      animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
+    /* ── LIGHT MODE OVERRIDES ─────────────────────────────── */
+    html:not(.dark) body {
+      background: #f0f4ff !important;
+      color: #0b1326 !important;
     }
-
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(24px); }
-      to   { opacity: 1; transform: translateY(0); }
+    html:not(.dark) .kinetic-bg {
+      background: radial-gradient(circle at 50% 50%, #dde8ff 0%, #f0f4ff 100%) !important;
     }
-
-    .brand {
-      text-align: center;
-      margin-bottom: 32px;
+    html:not(.dark) .kinetic-light {
+      background: radial-gradient(circle, rgba(77, 142, 255, 0.08) 0%, transparent 70%) !important;
     }
-
-    .brand-icon {
-      width: 52px; height: 52px;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
-      border-radius: 14px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      margin-bottom: 14px;
-      box-shadow: 0 8px 20px var(--accent-glow);
+    html:not(.dark) header {
+      background: rgba(240, 244, 255, 0.7) !important;
+      border-bottom: 1px solid rgba(77, 142, 255, 0.15) !important;
     }
-
-    .brand h1 {
-      font-family: 'DM Serif Display', serif;
-      font-size: 22px;
-      letter-spacing: 0.3px;
-      color: var(--text);
+    html:not(.dark) .glass-panel {
+      background: rgba(255, 255, 255, 0.75) !important;
+      border: 1px solid rgba(77, 142, 255, 0.15) !important;
+      box-shadow: 0 8px 40px rgba(11, 19, 38, 0.1) !important;
     }
-
-    .brand p {
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 4px;
+    html:not(.dark) .glass-panel input {
+      background: #f0f4ff !important;
+      color: #0b1326 !important;
     }
-
-    .field {
-      margin-bottom: 18px;
-    }
-
-    .field label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-
-    .field input {
-      width: 100%;
-      padding: 12px 16px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      outline: none;
-    }
-
-    .field input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-glow);
-    }
-
-    .field input::placeholder { color: var(--muted); }
-
-    button {
-      width: 100%;
-      padding: 13px;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.15s;
-      margin-top: 8px;
-      box-shadow: 0 6px 20px var(--accent-glow);
-    }
-
-    button:hover { opacity: 0.9; transform: translateY(-1px); }
-    button:active { transform: translateY(0); }
-
-    .message {
-      text-align: center;
-      margin-top: 14px;
-      font-size: 13px;
-      min-height: 20px;
-      color: #f87171;
-    }
-
-    /* ═══════════════════════════════════════
-       DARK MODE
-    ═══════════════════════════════════════ */
-    [data-theme="dark"] {
-      --bg: #0f1624;
-      --surface: #1a2236;
-      --border: rgba(255,255,255,0.08);
-      --text: #e2e8f4;
-      --muted: #8899b4;
-      --accent: #4f8ef7;
-    }
-    [data-theme="dark"] body { background: var(--bg) !important; color: var(--text); }
-
-    /* Cards & surfaces */
-    [data-theme="dark"] .stat-card,
-    [data-theme="dark"] .card,
-    [data-theme="dark"] .toolbar,
-    [data-theme="dark"] .table-wrap,
-    [data-theme="dark"] .payout-panel,
-    [data-theme="dark"] .popup-card,
-    [data-theme="dark"] .img-popup-card,
-    [data-theme="dark"] .login-card { background: var(--surface) !important; border-color: var(--border) !important; }
-
-    /* Table rows */
-    [data-theme="dark"] thead th { background: #0d1520 !important; }
-    [data-theme="dark"] tbody td { border-color: var(--border) !important; color: var(--text) !important; }
-    [data-theme="dark"] tbody tr.main-row:hover,
-    [data-theme="dark"] tbody tr:hover { background: rgba(255,255,255,0.03) !important; filter: none !important; }
-    [data-theme="dark"] .detail-expand-inner { background: #111927 !important; border-color: var(--border) !important; }
-    [data-theme="dark"] .detail-expand-value { color: var(--text) !important; }
-    [data-theme="dark"] .detail-row { border-color: rgba(255,255,255,0.05) !important; }
-
-    /* Row status tints */
-    [data-theme="dark"] .row-green  { background: rgba(74,222,128,0.06) !important; }
-    [data-theme="dark"] .row-yellow { background: rgba(245,158,11,0.06) !important; }
-    [data-theme="dark"] .row-red    { background: rgba(248,113,113,0.07) !important; }
-    [data-theme="dark"] .row-gray   { background: rgba(255,255,255,0.02) !important; }
-
-    /* Toolbar & filter buttons */
-    [data-theme="dark"] .filter-btn { border-color: rgba(255,255,255,0.1) !important; color: var(--muted) !important; background: transparent !important; }
-    [data-theme="dark"] .filter-btn:hover { background: rgba(79,142,247,0.1) !important; color: var(--accent) !important; border-color: var(--accent) !important; }
-    [data-theme="dark"] .filter-btn.active { background: var(--accent) !important; border-color: var(--accent) !important; color: white !important; }
-    [data-theme="dark"] .filter-btn:not(.active) .filter-count { background: rgba(255,255,255,0.1) !important; color: var(--text) !important; }
-
-    /* Inputs & selects */
-    [data-theme="dark"] input:not([type=range]),
-    [data-theme="dark"] select,
-    [data-theme="dark"] textarea {
-      background: #111927 !important;
-      color: var(--text) !important;
-      border-color: rgba(255,255,255,0.1) !important;
-    }
-    [data-theme="dark"] input::placeholder { color: var(--muted) !important; }
-    [data-theme="dark"] input:focus,
-    [data-theme="dark"] select:focus {
-      border-color: var(--accent) !important;
-      box-shadow: 0 0 0 3px rgba(79,142,247,0.15) !important;
-    }
-    [data-theme="dark"] input:disabled,
-    [data-theme="dark"] .field input:disabled { background: #0d1520 !important; color: var(--muted) !important; }
-
-    /* Payout panel */
-    [data-theme="dark"] .payout-header:hover { background: rgba(255,255,255,0.03) !important; }
-    [data-theme="dark"] .payout-body { border-color: var(--border) !important; background: transparent !important; }
-    [data-theme="dark"] #payoutChips > div { background: rgba(255,255,255,0.04) !important; }
-
-    /* Popup overlays */
-    [data-theme="dark"] .popup-card h3 { color: var(--text) !important; }
-    [data-theme="dark"] .popup-card b { color: #6b7e99 !important; }
-
-    /* Mobile delivery cards */
-    [data-theme="dark"] .mob-delivery-card { background: var(--surface) !important; border-color: var(--border) !important; }
-    [data-theme="dark"] .mob-batch-grp-hdr { background: rgba(255,255,255,0.03) !important; }
-
-    /* Driver interface specifics */
-    [data-theme="dark"] .delivery-card { background: var(--surface) !important; border-color: var(--border) !important; }
-    [data-theme="dark"] .delivery-card .dc-label { color: var(--muted) !important; }
-    [data-theme="dark"] .section-title { color: var(--muted) !important; }
-    [data-theme="dark"] .login-card { background: var(--surface) !important; }
-    [data-theme="dark"] select#driverSelect { background: #111927 !important; color: var(--text) !important; }
-
-    /* Driver page field labels */
-    [data-theme="dark"] .field label { color: #6b7e99 !important; }
-
-    /* Login page */
-    [data-theme="dark"] .brand h1 { color: var(--text) !important; }
-    [data-theme="dark"] .brand p { color: var(--muted) !important; }
-    [data-theme="dark"] .field label { color: var(--muted) !important; }
-    [data-theme="dark"] .message { color: #f87171 !important; }
-
-    /* Dark toggle button */
-    .dark-toggle {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.14);
-      color: rgba(255,255,255,0.75);
-      cursor: pointer;
-      border-radius: 7px;
-      padding: 5px 10px;
-      font-size: 15px;
-      line-height: 1;
-      transition: background 0.2s;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    .dark-toggle:hover { background: rgba(255,255,255,0.15); color: white; }
-
+    html:not(.dark) .glass-panel input::placeholder { color: #8c909f !important; }
+    html:not(.dark) .glow-focus { background: #f0f4ff !important; }
+    html:not(.dark) .glow-focus:focus-within { background: #e4eaff !important; }
+    html:not(.dark) h1, html:not(.dark) h2 { color: #0b1326 !important; }
+    html:not(.dark) .text-on-surface { color: #0b1326 !important; }
+    html:not(.dark) footer p, html:not(.dark) footer a { color: #4d8eff !important; opacity: 1 !important; }
   </style>
 </head>
-<body>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col kinetic-bg">
 
+  <!-- Top Navigation Bar -->
+  <header class="fixed top-0 w-full bg-[#0b1326]/60 backdrop-blur-xl flex justify-between items-center px-6 py-4 z-50 shadow-[0_48px_48px_rgba(0,0,0,0.06)]">
+    <div class="flex items-center gap-3">
+      <span class="material-symbols-outlined text-[#adc6ff]">shield_lock</span>
+      <h1 class="font-['Inter'] tracking-tight font-black uppercase text-xl tracking-tighter text-[#adc6ff]">HARIOM ELECTRONICS</h1>
+    </div>
+    <button class="p-2 rounded-full hover:opacity-80 transition-opacity active:scale-95 duration-200" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">
+      <span class="material-symbols-outlined text-[#dae2fd]" id="darkToggleIcon">dark_mode</span>
+    </button>
+  </header>
 
-<button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode"
-  style="position:fixed;top:14px;right:16px;z-index:50;">🌙</button>
+  <div class="kinetic-light"></div>
 
-<div class="card">
-  <div class="brand">
-    <div class="brand-icon">🚚</div>
-    <h1>Hariom Electronics</h1>
-    <p>Delivery Management System</p>
-  </div>
+  <!-- Main Login Canvas -->
+  <main class="flex-grow flex items-center justify-center px-4 py-20">
+    <div class="w-full max-w-md">
 
-  <div class="field">
-    <label>Email</label>
-    <input type="email" id="email" placeholder="admin@example.com" autocomplete="email">
-  </div>
+      <!-- Branding -->
+      <div class="text-center mb-10">
+        <span class="text-xs font-bold tracking-[0.4em] text-primary uppercase opacity-60">Delivery Management System</span>
+        <h2 class="text-4xl font-extrabold tracking-tighter mt-2 text-on-surface">Secure Portal</h2>
+      </div>
 
-  <div class="field">
-    <label>Password</label>
-    <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
-  </div>
+      <!-- Glass Login Card -->
+      <div class="glass-panel p-8 md:p-10 rounded-lg shadow-2xl border border-outline-variant/10">
+        <form class="space-y-6" onsubmit="event.preventDefault(); login();">
 
-  <button onclick="login()">Sign In</button>
-  <div class="message" id="message"></div>
-</div>
+          <!-- Email Field -->
+          <div class="space-y-2">
+            <label class="block text-[10px] font-bold tracking-[0.1em] text-on-surface-variant uppercase ml-1" for="email">Email</label>
+            <div class="relative flex items-center glow-focus transition-all duration-300 bg-surface-container-low rounded-md overflow-hidden">
+              <span class="material-symbols-outlined absolute left-4 text-outline">alternate_email</span>
+              <input class="w-full bg-transparent border-none py-4 pl-12 pr-4 text-on-surface placeholder:text-outline-variant focus:ring-0"
+                id="email" type="email" placeholder="admin@example.com" autocomplete="email" required>
+            </div>
+          </div>
 
-<script>
-const BASE_URL = window.location.origin;
+          <!-- Password Field -->
+          <div class="space-y-2">
+            <label class="block text-[10px] font-bold tracking-[0.1em] text-on-surface-variant uppercase ml-1" for="password">Password</label>
+            <div class="relative flex items-center glow-focus transition-all duration-300 bg-surface-container-low rounded-md overflow-hidden">
+              <span class="material-symbols-outlined absolute left-4 text-outline" style="font-variation-settings:'FILL' 1;">lock</span>
+              <input class="w-full bg-transparent border-none py-4 pl-12 pr-4 text-on-surface placeholder:text-outline-variant focus:ring-0"
+                id="password" type="password" placeholder="••••••••••••" autocomplete="current-password" required>
+            </div>
+          </div>
 
-/* ── DARK MODE ───────────────────────────────────────── */
-(function() {
-  const saved = localStorage.getItem("hariom_theme");
-  if (saved === "dark") document.documentElement.setAttribute("data-theme", "dark");
-})();
-function toggleDarkMode() {
-  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-  document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
-  localStorage.setItem("hariom_theme", isDark ? "light" : "dark");
-  const btn = document.getElementById("darkToggleBtn");
-  if (btn) btn.textContent = isDark ? "🌙" : "☀️";
-}
-document.addEventListener("DOMContentLoaded", function() {
-  const btn = document.getElementById("darkToggleBtn");
-  if (btn) btn.textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
-});
-/* ── END DARK MODE ───────────────────────────────────── */
+          <!-- Feedback Message -->
+          <div class="text-sm font-medium min-h-[20px] transition-all text-center" id="message"></div>
 
+          <!-- Sign In Button -->
+          <button type="submit"
+            class="w-full h-14 bg-gradient-to-br from-primary to-primary-container rounded-md text-on-primary font-bold tracking-tight text-lg shadow-[0_8px_32px_rgba(77,142,255,0.3)] hover:scale-[1.02] active:scale-95 transition-all duration-200 flex items-center justify-center gap-2">
+            <span>SIGN IN</span>
+            <span class="material-symbols-outlined">arrow_forward</span>
+          </button>
+        </form>
+      </div>
 
+      <!-- Security Badge -->
+      <div class="mt-8 flex items-center justify-center gap-2 opacity-40">
+        <span class="material-symbols-outlined text-sm">verified_user</span>
+        <span class="text-[10px] font-medium tracking-[0.2em] uppercase">AES-256 Cloud Security Active</span>
+      </div>
+    </div>
+  </main>
 
-// Show "session expired" message if redirected from admin with ?reason=expired
-(function() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("reason") === "expired") {
-    const msg = document.getElementById("message");
-    if (msg) {
-      msg.style.color = "#dc2626";
-      msg.innerText = "⚠ Your session has expired. Please sign in again.";
+  <!-- Footer -->
+  <footer class="fixed bottom-8 w-full flex flex-col md:flex-row gap-4 justify-center items-center px-8 opacity-60">
+    <p class="font-['Inter'] text-[10px] uppercase tracking-[0.2em] font-medium text-[#4d8eff]">© 2024 HARIOM ELECTRONICS. SECURED INTERFACE.</p>
+    <div class="flex gap-6">
+      <a class="font-['Inter'] text-[10px] uppercase tracking-[0.2em] font-medium text-[#dae2fd]/50 hover:text-[#4edea3] transition-colors" href="#">Privacy</a>
+      <a class="font-['Inter'] text-[10px] uppercase tracking-[0.2em] font-medium text-[#dae2fd]/50 hover:text-[#4edea3] transition-colors" href="#">Support</a>
+    </div>
+  </footer>
+
+  <script>
+    const BASE_URL = window.location.origin;
+
+    /* ── DARK MODE ───────────────────────────────────────── */
+    (function () {
+      const saved = localStorage.getItem("hariom_theme");
+      const html = document.documentElement;
+      if (saved === "light") {
+        html.classList.remove("dark");
+      } else {
+        html.classList.add("dark"); // default: dark
+      }
+    })();
+
+    function toggleDarkMode() {
+      const html = document.documentElement;
+      const icon = document.getElementById("darkToggleIcon");
+      const isDark = html.classList.contains("dark");
+      if (isDark) {
+        html.classList.remove("dark");
+        localStorage.setItem("hariom_theme", "light");
+        if (icon) icon.textContent = "light_mode";
+      } else {
+        html.classList.add("dark");
+        localStorage.setItem("hariom_theme", "dark");
+        if (icon) icon.textContent = "dark_mode";
+      }
     }
-  }
-})();
 
-async function login() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  const msg = document.getElementById("message");
+    document.addEventListener("DOMContentLoaded", function () {
+      const icon = document.getElementById("darkToggleIcon");
+      if (icon) {
+        icon.textContent = document.documentElement.classList.contains("dark") ? "dark_mode" : "light_mode";
+      }
+    });
+    /* ── END DARK MODE ───────────────────────────────────── */
 
-  if (!email || !password) {
-    msg.innerText = "Please enter email and password";
-    return;
-  }
+    /* ── SESSION EXPIRED MESSAGE ─────────────────────────── */
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("reason") === "expired") {
+        const msg = document.getElementById("message");
+        if (msg) {
+          msg.style.color = "#ffb4ab";
+          msg.innerText = "⚠ Your session has expired. Please sign in again.";
+        }
+      }
+    })();
+    /* ── END SESSION EXPIRED ─────────────────────────────── */
 
-  const res = await fetch(`${BASE_URL}/admin/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  });
+    /* ── LOGIN LOGIC ─────────────────────────────────────── */
+    async function login() {
+      const email    = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      const msg      = document.getElementById("message");
 
-  const data = await res.json();
+      if (!email || !password) {
+        msg.style.color = "#ffb4ab";
+        msg.innerText = "Please enter email and password.";
+        return;
+      }
 
-  if (!res.ok) {
-    msg.innerText = data.error || "Login failed";
-    return;
-  }
+      msg.style.color = "#adc6ff";
+      msg.innerText = "Authenticating…";
 
-  localStorage.setItem("adminToken", data.token);
-  window.location.href = "admin.html";
-}
+      try {
+        const res  = await fetch(`${BASE_URL}/admin/login`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ email, password }),
+        });
 
-document.addEventListener("keydown", e => {
-  if (e.key === "Enter") login();
-});
-</script>
+        const data = await res.json();
+
+        if (!res.ok) {
+          msg.style.color = "#ffb4ab";
+          msg.innerText = data.error || "Login failed. Access denied.";
+          return;
+        }
+
+        localStorage.setItem("adminToken", data.token);
+        msg.style.color = "#4edea3";
+        msg.innerText = "Authentication successful. Redirecting…";
+        window.location.href = "admin.html";
+
+      } catch (err) {
+        msg.style.color = "#ffb4ab";
+        msg.innerText = "Network error. Please try again.";
+      }
+    }
+    /* ── END LOGIN LOGIC ─────────────────────────────────── */
+
+    /* ── ENTER KEY ───────────────────────────────────────── */
+    document.addEventListener("keydown", e => {
+      if (e.key === "Enter") login();
+    });
+  </script>
 </body>
 </html>

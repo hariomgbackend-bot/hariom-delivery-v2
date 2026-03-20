@@ -236,6 +236,21 @@
       font-weight: 600;
     }
 
+    .header-logout-btn {
+      background: rgba(173,198,255,0.07);
+      border: 1px solid rgba(173,198,255,0.12);
+      color: rgba(218,226,253,0.7);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 13px;
+      border-radius: 10px;
+      cursor: pointer;
+      letter-spacing: 0.2px;
+      transition: all 0.15s;
+    }
+    .header-logout-btn:hover { background: rgba(173,198,255,0.14); color: var(--primary); }
+
     .header nav a {
       color: rgba(218,226,253,0.7);
       text-decoration: none;
@@ -360,7 +375,7 @@
     .filter-btn:not(.activeFilter) .filter-count { background: rgba(173,198,255,0.1); color: var(--on-surface); }
 
     .filter-count {
-      display: inline-flex;
+      display: none;
       align-items: center;
       justify-content: center;
       min-width: 17px;
@@ -372,6 +387,7 @@
       margin-left: 4px;
       line-height: 1;
     }
+    .filter-count:not(:empty) { display: inline-flex; }
 
     #customDate {
       display: none;
@@ -559,7 +575,12 @@
       max-height: 88vh;
       overflow-y: auto;
       border: 1px solid rgba(173,198,255,0.07);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(173,198,255,0.2) transparent;
     }
+    .popup-card::-webkit-scrollbar { width: 5px; }
+    .popup-card::-webkit-scrollbar-track { background: transparent; }
+    .popup-card::-webkit-scrollbar-thumb { background: rgba(173,198,255,0.2); border-radius: 10px; }
 
     @media (max-width: 767px) {
       .popup-card {
@@ -893,6 +914,10 @@
     [data-theme="light"] .header { background: rgba(240,244,250,0.80); border-color: rgba(0,0,0,0.06); }
     [data-theme="light"] .header-brand { color: #2563eb; }
     [data-theme="light"] .header nav a { background: rgba(0,0,0,0.05); color: #475569; border-color: rgba(0,0,0,0.07); }
+    [data-theme="light"] .header-logout-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); color: #475569; }
+    [data-theme="light"] .header-logout-btn:hover { background: rgba(0,0,0,0.09); color: #1e293b; }
+    [data-theme="light"] #lastUpdated { color: rgba(30,41,59,0.4); }
+    [data-theme="light"] #pushIndicator { color: #64748b; }
     [data-theme="light"] .card { background: white; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
     [data-theme="light"] .table-wrap { background: white; }
     [data-theme="light"] thead th { background: #f8fafc; color: #64748b; }
@@ -964,7 +989,7 @@
     <span id="lastUpdated"></span>
     <span id="pushIndicator"></span>
     <a href="driver_interface.html">🚚 Driver View</a>
-    <button onclick="accountantLogout()" style="background:rgba(173,198,255,0.07);border:1px solid rgba(173,198,255,0.12);color:rgba(218,226,253,0.7);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;padding:7px 13px;border-radius:10px;cursor:pointer;letter-spacing:0.2px;transition:all 0.15s;">Logout</button>
+    <button onclick="accountantLogout()" class="header-logout-btn">Logout</button>
   </nav>
 </div>
 
@@ -1757,7 +1782,7 @@ function createProductItemHTML(idx) {
       <input data-field="tally_input" list="tallyList_${idx}"
         placeholder="Type to search Tally products..."
         oninput="this.value=this.value.toUpperCase()"
-        style="width:100%;padding:10px 12px;border:2px solid #86efac;border-radius:9px;font-size:14px;outline:none;background:#f0fdf4;color:var(--text);">
+        style="width:100%;padding:10px 12px;border:2px solid #86efac;border-radius:9px;font-size:14px;outline:none;background:var(--surface-container-high);color:var(--on-surface);">
       <datalist id="tallyList_${idx}"></datalist>
       <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Type at least 2 characters to search</div>
     </div>
@@ -2142,11 +2167,18 @@ document.addEventListener("DOMContentLoaded", () => {
         pincodeEl.focus();
       }
     } catch (err) {
-      pinError.innerText     = "⚠ Could not reach PIN API — enter area manually";
+      pinError.innerText     = "⚠ Could not reach PIN API — please enter details manually";
       pinError.style.display = "block";
-      // Fallback: show manual area input
+      // Fallback: unlock state+city for manual entry, show area manual input
+      stateEl.readOnly = false; stateEl.style.background = "";
+      cityEl.readOnly  = false; cityEl.style.background  = "";
+      editStateBtn.style.display = "none";
+      editCityBtn.style.display  = "none";
       areaManual.style.display = "block";
       areaSelect.style.display = "none";
+      stateEl.placeholder = "Enter State manually";
+      cityEl.placeholder  = "Enter City manually";
+      stateEl.focus();
       console.warn("PIN API Error:", err);
     } finally {
       pinSpinner.style.display = "none";
@@ -2584,7 +2616,15 @@ async function loadDeliveries() {
     }
   });
 
-  const BATCH_PALETTES = [
+  const _isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  const BATCH_PALETTES = _isDark ? [
+    { bg: "rgba(124,58,237,0.15)",  border: "#7c3aed", text: "#c4b5fd" },
+    { bg: "rgba(219,39,119,0.15)",  border: "#db2777", text: "#f9a8d4" },
+    { bg: "rgba(234,88,12,0.15)",   border: "#ea580c", text: "#fdba74" },
+    { bg: "rgba(22,163,74,0.15)",   border: "#16a34a", text: "#86efac" },
+    { bg: "rgba(37,99,235,0.15)",   border: "#2563eb", text: "#93c5fd" },
+    { bg: "rgba(202,138,4,0.15)",   border: "#ca8a04", text: "#fde047" },
+  ] : [
     { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
     { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
     { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
@@ -2601,7 +2641,7 @@ async function loadDeliveries() {
     if (diffMin <= -10) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early</span>`;
     if (diffMin <=  10) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
     if (diffMin <=  30) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late</span>`;
-    return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 Very Late</span>`;
+    return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">🔴 Very Late</span>`;
   }
 
   let booked = 0, pending = 0, loaded = 0, delivered = 0, failed = 0;
@@ -2649,11 +2689,11 @@ async function loadDeliveries() {
       batchTag = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bNum}</span>`;
     }
 
-    if (d.status === "booked") tr.style.background = "#eef2ff";
-    if (d.status === "failed") tr.style.background = "#fff1f2";
+    if (d.status === "booked") tr.style.background = _isDark ? "rgba(99,102,241,0.08)" : "#eef2ff";
+    if (d.status === "failed") tr.style.background = _isDark ? "rgba(255,180,171,0.06)" : "#fff1f2";
 
     tr.innerHTML = `
-      <td>${d.customer_name}${batchTag}${d.previous_failures > 0 ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;">⚠ Prev. Failed</span>` : ""}</td>
+      <td>${d.customer_name}${batchTag}${d.previous_failures > 0 ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>` : ""}</td>
       <td><a class='phone-link' href='tel:${d.phone}'>${d.phone}</a></td>
       <td>${d.product_name}</td>
       <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${d.address || '—'}</span></td>
@@ -2697,7 +2737,7 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
     if (diff <= -10) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early</span>`;
     if (diff <=  10) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
     if (diff <=  30) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late</span>`;
-    return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 VLate</span>`;
+    return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">🔴 VLate</span>`;
   }
 
   function makeMobCard(d, palette) {
@@ -2713,7 +2753,7 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
         </div>
         <div class="mob-card-badges">
           <span class="badge badge-${d.status}">${d.status}</span>
-          ${d.priority === "urgent" ? `<span class="badge" style="background:#fee2e2;color:#991b1b;">🔥</span>` : ""}
+          ${d.priority === "urgent" ? `<span class="badge" style="background:rgba(255,180,171,0.15);color:var(--error);">🔥</span>` : ""}
           ${ratingBadge(d)}
         </div>
       </div>
@@ -2760,7 +2800,15 @@ function openViewPopup(id) {
   const content = document.getElementById("viewContent");
 
   // Batch info using module-scope vars
-  const BATCH_PALETTES = [
+  const _isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  const BATCH_PALETTES = _isDark ? [
+    { bg: "rgba(124,58,237,0.15)",  border: "#7c3aed", text: "#c4b5fd" },
+    { bg: "rgba(219,39,119,0.15)",  border: "#db2777", text: "#f9a8d4" },
+    { bg: "rgba(234,88,12,0.15)",   border: "#ea580c", text: "#fdba74" },
+    { bg: "rgba(22,163,74,0.15)",   border: "#16a34a", text: "#86efac" },
+    { bg: "rgba(37,99,235,0.15)",   border: "#2563eb", text: "#93c5fd" },
+    { bg: "rgba(202,138,4,0.15)",   border: "#ca8a04", text: "#fde047" },
+  ] : [
     { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
     { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
     { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
@@ -2783,7 +2831,7 @@ function openViewPopup(id) {
     if      (diffMin <= -10) ratingHtml = `<span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early (${Math.abs(Math.round(diffMin))}m before ETA)</span>`;
     else if (diffMin <=  10) ratingHtml = `<span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
     else if (diffMin <=  30) ratingHtml = `<span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late (${Math.round(diffMin)}m after ETA)</span>`;
-    else                      ratingHtml = `<span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 Very Late (${Math.round(diffMin)}m after ETA)</span>`;
+    else                      ratingHtml = `<span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">🔴 Very Late (${Math.round(diffMin)}m after ETA)</span>`;
     ratingRow = `<div class="detail-row"><b>Rating</b><span>${ratingHtml}</span></div>`;
   }
 
@@ -2808,7 +2856,7 @@ function openViewPopup(id) {
       <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <span id="driverNameDisplay">${delivery.assigned_driver_name || "—"}</span>
         <button onclick="openInlineDriverChange('${delivery.id}')"
-          style="padding:3px 10px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:7px;cursor:pointer;white-space:nowrap;">
+          style="padding:3px 10px;font-size:11px;font-weight:700;background:rgba(173,198,255,0.1);color:var(--primary);border:1.5px solid rgba(173,198,255,0.3);border-radius:7px;cursor:pointer;white-space:nowrap;">
           ✏ Change
         </button>
       </span>
@@ -2862,7 +2910,7 @@ function openViewPopup(id) {
       <div style="font-weight:700;font-size:15px;color:#b91c1c;margin-bottom:10px;">
         ${delivery.failure_reason === "Product Damaged / Not Working" ? "🔴 URGENT — " : ""}${delivery.reversed_from_delivered ? "↩ " : ""}❌ Delivery Failed
       </div>
-      ${delivery.reversed_from_delivered ? `<div style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;margin-bottom:8px;">↩ Reversed from Delivered</div>` : ""}
+      ${delivery.reversed_from_delivered ? `<div style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(234,88,12,0.15);color:#fdba74;border:1px solid rgba(234,88,12,0.3);margin-bottom:8px;">↩ Reversed from Delivered</div>` : ""}
       <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${delivery.failure_reason || "—"}</span></div>
       ${delivery.failure_photo_url ? `
         <div style="margin:10px 0;">
@@ -2896,7 +2944,7 @@ function openViewPopup(id) {
 
   if (delivery.status === "delivered") {
     content.innerHTML += `
-      <div style="margin-top:16px;padding:14px;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;">
+      <div style="margin-top:16px;padding:14px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:12px;">
         <div style="font-size:13px;font-weight:700;color:#c2410c;margin-bottom:4px;">↩ Customer returned the product?</div>
         <div style="font-size:12px;color:#92400e;margin-bottom:10px;">Use this if the customer refused or returned after delivery. This will move it back to failed so you can reschedule.</div>
         <button class="btn btn-danger btn-sm" style="background:#ea580c;" onclick="openReverseDelivery('${delivery.id}')">
@@ -2920,7 +2968,7 @@ function openReverseDelivery(id) {
   const inputStyle = "width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;margin-bottom:8px;outline:none;background:#fafbfc;";
 
   document.getElementById("viewContent").innerHTML = `
-    <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:18px;margin-bottom:16px;">
+    <div style="background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:12px;padding:18px;margin-bottom:16px;">
       <div style="font-size:16px;font-weight:700;color:#c2410c;margin-bottom:4px;">↩ Reverse Delivery</div>
       <div style="font-size:13px;color:#92400e;">
         <strong>${delivery.customer_name}</strong> — ${delivery.product_name}

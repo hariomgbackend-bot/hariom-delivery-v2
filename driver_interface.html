@@ -1088,6 +1088,23 @@
     [data-theme="light"] .section-title-text { color: #1a2540; }
     [data-theme="light"] #installBanner { background: #f0f4fb; border-color: rgba(37,99,235,0.2); }
     [data-theme="light"] #installBanner .install-text { color: #1a2540; }
+    [data-theme="light"] .detail-label { color: #64748b; }
+    [data-theme="light"] .detail-value { color: #1a2540; }
+    [data-theme="light"] .detail-row { border-color: rgba(0,0,0,0.06); }
+    [data-theme="light"] .popup-body { color: #1a2540; }
+    [data-theme="light"] .popup-band { border-color: rgba(0,0,0,0.07); }
+    [data-theme="light"] #dispatcherPanel { background: transparent; }
+    [data-theme="light"] .search-input { background: #f0f4fb; color: #1a2540; }
+    [data-theme="light"] .card-name { color: #1a2540; }
+    [data-theme="light"] .card-product { color: #64748b; }
+    [data-theme="light"] .card-address { color: #64748b; }
+    [data-theme="light"] .card-chevron { color: #94a3b8; }
+    [data-theme="light"] .section-title-text { color: #1a2540; }
+    [data-theme="light"] .upload-label { color: #64748b; }
+    [data-theme="light"] .file-input { border-color: #cbd5e1; color: #1a2540; }
+    [data-theme="light"] .serial-input::placeholder { color: #94a3b8; }
+    [data-theme="light"] .btn-scan { /* stays gradient, fine */ }
+    [data-theme="light"] .ptrIndicator { color: #2563eb; }
 
     input:focus { outline: none !important; }
   </style>
@@ -1293,21 +1310,21 @@
 <!-- ══ FLOATING BOTTOM NAV (Kinetic spec) ══ -->
 <nav class="kinetic-bottom-nav">
   <div class="kinetic-bottom-nav-inner">
-    <!-- Deliveries (active) -->
-    <button class="kinetic-nav-btn active" title="Deliveries">
+    <!-- Deliveries — scroll to top -->
+    <button class="kinetic-nav-btn active" title="Deliveries" onclick="window.scrollTo({top:0,behavior:'smooth'})">
       <span style="font-size:22px;">🚚</span>
     </button>
-    <!-- History -->
-    <button class="kinetic-nav-btn" title="History" onclick="document.getElementById('historySection').scrollIntoView({behavior:'smooth'})">
+    <!-- History — show history section then scroll to it -->
+    <button class="kinetic-nav-btn" title="History" onclick="(function(){const h=document.getElementById('historySection');if(h){h.style.display='';h.scrollIntoView({behavior:'smooth'});}})()">
       <span style="font-size:22px;">📋</span>
     </button>
-    <!-- Notifications dot -->
-    <button class="kinetic-nav-btn" title="Notifications" style="position:relative;">
+    <!-- Push status — toggle push dot info -->
+    <button class="kinetic-nav-btn" title="Notifications" style="position:relative;" onclick="(function(){const d=document.getElementById('pushDot');const on=d&&d.classList.contains('on');showToast(on?'🔔 Push notifications active':'🔕 Push not enabled — reopen app to retry');})()">
       <span style="font-size:22px;">🔔</span>
-      <span id="navPushDot" style="position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--tertiary);"></span>
+      <span id="navPushDot" style="position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--tertiary);display:none;"></span>
     </button>
-    <!-- Change Driver -->
-    <button class="kinetic-nav-btn" title="Change Driver" onclick="if(currentDriverId) logoutDriver()">
+    <!-- Change Driver / Logout -->
+    <button class="kinetic-nav-btn" title="Change Driver" onclick="logoutDriver()">
       <span style="font-size:22px;">👤</span>
     </button>
   </div>
@@ -3124,13 +3141,21 @@ function buildDispatcherCard(d) {
   const card = document.createElement("div");
   card.id = "dcard_" + d.id;
 
-  const statusColors = {
+  const _dark = document.documentElement.getAttribute("data-theme") !== "light";
+  const statusColors = _dark ? {
+    pending:   { bg: "rgba(245,158,11,0.15)",  text: "#fbbf24", border: "rgba(245,158,11,0.4)" },
+    loaded:    { bg: "rgba(77,142,255,0.15)",   text: "#adc6ff", border: "rgba(77,142,255,0.4)" },
+    booked:    { bg: "rgba(99,102,241,0.15)",   text: "#818cf8", border: "rgba(99,102,241,0.4)" },
+    failed:    { bg: "rgba(255,180,171,0.15)",  text: "#ffb4ab", border: "rgba(255,180,171,0.4)" },
+  } : {
     pending:   { bg: "#fef3c7", text: "#92400e", border: "#fcd34d" },
     loaded:    { bg: "#dbeafe", text: "#1e40af", border: "#93c5fd" },
     booked:    { bg: "rgba(99,102,241,0.1)", text: "#4338ca", border: "#a5b4fc" },
     failed:    { bg: "#fee2e2", text: "#991b1b", border: "#fca5a5" },
   };
-  const sc = statusColors[d.status] || { bg: "#f1f5f9", text: "#475569", border: "#e2e8f0" };
+  const sc = statusColors[d.status] || (_dark
+    ? { bg: "rgba(194,198,214,0.1)", text: "#c2c6d6", border: "rgba(194,198,214,0.2)" }
+    : { bg: "#f1f5f9", text: "#475569", border: "#e2e8f0" });
 
   const selectId   = "assignSel_" + d.id;
   const detailId   = "ddetail_" + d.id;
@@ -3142,10 +3167,10 @@ function buildDispatcherCard(d) {
     ? new Date(d.estimated_delivery_time).toLocaleDateString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:true})
     : "—";
   const prevFail = d.previous_failures > 0
-    ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;margin-left:4px;">⚠ ${d.previous_failures}x failed</span>`
+    ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);margin-left:4px;">⚠ ${d.previous_failures}x failed</span>`
     : "";
   const urgentBadge = d.priority === "urgent"
-    ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;margin-left:4px;">🔥 Urgent</span>`
+    ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);margin-left:4px;">🔥 Urgent</span>`
     : "";
 
   card.innerHTML = `
@@ -3170,19 +3195,19 @@ function buildDispatcherCard(d) {
 
         <!-- View details toggle -->
         <button type="button" onclick="toggleDispatchDetail('${d.id}')"
-          style="width:100%;padding:6px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;text-align:center;margin-bottom:10px;transition:background 0.15s;">
+          style="width:100%;padding:6px;background:var(--surface-container-high);border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;text-align:center;margin-bottom:10px;transition:background 0.15s;">
           <span id="ddetail_toggle_${d.id}">▼ View Details</span>
         </button>
 
         <!-- Expandable detail section -->
-        <div id="${detailId}" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;font-size:13px;">
+        <div id="${detailId}" style="display:none;background:var(--surface-container-high);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;font-size:13px;color:var(--on-surface);">
           ${d.driver_instructions && d.driver_instructions !== "none" ? `
-            <div style="margin-bottom:8px;padding:8px 10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;">
-              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#92400e;margin-bottom:2px;">📋 Instructions</div>
-              <div style="color:#78350f;font-weight:500;">${escHtmlDisp(d.driver_instructions)}</div>
+            <div style="margin-bottom:8px;padding:8px 10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:8px;">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#fbbf24;margin-bottom:2px;">📋 Instructions</div>
+              <div style="color:var(--on-surface);font-weight:500;">${escHtmlDisp(d.driver_instructions)}</div>
             </div>` : ""}
-          <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;color:var(--text);">
-            <span style="color:var(--muted);font-size:12px;">Serial</span><span style="font-weight:500;">${escHtmlDisp(d.product_serial_number || "—")}</span>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;color:var(--on-surface);">
+            <span style="color:var(--on-surface-variant);font-size:12px;">Serial</span><span style="font-weight:500;">${escHtmlDisp(d.product_serial_number || "—")}</span>
             <span style="color:var(--muted);font-size:12px;">Invoice</span><span style="font-weight:500;">${escHtmlDisp(d.invoice_number || "—")}</span>
             <span style="color:var(--muted);font-size:12px;">Alt Phone</span><span>${d.alternate_phone ? `<a href="tel:${d.alternate_phone}" style="color:var(--accent);font-weight:600;">${d.alternate_phone}</a>` : "—"}</span>
             <span style="color:var(--muted);font-size:12px;">Freight</span><span style="font-weight:500;">${d.freight_charged ? "₹" + (d.freight_amount || "?") + " (customer pays)" : "None"}</span>
