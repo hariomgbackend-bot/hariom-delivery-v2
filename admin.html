@@ -14,6 +14,7 @@
   <!-- Kinetic fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 
   <style>
     /* ════════════════════════════════════════════════
@@ -793,6 +794,106 @@
     #payoutTotalDistance { color: var(--tertiary) !important; }
     #payoutCount { color: #818cf8 !important; }
 
+    /* ════ MAP VIEW ════ */
+    #mapLeaflet {
+      width: 100%;
+      height: calc(100vh - 260px);
+      min-height: 420px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--outline-variant);
+      background: var(--surface-container-low);
+    }
+    .map-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .map-date-input {
+      background: var(--surface-container-high);
+      color: var(--on-surface);
+      border: 1px solid var(--outline-variant);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+    }
+    .map-reload-btn {
+      background: var(--surface-container-high);
+      color: var(--primary);
+      border: 1px solid var(--outline-variant);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background .15s;
+    }
+    .map-reload-btn:hover { background: var(--surface-container-highest); }
+    .map-status {
+      font-size: 12px;
+      color: var(--on-surface-variant);
+      margin-left: auto;
+    }
+    .map-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .map-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--on-surface);
+      background: var(--surface-container-high);
+      border-radius: 20px;
+      padding: 4px 10px;
+    }
+    .map-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(255,255,255,0.4);
+    }
+    .map-key-row {
+      display: flex;
+      gap: 18px;
+      font-size: 11px;
+      color: var(--on-surface-variant);
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .map-key-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    @keyframes map-pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.5; transform:scale(1.4); }
+    }
+    /* Leaflet dark mode tweaks */
+    [data-theme="dark"] .leaflet-layer,
+    [data-theme="dark"] .leaflet-control-zoom,
+    [data-theme="dark"] .leaflet-bar a { filter: invert(0.88) hue-rotate(180deg); }
+    [data-theme="dark"] .leaflet-container { background: var(--surface-container-low); }
+    [data-theme="dark"] .leaflet-popup-content-wrapper,
+    [data-theme="dark"] .leaflet-popup-tip {
+      background: var(--surface-container-highest);
+      color: var(--on-surface);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    [data-theme="dark"] .leaflet-popup-content-wrapper a { color: var(--primary); }
+
     /* outstanding section */
     #outstandingSection {
       background: rgba(99,102,241,0.06) !important;
@@ -1138,6 +1239,11 @@
       Deliveries
     </button>
 
+    <button class="sidebar-item" id="nav-map" onclick="showView('map')">
+      <span class="material-symbols-outlined">map</span>
+      Map View
+    </button>
+
     <button class="sidebar-item" id="nav-payout" onclick="showView('payout')">
       <span class="material-symbols-outlined">payments</span>
       Payout
@@ -1431,6 +1537,57 @@
       </div>
     </section>
 
+    <!-- ════ VIEW: MAP ════ -->
+    <section id="view-map" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Driver Map View</div>
+          <div class="section-subtitle">Today's delivery trails by driver</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="map-toolbar">
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--on-surface-variant);">Date</label>
+        <input type="date" id="mapDatePicker" class="map-date-input" onchange="reloadMap()">
+        <button class="map-reload-btn" onclick="reloadMap()">
+          <span class="material-symbols-outlined" style="font-size:16px;">refresh</span>
+          Reload
+        </button>
+        <span class="map-status" id="mapStatus">Select a date and click Reload</span>
+      </div>
+
+      <!-- Map key -->
+      <div class="map-key-row">
+        <div class="map-key-item">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#adc6ff" stroke="#fff" stroke-width="1.5"/></svg>
+          Pickup / Loaded point
+        </div>
+        <div class="map-key-item">
+          <svg width="12" height="12"><rect x="2" y="2" width="8" height="8" rx="1" fill="#adc6ff" stroke="#fff" stroke-width="1.5" transform="rotate(45 6 6)"/></svg>
+          Delivered point
+        </div>
+        <div class="map-key-item">
+          <svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#adc6ff" stroke-width="2.5"/></svg>
+          Trip (loaded → delivered)
+        </div>
+        <div class="map-key-item">
+          <svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#adc6ff" stroke-width="1.5" stroke-dasharray="5 4" stroke-opacity="0.5"/></svg>
+          Driver route between stops
+        </div>
+        <div class="map-key-item">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#4edea3" stroke="#fff" stroke-width="1.5" opacity="0.7"/></svg>
+          In transit (not yet delivered)
+        </div>
+      </div>
+
+      <!-- Driver legend (populated by JS) -->
+      <div class="map-legend" id="mapLegend"></div>
+
+      <!-- Map container -->
+      <div id="mapLeaflet"></div>
+    </section>
+
   </div><!-- /.content -->
 </div><!-- /.main-wrap -->
 
@@ -1469,11 +1626,12 @@ function openTagPrint(e) {
 const VIEW_LABELS = {
   deliveries: 'Delivery Operations',
   payout:     'Payout & Settlement',
-  storage:    'Storage Management'
+  storage:    'Storage Management',
+  map:        'Driver Map View'
 };
 
 function showView(view) {
-  ['deliveries','payout','storage'].forEach(v => {
+  ['deliveries','payout','storage','map'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.style.display = v === view ? '' : 'none';
     const nav = document.getElementById('nav-' + v);
@@ -1485,6 +1643,7 @@ function showView(view) {
   // Auto-load data for panel views
   if (view === 'payout') { loadPayoutDrivers(); }
   if (view === 'storage') { loadStorageStats(); }
+  if (view === 'map')     { initMapView(); }
 }
 </script>
 
@@ -2923,6 +3082,274 @@ if ("serviceWorker" in navigator) {
     </div>
   </div>
 </div>
+
+<!-- Leaflet -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+/* ════════════════════════════════════════════════
+   DRIVER MAP VIEW
+   — Leaflet, no API key required
+   — Per-driver color, trip trail, route dashes
+════════════════════════════════════════════════ */
+
+const DRIVER_COLORS = [
+  '#4d8eff','#ff6b6b','#4edea3','#f59e0b','#c084fc',
+  '#fb923c','#38bdf8','#f472b6','#a3e635','#e879f9'
+];
+
+let _mapInstance   = null;   // Leaflet map
+let _mapInitialized = false;
+let _mapLayers     = [];     // all added layers (for clearing)
+
+/* ── Init (called once on first showView('map')) ── */
+function initMapView() {
+  // Set default date to today (IST)
+  const picker = document.getElementById('mapDatePicker');
+  if (!picker.value) {
+    const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    picker.value = istNow.toISOString().split('T')[0];
+  }
+
+  if (!_mapInitialized) {
+    _mapInstance = L.map('mapLeaflet', {
+      center: [20.5937, 78.9629],   // India center
+      zoom: 5,
+      zoomControl: true
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19
+    }).addTo(_mapInstance);
+
+    _mapInitialized = true;
+  }
+
+  reloadMap();
+}
+
+/* ── Main reload: fetch deliveries, filter by date, draw ── */
+async function reloadMap() {
+  if (!_mapInstance) return;
+
+  const date   = document.getElementById('mapDatePicker').value;
+  const status = document.getElementById('mapStatus');
+  const legend = document.getElementById('mapLegend');
+
+  if (!date) { status.textContent = 'Please pick a date.'; return; }
+
+  status.textContent = 'Loading…';
+  legend.innerHTML   = '';
+
+  // Clear old map layers
+  _mapLayers.forEach(l => _mapInstance.removeLayer(l));
+  _mapLayers = [];
+
+  let deliveries;
+  try {
+    const res = await authFetch(`${BASE_URL}/deliveries`);
+    deliveries = await res.json();
+  } catch(e) {
+    status.textContent = 'Failed to load deliveries.';
+    return;
+  }
+
+  // Filter to chosen date — use loaded_timestamp if present, else delivered_timestamp
+  const filtered = deliveries.filter(d => {
+    const ts = d.loaded_timestamp?.seconds
+      ? new Date(d.loaded_timestamp.seconds * 1000)
+      : d.delivered_timestamp?.seconds
+        ? new Date(d.delivered_timestamp.seconds * 1000)
+        : null;
+    if (!ts) return false;
+    const istDate = new Date(ts.getTime() + 5.5 * 60 * 60 * 1000)
+                      .toISOString().split('T')[0];
+    return istDate === date;
+  });
+
+  // Must have at least a loaded_location
+  const mappable = filtered.filter(d =>
+    d.loaded_location?.lat && d.loaded_location?.lng
+  );
+
+  if (mappable.length === 0) {
+    status.textContent = `No deliveries with location data on ${date}.`;
+    return;
+  }
+
+  // Group by driver
+  const byDriver = {};
+  mappable.forEach(d => {
+    const key  = d.assigned_driver_id  || 'unassigned';
+    const name = d.assigned_driver_name || 'Unassigned';
+    if (!byDriver[key]) byDriver[key] = { name, deliveries: [] };
+    byDriver[key].deliveries.push(d);
+  });
+
+  const driverKeys = Object.keys(byDriver);
+  const bounds     = [];
+
+  driverKeys.forEach((key, idx) => {
+    const color  = DRIVER_COLORS[idx % DRIVER_COLORS.length];
+    const driver = byDriver[key];
+
+    // Sort deliveries by loaded_timestamp
+    const sorted = driver.deliveries.slice().sort((a, b) =>
+      (a.loaded_timestamp?.seconds ?? 0) - (b.loaded_timestamp?.seconds ?? 0)
+    );
+
+    // Build legend chip
+    const chip = document.createElement('div');
+    chip.className = 'map-legend-item';
+    chip.innerHTML = `<span class="map-legend-dot" style="background:${color}"></span>${driver.name} <span style="opacity:.5;font-size:11px;margin-left:2px;">(${sorted.length})</span>`;
+    legend.appendChild(chip);
+
+    // Collect loaded coords for dashed route line
+    const loadedCoords = [];
+
+    sorted.forEach((d, stopIdx) => {
+      const lLat = parseFloat(d.loaded_location.lat);
+      const lLng = parseFloat(d.loaded_location.lng);
+      const hasDelivered = d.delivered_location?.lat && d.delivered_location?.lng;
+      const dLat = hasDelivered ? parseFloat(d.delivered_location.lat) : null;
+      const dLng = hasDelivered ? parseFloat(d.delivered_location.lng) : null;
+
+      bounds.push([lLat, lLng]);
+      loadedCoords.push([lLat, lLng]);
+
+      // ── Loaded marker (circle) ──
+      const loadedMarker = L.circleMarker([lLat, lLng], {
+        radius:      7,
+        fillColor:   color,
+        color:       '#fff',
+        weight:      2,
+        opacity:     1,
+        fillOpacity: 0.95
+      }).bindPopup(buildPopup(d, stopIdx + 1, color, 'loaded'));
+      loadedMarker.addTo(_mapInstance);
+      _mapLayers.push(loadedMarker);
+
+      // Stop number label
+      const numIcon = L.divIcon({
+        className: '',
+        html: `<div style="
+          background:${color};color:#fff;font-size:9px;font-weight:700;
+          width:14px;height:14px;border-radius:50%;display:flex;
+          align-items:center;justify-content:center;
+          border:1.5px solid rgba(255,255,255,.6);
+          margin-top:-20px;margin-left:6px;
+          font-family:'Inter',sans-serif;
+        ">${stopIdx + 1}</div>`,
+        iconAnchor: [0, 0]
+      });
+      const numMarker = L.marker([lLat, lLng], { icon: numIcon, interactive: false });
+      numMarker.addTo(_mapInstance);
+      _mapLayers.push(numMarker);
+
+      // ── Trip line: loaded → delivered ──
+      if (hasDelivered) {
+        bounds.push([dLat, dLng]);
+
+        const tripLine = L.polyline([[lLat, lLng], [dLat, dLng]], {
+          color,
+          weight:    3,
+          opacity:   0.85,
+          dashArray: null
+        }).addTo(_mapInstance);
+        _mapLayers.push(tripLine);
+
+        // ── Delivered marker (rotated square / diamond) ──
+        const delivIcon = L.divIcon({
+          className: '',
+          html: `<div style="
+            width:12px;height:12px;
+            background:${color};
+            border:2px solid #fff;
+            border-radius:2px;
+            transform:rotate(45deg);
+            box-shadow:0 0 4px rgba(0,0,0,0.35);
+          "></div>`,
+          iconSize:   [12, 12],
+          iconAnchor: [6, 6]
+        });
+        const delivMarker = L.marker([dLat, dLng], { icon: delivIcon })
+          .bindPopup(buildPopup(d, stopIdx + 1, color, 'delivered'));
+        delivMarker.addTo(_mapInstance);
+        _mapLayers.push(delivMarker);
+      } else {
+        // In-transit: pulsing green circle
+        const inTransitIcon = L.divIcon({
+          className: '',
+          html: `<div style="
+            width:14px;height:14px;border-radius:50%;
+            background:#4edea3;border:2px solid #fff;
+            animation:map-pulse 1.5s ease-in-out infinite;
+            box-shadow:0 0 6px #4edea3;
+          "></div>`,
+          iconSize:   [14, 14],
+          iconAnchor: [7, 7]
+        });
+        const inTransit = L.marker([lLat, lLng], { icon: inTransitIcon })
+          .bindPopup(buildPopup(d, stopIdx + 1, color, 'in-transit'));
+        inTransit.addTo(_mapInstance);
+        _mapLayers.push(inTransit);
+      }
+    });
+
+    // ── Dashed route between consecutive loaded points ──
+    if (loadedCoords.length > 1) {
+      const routeLine = L.polyline(loadedCoords, {
+        color,
+        weight:    1.5,
+        opacity:   0.4,
+        dashArray: '6 6'
+      }).addTo(_mapInstance);
+      _mapLayers.push(routeLine);
+    }
+  });
+
+  // Fit map to all points
+  if (bounds.length) {
+    _mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+  }
+
+  const total = mappable.length;
+  const delivered = mappable.filter(d => d.status === 'delivered').length;
+  status.textContent = `${driverKeys.length} driver${driverKeys.length !== 1 ? 's' : ''} · ${total} stop${total !== 1 ? 's' : ''} · ${delivered} delivered`;
+}
+
+/* ── Popup HTML ── */
+function buildPopup(d, stopNum, color, type) {
+  const ts = type === 'delivered' && d.delivered_timestamp?.seconds
+    ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})
+    : d.loaded_timestamp?.seconds
+      ? new Date(d.loaded_timestamp.seconds * 1000).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})
+      : '—';
+
+  const statusBadge = {
+    'loaded':     `<span style="background:rgba(77,142,255,.18);color:#adc6ff;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">LOADED</span>`,
+    'delivered':  `<span style="background:rgba(78,222,163,.18);color:#4edea3;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">DELIVERED</span>`,
+    'in-transit': `<span style="background:rgba(78,222,163,.15);color:#4edea3;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">IN TRANSIT</span>`
+  }[type] || '';
+
+  return `
+    <div style="min-width:190px;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6;">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+        <b style="font-size:13px;">${d.assigned_driver_name || 'Unassigned'}</b>
+        <span style="margin-left:auto;opacity:.5;font-size:10px;">Stop #${stopNum}</span>
+      </div>
+      <div style="margin-bottom:5px;">${statusBadge}</div>
+      <div><b>Customer:</b> ${d.customer_name || '—'}</div>
+      <div><b>Product:</b> ${d.product_name || '—'}</div>
+      <div><b>SR#:</b> ${d.serial_number || '—'}</div>
+      <div><b>Address:</b> ${d.address || '—'}</div>
+      <div><b>Time:</b> ${ts}</div>
+      ${d.freight_amount ? `<div><b>Freight:</b> ₹${d.freight_amount}</div>` : ''}
+    </div>`;
+}
+</script>
 
 </body>
 </html>
