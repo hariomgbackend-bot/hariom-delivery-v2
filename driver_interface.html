@@ -363,7 +363,7 @@
       border-radius: 20px;
       overflow: hidden;
       margin-bottom: 16px;
-      border: 1.5px solid var(--batch-border, rgba(173,198,255,0.3));
+      border: 1.5px solid var(--batch-border);
     }
     .batch-group-header {
       display: flex;
@@ -374,8 +374,8 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 1px;
-      background: var(--batch-bg, rgba(173,198,255,0.07));
-      color: var(--batch-text, var(--primary));
+      background: var(--batch-bg);
+      color: var(--batch-text);
       border-bottom: 1px solid var(--border);
     }
     .batch-group .delivery-card {
@@ -384,10 +384,26 @@
       border: none;
       border-bottom: 1px solid var(--border);
       box-shadow: none;
+      background: var(--batch-bg) !important;
     }
     .batch-group .delivery-card:last-child { border-bottom: none; }
     .batch-group .delivery-card:active { transform: none; }
-    .batch-card-bg { background: var(--batch-bg, rgba(173,198,255,0.04)) !important; }
+
+    /* Dark palette (default) */
+    [data-palette="0"] { --batch-bg: rgba(124,58,237,0.13);  --batch-border: #7c3aed; --batch-text: #c4b5fd; }
+    [data-palette="1"] { --batch-bg: rgba(219,39,119,0.13);  --batch-border: #db2777; --batch-text: #f9a8d4; }
+    [data-palette="2"] { --batch-bg: rgba(234,88,12,0.13);   --batch-border: #ea580c; --batch-text: #fed7aa; }
+    [data-palette="3"] { --batch-bg: rgba(22,163,74,0.13);   --batch-border: #16a34a; --batch-text: #86efac; }
+    [data-palette="4"] { --batch-bg: rgba(37,99,235,0.13);   --batch-border: #2563eb; --batch-text: #93c5fd; }
+    [data-palette="5"] { --batch-bg: rgba(202,138,4,0.13);   --batch-border: #ca8a04; --batch-text: #fde68a; }
+
+    /* Light palette overrides */
+    [data-theme="light"] [data-palette="0"] { --batch-bg: #f5f3ff; --batch-border: #7c3aed; --batch-text: #5b21b6; }
+    [data-theme="light"] [data-palette="1"] { --batch-bg: #fdf2f8; --batch-border: #db2777; --batch-text: #9d174d; }
+    [data-theme="light"] [data-palette="2"] { --batch-bg: #fff7ed; --batch-border: #ea580c; --batch-text: #9a3412; }
+    [data-theme="light"] [data-palette="3"] { --batch-bg: #f0fdf4; --batch-border: #16a34a; --batch-text: #065f46; }
+    [data-theme="light"] [data-palette="4"] { --batch-bg: #eff6ff; --batch-border: #2563eb; --batch-text: #1e3a8a; }
+    [data-theme="light"] [data-palette="5"] { --batch-bg: #fefce8; --batch-border: #ca8a04; --batch-text: #713f12; }
 
     .card-top {
       padding: 16px 18px 10px;
@@ -1671,24 +1687,9 @@ function renderDeliveries(data) {
   container.innerHTML   = "";
 
   // ── Batch grouping ──
-  const isDarkMode = () => document.documentElement.getAttribute("data-theme") === "dark";
-  const BATCH_PALETTES_DARK = [
-    { bg: "rgba(124,58,237,0.12)",  border: "#a78bfa", text: "#c4b5fd" },
-    { bg: "rgba(219,39,119,0.12)",  border: "#f472b6", text: "#f9a8d4" },
-    { bg: "rgba(234,88,12,0.12)",   border: "#fb923c", text: "#fed7aa" },
-    { bg: "rgba(22,163,74,0.12)",   border: "#4ade80", text: "#86efac" },
-    { bg: "rgba(37,99,235,0.12)",   border: "#60a5fa", text: "#93c5fd" },
-    { bg: "rgba(202,138,4,0.12)",   border: "#facc15", text: "#fde68a" },
-  ];
-  const BATCH_PALETTES_LIGHT = [
-    { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
-    { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
-    { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
-    { bg: "#f0fdf4", border: "#16a34a", text: "#065f46" },
-    { bg: "#eff6ff", border: "#2563eb", text: "#1e3a8a" },
-    { bg: "#fefce8", border: "#ca8a04", text: "#713f12" },
-  ];
-  const BATCH_PALETTES = isDarkMode() ? BATCH_PALETTES_DARK : BATCH_PALETTES_LIGHT;
+  // Palette index only — colors live entirely in CSS (data-palette attr)
+  // This means dark/light toggle works instantly with zero re-render
+  const NUM_PALETTES = 6;
   const phoneCounts = {};
   data.forEach(d => { if (d.phone) phoneCounts[d.phone] = (phoneCounts[d.phone] || 0) + 1; });
   const batchPhones = Object.keys(phoneCounts).filter(p => phoneCounts[p] > 1);
@@ -1703,14 +1704,10 @@ function renderDeliveries(data) {
   // Group data: batched deliveries rendered together, singles rendered alone
   const rendered = new Set();
 
-  function makeCard(d, inBatch, palette) {
+  function makeCard(d, inBatch) {
     const card = document.createElement("div");
     card.className = "delivery-card" +
-      (d.priority === "urgent" ? " priority-urgent" : "") +
-      (inBatch ? " batch-card-bg" : "");
-    if (inBatch && palette) {
-      card.style.setProperty("--batch-bg", palette.bg);
-    }
+      (d.priority === "urgent" ? " priority-urgent" : "");
     card.onclick = () => openDelivery(d.id);
 
     let etaLabel = "";
@@ -1748,16 +1745,13 @@ function renderDeliveries(data) {
     if (rendered.has(d.id)) return;
 
     if (d.phone && batchPhones.includes(d.phone)) {
-      // Find all deliveries in this batch
       const batchItems = data.filter(x => x.phone === d.phone);
       const bNum       = batchNumberMap[d.phone];
-      const palette    = BATCH_PALETTES[(bNum - 1) % BATCH_PALETTES.length];
+      const paletteIdx = (bNum - 1) % NUM_PALETTES;
 
       const group = document.createElement("div");
       group.className = "batch-group";
-      group.style.setProperty("--batch-border", palette.border);
-      group.style.setProperty("--batch-bg",     palette.bg);
-      group.style.setProperty("--batch-text",   palette.text);
+      group.setAttribute("data-palette", paletteIdx);
 
       const header = document.createElement("div");
       header.className = "batch-group-header";
@@ -1766,13 +1760,13 @@ function renderDeliveries(data) {
 
       batchItems.forEach(item => {
         rendered.add(item.id);
-        group.appendChild(makeCard(item, true, palette));
+        group.appendChild(makeCard(item, true));
       });
 
       container.appendChild(group);
     } else {
       rendered.add(d.id);
-      container.appendChild(makeCard(d, false, null));
+      container.appendChild(makeCard(d, false));
     }
   });
 }
