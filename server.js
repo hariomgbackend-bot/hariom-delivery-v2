@@ -24,7 +24,6 @@ dotenv.config();
 const require = createRequire(import.meta.url);
 //const serviceAccount = require("./firebase-service-account.json");
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_KEY;
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -920,17 +919,20 @@ app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
       try {
         let distance_km = null;
         const loadedLoc = deliveryData.loaded_location;
-        if (loadedLoc?.lat && loadedLoc?.lng && delivLat && delivLng && GOOGLE_MAPS_KEY) {
-          const mapsUrl = `https://maps.googleapis.com/maps/api/distancematrix/json` +
-            `?origins=${loadedLoc.lat},${loadedLoc.lng}` +
-            `&destinations=${delivLat},${delivLng}` +
-            `&key=${GOOGLE_MAPS_KEY}`;
-          const mapsRes  = await fetch(mapsUrl);
-          const mapsData = await mapsRes.json();
-          const element  = mapsData?.rows?.[0]?.elements?.[0];
-          if (element?.status === "OK") {
-            distance_km = parseFloat((element.distance.value / 1000).toFixed(2));
-            await updateDoc(refDoc, { distance_km });
+        if (loadedLoc?.lat && loadedLoc?.lng && delivLat && delivLng) {
+          try {
+            // OSRM — free, no API key needed
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/` +
+              `${loadedLoc.lng},${loadedLoc.lat};${delivLng},${delivLat}` +
+              `?overview=false`;
+            const osrmRes  = await fetch(osrmUrl);
+            const osrmData = await osrmRes.json();
+            if (osrmData.code === "Ok" && osrmData.routes?.[0]) {
+              distance_km = parseFloat((osrmData.routes[0].distance / 1000).toFixed(2));
+              await updateDoc(refDoc, { distance_km });
+            }
+          } catch (osrmErr) {
+            console.error("OSRM distance error:", osrmErr.message);
           }
         }
 
