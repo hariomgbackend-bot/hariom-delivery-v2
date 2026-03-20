@@ -1550,6 +1550,10 @@
       <div class="map-toolbar">
         <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--on-surface-variant);">Date</label>
         <input type="date" id="mapDatePicker" class="map-date-input" onchange="reloadMap()">
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--on-surface-variant);">Driver</label>
+        <select id="mapDriverFilter" class="map-date-input" onchange="reloadMap()">
+          <option value="all">All Drivers</option>
+        </select>
         <button class="map-reload-btn" onclick="reloadMap()">
           <span class="material-symbols-outlined" style="font-size:16px;">refresh</span>
           Reload
@@ -3089,8 +3093,8 @@ if ("serviceWorker" in navigator) {
 <script>
 /* ════════════════════════════════════════════════
    DRIVER MAP VIEW
-   — Leaflet, no API key required
-   — Per-driver color, trip trail, route dashes
+   — Leaflet + OSRM road routing (no API key)
+   — Per-driver color, road polylines, driver filter
 ════════════════════════════════════════════════ */
 
 const DRIVER_COLORS = [
@@ -3098,13 +3102,13 @@ const DRIVER_COLORS = [
   '#fb923c','#38bdf8','#f472b6','#a3e635','#e879f9'
 ];
 
-let _mapInstance   = null;   // Leaflet map
+let _mapInstance    = null;
 let _mapInitialized = false;
-let _mapLayers     = [];     // all added layers (for clearing)
+let _mapLayers      = [];
+let _allDeliveries  = [];   // cached for filter reuse
 
 /* ── Init (called once on first showView('map')) ── */
 function initMapView() {
-  // Set default date to today (IST)
   const picker = document.getElementById('mapDatePicker');
   if (!picker.value) {
     const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
@@ -3113,23 +3117,62 @@ function initMapView() {
 
   if (!_mapInitialized) {
     _mapInstance = L.map('mapLeaflet', {
-      center: [20.5937, 78.9629],   // India center
+      center: [20.5937, 78.9629],
       zoom: 5,
       zoomControl: true
     });
-
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19
     }).addTo(_mapInstance);
-
     _mapInitialized = true;
   }
 
   reloadMap();
 }
 
-/* ── Main reload: fetch deliveries, filter by date, draw ── */
+/* ── Fetch OSRM road route between ordered coords ── */
+async function fetchRoadRoute(coords) {
+  // coords = [[lat,lng], [lat,lng], ...]
+  if (coords.length < 2) return null;
+  const waypointStr = coords.map(([lat,lng]) => `${lng},${lat}`).join(';');
+  try {
+    const res = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${waypointStr}` +
+      `?overview=simplified&geometries=geojson&steps=false`
+    );
+    const data = await res.json();
+    if (data.code === 'Ok' && data.routes?.[0]) {
+      // GeoJSON coords are [lng, lat] — flip to Leaflet [lat, lng]
+      return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    }
+  } catch(e) { /* fallback to straight line */ }
+  return null;
+}
+
+/* ── Populate driver dropdown ── */
+function populateDriverFilter(byDriver) {
+  const sel = document.getElementById('mapDriverFilter');
+  const cur = sel.value;
+  // Remove all options except "All Drivers"
+  while (sel.options.length > 1) sel.remove(1);
+  Object.entries(byDriver).forEach(([key, val]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = val.name;
+    sel.appendChild(opt);
+  });
+  // Restore selection if still valid
+  if (cur && [...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+
+/* ── Clear map layers ── */
+function clearMapLayers() {
+  _mapLayers.forEach(l => _mapInstance.removeLayer(l));
+  _mapLayers = [];
+}
+
+/* ── Main reload ── */
 async function reloadMap() {
   if (!_mapInstance) return;
 
@@ -3139,23 +3182,23 @@ async function reloadMap() {
 
   if (!date) { status.textContent = 'Please pick a date.'; return; }
 
-  status.textContent = 'Loading…';
+  status.textContent = 'Loading deliveries…';
   legend.innerHTML   = '';
+  clearMapLayers();
 
-  // Clear old map layers
-  _mapLayers.forEach(l => _mapInstance.removeLayer(l));
-  _mapLayers = [];
-
+  // Only fetch from server if date changed or no cache
+  const pickerDate = date;
   let deliveries;
   try {
     const res = await authFetch(`${BASE_URL}/deliveries`);
     deliveries = await res.json();
+    _allDeliveries = deliveries;
   } catch(e) {
     status.textContent = 'Failed to load deliveries.';
     return;
   }
 
-  // Filter to chosen date — use loaded_timestamp if present, else delivered_timestamp
+  // Filter by chosen date (IST)
   const filtered = deliveries.filter(d => {
     const ts = d.loaded_timestamp?.seconds
       ? new Date(d.loaded_timestamp.seconds * 1000)
@@ -3165,48 +3208,58 @@ async function reloadMap() {
     if (!ts) return false;
     const istDate = new Date(ts.getTime() + 5.5 * 60 * 60 * 1000)
                       .toISOString().split('T')[0];
-    return istDate === date;
-  });
-
-  // Must have at least a loaded_location
-  const mappable = filtered.filter(d =>
-    d.loaded_location?.lat && d.loaded_location?.lng
-  );
-
-  if (mappable.length === 0) {
-    status.textContent = `No deliveries with location data on ${date}.`;
-    return;
-  }
+    return istDate === pickerDate;
+  }).filter(d => d.loaded_location?.lat && d.loaded_location?.lng);
 
   // Group by driver
   const byDriver = {};
-  mappable.forEach(d => {
+  filtered.forEach(d => {
     const key  = d.assigned_driver_id  || 'unassigned';
     const name = d.assigned_driver_name || 'Unassigned';
     if (!byDriver[key]) byDriver[key] = { name, deliveries: [] };
     byDriver[key].deliveries.push(d);
   });
 
-  const driverKeys = Object.keys(byDriver);
-  const bounds     = [];
+  populateDriverFilter(byDriver);
 
-  driverKeys.forEach((key, idx) => {
-    const color  = DRIVER_COLORS[idx % DRIVER_COLORS.length];
+  // Apply driver filter
+  const filterVal = document.getElementById('mapDriverFilter').value;
+  const driversToShow = filterVal === 'all'
+    ? Object.keys(byDriver)
+    : Object.keys(byDriver).filter(k => k === filterVal);
+
+  if (filtered.length === 0) {
+    status.textContent = `No deliveries with location data on ${date}.`;
+    return;
+  }
+
+  if (driversToShow.length === 0) {
+    status.textContent = 'No data for selected driver on this date.';
+    return;
+  }
+
+  status.textContent = 'Drawing routes…';
+  const bounds = [];
+
+  for (let idx = 0; idx < driversToShow.length; idx++) {
+    const key    = driversToShow[idx];
+    const color  = DRIVER_COLORS[Object.keys(byDriver).indexOf(key) % DRIVER_COLORS.length];
     const driver = byDriver[key];
 
-    // Sort deliveries by loaded_timestamp
+    // Sort by loaded_timestamp
     const sorted = driver.deliveries.slice().sort((a, b) =>
       (a.loaded_timestamp?.seconds ?? 0) - (b.loaded_timestamp?.seconds ?? 0)
     );
 
-    // Build legend chip
+    // Legend chip
     const chip = document.createElement('div');
     chip.className = 'map-legend-item';
-    chip.innerHTML = `<span class="map-legend-dot" style="background:${color}"></span>${driver.name} <span style="opacity:.5;font-size:11px;margin-left:2px;">(${sorted.length})</span>`;
+    chip.innerHTML = `<span class="map-legend-dot" style="background:${color}"></span>${driver.name}<span style="opacity:.5;font-size:11px;margin-left:4px;">${sorted.length} stop${sorted.length!==1?'s':''}</span>`;
     legend.appendChild(chip);
 
-    // Collect loaded coords for dashed route line
-    const loadedCoords = [];
+    // Collect all route waypoints: loaded → delivered per stop, then next stop loaded
+    // For road route: pass all key points in sequence
+    const routeWaypoints = [];
 
     sorted.forEach((d, stopIdx) => {
       const lLat = parseFloat(d.loaded_location.lat);
@@ -3216,107 +3269,82 @@ async function reloadMap() {
       const dLng = hasDelivered ? parseFloat(d.delivered_location.lng) : null;
 
       bounds.push([lLat, lLng]);
-      loadedCoords.push([lLat, lLng]);
+      routeWaypoints.push([lLat, lLng]);
+      if (hasDelivered) {
+        bounds.push([dLat, dLng]);
+        routeWaypoints.push([dLat, dLng]);
+      }
 
       // ── Loaded marker (circle) ──
       const loadedMarker = L.circleMarker([lLat, lLng], {
-        radius:      7,
-        fillColor:   color,
-        color:       '#fff',
-        weight:      2,
-        opacity:     1,
-        fillOpacity: 0.95
+        radius: 7, fillColor: color, color: '#fff',
+        weight: 2, opacity: 1, fillOpacity: 0.95
       }).bindPopup(buildPopup(d, stopIdx + 1, color, 'loaded'));
       loadedMarker.addTo(_mapInstance);
       _mapLayers.push(loadedMarker);
 
-      // Stop number label
+      // Stop number badge
       const numIcon = L.divIcon({
         className: '',
-        html: `<div style="
-          background:${color};color:#fff;font-size:9px;font-weight:700;
-          width:14px;height:14px;border-radius:50%;display:flex;
-          align-items:center;justify-content:center;
-          border:1.5px solid rgba(255,255,255,.6);
-          margin-top:-20px;margin-left:6px;
-          font-family:'Inter',sans-serif;
-        ">${stopIdx + 1}</div>`,
+        html: `<div style="background:${color};color:#fff;font-size:9px;font-weight:700;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid rgba(255,255,255,.6);margin-top:-20px;margin-left:6px;font-family:'Inter',sans-serif;">${stopIdx+1}</div>`,
         iconAnchor: [0, 0]
       });
       const numMarker = L.marker([lLat, lLng], { icon: numIcon, interactive: false });
       numMarker.addTo(_mapInstance);
       _mapLayers.push(numMarker);
 
-      // ── Trip line: loaded → delivered ──
+      // ── Delivered marker (diamond) or in-transit pulse ──
       if (hasDelivered) {
-        bounds.push([dLat, dLng]);
-
-        const tripLine = L.polyline([[lLat, lLng], [dLat, dLng]], {
-          color,
-          weight:    3,
-          opacity:   0.85,
-          dashArray: null
-        }).addTo(_mapInstance);
-        _mapLayers.push(tripLine);
-
-        // ── Delivered marker (rotated square / diamond) ──
         const delivIcon = L.divIcon({
           className: '',
-          html: `<div style="
-            width:12px;height:12px;
-            background:${color};
-            border:2px solid #fff;
-            border-radius:2px;
-            transform:rotate(45deg);
-            box-shadow:0 0 4px rgba(0,0,0,0.35);
-          "></div>`,
-          iconSize:   [12, 12],
-          iconAnchor: [6, 6]
+          html: `<div style="width:12px;height:12px;background:${color};border:2px solid #fff;border-radius:2px;transform:rotate(45deg);box-shadow:0 0 4px rgba(0,0,0,0.35);"></div>`,
+          iconSize: [12,12], iconAnchor: [6,6]
         });
-        const delivMarker = L.marker([dLat, dLng], { icon: delivIcon })
-          .bindPopup(buildPopup(d, stopIdx + 1, color, 'delivered'));
-        delivMarker.addTo(_mapInstance);
-        _mapLayers.push(delivMarker);
+        L.marker([dLat, dLng], { icon: delivIcon })
+          .bindPopup(buildPopup(d, stopIdx + 1, color, 'delivered'))
+          .addTo(_mapInstance);
+        _mapLayers.push(L.marker([dLat, dLng], { icon: delivIcon }));
       } else {
-        // In-transit: pulsing green circle
         const inTransitIcon = L.divIcon({
           className: '',
-          html: `<div style="
-            width:14px;height:14px;border-radius:50%;
-            background:#4edea3;border:2px solid #fff;
-            animation:map-pulse 1.5s ease-in-out infinite;
-            box-shadow:0 0 6px #4edea3;
-          "></div>`,
-          iconSize:   [14, 14],
-          iconAnchor: [7, 7]
+          html: `<div style="width:14px;height:14px;border-radius:50%;background:#4edea3;border:2px solid #fff;animation:map-pulse 1.5s ease-in-out infinite;box-shadow:0 0 6px #4edea3;"></div>`,
+          iconSize: [14,14], iconAnchor: [7,7]
         });
-        const inTransit = L.marker([lLat, lLng], { icon: inTransitIcon })
-          .bindPopup(buildPopup(d, stopIdx + 1, color, 'in-transit'));
-        inTransit.addTo(_mapInstance);
-        _mapLayers.push(inTransit);
+        L.marker([lLat, lLng], { icon: inTransitIcon })
+          .bindPopup(buildPopup(d, stopIdx + 1, color, 'in-transit'))
+          .addTo(_mapInstance);
       }
     });
 
-    // ── Dashed route between consecutive loaded points ──
-    if (loadedCoords.length > 1) {
-      const routeLine = L.polyline(loadedCoords, {
-        color,
-        weight:    1.5,
-        opacity:   0.4,
-        dashArray: '6 6'
-      }).addTo(_mapInstance);
-      _mapLayers.push(routeLine);
+    // ── Road route via OSRM for entire driver path ──
+    if (routeWaypoints.length >= 2) {
+      // OSRM has a 100-waypoint limit; chunk if needed
+      const roadCoords = await fetchRoadRoute(routeWaypoints);
+      if (roadCoords) {
+        const roadLine = L.polyline(roadCoords, {
+          color, weight: 3.5, opacity: 0.85
+        }).addTo(_mapInstance);
+        _mapLayers.push(roadLine);
+      } else {
+        // Fallback: straight lines
+        const fallback = L.polyline(routeWaypoints, {
+          color, weight: 2.5, opacity: 0.6, dashArray: '6 4'
+        }).addTo(_mapInstance);
+        _mapLayers.push(fallback);
+      }
     }
-  });
+  }
 
-  // Fit map to all points
   if (bounds.length) {
     _mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
   }
 
-  const total = mappable.length;
-  const delivered = mappable.filter(d => d.status === 'delivered').length;
-  status.textContent = `${driverKeys.length} driver${driverKeys.length !== 1 ? 's' : ''} · ${total} stop${total !== 1 ? 's' : ''} · ${delivered} delivered`;
+  const shown   = driversToShow.reduce((n,k) => n + byDriver[k].deliveries.length, 0);
+  const deliv   = driversToShow.reduce((n,k) => n + byDriver[k].deliveries.filter(d=>d.status==='delivered').length, 0);
+  const dLabel  = filterVal === 'all'
+    ? `${driversToShow.length} driver${driversToShow.length!==1?'s':''}`
+    : byDriver[filterVal]?.name || '';
+  status.textContent = `${dLabel} · ${shown} stop${shown!==1?'s':''} · ${deliv} delivered · road route via OSRM`;
 }
 
 /* ── Popup HTML ── */

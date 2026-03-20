@@ -1105,6 +1105,8 @@
     [data-theme="light"] .serial-input::placeholder { color: #94a3b8; }
     [data-theme="light"] .btn-scan { /* stays gradient, fine */ }
     [data-theme="light"] .ptrIndicator { color: #2563eb; }
+    [data-theme="light"] .batch-group .delivery-card { background: transparent; }
+    [data-theme="light"] .card-name { color: #1a2540; }
 
     input:focus { outline: none !important; }
   </style>
@@ -1669,7 +1671,16 @@ function renderDeliveries(data) {
   container.innerHTML   = "";
 
   // ── Batch grouping ──
-  const BATCH_PALETTES = [
+  const isDarkMode = () => document.documentElement.getAttribute("data-theme") === "dark";
+  const BATCH_PALETTES_DARK = [
+    { bg: "rgba(124,58,237,0.12)",  border: "#a78bfa", text: "#c4b5fd" },
+    { bg: "rgba(219,39,119,0.12)",  border: "#f472b6", text: "#f9a8d4" },
+    { bg: "rgba(234,88,12,0.12)",   border: "#fb923c", text: "#fed7aa" },
+    { bg: "rgba(22,163,74,0.12)",   border: "#4ade80", text: "#86efac" },
+    { bg: "rgba(37,99,235,0.12)",   border: "#60a5fa", text: "#93c5fd" },
+    { bg: "rgba(202,138,4,0.12)",   border: "#facc15", text: "#fde68a" },
+  ];
+  const BATCH_PALETTES_LIGHT = [
     { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
     { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
     { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
@@ -1677,6 +1688,7 @@ function renderDeliveries(data) {
     { bg: "#eff6ff", border: "#2563eb", text: "#1e3a8a" },
     { bg: "#fefce8", border: "#ca8a04", text: "#713f12" },
   ];
+  const BATCH_PALETTES = isDarkMode() ? BATCH_PALETTES_DARK : BATCH_PALETTES_LIGHT;
   const phoneCounts = {};
   data.forEach(d => { if (d.phone) phoneCounts[d.phone] = (phoneCounts[d.phone] || 0) + 1; });
   const batchPhones = Object.keys(phoneCounts).filter(p => phoneCounts[p] > 1);
