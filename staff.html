@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hariom Staff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0b1326">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <title>Staff Panel — Hariom Electronics</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+
+  <style>
+    /* ════════════════════════════════════════════════
+       KINETIC LUMINESCENCE — STAFF PANEL
+       Design system: "The Digital Horizon"
+    ════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:                       #0b1326;
+      --surface:                  #0b1326;
+      --surface-container-lowest: #060e20;
+      --surface-container-low:    #131b2e;
+      --surface-container:        #171f33;
+      --surface-container-high:   #222a3d;
+      --surface-container-highest:#2d3449;
+      --primary:                  #adc6ff;
+      --primary-container:        #4d8eff;
+      --on-primary:               #002e6a;
+      --on-primary-container:     #00285d;
+      --tertiary:                 #4edea3;
+      --tertiary-container:       #00a572;
+      --on-surface:               #dae2fd;
+      --on-surface-variant:       #c2c6d6;
+      --outline:                  #8c909f;
+      --outline-variant:          #424754;
+      --error:                    #ffb4ab;
+      --border:                   rgba(255,255,255,0.08);
+      --accent:                   #adc6ff;
+      --text:                     #dae2fd;
+      --muted:                    #c2c6d6;
+      --green:                    #4edea3;
+      --amber:                    #ffb300;
+      --safe-top:                 env(safe-area-inset-top, 0px);
+      --safe-bottom:              env(safe-area-inset-bottom, 0px);
+    }
+
+    html { height: 100%; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--on-surface);
+      min-height: 100%;
+      padding-bottom: calc(100px + var(--safe-bottom));
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined';
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      font-size: 22px; line-height: 1; vertical-align: middle;
+      user-select: none;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      background: rgba(11,19,38,0.60);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      padding: calc(14px + var(--safe-top)) 20px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 48px 48px rgba(0,0,0,0.06);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-left   { display: flex; align-items: center; gap: 12px; }
+    .header-logo   { width: 36px; height: 36px; border-radius: 10px; object-fit: contain; background: rgba(173,198,255,0.1); }
+    .header-title  { font-size: 18px; font-weight: 900; letter-spacing: -0.5px; color: var(--primary); text-transform: uppercase; line-height: 1.1; }
+    .header-sub    { font-size: 10px; color: var(--on-surface-variant); font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 1px; }
+    .dark-toggle   { background: rgba(173,198,255,0.08); border: 1px solid rgba(173,198,255,0.15); color: var(--on-surface-variant); cursor: pointer; border-radius: 8px; padding: 6px 10px; font-size: 15px; line-height: 1; transition: background 0.2s; display: inline-flex; align-items: center; }
+    .dark-toggle:hover { background: rgba(173,198,255,0.14); }
+
+    /* ── CONTAINER ── */
+    .container { max-width: 560px; margin: 0 auto; padding: 20px 16px; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: calc(110px + var(--safe-bottom));
+      left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-container-highest); color: var(--on-surface);
+      padding: 12px 22px; border-radius: 100px; font-size: 14px; font-weight: 600;
+      white-space: nowrap; z-index: 9999; opacity: 0;
+      transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+      border: 1px solid rgba(173,198,255,0.12); box-shadow: 0 48px 48px rgba(0,0,0,0.12);
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── LOGIN CARD ── */
+    .login-card {
+      background: var(--surface-container-low);
+      border-radius: 24px; padding: 28px 22px; margin-bottom: 20px;
+    }
+    .login-heading {
+      font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+      color: var(--on-surface); margin-bottom: 6px;
+    }
+    .login-sub {
+      font-size: 13px; color: var(--on-surface-variant);
+      margin-bottom: 24px; font-weight: 500;
+    }
+    .login-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.5px; color: var(--on-surface-variant); margin-bottom: 7px; display: block;
+    }
+    .login-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .login-row select,
+    .login-row input[type="password"] {
+      flex: 1; min-width: 120px; height: 54px; padding: 0 16px;
+      background: var(--surface-container-highest); border: none; border-radius: 12px;
+      font-family: 'Inter', sans-serif; font-size: 15px; color: var(--on-surface);
+      -webkit-appearance: none; outline: none; transition: box-shadow 0.2s;
+    }
+    .login-row select:focus,
+    .login-row input:focus { box-shadow: 0 0 0 2px var(--primary); }
+    .login-row select option { background: #1a2236; }
+    .login-msg { font-size: 13px; font-weight: 600; min-height: 20px; margin-bottom: 10px; text-align: center; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      border: none; border-radius: 12px; font-family: 'Inter', sans-serif;
+      font-weight: 700; cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(0.96); opacity: 0.88; }
+    .btn-unlock {
+      width: 100%; height: 54px;
+      background: linear-gradient(135deg, var(--primary-container), var(--primary));
+      color: var(--on-primary-container); font-size: 15px; font-weight: 800;
+      letter-spacing: 0.5px; border-radius: 12px;
+    }
+    .btn-primary-sm {
+      background: linear-gradient(135deg, var(--primary-container), var(--primary));
+      color: var(--on-primary-container); padding: 10px 18px;
+      font-size: 13px; font-weight: 700; border-radius: 10px;
+    }
+    .btn-ghost {
+      background: var(--surface-container-high); color: var(--on-surface-variant);
+      padding: 10px 16px; font-size: 13px; font-weight: 600; border-radius: 10px;
+      border: 1px solid var(--outline-variant);
+    }
+    .btn-danger-sm {
+      background: rgba(255,180,171,0.1); color: var(--error);
+      padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 9px;
+      border: 1px solid rgba(255,180,171,0.2);
+    }
+    .btn-teal-sm {
+      background: rgba(78,222,163,0.1); color: var(--tertiary);
+      padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 9px;
+      border: 1px solid rgba(78,222,163,0.2);
+    }
+    .btn-amber-sm {
+      background: rgba(255,179,0,0.1); color: var(--amber);
+      padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 9px;
+      border: 1px solid rgba(255,179,0,0.2);
+    }
+    .btn-full {
+      width: 100%; padding: 16px; font-size: 15px; font-weight: 800;
+      border-radius: 14px; border: none; font-family: 'Inter', sans-serif;
+      cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-full:active { transform: scale(0.98); }
+    .btn-full-primary { background: linear-gradient(135deg, var(--primary-container), var(--primary)); color: var(--on-primary-container); }
+    .btn-full-teal    { background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary)); color: #002113; }
+
+    /* ── SECTION HEADER ── */
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .section-title-text { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; color: var(--on-surface); }
+    .count-badge {
+      background: rgba(173,198,255,0.15); color: var(--primary);
+      font-size: 12px; font-weight: 700; padding: 4px 12px;
+      border-radius: 20px; border: 1px solid rgba(173,198,255,0.2);
+    }
+
+    /* ── SEARCH BAR ── */
+    .search-wrap {
+      position: relative; margin-bottom: 14px;
+    }
+    .search-input {
+      width: 100%; height: 46px; padding: 0 16px 0 44px;
+      background: var(--surface-container-high); border: none; border-radius: 14px;
+      font-family: 'Inter', sans-serif; font-size: 14px; color: var(--on-surface);
+      outline: none; transition: box-shadow 0.2s;
+    }
+    .search-input:focus { box-shadow: 0 0 0 2px var(--primary); }
+    .search-input::placeholder { color: var(--outline); }
+    .search-icon {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      color: var(--outline); font-size: 18px; pointer-events: none;
+    }
+
+    /* ── DELIVERY CARDS ── */
+    .delivery-card {
+      background: var(--surface-container-low); border-radius: 20px;
+      margin-bottom: 12px; overflow: hidden; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .delivery-card:active { transform: scale(0.99); background: var(--surface-container); }
+    .card-top {
+      padding: 16px 18px 10px;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    }
+    .card-name   { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; color: var(--on-surface); line-height: 1.2; }
+    .card-product { font-size: 12px; color: var(--on-surface-variant); margin-top: 3px; font-weight: 500; }
+    .card-badges  { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+    .badge {
+      display: inline-flex; align-items: center; padding: 4px 10px;
+      border-radius: 20px; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap;
+    }
+    .badge-pending   { background: rgba(255,179,0,0.15);   color: #ffb300; }
+    .badge-loaded    { background: rgba(173,198,255,0.15); color: var(--primary); }
+    .badge-delivered { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
+    .badge-failed    { background: rgba(255,180,171,0.12); color: var(--error); }
+    .badge-open      { background: rgba(173,198,255,0.15); color: var(--primary); }
+    .badge-followup  { background: rgba(255,179,0,0.15);   color: #ffb300; }
+    .badge-converted { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
+    .badge-lost      { background: rgba(255,180,171,0.12); color: var(--error); }
+    .badge-warranty-ok     { background: rgba(78,222,163,0.12);  color: var(--tertiary); }
+    .badge-warranty-expiring { background: rgba(255,179,0,0.12); color: #ffb300; }
+    .badge-warranty-expired  { background: rgba(255,180,171,0.12); color: var(--error); }
+
+    .card-divider { height: 1px; background: var(--border); margin: 0 18px; }
+    .card-footer  { padding: 10px 18px 14px; display: flex; align-items: center; gap: 8px; }
+    .card-address { font-size: 13px; color: var(--on-surface-variant); flex: 1; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .card-meta    { font-size: 11px; color: var(--on-surface-variant); flex: 1; }
+    .card-chevron { color: var(--outline); font-size: 20px; flex-shrink: 0; }
+    .card-actions { display: flex; gap: 6px; padding: 0 18px 14px; flex-wrap: wrap; }
+
+    /* ── WARRANTY BADGE ── */
+    .warranty-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 18px; border-top: 1px solid var(--border);
+      font-size: 11px; font-weight: 600; color: var(--on-surface-variant);
+    }
+
+    /* ── SKELETON ── */
+    .skeleton-card { background: var(--surface-container-low); border-radius: 20px; padding: 20px 18px; margin-bottom: 12px; }
+    .skeleton-line {
+      background: linear-gradient(90deg, var(--surface-container) 25%, var(--surface-container-high) 50%, var(--surface-container) 75%);
+      background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; margin-bottom: 10px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ── EMPTY STATE ── */
+    .empty-state { text-align: center; padding: 56px 20px; color: var(--on-surface-variant); }
+    .empty-state .icon { font-size: 48px; margin-bottom: 14px; }
+    .empty-state p     { font-size: 16px; font-weight: 700; color: var(--on-surface); }
+    .empty-state small { font-size: 13px; margin-top: 6px; display: block; }
+
+    /* ── LEADS FORM CARD ── */
+    .form-card {
+      background: var(--surface-container-low); border-radius: 20px;
+      padding: 20px 18px; margin-bottom: 16px;
+    }
+    .form-card-title {
+      font-size: 16px; font-weight: 800; letter-spacing: -0.3px;
+      color: var(--on-surface); margin-bottom: 16px;
+    }
+    .form-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--on-surface-variant);
+      margin-bottom: 6px; display: block;
+    }
+    .form-input {
+      width: 100%; padding: 13px 16px;
+      background: var(--surface-container-highest); border: none; border-radius: 12px;
+      font-family: 'Inter', sans-serif; font-size: 14px; color: var(--on-surface);
+      outline: none; transition: box-shadow 0.2s; margin-bottom: 12px;
+    }
+    .form-input:focus { box-shadow: 0 0 0 2px var(--primary); }
+    .form-input::placeholder { color: var(--outline); }
+    .form-select {
+      width: 100%; padding: 13px 16px;
+      background: var(--surface-container-highest); border: none; border-radius: 12px;
+      font-family: 'Inter', sans-serif; font-size: 14px; color: var(--on-surface);
+      outline: none; -webkit-appearance: none; margin-bottom: 12px;
+      transition: box-shadow 0.2s;
+    }
+    .form-select:focus { box-shadow: 0 0 0 2px var(--primary); }
+    .form-row { display: flex; gap: 10px; }
+    .form-row .form-input,
+    .form-row .form-select { flex: 1; }
+
+    /* Repeat customer banner */
+    #leadRepeatBanner {
+      display: none; margin-bottom: 12px;
+      border-radius: 12px; border: 1.5px solid rgba(78,222,163,0.35);
+      background: rgba(78,222,163,0.08); padding: 12px 14px;
+      animation: rcSlide 0.2s ease;
+    }
+    @keyframes rcSlide { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+    .rc-header { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #4edea3; margin-bottom: 6px; }
+    .rc-name   { font-size: 13px; font-weight: 700; color: var(--on-surface); margin-bottom: 2px; }
+    .rc-addr   { font-size: 11px; color: var(--on-surface-variant); margin-bottom: 8px; line-height: 1.4; }
+    .rc-actions { display: flex; gap: 8px; }
+    .rc-yes { flex:1; background: rgba(78,222,163,0.15); color: var(--tertiary); border: 1px solid rgba(78,222,163,0.4); border-radius: 8px; padding: 7px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .rc-no  { flex:1; background: transparent; color: var(--on-surface-variant); border: 1px solid var(--outline-variant); border-radius: 8px; padding: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+    /* ── POPUP / DETAIL SHEET ── */
+    .popup {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.80); backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px); z-index: 200;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: calc(16px + var(--safe-top)) 14px calc(16px + var(--safe-bottom));
+    }
+    .popup.open { display: block; }
+    .popup-box {
+      background: var(--surface-container-low); width: 100%; max-width: 500px;
+      margin: 0 auto; border-radius: 28px; overflow: hidden;
+      box-shadow: 0 48px 80px rgba(0,0,0,0.5);
+      border: 1px solid rgba(173,198,255,0.08);
+    }
+    .popup-band {
+      padding: 22px 22px 16px; border-bottom: 1px solid var(--border);
+    }
+    .popup-band-delivered { background: rgba(78,222,163,0.08); }
+    .popup-band-loaded    { background: rgba(77,142,255,0.08); }
+    .popup-band-pending   { background: rgba(255,179,0,0.08); }
+    .popup-band-lead      { background: rgba(173,198,255,0.06); }
+    .popup-name { font-size: 22px; font-weight: 800; color: var(--on-surface); letter-spacing: -0.3px; line-height: 1.2; }
+    .popup-status-row { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; flex-wrap: wrap; }
+    .popup-body { padding: 4px 22px 6px; }
+    .detail-row {
+      display: flex; gap: 10px; padding: 12px 0;
+      border-bottom: 1px solid var(--border); font-size: 14px; align-items: flex-start;
+    }
+    .detail-row:last-of-type { border-bottom: none; }
+    .detail-label { color: var(--on-surface-variant); font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; min-width: 82px; padding-top: 2px; flex-shrink: 0; }
+    .detail-value { color: var(--on-surface); font-weight: 500; line-height: 1.5; flex: 1; }
+    .phone-link { color: var(--primary); text-decoration: none; font-weight: 700; }
+    .popup-actions {
+      padding: 14px 22px calc(22px + var(--safe-bottom));
+      display: flex; flex-direction: column; gap: 10px;
+      background: var(--surface-container-lowest); border-top: 1px solid var(--border);
+    }
+    .popup-actions-row { display: flex; gap: 10px; }
+    .popup-actions-row .btn { flex: 1; }
+    .popup-close-btn {
+      background: var(--surface-container-highest); color: var(--on-surface);
+      padding: 14px; font-size: 15px; font-weight: 600; width: 100%;
+      border-radius: 12px; border: none; font-family: 'Inter', sans-serif; cursor: pointer;
+    }
+
+    /* Lead edit inline */
+    .lead-edit-select {
+      background: var(--surface-container-high); color: var(--on-surface);
+      border: 1px solid var(--outline-variant); border-radius: 8px;
+      padding: 6px 10px; font-family: 'Inter', sans-serif; font-size: 13px;
+      outline: none; -webkit-appearance: none; cursor: pointer;
+    }
+    .lead-edit-input {
+      background: var(--surface-container-high); color: var(--on-surface);
+      border: 1px solid var(--outline-variant); border-radius: 8px;
+      padding: 6px 10px; font-family: 'Inter', sans-serif; font-size: 13px;
+      outline: none; width: 100%; margin-top: 6px;
+    }
+    .lead-edit-input:focus { box-shadow: 0 0 0 2px var(--primary); }
+
+    /* ── KINETIC BOTTOM NAV ── */
+    .kinetic-bottom-nav {
+      position: fixed; bottom: calc(20px + var(--safe-bottom)); left: 50%;
+      transform: translateX(-50%); width: 92%; max-width: 380px;
+      border-radius: 48px; z-index: 50;
+      background: rgba(45,52,73,0.60); backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px); box-shadow: 0 48px 48px rgba(0,0,0,0.12);
+    }
+    .kinetic-bottom-nav-inner {
+      display: flex; justify-content: space-around; align-items: center;
+      height: 72px; padding: 0 12px;
+    }
+    .kinetic-nav-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; width: 80px; height: 56px; background: none; border: none;
+      cursor: pointer; border-radius: 18px; color: rgba(218,226,253,0.5);
+      transition: color 0.2s, background 0.2s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent; font-family: 'Inter', sans-serif;
+    }
+    .kinetic-nav-btn:active { transform: scale(0.9); }
+    .kinetic-nav-btn.active {
+      background: linear-gradient(135deg, var(--primary-container), var(--primary));
+      color: var(--on-primary-container);
+    }
+    .kinetic-nav-btn .nav-label { font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
+    .kinetic-nav-btn .material-symbols-outlined { font-size: 22px; }
+
+    /* ── LIGHT MODE ── */
+    [data-theme="light"] {
+      --bg:                       #f0f4f8;
+      --surface:                  #ffffff;
+      --surface-container-lowest: #e8edf6;
+      --surface-container-low:    #f0f4fb;
+      --surface-container:        #e2e8f4;
+      --surface-container-high:   #d8e0f0;
+      --surface-container-highest:#cdd5e8;
+      --on-surface:               #1a2540;
+      --on-surface-variant:       #4a5568;
+      --border:                   rgba(0,0,0,0.08);
+      --text:                     #1a2540;
+      --muted:                    #4a5568;
+      --outline-variant:          rgba(0,0,0,0.12);
+    }
+    [data-theme="light"] body         { background: var(--bg); color: var(--on-surface); }
+    [data-theme="light"] .header      { background: rgba(240,244,248,0.80); }
+    [data-theme="light"] .login-card  { background: var(--surface-container-low); }
+    [data-theme="light"] .delivery-card { background: var(--surface-container-low); }
+    [data-theme="light"] .delivery-card:active { background: var(--surface-container); }
+    [data-theme="light"] .form-card   { background: var(--surface-container-low); }
+    [data-theme="light"] .popup-box   { background: var(--surface); }
+    [data-theme="light"] .popup-actions { background: var(--surface-container-low); }
+    [data-theme="light"] .popup-close-btn { background: var(--surface-container-highest); color: #1a2540; }
+    [data-theme="light"] .form-input  { background: var(--surface-container-high); color: #1a2540; }
+    [data-theme="light"] .form-select { background: var(--surface-container-high); color: #1a2540; }
+    [data-theme="light"] .search-input { background: var(--surface-container-high); color: #1a2540; }
+    [data-theme="light"] .login-row select,
+    [data-theme="light"] .login-row input { background: var(--surface-container-high); color: #1a2540; }
+    [data-theme="light"] #toast { background: #1e293b; color: white; }
+    [data-theme="light"] .kinetic-bottom-nav { background: rgba(255,255,255,0.80); }
+    [data-theme="light"] .kinetic-nav-btn { color: rgba(26,37,64,0.4); }
+    [data-theme="light"] .card-name  { color: #1a2540; }
+    [data-theme="light"] .card-product { color: #64748b; }
+    [data-theme="light"] .card-address { color: #64748b; }
+    [data-theme="light"] .card-chevron { color: #94a3b8; }
+    [data-theme="light"] .section-title-text { color: #1a2540; }
+    [data-theme="light"] .count-badge { background: rgba(37,99,235,0.1); color: #2563eb; }
+    [data-theme="light"] .popup-name { color: #1a2540; }
+    [data-theme="light"] .detail-label { color: #64748b; }
+    [data-theme="light"] .detail-value { color: #1a2540; }
+    [data-theme="light"] .detail-row { border-color: rgba(0,0,0,0.06); }
+    [data-theme="light"] .lead-edit-select { background: #e2e8f4; color: #1a2540; }
+    [data-theme="light"] .lead-edit-input  { background: #e2e8f4; color: #1a2540; }
+    [data-theme="light"] .badge-pending   { background: #fef3c7; color: #92400e; }
+    [data-theme="light"] .badge-delivered { background: #dcfce7; color: #166534; }
+    [data-theme="light"] .badge-open      { background: #dbeafe; color: #1e40af; }
+    [data-theme="light"] .badge-followup  { background: #fef3c7; color: #92400e; }
+    [data-theme="light"] .badge-converted { background: #dcfce7; color: #166534; }
+    [data-theme="light"] .badge-lost      { background: #fee2e2; color: #991b1b; }
+    [data-theme="light"] .skeleton-card   { background: var(--surface); }
+
+    input:focus, select:focus, textarea:focus { outline: none !important; }
+
+    /* Lead sort chips */
+    .lead-chip {
+      padding: 5px 12px; border: 1px solid rgba(173,198,255,0.2);
+      border-radius: 20px; background: transparent;
+      color: var(--on-surface-variant); font-family: 'Inter',sans-serif;
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    .lead-chip:hover { border-color: var(--primary); color: var(--primary); }
+    .lead-chip.active {
+      background: linear-gradient(135deg,var(--primary-container),var(--primary));
+      border-color: transparent; color: var(--on-primary-container);
+    }
+
+    /* Product row in lead form */
+    .lead-product-row {
+      background: var(--surface-container-high); border-radius: 10px;
+      padding: 10px 12px; margin-bottom: 8px;
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .lead-product-row .prod-search-wrap { flex: 1; min-width: 160px; position: relative; }
+    .lead-product-row input, .lead-product-row .prod-price {
+      background: var(--surface-container-highest); border: none; border-radius: 8px;
+      padding: 8px 10px; font-family: 'Inter',sans-serif; font-size: 13px;
+      color: var(--on-surface); outline: none; width: 100%;
+    }
+    .lead-product-row input:focus { box-shadow: 0 0 0 2px var(--primary); }
+    .lead-product-row .prod-price { width: 90px; flex-shrink: 0; }
+    .prod-dropdown {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+      background: var(--surface-container-highest); border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3); max-height: 180px; overflow-y: auto;
+      margin-top: 3px;
+    }
+    .prod-dropdown-item {
+      padding: 9px 12px; font-size: 13px; cursor: pointer; color: var(--on-surface);
+      transition: background 0.1s;
+    }
+    .prod-dropdown-item:hover { background: var(--surface-container-high); }
+    .prod-dropdown-item.add-new { color: var(--primary); font-weight: 700; }
+    .prod-remove-btn {
+      background: rgba(255,180,171,0.1); color: var(--error);
+      border: none; border-radius: 7px; padding: 6px 9px;
+      font-size: 16px; cursor: pointer; flex-shrink: 0; line-height: 1;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<div class="header">
+  <div class="header-left">
+    <img src="/icons/icon-72x72.png" class="header-logo" alt="Logo" onerror="this.style.display='none'">
+    <div>
+      <div class="header-title">Hariom</div>
+      <div class="header-sub" id="headerSub">Staff Panel</div>
+    </div>
+  </div>
+  <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle theme">☀️</button>
+</div>
+
+<div class="container" id="mainContainer">
+
+  <!-- ══ LOGIN ══ -->
+  <div id="loginSection">
+    <div class="login-card">
+      <div class="login-heading">Staff Access</div>
+      <div class="login-sub">Select your name and enter PIN to continue</div>
+
+      <label class="login-label">Your Name</label>
+      <div class="login-row" style="margin-bottom:14px;">
+        <select id="staffSelect">
+          <option value="">Loading staff…</option>
+        </select>
+      </div>
+
+      <label class="login-label">6-Digit PIN</label>
+      <div class="login-row">
+        <input type="password" id="pinInput" placeholder="••••••" maxlength="6" inputmode="numeric" pattern="\d{6}">
+        <button class="btn btn-unlock" onclick="doLogin()">
+          <span class="material-symbols-outlined" style="font-size:18px;">lock_open</span>
+          Enter
+        </button>
+      </div>
+
+      <div class="login-msg" id="loginMsg"></div>
+    </div>
+  </div>
+
+  <!-- ══ MAIN PANEL (shown after login) ══ -->
+  <div id="mainPanel" style="display:none;">
+
+    <!-- TAB: DELIVERIES -->
+    <div id="tabDeliveries">
+      <div class="section-header">
+        <div class="section-title-text">Deliveries</div>
+        <span class="count-badge" id="delivBadge">—</span>
+      </div>
+
+      <div class="search-wrap">
+        <span class="material-symbols-outlined search-icon">search</span>
+        <input class="search-input" id="delivSearch" placeholder="Search name or phone…" oninput="filterDeliveries()">
+      </div>
+
+      <div id="deliveriesList"></div>
+    </div>
+
+    <!-- TAB: LEADS -->
+    <div id="tabLeads" style="display:none;">
+
+      <!-- Add lead form -->
+      <div class="form-card">
+        <div class="form-card-title">➕ Add New Lead</div>
+
+        <label class="form-label">Phone Number *</label>
+        <input class="form-input" id="lPhone" placeholder="10-digit mobile" maxlength="10" inputmode="numeric">
+
+        <!-- Repeat customer banner -->
+        <div id="leadRepeatBanner">
+          <div class="rc-header">🔁 Repeat Customer</div>
+          <div class="rc-name" id="lrcName">—</div>
+          <div class="rc-addr" id="lrcAddr">—</div>
+          <div class="rc-actions">
+            <button class="rc-yes" onclick="applyLeadRepeat()">✓ Autofill</button>
+            <button class="rc-no"  onclick="dismissLeadRepeat()">✕ Different</button>
+          </div>
+        </div>
+
+        <label class="form-label">Alternate Phone</label>
+        <input class="form-input" id="lAltPhone" placeholder="Optional" maxlength="10" inputmode="numeric">
+
+        <label class="form-label">Customer Name</label>
+        <input class="form-input" id="lName" placeholder="Full name">
+
+        <!-- Multi-product list -->
+        <label class="form-label">Products & Quotes *</label>
+        <div id="leadProductList"></div>
+        <button type="button" onclick="addLeadProduct()"
+          style="width:100%;padding:10px;background:rgba(173,198,255,0.08);border:1.5px dashed var(--outline-variant);border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--primary);cursor:pointer;margin-bottom:12px;">
+          + Add Another Product
+        </button>
+
+        <label class="form-label">Status</label>
+        <select class="form-select" id="lStatus">
+          <option value="open">Open</option>
+          <option value="followup">Follow Up</option>
+        </select>
+
+        <label class="form-label">Remarks</label>
+        <input class="form-input" id="lRemarks" placeholder="Any notes…">
+
+        <div id="leadFormMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:10px;text-align:center;"></div>
+        <button class="btn-full btn-full-primary" onclick="submitLead()">Save Lead</button>
+      </div>
+
+      <!-- Leads list header with search + sort -->
+      <div style="margin-top:8px;">
+        <div class="section-header" style="margin-bottom:10px;">
+          <div class="section-title-text">My Leads</div>
+          <span class="count-badge" id="leadsBadge">—</span>
+        </div>
+
+        <!-- Search -->
+        <div class="search-wrap" style="margin-bottom:10px;">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input class="search-input" id="leadsSearchInput"
+            placeholder="Search name, phone, product…"
+            oninput="filterAndRenderLeads()">
+        </div>
+
+        <!-- Sort/filter chips -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;" id="leadSortChips">
+          <button class="lead-chip active" onclick="setLeadSort('all',this)">All</button>
+          <button class="lead-chip" onclick="setLeadSort('today',this)">Today</button>
+          <button class="lead-chip" onclick="setLeadSort('tomorrow',this)">Tomorrow</button>
+          <button class="lead-chip" onclick="setLeadSort('week',this)">This Week</button>
+          <button class="lead-chip" onclick="setLeadSort('expiring',this)">⚠ Expiring</button>
+        </div>
+      </div>
+
+      <div id="leadsList"></div>
+    </div>
+
+  </div><!-- /mainPanel -->
+</div><!-- /container -->
+
+<!-- ══ TOAST ══ -->
+<div id="toast"></div>
+
+<!-- ══ DELIVERY DETAIL POPUP ══ -->
+<div class="popup" id="delivPopup">
+  <div class="popup-box">
+    <div id="delivPopupContent"></div>
+    <div class="popup-actions" id="delivPopupActions">
+      <button class="popup-close-btn" onclick="closeDelivPopup()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LEAD DETAIL POPUP ══ -->
+<div class="popup" id="leadPopup">
+  <div class="popup-box">
+    <div id="leadPopupContent"></div>
+    <div class="popup-actions" id="leadPopupActions">
+      <button class="popup-close-btn" onclick="closeLeadPopup()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BOTTOM NAV ══ -->
+<nav class="kinetic-bottom-nav" id="bottomNav" style="display:none;">
+  <div class="kinetic-bottom-nav-inner">
+    <button class="kinetic-nav-btn active" id="nav-deliveries" onclick="switchTab('deliveries')">
+      <span class="material-symbols-outlined">local_shipping</span>
+      <span class="nav-label">Deliveries</span>
+    </button>
+    <button class="kinetic-nav-btn" id="nav-leads" onclick="switchTab('leads')">
+      <span class="material-symbols-outlined">contacts</span>
+      <span class="nav-label">Leads</span>
+    </button>
+    <button class="kinetic-nav-btn" id="nav-logout" onclick="doLogout()" style="width:56px;">
+      <span class="material-symbols-outlined" style="font-size:20px;">logout</span>
+    </button>
+  </div>
+</nav>
+
+<script>
+/* ════════════════════════════════════════════════
+   STAFF PANEL — JS
+════════════════════════════════════════════════ */
+
+const BASE_URL = window.location.origin;
+
+/* ── ALL STATE DECLARATIONS (hoisted to avoid TDZ errors) ── */
+let staffToken       = null;
+let staffId          = null;
+let staffName        = "";
+let allDeliveries    = [];
+let currentTab       = "deliveries";
+let currentDelivery  = null;
+let allLeads         = [];
+let lrcPending       = null;
+let leadSortMode     = "all";
+let tallyNames       = [];
+let leadProductCount = 0;
+let currentLead      = null;
+let staffPerms       = {};
+
+/* ── DARK MODE ── */
+(function() {
+  const saved = localStorage.getItem("hariom_theme");
+  if (saved === "light") document.documentElement.setAttribute("data-theme", "light");
+})();
+function toggleDarkMode() {
+  const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
+  localStorage.setItem("hariom_theme", isDark ? "light" : "dark");
+  document.getElementById("darkToggleBtn").textContent = isDark ? "🌙" : "☀️";
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  document.getElementById("darkToggleBtn").textContent = isDark ? "☀️" : "🌙";
+});
+
+/* ── TOAST ── */
+function showToast(msg, duration = 2600) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), duration);
+}
+
+/* ── AUTH ── */
+
+function getToken() { return staffToken || localStorage.getItem("staffToken"); }
+
+function isTokenExpired(token) {
+  try {
+    const p = JSON.parse(atob(token.split(".")[1]));
+    return Date.now() >= p.exp * 1000;
+  } catch { return true; }
+}
+
+async function authFetch(url, opts = {}) {
+  const token = getToken();
+  if (!token || isTokenExpired(token)) { doLogout(); throw new Error("expired"); }
+  const res = await fetch(url, {
+    ...opts,
+    headers: { ...(opts.headers || {}), Authorization: "Bearer " + token }
+  });
+  if (res.status === 401) { doLogout(); throw new Error("401"); }
+  return res;
+}
+
+/* ── LOAD STAFF LIST ── */
+async function loadStaffList() {
+  try {
+    const res  = await fetch(`${BASE_URL}/staff-list-public`);
+    const list = await res.json();
+    const sel  = document.getElementById("staffSelect");
+    sel.innerHTML = `<option value="">Select your name…</option>` +
+      list.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+  } catch (e) {
+    document.getElementById("staffSelect").innerHTML = `<option value="">Failed to load</option>`;
+  }
+}
+
+/* ── LOGIN ── */
+async function doLogin() {
+  const staffSel = document.getElementById("staffSelect");
+  const pinEl    = document.getElementById("pinInput");
+  const msg      = document.getElementById("loginMsg");
+
+  const id  = staffSel.value;
+  const pin = pinEl.value.trim();
+
+  if (!id)              { msg.style.color = "var(--error)"; msg.textContent = "Please select your name."; return; }
+  if (pin.length !== 6) { msg.style.color = "var(--error)"; msg.textContent = "PIN must be 6 digits."; return; }
+
+  msg.style.color = "var(--primary)"; msg.textContent = "Verifying…";
+
+  try {
+    const res  = await fetch(`${BASE_URL}/staff/login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ staff_id: id, pin })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      msg.style.color = "var(--error)";
+      msg.textContent = data.error || "Login failed.";
+      return;
+    }
+
+    staffToken = data.token;
+    staffId    = id;
+    staffName  = data.name;
+    localStorage.setItem("staffToken", data.token);
+    localStorage.setItem("staffId",    id);
+    localStorage.setItem("staffName",  data.name);
+
+    msg.style.color = "var(--tertiary)"; msg.textContent = "Welcome " + data.name + "!";
+    setTimeout(showMainPanel, 400);
+  } catch (e) {
+    msg.style.color = "var(--error)"; msg.textContent = "Network error.";
+  }
+}
+
+/* ── RESTORE SESSION ── */
+(function restoreSession() {
+  const token = localStorage.getItem("staffToken");
+  const id    = localStorage.getItem("staffId");
+  const name  = localStorage.getItem("staffName");
+  if (token && id && name && !isTokenExpired(token)) {
+    staffToken = token; staffId = id; staffName = name;
+    showMainPanel();
+  } else {
+    loadStaffList();
+  }
+})();
+
+function showMainPanel() {
+  document.getElementById("loginSection").style.display  = "none";
+  document.getElementById("mainPanel").style.display     = "";
+  document.getElementById("bottomNav").style.display     = "";
+  document.getElementById("headerSub").textContent       = staffName;
+  loadDeliveries();
+  loadLeads();
+  loadTallyProducts();
+  addLeadProduct();  // start with one empty product row
+  // Phone listeners
+  const lPhoneEl = document.getElementById("lPhone");
+  if (lPhoneEl) {
+    lPhoneEl.addEventListener("input", function() {
+      this.value = this.value.replace(/\D/g, "");
+      if (this.value.length === 10) checkLeadRepeat(this.value);
+      else dismissLeadRepeat();
+    });
+  }
+  const lAltEl = document.getElementById("lAltPhone");
+  if (lAltEl) lAltEl.addEventListener("input", function() { this.value = this.value.replace(/\D/g, ""); });
+}
+
+function doLogout() {
+  staffToken = null; staffId = null; staffName = "";
+  localStorage.removeItem("staffToken");
+  localStorage.removeItem("staffId");
+  localStorage.removeItem("staffName");
+  document.getElementById("loginSection").style.display  = "";
+  document.getElementById("mainPanel").style.display     = "none";
+  document.getElementById("bottomNav").style.display     = "none";
+  document.getElementById("headerSub").textContent       = "Staff Panel";
+  document.getElementById("loginMsg").textContent        = "";
+  document.getElementById("pinInput").value              = "";
+  loadStaffList();
+}
+
+/* ── TAB SWITCH ── */
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById("tabDeliveries").style.display = tab === "deliveries" ? "" : "none";
+  document.getElementById("tabLeads").style.display      = tab === "leads"      ? "" : "none";
+  ["deliveries", "leads"].forEach(t => {
+    document.getElementById("nav-" + t)?.classList.toggle("active", t === tab);
+  });
+}
+
+/* ════════════════════════════════════════════════
+   TAB 1 — DELIVERIES
+════════════════════════════════════════════════ */
+
+async function loadDeliveries() {
+  const list = document.getElementById("deliveriesList");
+  list.innerHTML = skeletons(3);
+  try {
+    const res  = await authFetch(`${BASE_URL}/deliveries`);
+    const data = await res.json();
+    allDeliveries = data;
+    renderDeliveries(data);
+  } catch (e) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load</p><small>${e.message}</small></div>`;
+  }
+}
+
+function filterDeliveries() {
+  const q = document.getElementById("delivSearch").value.toLowerCase().trim();
+  if (!q) { renderDeliveries(allDeliveries); return; }
+  renderDeliveries(allDeliveries.filter(d =>
+    d.customer_name?.toLowerCase().includes(q) ||
+    d.phone?.includes(q) ||
+    d.alternate_phone?.includes(q)
+  ));
+}
+
+function renderDeliveries(data) {
+  const list = document.getElementById("deliveriesList");
+  // Show delivered and loaded only — no pending (staff don't manage dispatch)
+  const shown = data.filter(d => ["delivered","loaded","pending","failed"].includes(d.status));
+  document.getElementById("delivBadge").textContent = shown.length;
+
+  if (!shown.length) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">📦</div><p>No deliveries found</p><small>Try a different search</small></div>`;
+    return;
+  }
+
+  list.innerHTML = shown.map(d => {
+    const warranty = getWarrantyBadge(d);
+    return `
+    <div class="delivery-card" onclick="openDelivPopup('${d.id}')">
+      <div class="card-top">
+        <div>
+          <div class="card-name">${d.customer_name || "—"}</div>
+          <div class="card-product">${d.product_name || "—"}</div>
+        </div>
+        <div class="card-badges">
+          <span class="badge badge-${d.status}">${d.status}</span>
+        </div>
+      </div>
+      <div class="card-divider"></div>
+      ${warranty ? `<div class="warranty-row">${warranty}</div>` : ""}
+      <div class="card-footer">
+        <div class="card-address">${d.address || "—"}</div>
+        <div class="card-chevron">›</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* Warranty badge helper */
+function getWarrantyBadge(d) {
+  if (d.status !== "delivered" || !d.delivered_timestamp?.seconds) return "";
+  const name  = (d.product_name || "").toUpperCase();
+  let years   = 1;
+  if (/\bWM\b|WASHING/.test(name)) years = 2;
+  const delivMs  = d.delivered_timestamp.seconds * 1000;
+  const expiryMs = delivMs + years * 365.25 * 24 * 3600 * 1000;
+  const now      = Date.now();
+  const daysLeft = Math.ceil((expiryMs - now) / (24 * 3600 * 1000));
+  const expiryStr = new Date(expiryMs).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
+  if (daysLeft < 0)   return `<span class="badge badge-warranty-expired">🛡 Warranty Expired</span>`;
+  if (daysLeft <= 30) return `<span class="badge badge-warranty-expiring">⚠ Warranty: ${daysLeft}d left</span>`;
+  return `<span class="badge badge-warranty-ok">🛡 Warranty till ${expiryStr}</span>`;
+}
+
+/* Delivery detail popup */
+function openDelivPopup(id) {
+  currentDelivery = allDeliveries.find(d => d.id === id);
+  if (!currentDelivery) return;
+  const d = currentDelivery;
+
+  const warranty = getWarrantyBadge(d);
+  const delivDate = d.delivered_timestamp?.seconds
+    ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleString("en-IN")
+    : "—";
+
+  document.getElementById("delivPopupContent").innerHTML = `
+    <div class="popup-band popup-band-${d.status}">
+      <div class="popup-status-row">
+        <span class="badge badge-${d.status}">${d.status}</span>
+        ${warranty ? warranty : ""}
+      </div>
+      <div class="popup-name">${d.customer_name || "—"}</div>
+    </div>
+    <div class="popup-body">
+      <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${d.phone}">${d.phone || "—"}</a></span></div>
+      ${d.alternate_phone ? `<div class="detail-row"><span class="detail-label">Alt Phone</span><span class="detail-value"><a class="phone-link" href="tel:${d.alternate_phone}">${d.alternate_phone}</a></span></div>` : ""}
+      <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${d.product_name || "—"}</span></div>
+      <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:'JetBrains Mono',monospace;font-size:13px;">${d.product_serial_number || "—"}</span></div>
+      <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${d.address || "—"}</span></div>
+      <div class="detail-row"><span class="detail-label">Delivered</span><span class="detail-value">${delivDate}</span></div>
+    </div>`;
+
+  // Action buttons
+  const actionsEl = document.getElementById("delivPopupActions");
+  let actionBtns = "";
+  if (d.status === "delivered") {
+    const wa = buildWAMessage(d);
+    actionBtns = `
+      <div class="popup-actions-row">
+        <button class="btn btn-teal-sm" style="flex:1;" onclick="raiseTicket('${d.id}','installation')">
+          <span class="material-symbols-outlined" style="font-size:16px;">build</span> Installation
+        </button>
+        <button class="btn btn-danger-sm" style="flex:1;" onclick="raiseTicket('${d.id}','complaint')">
+          <span class="material-symbols-outlined" style="font-size:16px;">warning</span> Complaint
+        </button>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;" onclick="shareOnWA('${encodeURIComponent(wa)}')">
+        <span class="material-symbols-outlined" style="font-size:16px;">share</span> Share on WhatsApp
+      </button>`;
+  }
+  actionsEl.innerHTML = actionBtns + `<button class="popup-close-btn" onclick="closeDelivPopup()">Close</button>`;
+  document.getElementById("delivPopup").classList.add("open");
+}
+
+function closeDelivPopup() {
+  document.getElementById("delivPopup").classList.remove("open");
+  currentDelivery = null;
+}
+
+/* Raise ticket from delivery */
+async function raiseTicket(delivId, type) {
+  const d = allDeliveries.find(x => x.id === delivId);
+  if (!d) return;
+
+  // For complaint — prompt for description
+  let description = "";
+  if (type === "complaint") {
+    description = prompt("Briefly describe the complaint:");
+    if (!description || !description.trim()) { showToast("Description required for complaints."); return; }
+  }
+
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        linked_delivery_id: delivId,
+        customer_name:  d.customer_name,
+        phone:          d.phone,
+        address:        d.address,
+        product_name:   d.product_name,
+        serial_number:  d.product_serial_number,
+        description:    description || ""
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast("❌ " + (data.error || "Failed")); return; }
+    showToast(`✅ ${type === "installation" ? "Installation" : "Complaint"} ticket raised!`);
+    closeDelivPopup();
+  } catch (e) {
+    showToast("❌ Network error");
+  }
+}
+
+/* WhatsApp share message */
+function buildWAMessage(d) {
+  const delivDate = d.delivered_timestamp?.seconds
+    ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
+    : "—";
+  const name   = (d.product_name || "").toUpperCase();
+  let years    = 1;
+  if (/\bWM\b|WASHING/.test(name)) years = 2;
+  const expiryDate = d.delivered_timestamp?.seconds
+    ? new Date(d.delivered_timestamp.seconds * 1000 + years * 365.25 * 24 * 3600 * 1000)
+        .toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
+    : "—";
+
+  return `🏪 Hariom Electronics
+━━━━━━━━━━━━━━
+👤 Customer: ${d.customer_name || "—"}
+📞 Phone: ${d.phone || "—"}
+📍 Address: ${d.address || "—"}
+📦 Product: ${d.product_name || "—"}
+🔑 Serial: ${d.product_serial_number || "—"}
+📅 Delivered: ${delivDate}
+🛡 Warranty till: ${expiryDate}
+━━━━━━━━━━━━━━
+Hariom Electronics, Pune`;
+}
+
+function shareOnWA(encodedMsg) {
+  window.open("https://wa.me/?text=" + encodedMsg, "_blank");
+}
+
+/* ════════════════════════════════════════════════
+   TAB 2 — LEADS
+════════════════════════════════════════════════ */
+
+
+/* ── Load tally products ── */
+async function loadTallyProducts() {
+  try {
+    const res  = await fetch(`${BASE_URL}/tally/products`);
+    const data = await res.json();
+    tallyNames = data.names || [];
+  } catch(e) { tallyNames = []; }
+}
+
+/* ── Product row in lead form ── */
+function addLeadProduct(prefillName, prefillPrice) {
+  const list = document.getElementById("leadProductList");
+  const idx  = ++leadProductCount;
+  const row  = document.createElement("div");
+  row.className = "lead-product-row";
+  row.dataset.idx = idx;
+  row.innerHTML = `
+    <div class="prod-search-wrap">
+      <input type="text" placeholder="Product name or search…"
+        id="lprod_${idx}" autocomplete="off"
+        oninput="onProdSearch(this, ${idx})"
+        onfocus="onProdSearch(this, ${idx})"
+        value="${prefillName||''}">
+      <div class="prod-dropdown" id="pdrop_${idx}" style="display:none;"></div>
+    </div>
+    <input type="number" class="prod-price" placeholder="₹ Quote"
+      id="lprice_${idx}" min="0" value="${prefillPrice||''}">
+    <button class="prod-remove-btn" onclick="removeLeadProduct(${idx})">×</button>
+  `;
+  list.appendChild(row);
+  document.getElementById("lprod_"+idx).focus();
+}
+
+function removeLeadProduct(idx) {
+  const row = document.querySelector(`.lead-product-row[data-idx="${idx}"]`);
+  if (row) row.remove();
+}
+
+function onProdSearch(input, idx) {
+  const q    = input.value.trim().toLowerCase();
+  const drop = document.getElementById("pdrop_"+idx);
+  if (!q) { drop.style.display = "none"; return; }
+
+  const filtered = tallyNames.filter(n => n.toLowerCase().includes(q)).slice(0, 10);
+  const exactMatch = tallyNames.some(n => n.toLowerCase() === q);
+
+  let html = filtered.map(n =>
+    `<div class="prod-dropdown-item" onclick="selectProd(${idx},'${n.replace(/'/g,"\'")}')">${n}</div>`
+  ).join("");
+
+  if (!exactMatch && q.length >= 2) {
+    html += `<div class="prod-dropdown-item add-new" onclick="addNewProd(${idx},'${input.value.trim().replace(/'/g,"\'")}')"
+      >+ Add "${input.value.trim()}" to product list</div>`;
+  }
+
+  if (html) { drop.innerHTML = html; drop.style.display = "block"; }
+  else       { drop.style.display = "none"; }
+}
+
+function selectProd(idx, name) {
+  document.getElementById("lprod_"+idx).value = name;
+  document.getElementById("pdrop_"+idx).style.display = "none";
+  document.getElementById("lprice_"+idx).focus();
+}
+
+async function addNewProd(idx, name) {
+  selectProd(idx, name);
+  try {
+    await authFetch(`${BASE_URL}/tally/products/add`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ name })
+    });
+    tallyNames.push(name);
+  } catch(e) { /* silently continue */ }
+}
+
+// Close dropdowns on outside click
+document.addEventListener("click", e => {
+  if (!e.target.closest(".prod-search-wrap")) {
+    document.querySelectorAll(".prod-dropdown").forEach(d => d.style.display = "none");
+  }
+});
+
+/* ── Repeat customer ── */
+function checkLeadRepeat(phone) {
+  const matches = allDeliveries
+    .filter(d => (d.phone === phone || d.alternate_phone === phone) && d.customer_name)
+    .sort((a,b) =>
+      (b.delivered_timestamp?.seconds || b.created_timestamp?.seconds || 0) -
+      (a.delivered_timestamp?.seconds || a.created_timestamp?.seconds || 0)
+    );
+  if (!matches.length) { dismissLeadRepeat(); return; }
+  lrcPending = matches[0];
+  document.getElementById("lrcName").textContent = matches[0].customer_name;
+  document.getElementById("lrcAddr").textContent = matches[0].address || "";
+  document.getElementById("leadRepeatBanner").style.display = "block";
+}
+
+function applyLeadRepeat() {
+  if (!lrcPending) return;
+  document.getElementById("lName").value = lrcPending.customer_name || "";
+  dismissLeadRepeat();
+}
+
+function dismissLeadRepeat() {
+  document.getElementById("leadRepeatBanner").style.display = "none";
+  lrcPending = null;
+}
+
+/* ── Load & render leads ── */
+async function loadLeads() {
+  try {
+    const res = await authFetch(`${BASE_URL}/leads`);
+    allLeads  = await res.json();
+    filterAndRenderLeads();
+  } catch(e) {
+    document.getElementById("leadsList").innerHTML =
+      `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load leads</p></div>`;
+  }
+}
+
+function setLeadSort(mode, btn) {
+  leadSortMode = mode;
+  document.querySelectorAll("#leadSortChips .lead-chip").forEach(b => b.classList.toggle("active", b === btn));
+  filterAndRenderLeads();
+}
+
+function filterAndRenderLeads() {
+  const q   = (document.getElementById("leadsSearchInput")?.value || "").toLowerCase();
+  const now = Date.now();
+  const todayStr     = new Date().toDateString();
+  const tomorrowStr  = new Date(now + 86400000).toDateString();
+  const weekEnd      = now + 7 * 86400000;
+
+  let data = allLeads.filter(l => {
+    if (q) {
+      const hay = [l.customer_name, l.phone, l.product_interest,
+        ...(l.products||[]).map(p => p.product_name)].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (leadSortMode === "today") {
+      const d = l.created_at?.seconds ? new Date(l.created_at.seconds*1000).toDateString() : null;
+      return d === todayStr;
+    }
+    if (leadSortMode === "tomorrow") {
+      const d = l.created_at?.seconds ? new Date(l.created_at.seconds*1000).toDateString() : null;
+      return d === tomorrowStr;
+    }
+    if (leadSortMode === "week") {
+      const ms = l.created_at?.seconds ? l.created_at.seconds*1000 : 0;
+      return ms >= now - 7*86400000 && ms <= now;
+    }
+    if (leadSortMode === "expiring") {
+      const days = l.expires_at?.seconds ? Math.ceil((l.expires_at.seconds*1000 - now)/(24*3600*1000)) : 99;
+      return days <= 2 && days >= 0;
+    }
+    return true;
+  });
+
+  renderLeads(data);
+}
+
+function leadExpiryBadge(lead) {
+  if (!lead.expires_at?.seconds) return "";
+  const d = Math.ceil((lead.expires_at.seconds * 1000 - Date.now()) / (24 * 3600 * 1000));
+  if (d < 0)  return `<span class="badge badge-lost">Expired</span>`;
+  if (d <= 2) return `<span class="badge badge-warranty-expiring">⚠ ${d}d left</span>`;
+  if (d <= 5) return `<span class="badge badge-followup">${d}d left</span>`;
+  return "";
+}
+
+function renderLeads(data) {
+  const list = document.getElementById("leadsList");
+  document.getElementById("leadsBadge").textContent = data.length;
+  if (!data.length) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No leads found</p><small>Try a different filter</small></div>`;
+    return;
+  }
+  list.innerHTML = data.map(l => {
+    const expiry = leadExpiryBadge(l);
+    // Multi-product summary
+    const prodSummary = l.products?.length > 1
+      ? `${l.products[0].product_name} +${l.products.length-1} more`
+      : (l.product_interest || "—");
+    const totalQuote = l.products?.length
+      ? l.products.reduce((s,p) => s + (p.quoted_price||0), 0)
+      : (l.quoted_price || 0);
+    const priceDisplay = l.admin_quoted_price != null
+      ? `₹${l.admin_quoted_price} <span style="font-size:10px;opacity:.7">(revised)</span>`
+      : (totalQuote ? `₹${totalQuote}` : "—");
+
+    return `
+    <div class="delivery-card" onclick="openLeadPopup('${l.id}')">
+      <div class="card-top">
+        <div>
+          <div class="card-name">${l.customer_name || l.phone}</div>
+          <div class="card-product">${prodSummary}</div>
+        </div>
+        <div class="card-badges">
+          <span class="badge badge-${l.status}">${l.status}</span>
+          ${expiry}
+        </div>
+      </div>
+      <div class="card-divider"></div>
+      <div class="card-footer">
+        <div class="card-meta">📞 ${l.phone} · ${priceDisplay}${l.followup_note ? " · 📝 " + l.followup_note : ""}</div>
+        <div class="card-chevron">›</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ── Submit lead ── */
+async function submitLead() {
+  const phone = document.getElementById("lPhone").value.trim();
+  const msg   = document.getElementById("leadFormMsg");
+  if (phone.length !== 10) { msg.style.color="var(--error)"; msg.textContent="Valid 10-digit phone required."; return; }
+
+  // Collect products
+  const rows    = document.querySelectorAll(".lead-product-row");
+  const products = [];
+  for (const row of rows) {
+    const idx  = row.dataset.idx;
+    const name = document.getElementById("lprod_"+idx)?.value.trim();
+    const price= parseFloat(document.getElementById("lprice_"+idx)?.value) || 0;
+    if (name) products.push({ product_name: name, quoted_price: price });
+  }
+  if (!products.length) { msg.style.color="var(--error)"; msg.textContent="Add at least one product."; return; }
+
+  msg.style.color="var(--primary)"; msg.textContent="Saving…";
+  try {
+    const res = await authFetch(`${BASE_URL}/leads`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        phone,
+        alternate_phone: document.getElementById("lAltPhone").value.trim(),
+        customer_name:   document.getElementById("lName").value.trim(),
+        products,
+        status:          document.getElementById("lStatus").value,
+        remarks:         document.getElementById("lRemarks").value.trim()
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { msg.style.color="var(--error)"; msg.textContent=data.error||"Failed."; return; }
+    msg.style.color="var(--tertiary)"; msg.textContent="✅ Lead saved!";
+    // Reset
+    ["lPhone","lAltPhone","lName","lRemarks"].forEach(id => { const e=document.getElementById(id); if(e)e.value=""; });
+    document.getElementById("lStatus").value = "open";
+    document.getElementById("leadProductList").innerHTML = "";
+    leadProductCount = 0;
+    addLeadProduct();  // start fresh with one empty row
+    dismissLeadRepeat();
+    await loadLeads();
+    setTimeout(() => { msg.textContent = ""; }, 2000);
+  } catch(e) {
+    msg.style.color="var(--error)"; msg.textContent="Network error.";
+  }
+}
+
+/* ── Lead detail popup ── */
+function openLeadPopup(id) {
+  currentLead = allLeads.find(l => l.id === id);
+  if (!currentLead) return;
+  const l = currentLead;
+  const expiry = leadExpiryBadge(l);
+  const createdDate = l.created_at?.seconds
+    ? new Date(l.created_at.seconds*1000).toLocaleDateString("en-IN") : "—";
+
+  // Build products section
+  const prodsHtml = l.products?.length
+    ? l.products.map(p =>
+        `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
+          <span>${p.product_name}</span>
+          <span style="font-weight:700;">₹${p.quoted_price||0}</span>
+        </div>`
+      ).join("")
+    : `<div style="font-size:13px;">
+        ${l.product_interest||"—"}
+        <span style="font-weight:700;float:right;">₹${l.admin_quoted_price ?? l.quoted_price ?? 0}</span>
+      </div>`;
+
+  document.getElementById("leadPopupContent").innerHTML = `
+    <div class="popup-band popup-band-lead">
+      <div class="popup-status-row">
+        <span class="badge badge-${l.status}">${l.status}</span>
+        ${expiry}
+      </div>
+      <div class="popup-name">${l.customer_name || l.phone}</div>
+    </div>
+    <div class="popup-body">
+      <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${l.phone}">${l.phone}</a></span></div>
+      ${l.alternate_phone?`<div class="detail-row"><span class="detail-label">Alt Phone</span><span class="detail-value">${l.alternate_phone}</span></div>`:""}
+      <div class="detail-row">
+        <span class="detail-label">Products</span>
+        <span class="detail-value" style="flex:1;">${prodsHtml}
+          ${l.admin_quoted_price != null ? `<div style="font-size:11px;color:var(--tertiary);margin-top:4px;">Admin revised: ₹${l.admin_quoted_price}</div>` : ""}
+        </span>
+      </div>
+      ${l.remarks?`<div class="detail-row"><span class="detail-label">Remarks</span><span class="detail-value">${l.remarks}</span></div>`:""}
+      ${l.followup_note?`<div class="detail-row"><span class="detail-label">Follow-up</span><span class="detail-value" style="color:var(--amber)">${l.followup_note}</span></div>`:""}
+      <div class="detail-row"><span class="detail-label">Added</span><span class="detail-value">${createdDate}</span></div>
+      <div class="detail-row">
+        <span class="detail-label">Status</span>
+        <span class="detail-value">
+          <select class="lead-edit-select" id="popupLeadStatus" onchange="updateLeadStatus('${l.id}', this.value)">
+            <option value="open"      ${l.status==="open"?"selected":""}>Open</option>
+            <option value="followup"  ${l.status==="followup"?"selected":""}>Follow Up</option>
+            <option value="converted" ${l.status==="converted"?"selected":""}>Converted</option>
+            <option value="lost"      ${l.status==="lost"?"selected":""}>Lost</option>
+          </select>
+        </span>
+      </div>
+    </div>`;
+
+  document.getElementById("leadPopupActions").innerHTML =
+    `<button class="popup-close-btn" onclick="closeLeadPopup()">Close</button>`;
+  document.getElementById("leadPopup").classList.add("open");
+}
+
+async function updateLeadStatus(id, status) {
+  try {
+    await authFetch(`${BASE_URL}/leads/${id}`, {
+      method:"PUT", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ status })
+    });
+    showToast("✅ Status updated");
+    await loadLeads();
+    currentLead = allLeads.find(l => l.id === id);
+  } catch(e) { showToast("❌ Failed to update"); }
+}
+
+function closeLeadPopup() {
+  document.getElementById("leadPopup").classList.remove("open");
+  currentLead = null;
+}
+
+/* ── SKELETONS ── */
+function skeletons(n) {
+  return Array.from({length:n}, () => `
+    <div class="skeleton-card">
+      <div class="skeleton-line" style="height:18px;width:60%;"></div>
+      <div class="skeleton-line" style="height:13px;width:40%;"></div>
+      <div class="skeleton-line" style="height:13px;width:80%;margin-top:14px;"></div>
+    </div>`).join("");
+}
+
+/* ── ENTER KEY on login ── */
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && document.getElementById("loginSection").style.display !== "none") {
+    doLogin();
+  }
+});
+
+/* ── CLOSE POPUPS ON BACKDROP ── */
+document.getElementById("delivPopup").addEventListener("click", function(e) {
+  if (e.target === this) closeDelivPopup();
+});
+document.getElementById("leadPopup").addEventListener("click", function(e) {
+  if (e.target === this) closeLeadPopup();
+});
+</script>
+</body>
+</html>

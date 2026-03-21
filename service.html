@@ -1,0 +1,1611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hariom Service">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <meta name="theme-color" content="#0b1326">
+  <title>Service Panel — Hariom Electronics</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+
+  <style>
+    /* ════════════════════════════════════════════════
+       KINETIC LUMINESCENCE — SERVICE PANEL
+       Design: "The Digital Horizon" / Service Ops
+    ════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:                       #0b1326;
+      --surface:                  #0b1326;
+      --surface-container-lowest: #060e20;
+      --surface-container-low:    #131b2e;
+      --surface-container:        #171f33;
+      --surface-container-high:   #222a3d;
+      --surface-container-highest:#2d3449;
+      --primary:                  #adc6ff;
+      --primary-container:        #4d8eff;
+      --on-primary:               #002e6a;
+      --on-primary-container:     #00285d;
+      --tertiary:                 #4edea3;
+      --tertiary-container:       #00a572;
+      --error:                    #ffb4ab;
+      --error-container:          #93000a;
+      --on-surface:               #dae2fd;
+      --on-surface-variant:       #c2c6d6;
+      --outline:                  #8c909f;
+      --outline-variant:          #424754;
+      --amber:                    #f59e0b;
+      --border:                   rgba(255,255,255,0.07);
+      --accent:                   #adc6ff;
+      --text:                     #dae2fd;
+      --muted:                    #c2c6d6;
+      --font-mono:                'JetBrains Mono', monospace;
+      --font-body:                'Inter', sans-serif;
+    }
+
+    html { height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg); color: var(--on-surface);
+      min-height: 100vh; -webkit-font-smoothing: antialiased;
+    }
+
+    .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined';
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      font-size: 18px; line-height: 1; vertical-align: middle; user-select: none;
+    }
+
+    /* ════ LOGIN ════ */
+    #loginScreen {
+      display: none; position: fixed; inset: 0;
+      background: var(--surface-container-lowest); z-index: 999;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    #loginScreen.active { display: flex; }
+    .login-card {
+      background: var(--surface-container-low); border-radius: 28px;
+      padding: 44px 36px; width: 100%; max-width: 400px; text-align: center;
+      border: 1px solid rgba(173,198,255,0.08);
+      box-shadow: 0 48px 80px rgba(0,0,0,0.5);
+      animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    @keyframes slideUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+    .login-brand { margin-bottom: 32px; }
+    .login-icon {
+      width: 72px; height: 72px;
+      background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary));
+      border-radius: 20px; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 32px; margin-bottom: 16px; box-shadow: 0 12px 32px rgba(78,222,163,0.25);
+    }
+    .login-brand h2 { font-size: 22px; font-weight: 900; color: var(--on-surface); letter-spacing: -0.5px; text-transform: uppercase; margin-bottom: 4px; }
+    .login-brand p  { font-size: 12px; color: var(--on-surface-variant); font-weight: 600; }
+    .login-field { margin-bottom: 16px; text-align: left; }
+    .login-field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--on-surface-variant); margin-bottom: 8px; }
+    .login-field input {
+      width: 100%; height: 52px; background: var(--surface-container-highest);
+      border: none; border-radius: 14px; padding: 0 18px;
+      font-family: 'Inter', sans-serif; font-size: 15px; color: var(--on-surface);
+      outline: none; transition: box-shadow 0.2s;
+    }
+    .login-field input:focus { box-shadow: 0 0 0 2px var(--tertiary); }
+    .login-field input::placeholder { color: rgba(194,198,214,0.4); }
+    .login-btn {
+      width: 100%; height: 52px;
+      background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary));
+      color: #002113; border: none; border-radius: 14px;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 800;
+      letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer;
+      margin-top: 4px; transition: opacity 0.2s, transform 0.15s;
+    }
+    .login-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .login-btn:active { transform: scale(0.98); }
+    .login-error { text-align: center; font-size: 13px; color: var(--error); margin-top: 12px; min-height: 18px; font-weight: 500; }
+
+    /* ════ HEADER ════ */
+    .header {
+      background: rgba(11,19,38,0.65); backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px); color: var(--on-surface);
+      height: 64px; display: flex; align-items: center;
+      justify-content: space-between; padding: 0 24px;
+      box-shadow: 0 48px 48px rgba(0,0,0,0.06);
+      position: sticky; top: 0; z-index: 100;
+      border-bottom: 1px solid var(--border);
+    }
+    .header-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 900; color: var(--tertiary); letter-spacing: -0.3px; text-transform: uppercase; }
+    .header-brand img { width: 32px; height: 32px; border-radius: 9px; object-fit: contain; background: rgba(78,222,163,0.1); }
+    .header-brand .brand-sub { font-size: 10px; color: var(--on-surface-variant); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .header-user { font-size: 12px; font-weight: 700; color: var(--on-surface-variant); padding: 6px 12px; background: rgba(173,198,255,0.06); border-radius: 8px; border: 1px solid rgba(173,198,255,0.1); }
+    .header-btn {
+      background: rgba(173,198,255,0.07); border: 1px solid rgba(173,198,255,0.12);
+      color: rgba(218,226,253,0.7); font-family: 'Inter', sans-serif; font-size: 12px;
+      font-weight: 700; padding: 7px 13px; border-radius: 10px; cursor: pointer;
+      letter-spacing: 0.2px; transition: all 0.15s; display: flex; align-items: center; gap: 5px;
+    }
+    .header-btn:hover { background: rgba(173,198,255,0.14); color: var(--primary); }
+    .dark-toggle { background: rgba(173,198,255,0.07); border: 1px solid rgba(173,198,255,0.12); color: var(--on-surface-variant); cursor: pointer; border-radius: 8px; padding: 6px 10px; font-size: 15px; line-height: 1; transition: background 0.2s; display: inline-flex; align-items: center; }
+    .dark-toggle:hover { background: rgba(173,198,255,0.14); }
+
+    /* ════ CONTAINER ════ */
+    .container { max-width: 1300px; margin: 0 auto; padding: 24px 20px; }
+
+    /* ════ STAT CARDS ════ */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 14px; margin-bottom: 24px; }
+    .stat-card {
+      background: var(--surface-container-low); border-radius: 16px;
+      padding: 18px 20px; border: 1px solid rgba(173,198,255,0.06);
+      transition: transform 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-val { font-size: 32px; font-weight: 900; letter-spacing: -1px; line-height: 1; }
+    .stat-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--on-surface-variant); margin-top: 6px; }
+    .stat-primary  .stat-val { color: var(--primary); }
+    .stat-amber    .stat-val { color: var(--amber); }
+    .stat-teal     .stat-val { color: var(--tertiary); }
+    .stat-error    .stat-val { color: var(--error); }
+
+    /* ════ CARD ════ */
+    .card {
+      background: var(--surface-container-low); border-radius: 20px;
+      padding: 22px; margin-bottom: 16px;
+    }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+    .card-title { font-size: 16px; font-weight: 900; letter-spacing: -0.3px; color: var(--on-surface); text-transform: uppercase; }
+
+    /* ════ BUTTONS ════ */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border: none; border-radius: 11px;
+      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+      letter-spacing: 0.2px; -webkit-tap-highlight-color: transparent;
+    }
+    .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: linear-gradient(135deg, var(--primary-container), var(--primary)); color: var(--on-primary-container); }
+    .btn-teal    { background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary)); color: #002113; }
+    .btn-danger  { background: rgba(147,0,10,0.6); color: var(--error); border: 1px solid rgba(255,180,171,0.2); }
+    .btn-gray    { background: var(--surface-container-highest); color: var(--on-surface-variant); }
+    .btn-amber   { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+    .btn-sm      { padding: 5px 12px; font-size: 11px; border-radius: 8px; }
+    .btn-icon    { padding: 7px; border-radius: 8px; }
+
+    /* ════ FILTER BAR ════ */
+    .filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .filter-btn {
+      padding: 6px 13px; border: 1px solid rgba(173,198,255,0.15);
+      border-radius: 8px; background: transparent; color: var(--on-surface-variant);
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; white-space: nowrap; letter-spacing: 0.2px;
+    }
+    .filter-btn:hover { border-color: var(--tertiary); color: var(--tertiary); background: rgba(78,222,163,0.06); }
+    .filter-btn.active {
+      background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary));
+      border-color: transparent; color: #002113;
+    }
+    .filter-count {
+      display: none; align-items: center; justify-content: center;
+      min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;
+      font-size: 10px; font-weight: 700; margin-left: 4px; line-height: 1;
+      background: rgba(0,0,0,0.15);
+    }
+    .filter-count:not(:empty) { display: inline-flex; }
+
+    /* ════ SEARCH ════ */
+    .search-input {
+      width: 100%; height: 44px; padding: 0 16px 0 42px;
+      border: none; border-radius: 12px;
+      font-family: 'Inter', sans-serif; font-size: 13px;
+      color: var(--on-surface); background: var(--surface-container-high);
+      outline: none; transition: box-shadow 0.2s; margin-bottom: 14px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23c2c6d6' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 14px center;
+    }
+    .search-input:focus { box-shadow: 0 0 0 2px rgba(78,222,163,0.2); }
+    .search-input::placeholder { color: var(--on-surface-variant); }
+
+    /* ════ BADGES ════ */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 10px; border-radius: 20px; font-size: 10px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .badge-open         { background: rgba(173,198,255,0.15); color: var(--primary); }
+    .badge-assigned     { background: rgba(245,158,11,0.15);  color: var(--amber); }
+    .badge-in_progress  { background: rgba(129,140,248,0.15); color: #818cf8; }
+    .badge-resolved     { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
+    .badge-installation { background: rgba(78,222,163,0.12);  color: var(--tertiary); }
+    .badge-complaint    { background: rgba(255,180,171,0.12); color: var(--error); }
+    .badge-warranty-ok       { background: rgba(78,222,163,0.12);  color: var(--tertiary); }
+    .badge-warranty-expiring { background: rgba(245,158,11,0.12);  color: var(--amber); }
+    .badge-warranty-expired  { background: rgba(255,180,171,0.12); color: var(--error); }
+
+    /* ════ TABLE ════ */
+    .table-wrap { overflow-x: auto; border-radius: 14px; background: var(--surface-container-lowest); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 700px; }
+    thead th {
+      background: rgba(45,52,73,0.6); color: var(--on-surface-variant);
+      padding: 12px 16px; text-align: left; font-family: var(--font-mono);
+      font-weight: 600; font-size: 9px; text-transform: uppercase;
+      letter-spacing: 1.5px; white-space: nowrap;
+    }
+    tbody td { padding: 13px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; color: var(--on-surface); }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(78,222,163,0.02) !important; }
+    tbody tr.clickable { cursor: pointer; }
+
+    /* ════ MOBILE CARDS ════ */
+    .mob-cards { display: none; }
+    @media (max-width: 767px) {
+      .table-wrap { display: none !important; }
+      .mob-cards  { display: block; }
+      .container  { padding: 12px; }
+      .card       { padding: 14px; border-radius: 16px; }
+      .header     { padding: 0 14px; height: 56px; }
+      .stat-grid  { grid-template-columns: repeat(2,1fr); gap: 10px; }
+    }
+    @media (min-width: 768px) { .mob-cards { display: none; } }
+
+    .mob-ticket-card {
+      background: var(--surface-container-low); border-radius: 16px;
+      padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
+      -webkit-tap-highlight-color: transparent; transition: background 0.12s;
+    }
+    .mob-ticket-card:active { background: var(--surface-container); }
+    .mob-card-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+    .mob-card-name { font-size: 15px; font-weight: 800; color: var(--on-surface); }
+    .mob-card-product { font-size: 12px; color: var(--on-surface-variant); margin-top: 2px; }
+    .mob-card-meta { font-size: 11px; color: var(--on-surface-variant); margin-top: 6px; }
+
+    /* ════ POPUP OVERLAY ════ */
+    .popup-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.80); backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px); z-index: 200;
+      overflow-y: auto; padding: 30px 16px;
+    }
+    .popup-overlay.is-open { display: flex; align-items: flex-end; }
+    @media (min-width: 768px) {
+      .popup-overlay.is-open { align-items: flex-start; justify-content: center; }
+      .popup-overlay.is-open .popup-card { margin-top: 40px; }
+    }
+    .popup-card {
+      background: var(--surface-container-low); width: 100%; max-width: 540px;
+      margin: 0 auto; border-radius: 24px; padding: 28px;
+      box-shadow: 0 48px 80px rgba(0,0,0,0.5);
+      max-height: 88vh; overflow-y: auto;
+      border: 1px solid rgba(173,198,255,0.07);
+      scrollbar-width: thin; scrollbar-color: rgba(173,198,255,0.2) transparent;
+    }
+    .popup-card::-webkit-scrollbar { width: 5px; }
+    .popup-card::-webkit-scrollbar-thumb { background: rgba(173,198,255,0.2); border-radius: 10px; }
+    @media (max-width:767px) { .popup-card { border-radius: 24px 24px 0 0; max-width: 100%; margin: 0; max-height: 92vh; padding: 22px 18px 30px; } }
+    .popup-card h3 { font-size: 20px; font-weight: 900; letter-spacing: -0.3px; color: var(--on-surface); margin-bottom: 20px; }
+    .popup-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+    /* ════ FORM FIELDS ════ */
+    .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--outline); margin: 14px 0 6px; }
+    .form-field { margin-bottom: 10px; }
+    .form-field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--on-surface-variant); margin-bottom: 6px; }
+    .form-input {
+      width: 100%; padding: 10px 14px; border: none; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 14px; color: var(--on-surface);
+      outline: none; background: var(--surface-container-high);
+      transition: box-shadow 0.2s;
+    }
+    .form-input:focus { box-shadow: 0 0 0 2px var(--tertiary); }
+    .form-input::placeholder { color: var(--on-surface-variant); }
+    .form-select {
+      width: 100%; padding: 10px 14px; border: none; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 14px; color: var(--on-surface);
+      outline: none; background: var(--surface-container-high);
+      -webkit-appearance: none; transition: box-shadow 0.2s; cursor: pointer;
+    }
+    .form-select:focus { box-shadow: 0 0 0 2px var(--tertiary); }
+    .form-select option { background: var(--surface-container-highest); }
+
+    /* Detail rows */
+    .detail-row { display: flex; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); font-size: 14px; align-items: flex-start; }
+    .detail-row:last-of-type { border-bottom: none; }
+    .detail-label { color: var(--on-surface-variant); font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; min-width: 100px; padding-top: 2px; flex-shrink: 0; }
+    .detail-value { color: var(--on-surface); font-weight: 500; line-height: 1.5; flex: 1; }
+    .phone-link { color: var(--primary); text-decoration: none; font-weight: 700; }
+
+    /* Brand action panel */
+    .brand-action-panel {
+      background: var(--surface-container); border-radius: 14px;
+      padding: 16px; margin: 12px 0; border: 1px solid rgba(78,222,163,0.15);
+    }
+    .brand-action-title { font-size: 12px; font-weight: 700; color: var(--tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+    .brand-action-btns  { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Timeline */
+    .timeline { padding: 10px 0; }
+    .tl-item { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .tl-item:last-child { border-bottom: none; }
+    .tl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tertiary); flex-shrink: 0; margin-top: 5px; }
+    .tl-content { flex: 1; }
+    .tl-text { font-size: 13px; color: var(--on-surface); }
+    .tl-time { font-size: 11px; color: var(--on-surface-variant); margin-top: 2px; }
+
+    /* Search results panel */
+    #searchResultsPanel { display: none; }
+    .search-results-section { margin-bottom: 16px; }
+    .search-results-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--on-surface-variant); margin-bottom: 8px; }
+    .search-result-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; background: var(--surface-container-highest);
+      border-radius: 10px; margin-bottom: 6px; cursor: pointer;
+      transition: background 0.12s; gap: 8px;
+    }
+    .search-result-row:hover { background: var(--surface-container-high); }
+    .srr-name    { font-size: 14px; font-weight: 700; color: var(--on-surface); }
+    .srr-product { font-size: 12px; color: var(--on-surface-variant); margin-top: 2px; }
+    .srr-badge   { flex-shrink: 0; }
+    .srr-action  { font-size: 11px; font-weight: 700; color: var(--tertiary); flex-shrink: 0; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-container-highest); color: var(--on-surface);
+      padding: 12px 22px; border-radius: 100px; font-size: 14px; font-weight: 600;
+      white-space: nowrap; z-index: 9999; opacity: 0;
+      transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+      border: 1px solid rgba(173,198,255,0.12);
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ════ LIGHT MODE ════ */
+    [data-theme="light"] {
+      --bg: #f0f4fa; --surface: #ffffff;
+      --surface-container-lowest: #e8edf6; --surface-container-low: #f0f4fb;
+      --surface-container: #e4eaf5; --surface-container-high: #d8e0f0;
+      --surface-container-highest: #cdd5e8;
+      --on-surface: #1e293b; --on-surface-variant: #64748b;
+      --border: rgba(0,0,0,0.07); --text: #1e293b; --muted: #64748b;
+      --outline: #94a3b8;
+      --primary: #2563eb; --primary-container: #1d4ed8;
+      --on-primary-container: white;
+      --tertiary: #059669; --tertiary-container: #047857;
+      --error: #dc2626; --amber: #d97706;
+    }
+    [data-theme="light"] body         { background: var(--bg); }
+    [data-theme="light"] .header      { background: rgba(240,244,250,0.80); border-color: rgba(0,0,0,0.06); }
+    [data-theme="light"] .header-brand { color: #059669; }
+    [data-theme="light"] .header-btn  { background: rgba(0,0,0,0.05); color: #475569; border-color: rgba(0,0,0,0.07); }
+    [data-theme="light"] .header-btn:hover { background: rgba(0,0,0,0.09); color: #1e293b; }
+    [data-theme="light"] .card        { background: white; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    [data-theme="light"] .stat-card   { background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    [data-theme="light"] .table-wrap  { background: white; }
+    [data-theme="light"] thead th     { background: #f8fafc; color: #64748b; }
+    [data-theme="light"] tbody td     { color: #1e293b; border-color: rgba(0,0,0,0.05); }
+    [data-theme="light"] tbody tr:hover { background: rgba(5,150,105,0.02) !important; }
+    [data-theme="light"] .popup-card  { background: white; border-color: rgba(0,0,0,0.08); }
+    [data-theme="light"] .popup-card h3 { color: #1e293b; }
+    [data-theme="light"] .form-input  { background: #f1f5f9; color: #1e293b; }
+    [data-theme="light"] .form-select { background: #f1f5f9; color: #1e293b; }
+    [data-theme="light"] .search-input { background: #f1f5f9; color: #1e293b; }
+    [data-theme="light"] .filter-btn  { border-color: #dde3ed; color: #64748b; }
+    [data-theme="light"] .filter-btn:hover { background: rgba(5,150,105,0.04); }
+    [data-theme="light"] .filter-btn.active { background: #059669; color: white; border-color: #059669; }
+    [data-theme="light"] .mob-ticket-card { background: white; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    [data-theme="light"] .brand-action-panel { background: #f0fff8; border-color: rgba(5,150,105,0.2); }
+    [data-theme="light"] .search-result-row { background: #f8fafc; }
+    [data-theme="light"] .search-result-row:hover { background: #f1f5f9; }
+    [data-theme="light"] .login-card  { background: white; }
+    [data-theme="light"] .login-field input { background: #f1f5f9; color: #1e293b; }
+    [data-theme="light"] .detail-row  { border-color: rgba(0,0,0,0.06); }
+    [data-theme="light"] .badge-open  { background: rgba(37,99,235,0.1); color: #1d4ed8; }
+    [data-theme="light"] .badge-resolved { background: rgba(5,150,105,0.1); color: #047857; }
+    [data-theme="light"] .badge-installation { background: rgba(5,150,105,0.1); color: #047857; }
+    [data-theme="light"] .badge-complaint    { background: rgba(220,38,38,0.1); color: #b91c1c; }
+
+    input:focus, select:focus, textarea:focus { outline: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-icon">🔧</div>
+      <h2>Hariom Electronics</h2>
+      <p>Service Panel</p>
+    </div>
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="service@hariom.in" autocomplete="email">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="doLogin()">
+      <span style="margin-right:4px;">🔧</span> Authorize Access
+    </button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ══ APP SHELL ══ -->
+<div id="appShell" style="display:none;">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-brand">
+      <img src="/icons/icon-72x72.png" alt="Logo" onerror="this.style.display='none'">
+      <div>
+        <div>Hariom</div>
+        <div class="brand-sub">Service Panel</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="header-user" id="headerUser">—</span>
+      <button class="header-btn" onclick="doLogout()">
+        <span class="material-symbols-outlined">logout</span> Logout
+      </button>
+      <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle theme">☀️</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- STAT CARDS -->
+    <div class="stat-grid" id="statGrid">
+      <div class="stat-card stat-primary">
+        <div class="stat-val" id="statOpen">—</div>
+        <div class="stat-lbl">Open Tickets</div>
+      </div>
+      <div class="stat-card stat-amber">
+        <div class="stat-val" id="statInProgress">—</div>
+        <div class="stat-lbl">In Progress</div>
+      </div>
+      <div class="stat-card stat-teal">
+        <div class="stat-val" id="statTodayInstall">—</div>
+        <div class="stat-lbl">Today's Installations</div>
+      </div>
+      <div class="stat-card stat-error">
+        <div class="stat-val" id="statComplaints">—</div>
+        <div class="stat-lbl">Open Complaints</div>
+      </div>
+    </div>
+
+    <!-- SEARCH CARD -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🔍 Customer Search</div>
+        <button class="btn btn-teal btn-sm" onclick="clearSearch()">Clear</button>
+      </div>
+      <input class="search-input" id="globalSearch"
+        placeholder="Search by name or phone — finds deliveries + existing tickets…"
+        oninput="onGlobalSearch(this.value)">
+
+      <div id="searchResultsPanel">
+        <!-- Deliveries found -->
+        <div class="search-results-section" id="srDeliveriesSection">
+          <div class="search-results-title">📦 Deliveries</div>
+          <div id="srDeliveries"></div>
+        </div>
+        <!-- Tickets found -->
+        <div class="search-results-section" id="srTicketsSection">
+          <div class="search-results-title">🔧 Existing Tickets</div>
+          <div id="srTickets"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TICKETS CARD -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Service Tickets</div>
+        <button class="btn btn-teal btn-sm" onclick="openCreateTicketPopup()">
+          <span class="material-symbols-outlined" style="font-size:14px;">add</span> New Ticket
+        </button>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="filter-bar" id="ticketFilters">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">All <span class="filter-count" id="fc-all"></span></button>
+        <button class="filter-btn" data-filter="open"        onclick="setFilter('open',this)">Open <span class="filter-count" id="fc-open"></span></button>
+        <button class="filter-btn" data-filter="assigned"    onclick="setFilter('assigned',this)">Assigned <span class="filter-count" id="fc-assigned"></span></button>
+        <button class="filter-btn" data-filter="in_progress" onclick="setFilter('in_progress',this)">In Progress <span class="filter-count" id="fc-in_progress"></span></button>
+        <button class="filter-btn" data-filter="resolved"    onclick="setFilter('resolved',this)">Resolved <span class="filter-count" id="fc-resolved"></span></button>
+        <button class="filter-btn" data-filter="installation" onclick="setFilter('installation',this)">Installation <span class="filter-count" id="fc-installation"></span></button>
+        <button class="filter-btn" data-filter="complaint"   onclick="setFilter('complaint',this)">Complaints <span class="filter-count" id="fc-complaint"></span></button>
+      </div>
+
+      <!-- Desktop table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Customer</th>
+              <th>Product</th>
+              <th>Phone</th>
+              <th>Status</th>
+              <th>Warranty</th>
+              <th>Created</th>
+              <th>By</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="ticketsTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards -->
+      <div class="mob-cards" id="ticketsMobCards"></div>
+    </div>
+
+  </div><!-- /container -->
+</div><!-- /appShell -->
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ══ TICKET DETAIL POPUP ══ -->
+<div class="popup-overlay" id="ticketDetailPopup">
+  <div class="popup-card">
+    <div id="ticketDetailContent"></div>
+    <div class="popup-actions" id="ticketDetailActions">
+      <button class="btn btn-gray" onclick="closeTicketDetail()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CREATE TICKET POPUP ══ -->
+<div class="popup-overlay" id="createTicketPopup">
+  <div class="popup-card">
+    <h3>Create Service Ticket</h3>
+
+    <div class="form-field">
+      <label>Type *</label>
+      <select class="form-select" id="ctType" onchange="onCtTypeChange()">
+        <option value="installation">Installation</option>
+        <option value="complaint">Complaint</option>
+      </select>
+    </div>
+
+    <!-- Split name -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="form-field" style="margin:0">
+        <label>First Name *</label>
+        <input class="form-input" id="ctFirstName" placeholder="First">
+      </div>
+      <div class="form-field" style="margin:0">
+        <label>Middle</label>
+        <input class="form-input" id="ctMiddleName" placeholder="Optional">
+      </div>
+      <div class="form-field" style="margin:0">
+        <label>Last Name</label>
+        <input class="form-input" id="ctLastName" placeholder="Last">
+      </div>
+    </div>
+
+    <!-- Phone -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="form-field" style="margin:0">
+        <label>Phone *</label>
+        <input class="form-input" id="ctPhone" placeholder="10-digit" maxlength="10" inputmode="numeric">
+      </div>
+      <div class="form-field" style="margin:0">
+        <label>Alternate Phone</label>
+        <input class="form-input" id="ctAltPhone" placeholder="Optional" maxlength="10" inputmode="numeric">
+      </div>
+    </div>
+
+    <!-- Pincode address -->
+    <div class="form-field">
+      <label>PIN Code</label>
+      <div style="position:relative;">
+        <input class="form-input" id="ctPincode" placeholder="6-digit PIN" maxlength="6" inputmode="numeric"
+          oninput="onCtPinInput(this.value)" style="padding-right:32px;">
+        <span id="ctPinSpinner" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);display:none;font-size:14px;">⏳</span>
+      </div>
+      <div id="ctPinError" style="font-size:11px;color:var(--error);margin-top:3px;"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="form-field" style="margin:0">
+        <label>State</label>
+        <input class="form-input" id="ctState" placeholder="State" readonly>
+      </div>
+      <div class="form-field" style="margin:0">
+        <label>City</label>
+        <input class="form-input" id="ctCity" placeholder="City" readonly>
+      </div>
+    </div>
+    <div class="form-field">
+      <label>Area</label>
+      <select class="form-select" id="ctArea" style="display:none;"></select>
+      <input class="form-input" id="ctAreaManual" placeholder="Area / Landmark" style="display:none;">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="form-field" style="margin:0">
+        <label>Address Line 1</label>
+        <input class="form-input" id="ctAddr1" placeholder="House / Building">
+      </div>
+      <div class="form-field" style="margin:0">
+        <label>Address Line 2</label>
+        <input class="form-input" id="ctAddr2" placeholder="Street (optional)">
+      </div>
+    </div>
+
+    <!-- Product with tally dropdown -->
+    <div class="form-field" style="position:relative;">
+      <label>Product Name</label>
+      <input class="form-input" id="ctProduct" placeholder="Search or type product…"
+        autocomplete="off" oninput="onCtProductSearch(this.value)" onfocus="onCtProductSearch(this.value)">
+      <div id="ctProductDrop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;
+        background:var(--surface-container-highest);border-radius:8px;
+        box-shadow:0 8px 24px rgba(0,0,0,0.3);max-height:180px;overflow-y:auto;margin-top:3px;"></div>
+    </div>
+    <div class="form-field">
+      <label>Serial Number</label>
+      <input class="form-input" id="ctSerial" placeholder="Product serial">
+    </div>
+
+    <input type="hidden" id="ctLinkedDeliveryId">
+
+    <div class="form-field" id="ctDescField">
+      <label>Description <span id="ctDescRequired" style="color:var(--error);">*</span></label>
+      <textarea class="form-input" id="ctDesc" rows="3" placeholder="Describe the issue…" style="resize:vertical;"></textarea>
+    </div>
+
+    <div id="ctMsg" style="font-size:13px;font-weight:600;min-height:18px;margin:8px 0;text-align:center;"></div>
+
+    <div class="popup-actions">
+      <button class="btn btn-teal" onclick="submitCreateTicket()">
+        <span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket
+      </button>
+      <button class="btn btn-gray" onclick="closeCreateTicketPopup()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════
+   SERVICE PANEL — JS
+════════════════════════════════════════════════ */
+
+const BASE_URL = window.location.origin;
+
+/* ── DARK MODE ── */
+(function() {
+  const saved = localStorage.getItem("hariom_theme");
+  if (saved === "light") document.documentElement.setAttribute("data-theme","light");
+})();
+function toggleDarkMode() {
+  const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
+  localStorage.setItem("hariom_theme", isDark ? "light" : "dark");
+  document.getElementById("darkToggleBtn").textContent = isDark ? "🌙" : "☀️";
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  document.getElementById("darkToggleBtn").textContent = isDark ? "☀️" : "🌙";
+});
+
+/* ── TOAST ── */
+function showToast(msg, ms = 2800) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), ms);
+}
+
+/* ── AUTH ── */
+let serviceToken = null;
+let serviceName  = "";
+let allTickets   = [];
+let allDeliveries = [];
+let currentFilter = "all";
+
+function getToken() { return serviceToken || localStorage.getItem("serviceToken"); }
+function isExpired(token) {
+  try { const p = JSON.parse(atob(token.split(".")[1])); return Date.now() >= p.exp * 1000; }
+  catch { return true; }
+}
+async function authFetch(url, opts = {}) {
+  const token = getToken();
+  if (!token || isExpired(token)) { doLogout(); throw new Error("expired"); }
+  const res = await fetch(url, { ...opts, headers: { ...(opts.headers||{}), Authorization: "Bearer "+token } });
+  if (res.status === 401) { doLogout(); throw new Error("401"); }
+  return res;
+}
+
+/* ── RESTORE SESSION ── */
+(function restoreSession() {
+  const token = localStorage.getItem("serviceToken");
+  const name  = localStorage.getItem("serviceName");
+  if (token && name && !isExpired(token)) {
+    serviceToken = token; serviceName = name;
+    showApp();
+  } else {
+    document.getElementById("loginScreen").classList.add("active");
+  }
+})();
+
+async function doLogin() {
+  const email    = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const errEl    = document.getElementById("loginError");
+  errEl.textContent = "";
+
+  if (!email || !password) { errEl.textContent = "Email and password required."; return; }
+  errEl.style.color = "var(--primary)"; errEl.textContent = "Authenticating…";
+
+  try {
+    const res  = await fetch(`${BASE_URL}/service/login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.style.color = "var(--error)"; errEl.textContent = data.error || "Login failed."; return; }
+
+    serviceToken = data.token; serviceName = data.name;
+    localStorage.setItem("serviceToken", data.token);
+    localStorage.setItem("serviceName",  data.name);
+    showApp();
+  } catch (e) {
+    errEl.style.color = "var(--error)"; errEl.textContent = "Network error.";
+  }
+}
+
+function doLogout() {
+  serviceToken = null; serviceName = "";
+  localStorage.removeItem("serviceToken"); localStorage.removeItem("serviceName");
+  document.getElementById("appShell").style.display = "none";
+  document.getElementById("loginScreen").classList.add("active");
+  document.getElementById("loginPassword").value = "";
+  document.getElementById("loginError").textContent = "";
+}
+
+function showApp() {
+  document.getElementById("loginScreen").classList.remove("active");
+  document.getElementById("appShell").style.display = "";
+  document.getElementById("headerUser").textContent  = serviceName;
+  loadAll();
+  loadSvcTallyProducts();
+  registerServicePush();
+}
+
+/* ── LOAD EVERYTHING ── */
+async function loadAll() {
+  await Promise.all([loadTickets(), loadDeliveries()]);
+}
+
+async function loadTickets() {
+  try {
+    const res   = await authFetch(`${BASE_URL}/service/tickets`);
+    allTickets  = await res.json();
+    updateStats();
+    renderTickets();
+  } catch (e) {
+    console.error("loadTickets:", e.message);
+  }
+}
+
+async function loadDeliveries() {
+  try {
+    const res    = await authFetch(`${BASE_URL}/deliveries`);
+    allDeliveries = await res.json();
+  } catch (e) {
+    console.error("loadDeliveries:", e.message);
+  }
+}
+
+/* ── STATS ── */
+function updateStats() {
+  const todayStr = new Date().toDateString();
+  document.getElementById("statOpen").textContent =
+    allTickets.filter(t => t.status === "open").length;
+  document.getElementById("statInProgress").textContent =
+    allTickets.filter(t => t.status === "in_progress" || t.status === "assigned").length;
+  document.getElementById("statTodayInstall").textContent =
+    allTickets.filter(t => t.type === "installation" &&
+      t.created_at?.seconds &&
+      new Date(t.created_at.seconds * 1000).toDateString() === todayStr
+    ).length;
+  document.getElementById("statComplaints").textContent =
+    allTickets.filter(t => t.type === "complaint" && t.status !== "resolved").length;
+
+  // Filter counts
+  const counts = {};
+  allTickets.forEach(t => {
+    counts.all = (counts.all || 0) + 1;
+    counts[t.status] = (counts[t.status] || 0) + 1;
+    counts[t.type]   = (counts[t.type]   || 0) + 1;
+  });
+  ["all","open","assigned","in_progress","resolved","installation","complaint"].forEach(k => {
+    const el = document.getElementById("fc-" + k);
+    if (el) el.textContent = counts[k] || "";
+  });
+}
+
+/* ── FILTER ── */
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll(".filter-btn").forEach(b => b.classList.toggle("active", b === btn));
+  renderTickets();
+}
+
+function getFilteredTickets() {
+  if (currentFilter === "all") return allTickets;
+  if (["open","assigned","in_progress","resolved"].includes(currentFilter))
+    return allTickets.filter(t => t.status === currentFilter);
+  if (["installation","complaint"].includes(currentFilter))
+    return allTickets.filter(t => t.type === currentFilter);
+  return allTickets;
+}
+
+/* ── RENDER TICKETS ── */
+function renderTickets() {
+  const tickets = getFilteredTickets();
+  renderTicketsTable(tickets);
+  renderTicketsMob(tickets);
+}
+
+function warrantyStr(t) {
+  if (!t.warranty_expiry?.seconds) return "—";
+  const daysLeft = Math.ceil((t.warranty_expiry.seconds * 1000 - Date.now()) / (24*3600*1000));
+  const dateStr  = new Date(t.warranty_expiry.seconds * 1000)
+    .toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
+  if (daysLeft < 0)   return `<span class="badge badge-warranty-expired">Expired</span>`;
+  if (daysLeft <= 30) return `<span class="badge badge-warranty-expiring">⚠ ${daysLeft}d</span>`;
+  return `<span class="badge badge-warranty-ok">${dateStr}</span>`;
+}
+
+function fmtDate(ts) {
+  if (!ts?.seconds) return "—";
+  return new Date(ts.seconds * 1000).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
+}
+
+function renderTicketsTable(tickets) {
+  const tbody = document.getElementById("ticketsTableBody");
+  if (!tickets.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = tickets.map(t => `
+    <tr class="clickable" onclick="openTicketDetail('${t.id}')">
+      <td><span class="badge badge-${t.type}">${t.type}</span></td>
+      <td style="font-weight:700;">${t.customer_name||"—"}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.product_name||"—"}</td>
+      <td><a class="phone-link" href="tel:${t.phone}" onclick="event.stopPropagation()">${t.phone||"—"}</a></td>
+      <td><span class="badge badge-${t.status}">${t.status.replace("_"," ")}</span></td>
+      <td>${warrantyStr(t)}</td>
+      <td style="font-size:12px;color:var(--on-surface-variant);">${fmtDate(t.created_at)}</td>
+      <td style="font-size:11px;color:var(--on-surface-variant);">${t.created_by_name||t.created_by||"—"}</td>
+      <td>
+        <button class="btn btn-teal btn-sm" onclick="event.stopPropagation();openTicketDetail('${t.id}')">Open</button>
+      </td>
+    </tr>`).join("");
+}
+
+function renderTicketsMob(tickets) {
+  const el = document.getElementById("ticketsMobCards");
+  if (!tickets.length) {
+    el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</div>`;
+    return;
+  }
+  el.innerHTML = tickets.map(t => `
+    <div class="mob-ticket-card" onclick="openTicketDetail('${t.id}')">
+      <div class="mob-card-row">
+        <div>
+          <div class="mob-card-name">${t.customer_name||"—"}</div>
+          <div class="mob-card-product">${t.product_name||"—"}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <span class="badge badge-${t.type}">${t.type}</span>
+          <span class="badge badge-${t.status}">${t.status.replace("_"," ")}</span>
+        </div>
+      </div>
+      <div class="mob-card-meta">${warrantyStr(t)} · ${fmtDate(t.created_at)}</div>
+    </div>`).join("");
+}
+
+/* ── TICKET DETAIL POPUP ── */
+function openTicketDetail(id) {
+  const t = allTickets.find(x => x.id === id);
+  if (!t) return;
+
+  const warranty    = warrantyStr(t);
+  const createdDate = fmtDate(t.created_at);
+  const resolvedDate = t.resolved_at ? fmtDate(t.resolved_at) : null;
+  const isOpen      = t.status === "open";
+  const isEditable  = isOpen; // edit + delete only while open
+
+  // Status buttons — once assigned/in_progress/resolved, can't go back to open
+  const lockedStatuses = ["assigned", "in_progress", "resolved"];
+  const isLocked = lockedStatuses.includes(t.status);
+
+  const statusButtons = ["open","assigned","in_progress","resolved"].map(s => {
+    const isActive  = t.status === s;
+    const isDisabled = s === "open" && isLocked; // can't revert to open once past it
+    return `<button class="btn btn-sm ${isActive ? "btn-teal" : "btn-gray"}"
+      ${isDisabled ? "disabled style=\"opacity:0.35;cursor:not-allowed;\"" : ""}
+      onclick="${isDisabled ? "" : `updateTicketStatus('${t.id}','${s}',this)`}">
+      ${s.replace(/_/g," ")}
+    </button>`;
+  }).join("");
+
+  document.getElementById("ticketDetailContent").innerHTML = `
+    <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span class="badge badge-${t.type}">${t.type}</span>
+      ${t.customer_name || "—"}
+    </h3>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      <span class="badge badge-${t.status}">${t.status.replace(/_/g," ")}</span>
+      ${warranty !== "—" ? warranty : ""}
+      ${t.is_auto_created ? `<span class="badge" style="background:rgba(173,198,255,0.1);color:var(--on-surface-variant);">Auto-created</span>` : ""}
+    </div>
+
+    <div class="detail-row">
+      <span class="detail-label">Phone</span>
+      <span class="detail-value">
+        <a class="phone-link" href="tel:${t.phone}">${t.phone || "—"}</a>
+        ${t.alternate_phone ? ` &nbsp;·&nbsp; <a class="phone-link" href="tel:${t.alternate_phone}">${t.alternate_phone}</a> <span style="font-size:10px;color:var(--on-surface-variant);">(alt)</span>` : ""}
+      </span>
+    </div>
+    <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${t.address || "—"}</span></div>
+    <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${t.product_name || "—"}</span></div>
+    <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${t.serial_number || "—"}</span></div>
+    ${t.description ? `<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${t.description}</span></div>` : ""}
+    <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${createdDate} by ${t.created_by_name || t.created_by || "—"}</span></div>
+    ${resolvedDate ? `<div class="detail-row"><span class="detail-label">Resolved</span><span class="detail-value">${resolvedDate}</span></div>` : ""}
+    ${t.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${t.notes}</span></div>` : ""}
+    ${t.brand_tracking_number ? `<div class="detail-row"><span class="detail-label">Brand Ref#</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${t.brand_tracking_number}</span></div>` : ""}
+
+    <!-- Status update -->
+    <div class="section-title" style="margin-top:18px;">Update Status
+      ${isLocked ? `<span style="font-size:10px;font-weight:600;color:var(--on-surface-variant);margin-left:8px;">— cannot revert to Open</span>` : ""}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">${statusButtons}</div>
+
+    <!-- Notes / tracking input -->
+    ${getBrandTrackingAlarmHtml(t)}
+    <div class="section-title">Add Note / Brand Tracking#</div>
+    <div style="display:flex;gap:8px;margin-bottom:6px;">
+      <input class="form-input" id="ticketNoteInput" placeholder="Notes or brand reference number…" style="flex:1;">
+      <button class="btn btn-primary btn-sm" onclick="saveTicketNote('${t.id}')">Save</button>
+    </div>
+
+    <!-- Brand request actions -->
+    <div id="brandActionContainer"></div>
+
+    <!-- Edit / Delete (open tickets only) -->
+    ${isEditable ? `
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" onclick="openEditTicket('${t.id}')">
+        <span class="material-symbols-outlined" style="font-size:14px;">edit</span> Edit Ticket
+      </button>
+      <button class="btn btn-danger btn-sm" onclick="confirmDeleteTicket('${t.id}')">
+        <span class="material-symbols-outlined" style="font-size:14px;">delete</span> Delete
+      </button>
+    </div>` : `
+    <div style="margin-top:16px;padding:10px 12px;background:var(--surface-container);border-radius:8px;font-size:11px;color:var(--on-surface-variant);">
+      🔒 Ticket cannot be edited or deleted once ${t.status.replace(/_/g," ")}
+    </div>`}
+  `;
+
+  document.getElementById("ticketDetailActions").innerHTML =
+    `<button class="btn btn-gray" onclick="closeTicketDetail()">Close</button>`;
+
+  document.getElementById("ticketDetailPopup").classList.add("is-open");
+  loadBrandActions(t);
+}
+
+async function loadBrandActions(ticket) {
+  try {
+    const res    = await authFetch(`${BASE_URL}/brands`);
+    const brands = await res.json();
+    // Match brand by product name keyword
+    const productUpper = (ticket.product_name || "").toUpperCase();
+    const matched = brands.find(b => productUpper.includes(b.name.toUpperCase()));
+    if (!matched) return;
+
+    const container = document.getElementById("brandActionContainer");
+    if (!container) return;
+
+    let actionHtml = "";
+    if (matched.installation_method === "form") {
+      actionHtml = `<button class="btn btn-teal btn-sm" onclick="window.open('${matched.form_url}','_blank')">
+        <span class="material-symbols-outlined" style="font-size:14px;">open_in_new</span> Open ${matched.name} Form
+      </button>`;
+    } else if (matched.installation_method === "whatsapp" && matched.whatsapp_number) {
+      const msg = encodeURIComponent(
+        (matched.message_template || `Hi, requesting ${ticket.type} for ${ticket.product_name}, Serial: ${ticket.serial_number}, Customer: ${ticket.customer_name}, Phone: ${ticket.phone}, Address: ${ticket.address}`)
+          .replace("{product}", ticket.product_name||"")
+          .replace("{serial}", ticket.serial_number||"")
+          .replace("{customer}", ticket.customer_name||"")
+          .replace("{phone}", ticket.phone||"")
+          .replace("{address}", ticket.address||"")
+      );
+      actionHtml = `<button class="btn btn-teal btn-sm" onclick="window.open('https://wa.me/${matched.whatsapp_number}?text=${msg}','_blank')">
+        <span class="material-symbols-outlined" style="font-size:14px;">chat</span> WhatsApp ${matched.name}
+      </button>`;
+    } else if (matched.installation_method === "call" && matched.call_number) {
+      actionHtml = `<a href="tel:${matched.call_number}" class="btn btn-teal btn-sm">
+        <span class="material-symbols-outlined" style="font-size:14px;">call</span> Call ${matched.name}: ${matched.call_number}
+      </a>
+      ${matched.notes ? `<div style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;">${matched.notes}</div>` : ""}`;
+    }
+
+    container.innerHTML = `
+      <div class="brand-action-panel">
+        <div class="brand-action-title">🏭 ${matched.name} — ${matched.installation_method} request</div>
+        <div class="brand-action-btns">${actionHtml}</div>
+      </div>`;
+  } catch (e) { /* no brands configured, silently skip */ }
+}
+
+async function updateTicketStatus(id, status, btn) {
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    });
+    if (!res.ok) { showToast("❌ Failed to update status"); return; }
+    showToast(`✅ Status → ${status.replace("_"," ")}`);
+    // Update button states
+    document.querySelectorAll("#ticketDetailContent .btn-sm[onclick*='updateTicketStatus']").forEach(b => {
+      b.classList.toggle("btn-teal", b === btn);
+      b.classList.toggle("btn-gray", b !== btn);
+    });
+    // Refresh data
+    await loadTickets();
+  } catch (e) { showToast("❌ Network error"); }
+}
+
+async function saveTicketNote(id) {
+  const input = document.getElementById("ticketNoteInput");
+  const val   = input.value.trim();
+  if (!val) return;
+  try {
+    // Detect if it looks like a tracking number (alphanumeric, no spaces)
+    const isTracking = /^[A-Za-z0-9\-\/]+$/.test(val) && val.length >= 4 && !val.includes(" ");
+    const payload    = isTracking
+      ? { brand_tracking_number: val, brand_request_status: "raised" }
+      : { notes: val };
+    const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) { showToast("❌ Failed to save"); return; }
+    showToast("✅ Saved");
+    input.value = "";
+    await loadTickets();
+  } catch (e) { showToast("❌ Network error"); }
+}
+
+function closeTicketDetail() {
+  document.getElementById("ticketDetailPopup").classList.remove("is-open");
+}
+
+/* ── CREATE TICKET POPUP ── */
+/* ── Tally products cache ── */
+let svcTallyNames = [];
+async function loadSvcTallyProducts() {
+  try {
+    const res = await fetch(`${BASE_URL}/tally/products`);
+    const d   = await res.json();
+    svcTallyNames = d.names || [];
+  } catch(e) { svcTallyNames = []; }
+}
+
+function onCtProductSearch(q) {
+  const drop = document.getElementById("ctProductDrop");
+  if (!q.trim()) { drop.style.display = "none"; return; }
+  const filtered = svcTallyNames.filter(n => n.toLowerCase().includes(q.toLowerCase())).slice(0,10);
+  const exact    = svcTallyNames.some(n => n.toLowerCase() === q.toLowerCase());
+  let html = filtered.map(n =>
+    `<div style="padding:9px 12px;font-size:13px;cursor:pointer;color:var(--on-surface);transition:background 0.1s;"
+      onmouseover="this.style.background='var(--surface-container-high)'"
+      onmouseout="this.style.background=''"
+      onclick="selectCtProduct('${n.replace(/'/g,"\'")}');">${n}</div>`
+  ).join("");
+  if (!exact && q.trim().length >= 2) {
+    html += `<div style="padding:9px 12px;font-size:13px;cursor:pointer;color:var(--tertiary);font-weight:700;"
+      onclick="addCtProduct('${q.trim().replace(/'/g,"\'")}');">+ Add "${q.trim()}" to product list</div>`;
+  }
+  if (html) { drop.innerHTML = html; drop.style.display = "block"; }
+  else        drop.style.display = "none";
+}
+
+function selectCtProduct(name) {
+  document.getElementById("ctProduct").value = name;
+  document.getElementById("ctProductDrop").style.display = "none";
+}
+
+async function addCtProduct(name) {
+  selectCtProduct(name);
+  try {
+    await authFetch(`${BASE_URL}/tally/products/add`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ name })
+    });
+    svcTallyNames.push(name);
+  } catch(e) {}
+}
+
+document.addEventListener("click", e => {
+  if (!e.target.closest("#ctProduct") && !e.target.closest("#ctProductDrop")) {
+    const d = document.getElementById("ctProductDrop");
+    if (d) d.style.display = "none";
+  }
+});
+
+/* ── Pincode lookup for ticket form ── */
+async function onCtPinInput(val) {
+  val = val.replace(/\D/g, "");
+  const spinner = document.getElementById("ctPinSpinner");
+  const errEl   = document.getElementById("ctPinError");
+  errEl.textContent = "";
+  if (val.length < 6) {
+    document.getElementById("ctState").value = "";
+    document.getElementById("ctCity").value  = "";
+    document.getElementById("ctArea").style.display = "none";
+    document.getElementById("ctAreaManual").style.display = "none";
+    return;
+  }
+  spinner.style.display = "inline";
+  try {
+    const res  = await fetch(`https://api.postalpincode.in/pincode/${val}`);
+    const data = await res.json();
+    if (data[0].Status === "Success") {
+      const po = data[0].PostOffice;
+      document.getElementById("ctState").value = po[0].State;
+      document.getElementById("ctCity").value  = po[0].District;
+      document.getElementById("ctState").readOnly = true;
+      document.getElementById("ctCity").readOnly  = true;
+      const areaEl = document.getElementById("ctArea");
+      areaEl.innerHTML = '<option value="">— Select Area —</option>' +
+        po.map(o => `<option value="${o.Name}">${o.Name}</option>`).join("");
+      areaEl.style.display = "block";
+      document.getElementById("ctAreaManual").style.display = "none";
+    } else {
+      errEl.textContent = "Invalid PIN — enter details manually";
+      document.getElementById("ctState").readOnly = false;
+      document.getElementById("ctCity").readOnly  = false;
+      document.getElementById("ctAreaManual").style.display = "block";
+      document.getElementById("ctArea").style.display = "none";
+    }
+  } catch(e) {
+    errEl.textContent = "PIN API unreachable — enter manually";
+    document.getElementById("ctState").readOnly = false;
+    document.getElementById("ctCity").readOnly  = false;
+    document.getElementById("ctAreaManual").style.display = "block";
+  } finally {
+    spinner.style.display = "none";
+  }
+}
+
+function openCreateTicketPopup(prefill = {}) {
+  // Reset all fields
+  ["ctFirstName","ctMiddleName","ctLastName","ctPhone","ctAltPhone",
+   "ctPincode","ctState","ctCity","ctAddr1","ctAddr2","ctProduct","ctSerial","ctDesc"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ""; el.readOnly = false; }
+  });
+  document.getElementById("ctArea").innerHTML = "";
+  document.getElementById("ctArea").style.display = "none";
+  document.getElementById("ctAreaManual").style.display = "none";
+  document.getElementById("ctAreaManual").value = "";
+  document.getElementById("ctPinError").textContent = "";
+  document.getElementById("ctLinkedDeliveryId").value = prefill.deliveryId || "";
+  document.getElementById("ctType").value = prefill.type || "installation";
+  document.getElementById("ctMsg").textContent = "";
+  onCtTypeChange();
+
+  // Prefill from delivery search
+  if (prefill.phone)   document.getElementById("ctPhone").value   = prefill.phone;
+  if (prefill.serial)  document.getElementById("ctSerial").value  = prefill.serial;
+  if (prefill.product) document.getElementById("ctProduct").value = prefill.product;
+
+  // Split name if prefilled
+  if (prefill.name) {
+    const parts = prefill.name.trim().split(/\s+/);
+    document.getElementById("ctFirstName").value  = parts[0] || "";
+    document.getElementById("ctMiddleName").value = parts.length === 3 ? parts[1] : "";
+    document.getElementById("ctLastName").value   = parts.length >= 2 ? parts[parts.length-1] : "";
+  }
+
+  // Parse address if prefilled — try to extract pincode
+  if (prefill.address) {
+    const pin = prefill.address.match(/(\d{6})/);
+    if (pin) {
+      document.getElementById("ctPincode").value = pin[1];
+      onCtPinInput(pin[1]);
+    }
+    const parts = prefill.address.split(",");
+    document.getElementById("ctAddr1").value = parts[0]?.trim() || "";
+    document.getElementById("ctAddr2").value = parts[1]?.trim() || "";
+  }
+
+  document.getElementById("createTicketPopup").classList.add("is-open");
+  document.getElementById("ctFirstName").focus();
+}
+
+function onCtTypeChange() {
+  const type = document.getElementById("ctType").value;
+  const req  = document.getElementById("ctDescRequired");
+  if (req) req.style.display = type === "complaint" ? "" : "none";
+}
+
+function closeCreateTicketPopup() {
+  document.getElementById("createTicketPopup").classList.remove("is-open");
+}
+
+async function submitCreateTicket() {
+  const type = document.getElementById("ctType").value;
+  const phone = document.getElementById("ctPhone").value.trim();
+  const desc  = document.getElementById("ctDesc").value.trim();
+  const msg   = document.getElementById("ctMsg");
+
+  if (!phone || phone.length !== 10) { msg.style.color="var(--error)"; msg.textContent="Valid 10-digit phone required."; return; }
+  if (type === "complaint" && !desc) { msg.style.color="var(--error)"; msg.textContent="Description required for complaints."; return; }
+
+  // Assemble address from parts
+  const pincode = document.getElementById("ctPincode").value.trim();
+  const state   = document.getElementById("ctState").value.trim();
+  const city    = document.getElementById("ctCity").value.trim();
+  const areaEl  = document.getElementById("ctArea");
+  const area    = areaEl.style.display !== "none" ? areaEl.value
+                  : document.getElementById("ctAreaManual").value.trim();
+  const addr1   = document.getElementById("ctAddr1").value.trim();
+  const addr2   = document.getElementById("ctAddr2").value.trim();
+
+  const productName = document.getElementById("ctProduct").value.trim();
+  // Auto-add product to tally if new
+  if (productName && !svcTallyNames.some(n => n.toLowerCase() === productName.toLowerCase())) {
+    authFetch(`${BASE_URL}/tally/products/add`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ name: productName })
+    }).catch(()=>{});
+  }
+
+  msg.style.color = "var(--primary)"; msg.textContent = "Saving...";
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        type,
+        linked_delivery_id: document.getElementById("ctLinkedDeliveryId").value || null,
+        first_name:   document.getElementById("ctFirstName").value.trim(),
+        middle_name:  document.getElementById("ctMiddleName").value.trim(),
+        last_name:    document.getElementById("ctLastName").value.trim(),
+        phone,
+        alternate_phone: document.getElementById("ctAltPhone").value.trim(),
+        pincode, state, city, area, addr1, addr2,
+        product_name:  productName,
+        serial_number: document.getElementById("ctSerial").value.trim(),
+        description:   desc
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { msg.style.color="var(--error)"; msg.textContent=data.error||"Failed."; return; }
+    msg.style.color = "var(--tertiary)"; msg.textContent = "Ticket created!";
+    setTimeout(() => { closeCreateTicketPopup(); loadAll(); }, 800);
+  } catch(e) {
+    msg.style.color = "var(--error)"; msg.textContent = "Network error.";
+  }
+}
+
+/* ── GLOBAL SEARCH ── */
+let searchTimer = null;
+function onGlobalSearch(val) {
+  clearTimeout(searchTimer);
+  const q = val.trim();
+  if (q.length < 3) { clearSearch(); return; }
+  searchTimer = setTimeout(() => runSearch(q), 350);
+}
+
+async function runSearch(q) {
+  const panel = document.getElementById("searchResultsPanel");
+  panel.style.display = "block";
+  try {
+    const res  = await authFetch(`${BASE_URL}/service/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    renderSearchResults(data.deliveries || [], data.tickets || []);
+  } catch (e) {
+    panel.style.display = "none";
+  }
+}
+
+function renderSearchResults(deliveries, tickets) {
+  const dSec = document.getElementById("srDeliveriesSection");
+  const tSec = document.getElementById("srTicketsSection");
+  const dEl  = document.getElementById("srDeliveries");
+  const tEl  = document.getElementById("srTickets");
+
+  dSec.style.display = deliveries.length ? "" : "none";
+  tSec.style.display = tickets.length    ? "" : "none";
+
+  dEl.innerHTML = deliveries.slice(0,8).map(d => {
+    const warranty = getWarrantyHtml(d);
+    return `
+    <div class="search-result-row" onclick="prefillFromDelivery('${d.id}')">
+      <div>
+        <div class="srr-name">${d.customer_name||"—"}</div>
+        <div class="srr-product">${d.product_name||"—"} · ${d.phone||"—"}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        ${warranty}
+        <span class="srr-action">+ Ticket</span>
+      </div>
+    </div>`;
+  }).join("");
+
+  tEl.innerHTML = tickets.slice(0,5).map(t => `
+    <div class="search-result-row" onclick="openTicketDetail('${t.id}')">
+      <div>
+        <div class="srr-name">${t.customer_name||"—"}</div>
+        <div class="srr-product">${t.product_name||"—"}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="badge badge-${t.status}">${t.status.replace("_"," ")}</span>
+        <span class="badge badge-${t.type}">${t.type}</span>
+      </div>
+    </div>`).join("");
+}
+
+function getWarrantyHtml(d) {
+  if (d.status !== "delivered" || !d.delivered_timestamp?.seconds) return "";
+  const name   = (d.product_name||"").toUpperCase();
+  const years  = /\bWM\b|WASHING/.test(name) ? 2 : 1;
+  const expMs  = d.delivered_timestamp.seconds * 1000 + years * 365.25 * 24 * 3600 * 1000;
+  const days   = Math.ceil((expMs - Date.now()) / (24 * 3600 * 1000));
+  if (days < 0)   return `<span class="badge badge-warranty-expired">Expired</span>`;
+  if (days <= 30) return `<span class="badge badge-warranty-expiring">⚠ ${days}d</span>`;
+  return `<span class="badge badge-warranty-ok">In warranty</span>`;
+}
+
+function prefillFromDelivery(deliveryId) {
+  const d = allDeliveries.find(x => x.id === deliveryId);
+  if (!d) return;
+  openCreateTicketPopup({
+    deliveryId: d.id,
+    phone:    d.phone,
+    name:     d.customer_name,
+    address:  d.address,
+    product:  d.product_name,
+    serial:   d.product_serial_number,
+    type:     "installation"
+  });
+}
+
+function clearSearch() {
+  document.getElementById("globalSearch").value = "";
+  document.getElementById("searchResultsPanel").style.display = "none";
+  document.getElementById("srDeliveries").innerHTML = "";
+  document.getElementById("srTickets").innerHTML    = "";
+}
+
+/* ── ENTER KEY on login ── */
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && document.getElementById("loginScreen").classList.contains("active")) {
+    doLogin();
+  }
+});
+
+/* ── CLOSE POPUPS ON BACKDROP ── */
+["ticketDetailPopup","createTicketPopup"].forEach(id => {
+  document.getElementById(id).addEventListener("click", function(e) {
+    if (e.target === this) this.classList.remove("is-open");
+  });
+});
+
+/* ── EDIT TICKET (open only) ── */
+function openEditTicket(id) {
+  const t = allTickets.find(x => x.id === id);
+  if (!t || t.status !== "open") return;
+
+  // Replace detail content with edit form inline
+  document.getElementById("ticketDetailContent").innerHTML = `
+    <h3 style="margin-bottom:16px;">Edit Ticket</h3>
+    <div class="form-field">
+      <label>Customer Name</label>
+      <input class="form-input" id="et_name" value="${t.customer_name || ""}">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="form-field" style="margin:0;">
+        <label>Phone</label>
+        <input class="form-input" id="et_phone" value="${t.phone || ""}" maxlength="10" inputmode="numeric">
+      </div>
+      <div class="form-field" style="margin:0;">
+        <label>Alternate Phone</label>
+        <input class="form-input" id="et_alt_phone" value="${t.alternate_phone || ""}" maxlength="10" inputmode="numeric">
+      </div>
+    </div>
+    <div class="form-field">
+      <label>Address</label>
+      <input class="form-input" id="et_address" value="${t.address || ""}">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="form-field" style="margin:0;">
+        <label>Product Name</label>
+        <input class="form-input" id="et_product" value="${t.product_name || ""}">
+      </div>
+      <div class="form-field" style="margin:0;">
+        <label>Serial Number</label>
+        <input class="form-input" id="et_serial" value="${t.serial_number || ""}">
+      </div>
+    </div>
+    <div class="form-field">
+      <label>Description</label>
+      <textarea class="form-input" id="et_desc" rows="3" style="resize:vertical;">${t.description || ""}</textarea>
+    </div>
+    <div id="etMsg" style="font-size:13px;font-weight:600;min-height:16px;margin:8px 0;text-align:center;"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+      <button class="btn btn-teal" onclick="submitEditTicket('${t.id}')">
+        <span class="material-symbols-outlined" style="font-size:14px;">save</span> Save
+      </button>
+      <button class="btn btn-gray" onclick="openTicketDetail('${t.id}')">Cancel</button>
+    </div>`;
+}
+
+async function submitEditTicket(id) {
+  const msg = document.getElementById("etMsg");
+  const updates = {
+    customer_name:   document.getElementById("et_name").value.trim(),
+    phone:           document.getElementById("et_phone").value.trim(),
+    alternate_phone: document.getElementById("et_alt_phone").value.trim(),
+    address:         document.getElementById("et_address").value.trim(),
+    product_name:    document.getElementById("et_product").value.trim(),
+    serial_number:   document.getElementById("et_serial").value.trim(),
+    description:     document.getElementById("et_desc").value.trim(),
+  };
+  if (!updates.phone || updates.phone.length !== 10) {
+    msg.style.color = "var(--error)"; msg.textContent = "Valid 10-digit phone required."; return;
+  }
+  msg.style.color = "var(--primary)"; msg.textContent = "Saving…";
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates)
+    });
+    if (!res.ok) { const d = await res.json(); msg.style.color="var(--error)"; msg.textContent=d.error||"Failed."; return; }
+    showToast("✅ Ticket updated");
+    await loadTickets();
+    openTicketDetail(id);
+  } catch(e) { msg.style.color="var(--error)"; msg.textContent="Network error."; }
+}
+
+/* ── DELETE TICKET with reason (open only) ── */
+function confirmDeleteTicket(id) {
+  const t = allTickets.find(x => x.id === id);
+  if (!t) return;
+
+  document.getElementById("ticketDetailContent").innerHTML += `
+    <div id="deleteConfirmBox" style="margin-top:16px;padding:16px;background:rgba(147,0,10,0.15);
+      border:1.5px solid rgba(255,180,171,0.3);border-radius:12px;">
+      <div style="font-size:14px;font-weight:700;color:var(--error);margin-bottom:10px;">⚠ Delete this ticket?</div>
+      <div style="font-size:12px;color:var(--on-surface-variant);margin-bottom:10px;">
+        This will notify admin. This cannot be undone.
+      </div>
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Reason *</label>
+      <input class="form-input" id="deleteReason" placeholder="Why is this ticket being deleted?"
+        style="margin-bottom:10px;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-danger btn-sm" onclick="executeDeleteTicket('${t.id}')">
+          Confirm Delete
+        </button>
+        <button class="btn btn-gray btn-sm" onclick="document.getElementById('deleteConfirmBox').remove()">
+          Cancel
+        </button>
+      </div>
+    </div>`;
+  // Scroll to the confirm box
+  setTimeout(() => document.getElementById("deleteConfirmBox")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+}
+
+async function executeDeleteTicket(id) {
+  const reason = document.getElementById("deleteReason")?.value.trim();
+  if (!reason) { showToast("❌ Reason required"); return; }
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason })
+    });
+    if (!res.ok) { const d = await res.json(); showToast("❌ " + (d.error || "Failed")); return; }
+    showToast("🗑 Ticket deleted");
+    closeTicketDetail();
+    await loadTickets();
+  } catch(e) { showToast("❌ Network error"); }
+}
+
+/* ── SERVICE PUSH TOKEN REGISTRATION (fixed) ── */
+const FIREBASE_CONFIG_SVC = {
+  apiKey:            "AIzaSyBfQlLpHbuRsZ7YKIFBj8Fa5o-HMo0SBrU",
+  authDomain:        "hariom-delivery.firebaseapp.com",
+  projectId:         "hariom-delivery",
+  storageBucket:     "hariom-delivery.firebasestorage.app",
+  messagingSenderId: "60300951507",
+  appId:             "1:60300951507:web:e5d55d0d18dc2000b47926"
+};
+const VAPID_KEY_SVC = "BMiekPX2di-maWY-3KoprJFLy2OVNPiqvjuz9W9mpNDuOPWDMhstKpaja8A2zKkp8XpmKxETbi_3hoMaPVgB0dE";
+
+let _svcMessaging = null;
+
+async function registerServicePush() {
+  try {
+    if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
+
+    // Init Firebase app — avoid duplicate init
+    if (!_svcMessaging) {
+      const app = firebase.apps?.length
+        ? firebase.app()
+        : firebase.initializeApp(FIREBASE_CONFIG_SVC);
+      _svcMessaging = firebase.messaging(app);
+    }
+
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { console.log("[service push] Permission denied"); return; }
+
+    // Register SW
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) {
+      if (r.active && !r.active.scriptURL.includes("firebase-messaging-sw")) await r.unregister();
+    }
+    const reg = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
+    await new Promise(resolve => {
+      if (reg.active) { resolve(); return; }
+      const sw = reg.installing || reg.waiting;
+      if (!sw) { resolve(); return; }
+      sw.addEventListener("statechange", function h() {
+        if (sw.state === "activated") { sw.removeEventListener("statechange", h); resolve(); }
+      });
+    });
+
+    const token = await _svcMessaging.getToken({ vapidKey: VAPID_KEY_SVC, serviceWorkerRegistration: reg });
+    if (!token) { console.warn("[service push] No token returned"); return; }
+
+    await fetch(`${BASE_URL}/saveServicePushToken`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+    console.log("[service push] Token saved ✅");
+
+    // Handle foreground messages
+    _svcMessaging.onMessage(payload => {
+      const { title, body } = payload.notification || {};
+      showToast(`🔔 ${title}: ${body}`);
+    });
+
+  } catch(e) { console.warn("[service push] Registration failed:", e.message); }
+}
+
+/* ── BRAND TRACKING ALARM in ticket detail ── */
+function getBrandTrackingAlarmHtml(ticket) {
+  // Only show alarm when: not resolved, and no tracking number yet
+  if (ticket.status === "resolved") return "";
+  if (ticket.brand_tracking_number) return "";
+  return `
+    <div style="margin:12px 0;padding:12px 14px;background:rgba(245,158,11,0.1);
+      border:1.5px solid rgba(245,158,11,0.3);border-radius:10px;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:18px;">⚠</span>
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:700;color:var(--amber);">Brand Tracking# Not Recorded</div>
+        <div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;">
+          Raise with brand and save the reference number below
+        </div>
+      </div>
+    </div>`;
+}
+</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+</body>
+</html>

@@ -504,6 +504,7 @@
     .badge-failed    { background: rgba(255,180,171,0.15);  color: var(--error); }
     .badge-booked    { background: rgba(129,140,248,0.15);  color: #818cf8; }
     .badge-urgent    { background: rgba(255,180,171,0.12);  color: var(--error); }
+    .badge-selfpickup { background: rgba(78,222,163,0.12); color: var(--tertiary); }
 
     /* Batch row grouping — preserved from original */
     tbody tr.batch-first td { border-top: 2px solid var(--batch-color, rgba(173,198,255,0.3)); padding-top: 14px; }
@@ -1217,11 +1218,24 @@
       <option value="urgent">Urgent</option>
     </select>
 
-    <div class="section-title">Estimated Delivery Time</div>
-    <input type="datetime-local" id="estimated_time">
+    <!-- SELF-PICKUP TOGGLE -->
+    <div class="checkbox-row" style="margin-top:10px;">
+      <input type="checkbox" id="is_self_pickup" onchange="toggleSelfPickup()">
+      <label for="is_self_pickup">🏪 Self Pickup (customer collects from shop)</label>
+    </div>
 
-    <div class="section-title">Assign Driver</div>
-    <select id="driver"></select>
+    <div id="selfPickupWrap" style="display:none;margin-bottom:8px;">
+      <div class="section-title">Expected Pickup Date</div>
+      <input type="date" id="pickup_date" style="width:100%;">
+    </div>
+
+    <div id="normalDeliveryWrap">
+      <div class="section-title">Estimated Delivery Time</div>
+      <input type="datetime-local" id="estimated_time">
+
+      <div class="section-title">Assign Driver</div>
+      <select id="driver"></select>
+    </div>
 
     <div class="checkbox-row">
       <input type="checkbox" id="has_instruction" onchange="toggleInstruction()">
@@ -2137,6 +2151,17 @@ function populateDriverFilterDropdown(deliveries) {
   if ([...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
 }
 
+function toggleSelfPickup() {
+  const checked   = document.getElementById("is_self_pickup").checked;
+  document.getElementById("selfPickupWrap").style.display    = checked ? "" : "none";
+  document.getElementById("normalDeliveryWrap").style.display = checked ? "none" : "";
+  // Reset driver/ETA when switching
+  if (checked) {
+    document.getElementById("driver").value        = "";
+    document.getElementById("estimated_time").value = "";
+  }
+}
+
 function toggleFreight() {
   const input = document.getElementById("freight_amount");
   const checked = document.getElementById("freight_charged").checked;
@@ -2417,11 +2442,12 @@ async function createDelivery() {
   if (btn.disabled) return;
 
   // ── Validate shared fields ──
-  const firstNameEl = document.getElementById("first_name");
-  const phoneEl     = document.getElementById("phone");
-  const addr1El     = document.getElementById("addr1");
-  const driverEl    = document.getElementById("driver");
-  const etaEl       = document.getElementById("estimated_time");
+  const firstNameEl  = document.getElementById("first_name");
+  const phoneEl      = document.getElementById("phone");
+  const addr1El      = document.getElementById("addr1");
+  const driverEl     = document.getElementById("driver");
+  const etaEl        = document.getElementById("estimated_time");
+  const isSelfPickup = document.getElementById("is_self_pickup").checked;
 
   if (!firstNameEl.value.trim()) {
     alert("First name is required"); return;
@@ -2432,14 +2458,16 @@ async function createDelivery() {
   if (!addr1El.value.trim()) {
     alert("Address Line 1 is required"); return;
   }
-  if (!driverEl.value) {
-    alert("Please assign a driver"); return;
-  }
-  if (!etaEl.value) {
-    alert("Estimated delivery time is required"); return;
-  }
-  if (new Date(etaEl.value) < new Date()) {
-    alert("Estimated delivery time cannot be in the past"); return;
+  if (!isSelfPickup) {
+    if (!driverEl.value) {
+      alert("Please assign a driver"); return;
+    }
+    if (!etaEl.value) {
+      alert("Estimated delivery time is required"); return;
+    }
+    if (new Date(etaEl.value) < new Date()) {
+      alert("Estimated delivery time cannot be in the past"); return;
+    }
   }
 
   // ── Collect product items ──
@@ -2541,13 +2569,14 @@ async function createDelivery() {
     alternate_phone:         document.getElementById("alt_phone").value || "",
     address:                 capitalizeWords(fullAddress),
     priority:                document.getElementById("priority").value,
-    estimated_delivery_time: etaEl.value,
-    assigned_driver_id:      driverSel.value,
-    assigned_driver_name:    driverSel.options[driverSel.selectedIndex].text,
+    estimated_delivery_time: isSelfPickup ? (document.getElementById("pickup_date").value || null) : etaEl.value,
+    assigned_driver_id:      isSelfPickup ? "" : driverSel.value,
+    assigned_driver_name:    isSelfPickup ? "" : driverSel.options[driverSel.selectedIndex].text,
     driver_instructions:     hasInstruction ? document.getElementById("instruction").value.trim() : "none",
     freight_charged:         freightCharged,
     freight_amount:          freightCharged ? document.getElementById("freight_amount").value : "",
-    freight_set_by:          freightCharged ? "accountant" : ""
+    freight_set_by:          freightCharged ? "accountant" : "",
+    is_self_pickup:          isSelfPickup
   };
 
   // ── Call server ──
@@ -2643,6 +2672,10 @@ function resetForm() {
   document.getElementById("freight_charged").checked = false;
   document.getElementById("freight_amount").style.display = "none";
   document.getElementById("freight_amount").value = "";
+  // Reset self-pickup
+  document.getElementById("is_self_pickup").checked = false;
+  document.getElementById("selfPickupWrap").style.display = "none";
+  document.getElementById("normalDeliveryWrap").style.display = "";
 
   const cityEl  = document.getElementById("city");
   const stateEl = document.getElementById("state_field");
@@ -2910,6 +2943,7 @@ async function loadDeliveries() {
       <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
       <td>
         <span class="badge badge-${d.status}">${d.status}</span>
+        ${d.is_self_pickup ? `<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>` : ""}
         ${(d.status !== "delivered" && d.status !== "failed" && d.status !== "booked" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < new Date()) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
         ${d.status === "failed" && d.failure_reason ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">${d.failure_reason}</div>` : ""}
       </td>
@@ -3159,6 +3193,20 @@ function openViewPopup(id) {
         <button class="btn btn-danger btn-sm" style="background:#ea580c;" onclick="openReverseDelivery('${delivery.id}')">
           ↩ Reverse This Delivery
         </button>
+      </div>
+      <div style="margin-top:12px;padding:14px;background:rgba(78,222,163,0.07);border:1.5px solid rgba(78,222,163,0.2);border-radius:12px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--tertiary);margin-bottom:10px;">🔧 After-Sales</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-success btn-sm" onclick="raiseServiceTicket('${delivery.id}','installation')">
+            🔧 Raise Installation
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="raiseServiceTicket('${delivery.id}','complaint')">
+            ⚠ Raise Complaint
+          </button>
+          <button class="btn btn-gray btn-sm" onclick="shareDeliveryWA('${delivery.id}')">
+            📲 Share on WhatsApp
+          </button>
+        </div>
       </div>`;
   }
 
@@ -3167,6 +3215,69 @@ function openViewPopup(id) {
 
 function closeViewPopup() {
   document.getElementById("viewPopup").classList.remove("is-open");
+}
+
+/* ── RAISE SERVICE TICKET FROM ACCOUNTANT ── */
+async function raiseServiceTicket(deliveryId, type) {
+  const delivery = currentAccountantData.find(d => d.id === deliveryId);
+  if (!delivery) return;
+
+  let description = "";
+  if (type === "complaint") {
+    description = prompt("Briefly describe the complaint:");
+    if (!description || !description.trim()) { alert("Description required for complaints."); return; }
+  }
+
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        linked_delivery_id: deliveryId,
+        customer_name:  delivery.customer_name,
+        phone:          delivery.phone,
+        address:        delivery.address,
+        product_name:   delivery.product_name,
+        serial_number:  delivery.product_serial_number,
+        description:    description || ""
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Failed to raise ticket."); return; }
+    alert(`✅ ${type === "installation" ? "Installation" : "Complaint"} ticket raised successfully!`);
+  } catch (e) {
+    alert("Network error. Please try again.");
+  }
+}
+
+/* ── WHATSAPP SHARE FROM ACCOUNTANT ── */
+function shareDeliveryWA(deliveryId) {
+  const d = currentAccountantData.find(x => x.id === deliveryId);
+  if (!d) return;
+  const delivDate = d.delivered_timestamp?.seconds
+    ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
+    : "—";
+  const name  = (d.product_name || "").toUpperCase();
+  const years = /\bWM\b|WASHING/.test(name) ? 2 : 1;
+  const expiryDate = d.delivered_timestamp?.seconds
+    ? new Date(d.delivered_timestamp.seconds * 1000 + years * 365.25 * 24 * 3600 * 1000)
+        .toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
+    : "—";
+  const msg = encodeURIComponent(
+`🏪 Hariom Electronics
+━━━━━━━━━━━━━━
+👤 Customer: ${d.customer_name || "—"}
+📞 Phone: ${d.phone || "—"}
+📍 Address: ${d.address || "—"}
+📦 Product: ${d.product_name || "—"}
+🔑 Serial: ${d.product_serial_number || "—"}
+📅 Delivered: ${delivDate}
+🛡 Warranty till: ${expiryDate}
+━━━━━━━━━━━━━━
+Hariom Electronics, Pune`
+  );
+  window.open("https://wa.me/?text=" + msg, "_blank");
 }
 
 /* ── REVERSE DELIVERY (Option A) ── */

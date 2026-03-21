@@ -1254,17 +1254,45 @@
       Storage
     </button>
 
+    <button class="sidebar-item" id="nav-service-count" onclick="showView('service-count')">
+      <span class="material-symbols-outlined">build_circle</span>
+      Service Tickets
+    </button>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Manage</div>
+
+    <button class="sidebar-item" id="nav-staff" onclick="showView('staff')">
+      <span class="material-symbols-outlined">badge</span>
+      Staff
+    </button>
+
+    <button class="sidebar-item" id="nav-brands" onclick="showView('brands')">
+      <span class="material-symbols-outlined">store</span>
+      Brands
+    </button>
+
+    <a class="sidebar-item" href="drivers.html">
+      <span class="material-symbols-outlined">manage_accounts</span>
+      Drivers
+    </a>
+
+    <button class="sidebar-item" id="nav-permissions" onclick="showView('permissions')">
+      <span class="material-symbols-outlined">tune</span>
+      Staff Permissions
+    </button>
+
+    <button class="sidebar-item" id="nav-leads-admin" onclick="showView('leads-admin')">
+      <span class="material-symbols-outlined">contacts</span>
+      Leads
+    </button>
+
     <div class="sidebar-divider"></div>
     <div class="sidebar-section-label">Navigate</div>
 
     <a class="sidebar-item" href="accountant.html">
       <span class="material-symbols-outlined">receipt_long</span>
       Accountant
-    </a>
-
-    <a class="sidebar-item" href="drivers.html">
-      <span class="material-symbols-outlined">manage_accounts</span>
-      Drivers
     </a>
 
     <a class="sidebar-item" id="tagPrintLink"
@@ -1537,6 +1565,67 @@
       </div>
     </section>
 
+    <!-- ════ VIEW: SERVICE TICKETS COUNT ════ -->
+    <section id="view-service-count" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Service Tickets</div>
+          <div class="section-subtitle">Overview of all complaints and installations</div>
+        </div>
+        <button onclick="loadServiceCount()" style="padding:8px 14px;font-size:12px;font-weight:700;border:none;border-radius:9px;cursor:pointer;background:var(--surface-container-highest);color:var(--on-surface-variant);">↻ Refresh</button>
+      </div>
+
+      <!-- Stat cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:24px;">
+        <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
+          <div id="sc-open" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--primary);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Open</div>
+        </div>
+        <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
+          <div id="sc-assigned" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--amber);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Assigned</div>
+        </div>
+        <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
+          <div id="sc-inprogress" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:#818cf8;">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">In Progress</div>
+        </div>
+        <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
+          <div id="sc-resolved" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--tertiary);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Resolved</div>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar" style="margin-bottom:14px;">
+        <button class="filter-btn activeFilter" onclick="setSCFilter('all',this)">All</button>
+        <button class="filter-btn" onclick="setSCFilter('complaint',this)">Complaints</button>
+        <button class="filter-btn" onclick="setSCFilter('installation',this)">Installations</button>
+        <button class="filter-btn" onclick="setSCFilter('open',this)">Open</button>
+        <button class="filter-btn" onclick="setSCFilter('assigned',this)">Assigned</button>
+        <button class="filter-btn" onclick="setSCFilter('in_progress',this)">In Progress</button>
+        <button class="filter-btn" onclick="setSCFilter('resolved',this)">Resolved</button>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Customer</th>
+              <th>Product</th>
+              <th>Date</th>
+              <th>Brand Tracking#</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="scTableBody">
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ════ VIEW: MAP ════ -->
     <section id="view-map" style="display:none;">
       <div class="section-heading">
@@ -1592,7 +1681,201 @@
       <div id="mapLeaflet"></div>
     </section>
 
+    <!-- ════ VIEW: STAFF ════ -->
+    <section id="view-staff" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Manage Staff</div>
+          <div class="section-subtitle">Staff members and service accounts</div>
+        </div>
+        <button onclick="openAddStaffModal()" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-radius:10px;cursor:pointer;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);">+ Add Staff</button>
+      </div>
+
+      <!-- Add form -->
+      <div id="addStaffForm" style="display:none;background:var(--surface-container-low);border-radius:16px;padding:20px;margin-bottom:20px;border:1px solid var(--outline-variant);">
+        <div style="font-size:14px;font-weight:700;color:var(--on-surface);margin-bottom:16px;">New Staff Member</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div>
+            <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Name *</label>
+            <input id="sName" placeholder="Full name" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Role *</label>
+            <select id="sRole" onchange="onStaffRoleChange()" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;">
+              <option value="staff">Staff (PIN login)</option>
+              <option value="service">Service (Email login)</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Phone Number</label>
+          <input id="sPhone" placeholder="10-digit mobile" maxlength="10" inputmode="numeric" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+        </div>
+        <div id="staffPinFields">
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">6-Digit PIN *</label>
+          <input id="sPin" placeholder="6 digits" maxlength="6" inputmode="numeric" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:12px;">
+        </div>
+        <div id="staffEmailFields" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div>
+              <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Email *</label>
+              <input id="sEmail" type="email" placeholder="service@hariom.in" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Password *</label>
+              <input id="sPassword" type="password" placeholder="Min 6 characters" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+            </div>
+          </div>
+        </div>
+        <div id="staffFormMsg" style="font-size:12px;font-weight:600;min-height:16px;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:10px;">
+          <button onclick="submitAddStaff()" style="padding:9px 20px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Save</button>
+          <button onclick="document.getElementById('addStaffForm').style.display='none'" style="padding:9px 16px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Email</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <tbody id="staffTableBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════ VIEW: BRANDS ════ -->
+    <section id="view-brands" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Brand Management</div>
+          <div class="section-subtitle">Installation methods per brand</div>
+        </div>
+        <button onclick="openAddBrandForm()" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-radius:10px;cursor:pointer;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);">+ Add Brand</button>
+      </div>
+
+      <!-- Brand form -->
+      <div id="brandForm" style="display:none;background:var(--surface-container-low);border-radius:16px;padding:20px;margin-bottom:20px;border:1px solid var(--outline-variant);">
+        <input type="hidden" id="bEditId">
+        <div style="font-size:14px;font-weight:700;color:var(--on-surface);margin-bottom:16px;" id="brandFormTitle">New Brand</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div>
+            <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Brand Name *</label>
+            <input id="bName" placeholder="Samsung, LG, Whirlpool..." style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Installation Method *</label>
+            <select id="bMethod" onchange="onBrandMethodChange()" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;">
+              <option value="form">Online Form</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="call">Phone Call</option>
+            </select>
+          </div>
+        </div>
+        <div id="bFormUrlWrap" style="margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Form URL</label>
+          <input id="bFormUrl" placeholder="https://..." style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+        </div>
+        <div id="bWaWrap" style="display:none;margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">WhatsApp Number (with country code)</label>
+          <input id="bWaNumber" placeholder="919876543210" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+        </div>
+        <div id="bCallWrap" style="display:none;margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Call Number</label>
+          <input id="bCallNumber" placeholder="1800XXXXXXX" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Message Template</label>
+          <input id="bTemplate" placeholder="Use {product} {serial} {customer} {phone} {address}" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Notes</label>
+          <input id="bNotes" placeholder="Any special instructions..." style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+        </div>
+        <div id="brandFormMsg" style="font-size:12px;font-weight:600;min-height:16px;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:10px;">
+          <button onclick="submitBrandForm()" style="padding:9px 20px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Save Brand</button>
+          <button onclick="closeBrandForm()" style="padding:9px 16px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Brand</th><th>Method</th><th>Contact / URL</th><th>Template</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="brandsTableBody"><tr><td colspan="6" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════ VIEW: STAFF PERMISSIONS ════ -->
+    <section id="view-permissions" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Staff Permissions</div>
+          <div class="section-subtitle">Control what staff can see in their delivery view</div>
+        </div>
+        <button onclick="savePermissions()" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-radius:10px;cursor:pointer;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);">Save Changes</button>
+      </div>
+      <div style="background:var(--surface-container-low);border-radius:16px;padding:24px;max-width:600px;">
+        <div style="font-size:12px;color:var(--on-surface-variant);margin-bottom:18px;">These toggles control what a staff member sees when they tap a delivery card in their panel.</div>
+        <div id="permToggles"></div>
+        <div id="permMsg" style="font-size:13px;font-weight:600;min-height:16px;margin-top:12px;"></div>
+      </div>
+    </section>
+
+    <!-- ════ VIEW: LEADS (ADMIN) ════ -->
+    <section id="view-leads-admin" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Leads Pipeline</div>
+          <div class="section-subtitle">All leads from staff — update quotes and follow-up notes</div>
+        </div>
+      </div>
+
+      <!-- Modern search + filter row -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+        <div style="position:relative;flex:1;min-width:200px;">
+          <span class="material-symbols-outlined" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--on-surface-variant);pointer-events:none;">search</span>
+          <input id="leadAdminSearch"
+            placeholder="Search name, phone or product…"
+            oninput="renderLeadsAdmin()"
+            style="width:100%;height:42px;padding:0 14px 0 38px;background:var(--surface-container-high);
+              border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;
+              color:var(--on-surface);outline:none;transition:box-shadow 0.2s;"
+            onfocus="this.style.boxShadow='0 0 0 2px var(--primary)'"
+            onblur="this.style.boxShadow=''">
+        </div>
+        <div class="filter-bar" style="margin:0;flex-wrap:nowrap;">
+          <button class="filter-btn activeFilter" onclick="setLeadFilter('all',this)">All</button>
+          <button class="filter-btn" onclick="setLeadFilter('open',this)">Open</button>
+          <button class="filter-btn" onclick="setLeadFilter('followup',this)">Follow Up</button>
+          <button class="filter-btn" onclick="setLeadFilter('converted',this)">Converted</button>
+          <button class="filter-btn" onclick="setLeadFilter('lost',this)">Lost</button>
+          <button class="filter-btn" onclick="setLeadFilter('expiring',this)">⚠ Expiring</button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer</th><th>Phone</th><th>Products</th><th>Admin Quote</th>
+              <th>Status</th><th>Expiry</th><th>By</th><th>Follow-up</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="leadsAdminBody"></tbody>
+        </table>
+      </div>
+    </section>
+
   </div><!-- /.content -->
+
+  <!-- LEAD DETAIL POPUP (admin) -->
+  <div class="popup-overlay" id="leadAdminPopup" style="display:none;">
+    <div class="popup-card" style="max-width:560px;">
+      <div id="leadAdminPopupContent"></div>
+      <div class="popup-actions" id="leadAdminPopupActions" style="margin-top:16px;"></div>
+    </div>
+  </div>
 </div><!-- /.main-wrap -->
 
 <!-- DETAIL POPUP -->
@@ -1628,14 +1911,19 @@ function openTagPrint(e) {
 
 /* ════ VIEW SWITCHER ════ */
 const VIEW_LABELS = {
-  deliveries: 'Delivery Operations',
-  payout:     'Payout & Settlement',
-  storage:    'Storage Management',
-  map:        'Driver Map View'
+  deliveries:      'Delivery Operations',
+  payout:          'Payout & Settlement',
+  storage:         'Storage Management',
+  'service-count': 'Service Tickets',
+  map:             'Driver Map View',
+  staff:           'Manage Staff',
+  brands:          'Brand Management',
+  permissions:     'Staff Permissions',
+  'leads-admin':   'Leads Pipeline'
 };
 
 function showView(view) {
-  ['deliveries','payout','storage','map'].forEach(v => {
+  ['deliveries','payout','storage','service-count','map','staff','brands','permissions','leads-admin'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.style.display = v === view ? '' : 'none';
     const nav = document.getElementById('nav-' + v);
@@ -1644,10 +1932,14 @@ function showView(view) {
   const lbl = document.getElementById('topbarViewLabel');
   if (lbl) lbl.textContent = VIEW_LABELS[view] || '';
 
-  // Auto-load data for panel views
-  if (view === 'payout') { loadPayoutDrivers(); }
-  if (view === 'storage') { loadStorageStats(); }
-  if (view === 'map')     { initMapView(); }
+  if (view === 'payout')          { loadPayoutDrivers(); }
+  if (view === 'storage')         { loadStorageStats(); }
+  if (view === 'service-count')   { loadServiceCount(); }
+  if (view === 'map')             { initMapView(); }
+  if (view === 'staff')           { loadStaff(); }
+  if (view === 'brands')          { loadBrands(); }
+  if (view === 'permissions')     { loadPermissions(); }
+  if (view === 'leads-admin')     { loadLeadsAdmin(); }
 }
 </script>
 
@@ -3379,5 +3671,528 @@ function buildPopup(d, stopNum, color, type) {
 }
 </script>
 
+
+<script>
+/* STAFF MANAGEMENT */
+function openAddStaffModal(){
+  ['sName','sPin','sEmail','sPassword'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('sRole').value='staff';
+  document.getElementById('staffFormMsg').textContent='';
+  onStaffRoleChange();
+  document.getElementById('addStaffForm').style.display='';
+  document.getElementById('sName').focus();
+}
+function onStaffRoleChange(){
+  const r=document.getElementById('sRole').value;
+  document.getElementById('staffPinFields').style.display=r==='staff'?'':'none';
+  document.getElementById('staffEmailFields').style.display=r==='service'?'':'none';
+}
+async function submitAddStaff(){
+  const msg=document.getElementById('staffFormMsg');
+  const name=document.getElementById('sName').value.trim();
+  const role=document.getElementById('sRole').value;
+  const phone=document.getElementById('sPhone')?.value.trim()||'';
+  if(!name){msg.style.color='var(--error)';msg.textContent='Name required.';return;}
+  const p={name,role,phone};
+  if(role==='staff'){
+    const pin=document.getElementById('sPin').value.trim();
+    if(!/^\d{6}$/.test(pin)){msg.style.color='var(--error)';msg.textContent='PIN must be 6 digits.';return;}
+    p.pin=pin;
+  }else{
+    const email=document.getElementById('sEmail').value.trim();
+    const pass=document.getElementById('sPassword').value;
+    if(!email||!pass){msg.style.color='var(--error)';msg.textContent='Email and password required.';return;}
+    if(pass.length<6){msg.style.color='var(--error)';msg.textContent='Password min 6 chars.';return;}
+    p.email=email;p.password=pass;
+  }
+  msg.style.color='var(--primary)';msg.textContent='Saving...';
+  try{
+    const res=await authFetch(`${BASE_URL}/addStaff`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+    const data=await res.json();
+    if(!res.ok){msg.style.color='var(--error)';msg.textContent=data.error||'Failed.';return;}
+    msg.style.color='var(--tertiary)';msg.textContent='Staff added!';
+    setTimeout(()=>{document.getElementById('addStaffForm').style.display='none';loadStaff();},800);
+  }catch(e){msg.style.color='var(--error)';msg.textContent='Network error.';}
+}
+async function loadStaff(){
+  const tb=document.getElementById('staffTableBody');if(!tb)return;
+  tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
+  try{
+    const res=await authFetch(`${BASE_URL}/staff`);
+    const staff=await res.json();
+    if(!staff.length){tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No staff members yet</td></tr>';return;}
+    tb.innerHTML=staff.map(s=>{
+      const dt=s.created_at?.seconds?new Date(s.created_at.seconds*1000).toLocaleDateString('en-IN'):'--';
+      const ab=s.active===false
+        ?`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">Inactive</span>`
+        :`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.15);color:var(--tertiary);">Active</span>`;
+      const rb=s.role==='service'
+        ?`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.12);color:var(--tertiary);">Service</span>`
+        :`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.15);color:var(--primary);">Staff</span>`;
+      return `<tr>
+        <td style="font-weight:700;">${s.name}</td>
+        <td style="font-size:12px;color:var(--on-surface-variant);">${s.phone||'--'}</td>
+        <td>${rb}</td>
+        <td style="font-size:12px;color:var(--on-surface-variant);">${s.email||'--'}</td>
+        <td>${ab}</td><td style="font-size:12px;color:var(--on-surface-variant);">${dt}</td>
+        <td style="white-space:nowrap;">
+          <button onclick="toggleStaffActive('${s.id}',${s.active!==false})" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:6px;background:${s.active===false?'rgba(78,222,163,0.12)':'rgba(255,180,171,0.1)'};color:${s.active===false?'var(--tertiary)':'var(--error)'};">${s.active===false?'Activate':'Deactivate'}</button>
+          <button onclick="resetStaffCredential('${s.id}','${s.role}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(173,198,255,0.1);color:var(--primary);">Reset</button>
+        </td></tr>`;
+    }).join('');
+  }catch(e){tb.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>`;}
+}
+async function toggleStaffActive(id,active){
+  try{await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:!active})});loadStaff();}
+  catch(e){alert('Failed.');}
+}
+async function resetStaffCredential(id,role){
+  if(role==='staff'){
+    const pin=prompt('New 6-digit PIN:');
+    if(!pin||!/^\d{6}$/.test(pin)){alert('6 digits required.');return;}
+    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});if(r.ok)alert('PIN updated!');}catch(e){alert('Error.');}
+  }else{
+    const pw=prompt('New password (min 6):');
+    if(!pw||pw.length<6){alert('Min 6 chars.');return;}
+    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});if(r.ok)alert('Password updated!');}catch(e){alert('Error.');}
+  }
+}
+
+/* BRANDS MANAGEMENT */
+function openAddBrandForm(){
+  document.getElementById('bEditId').value='';
+  document.getElementById('brandFormTitle').textContent='New Brand';
+  ['bName','bFormUrl','bWaNumber','bCallNumber','bTemplate','bNotes'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('bMethod').value='form';
+  document.getElementById('brandFormMsg').textContent='';
+  onBrandMethodChange();
+  document.getElementById('brandForm').style.display='';
+  document.getElementById('bName').focus();
+}
+function closeBrandForm(){document.getElementById('brandForm').style.display='none';}
+function onBrandMethodChange(){
+  const m=document.getElementById('bMethod').value;
+  document.getElementById('bFormUrlWrap').style.display=m==='form'?'':'none';
+  document.getElementById('bWaWrap').style.display=m==='whatsapp'?'':'none';
+  document.getElementById('bCallWrap').style.display=m==='call'?'':'none';
+}
+async function submitBrandForm(){
+  const msg=document.getElementById('brandFormMsg');
+  const editId=document.getElementById('bEditId').value;
+  const name=document.getElementById('bName').value.trim();
+  const method=document.getElementById('bMethod').value;
+  if(!name){msg.style.color='var(--error)';msg.textContent='Brand name required.';return;}
+  const p={name,installation_method:method,
+    form_url:document.getElementById('bFormUrl').value.trim(),
+    whatsapp_number:document.getElementById('bWaNumber').value.trim(),
+    call_number:document.getElementById('bCallNumber').value.trim(),
+    message_template:document.getElementById('bTemplate').value.trim(),
+    notes:document.getElementById('bNotes').value.trim()};
+  msg.style.color='var(--primary)';msg.textContent='Saving...';
+  try{
+    const url=editId?`${BASE_URL}/brands/${editId}`:`${BASE_URL}/brands`;
+    const res=await authFetch(url,{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+    const data=await res.json();
+    if(!res.ok){msg.style.color='var(--error)';msg.textContent=data.error||'Failed.';return;}
+    msg.style.color='var(--tertiary)';msg.textContent=editId?'Brand updated!':'Brand added!';
+    setTimeout(()=>{closeBrandForm();loadBrands();},700);
+  }catch(e){msg.style.color='var(--error)';msg.textContent='Network error.';}
+}
+async function loadBrands(){
+  const tb=document.getElementById('brandsTableBody');if(!tb)return;
+  tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
+  try{
+    const res=await authFetch(`${BASE_URL}/brands`);
+    const brands=await res.json();
+    if(!brands.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No brands configured yet.</td></tr>';return;}
+    tb.innerHTML=brands.map(b=>{
+      const mb={'form':`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.15);color:var(--primary);">Form</span>`,
+        'whatsapp':`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.15);color:var(--tertiary);">WhatsApp</span>`,
+        'call':`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(245,158,11,0.15);color:var(--amber);">Call</span>`}[b.installation_method]||b.installation_method;
+      const ct=b.installation_method==='form'?(b.form_url?`<a href="${b.form_url}" target="_blank" style="color:var(--primary);font-size:12px;">Open</a>`:'--'):b.installation_method==='whatsapp'?(b.whatsapp_number||'--'):(b.call_number||'--');
+      return `<tr><td style="font-weight:700;">${b.name}</td><td>${mb}</td><td style="font-size:12px;">${ct}</td>
+        <td style="font-size:11px;color:var(--on-surface-variant);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${b.message_template||''}">${b.message_template||'--'}</td>
+        <td style="font-size:11px;color:var(--on-surface-variant);">${b.notes||'--'}</td>
+        <td style="white-space:nowrap;">
+          <button onclick="editBrand('${b.id}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:6px;background:rgba(173,198,255,0.1);color:var(--primary);">Edit</button>
+          <button onclick="deleteBrand('${b.id}','${b.name}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(255,180,171,0.1);color:var(--error);">Delete</button>
+        </td></tr>`;
+    }).join('');
+  }catch(e){tb.innerHTML=`<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>`;}
+}
+async function editBrand(id){
+  try{
+    const res=await authFetch(`${BASE_URL}/brands`);const brands=await res.json();const b=brands.find(x=>x.id===id);if(!b)return;
+    document.getElementById('bEditId').value=b.id;document.getElementById('brandFormTitle').textContent='Edit Brand';
+    document.getElementById('bName').value=b.name||'';document.getElementById('bMethod').value=b.installation_method||'form';
+    document.getElementById('bFormUrl').value=b.form_url||'';document.getElementById('bWaNumber').value=b.whatsapp_number||'';
+    document.getElementById('bCallNumber').value=b.call_number||'';document.getElementById('bTemplate').value=b.message_template||'';
+    document.getElementById('bNotes').value=b.notes||'';document.getElementById('brandFormMsg').textContent='';
+    onBrandMethodChange();document.getElementById('brandForm').style.display='';
+    document.getElementById('brandForm').scrollIntoView({behavior:'smooth'});
+  }catch(e){alert('Failed to load brand.');}
+}
+async function deleteBrand(id,name){
+  if(!confirm(`Delete brand "${name}"?`))return;
+  try{await authFetch(`${BASE_URL}/brands/${id}`,{method:'DELETE'});loadBrands();}catch(e){alert('Failed.');}
+}
+
+/* RAISE SERVICE TICKET + WA SHARE FROM ADMIN */
+async function raiseServiceTicket(deliveryId,type){
+  let desc='';
+  if(type==='complaint'){desc=prompt('Describe the complaint:');if(!desc||!desc.trim()){alert('Description required.');return;}}
+  try{
+    const dr=await authFetch(`${BASE_URL}/delivery/${deliveryId}`);const d=await dr.json();
+    const res=await authFetch(`${BASE_URL}/service/ticket`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type,linked_delivery_id:deliveryId,customer_name:d.customer_name,phone:d.phone,
+        address:d.address,product_name:d.product_name,serial_number:d.product_serial_number,description:desc||''})});
+    const data=await res.json();
+    if(!res.ok){alert(data.error||'Failed.');return;}
+    alert((type==='installation'?'Installation':'Complaint')+' ticket raised!');
+  }catch(e){alert('Network error.');}
+}
+function shareDeliveryWA(deliveryId){
+  authFetch(`${BASE_URL}/delivery/${deliveryId}`).then(r=>r.json()).then(d=>{
+    const dd=d.delivered_timestamp?.seconds?new Date(d.delivered_timestamp.seconds*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'--';
+    const yr=/\bWM\b|WASHING/.test((d.product_name||'').toUpperCase())?2:1;
+    const ed=d.delivered_timestamp?.seconds?new Date(d.delivered_timestamp.seconds*1000+yr*365.25*24*3600*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'--';
+    const m=encodeURIComponent(`Hariom Electronics\n---\nCustomer: ${d.customer_name||'--'}\nPhone: ${d.phone||'--'}\nAddress: ${d.address||'--'}\nProduct: ${d.product_name||'--'}\nSerial: ${d.product_serial_number||'--'}\nDelivered: ${dd}\nWarranty till: ${ed}\n---\nHariom Electronics, Pune`);
+    window.open('https://wa.me/?text='+m,'_blank');
+  }).catch(()=>alert('Failed.'));
+}
+</script>
+
+
+<script>
+/* STAFF PERMISSIONS */
+const PERM_DEFS = [
+  { key:'show_phone',           label:'Phone Number' },
+  { key:'show_address',         label:'Address' },
+  { key:'show_serial',          label:'Serial Number' },
+  { key:'show_driver',          label:'Assigned Driver' },
+  { key:'show_freight',         label:'Freight Details' },
+  { key:'show_invoice',         label:'Invoice Number' },
+  { key:'show_loaded_photo',    label:'Loaded Photo' },
+  { key:'show_delivered_photo', label:'Delivered Photo' },
+  { key:'show_warranty',        label:'Warranty Badge' },
+  { key:'show_whatsapp_share',  label:'WhatsApp Share Button' },
+  { key:'show_raise_ticket',    label:'Raise Ticket Buttons' },
+];
+let currentPerms = {};
+
+async function loadPermissions() {
+  try {
+    const res = await authFetch(`${BASE_URL}/staff-permissions`);
+    currentPerms = await res.json();
+    renderPermToggles();
+  } catch(e) { console.error('loadPermissions:', e.message); }
+}
+
+function renderPermToggles() {
+  const el = document.getElementById('permToggles');
+  if (!el) return;
+  el.innerHTML = PERM_DEFS.map(d => {
+    const on = currentPerms[d.key] !== false;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;font-weight:600;color:var(--on-surface);">${d.label}</span>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="perm_${d.key}" ${on?'checked':''} style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
+        <span style="font-size:12px;color:var(--on-surface-variant);">${on?'Visible':'Hidden'}</span>
+      </label>
+    </div>`;
+  }).join('');
+}
+
+async function savePermissions() {
+  const msg = document.getElementById('permMsg');
+  const payload = {};
+  PERM_DEFS.forEach(d => { payload[d.key] = document.getElementById('perm_'+d.key)?.checked !== false; });
+  try {
+    const res = await authFetch(`${BASE_URL}/staff-permissions`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    if (res.ok) { msg.style.color='var(--tertiary)'; msg.textContent='Saved!'; setTimeout(()=>msg.textContent='',2000); }
+    else { msg.style.color='var(--error)'; msg.textContent='Failed to save.'; }
+  } catch(e) { msg.style.color='var(--error)'; msg.textContent='Network error.'; }
+}
+
+/* LEADS ADMIN */
+let allLeadsAdmin = [];
+let leadAdminFilter = 'all';
+
+async function loadLeadsAdmin() {
+  try {
+    const res = await authFetch(`${BASE_URL}/leads`);
+    allLeadsAdmin = await res.json();
+    renderLeadsAdmin();
+  } catch(e) { console.error('loadLeadsAdmin:', e.message); }
+}
+
+function setLeadFilter(f, btn) {
+  leadAdminFilter = f;
+  document.querySelectorAll('#view-leads-admin .filter-btn').forEach(b => b.classList.toggle('activeFilter', b === btn));
+  renderLeadsAdmin();
+}
+
+function renderLeadsAdmin() {
+  const tbody = document.getElementById('leadsAdminBody');
+  if (!tbody) return;
+  const q   = (document.getElementById('leadAdminSearch')?.value || '').toLowerCase();
+  const now = Date.now();
+  const ss  = {
+    open:      {bg:'rgba(173,198,255,0.15)',cl:'var(--primary)'},
+    followup:  {bg:'rgba(245,158,11,0.15)', cl:'var(--amber)'},
+    converted: {bg:'rgba(78,222,163,0.15)', cl:'var(--tertiary)'},
+    lost:      {bg:'rgba(255,180,171,0.15)',cl:'var(--error)'}
+  };
+
+  let leads = allLeadsAdmin.filter(l => {
+    if (q) {
+      const hay = [l.customer_name,l.phone,l.product_interest,...(l.products||[]).map(p=>p.product_name)].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (leadAdminFilter === 'expiring') {
+      const d = l.expires_at?.seconds ? Math.ceil((l.expires_at.seconds*1000-now)/(24*3600*1000)) : 99;
+      return d <= 2 && d >= 0;
+    }
+    if (leadAdminFilter !== 'all') return l.status === leadAdminFilter;
+    return true;
+  });
+
+  if (!leads.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No leads found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = leads.map(l => {
+    const prodSummary = l.products?.length > 1
+      ? `${l.products[0].product_name} <span style="color:var(--primary);font-weight:700;">+${l.products.length-1}</span>`
+      : (l.product_interest||'--');
+    const adminPrice = l.admin_quoted_price!=null
+      ? `<span style="color:var(--tertiary);font-weight:700;">₹${l.admin_quoted_price}</span>`
+      : `<span style="color:var(--on-surface-variant);">₹${l.quoted_price||0}</span>`;
+    const days = l.expires_at?.seconds ? Math.ceil((l.expires_at.seconds*1000-now)/(24*3600*1000)) : null;
+    const exp  = days===null?'--':days<0?`<span style="color:var(--error)">Expired</span>`
+               : days<=2?`<span style="color:var(--amber)">⚠ ${days}d</span>` : days+'d';
+    const s = ss[l.status]||{bg:'transparent',cl:'var(--on-surface)'};
+    return `<tr style="cursor:pointer;" onclick="openLeadAdminPopup('${l.id}')">
+      <td style="font-weight:700;">${l.customer_name||'--'}</td>
+      <td style="font-size:12px;">${l.phone||'--'}</td>
+      <td style="font-size:12px;">${prodSummary}</td>
+      <td>${adminPrice}</td>
+      <td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:${s.bg};color:${s.cl};">${l.status}</span></td>
+      <td style="font-size:12px;">${exp}</td>
+      <td style="font-size:11px;color:var(--on-surface-variant);">${l.created_by_name||'--'}</td>
+      <td style="font-size:12px;color:var(--amber);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.followup_note||'--'}</td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap;">
+        <button onclick="openLeadAdminPopup('${l.id}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(173,198,255,0.1);color:var(--primary);margin-right:4px;">View</button>
+        <button onclick="openLeadAdminPopup('${l.id}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(78,222,163,0.1);color:var(--tertiary);margin-right:4px;">Edit</button>
+        <button onclick="deleteLead('${l.id}','${(l.customer_name||l.phone||'').replace(/'/g,"\\'")}',event)" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(255,180,171,0.1);color:var(--error);">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openLeadAdminPopup(id) {
+  const l = allLeadsAdmin.find(x=>x.id===id);
+  if (!l) return;
+  const now = Date.now();
+  const createdDate = l.created_at?.seconds
+    ? new Date(l.created_at.seconds*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '--';
+  const expiryDate  = l.expires_at?.seconds
+    ? new Date(l.expires_at.seconds*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '--';
+  const days = l.expires_at?.seconds ? Math.ceil((l.expires_at.seconds*1000-now)/(24*3600*1000)) : null;
+  const ss   = {open:'background:rgba(173,198,255,0.15);color:var(--primary)',followup:'background:rgba(245,158,11,0.15);color:var(--amber)',converted:'background:rgba(78,222,163,0.15);color:var(--tertiary)',lost:'background:rgba(255,180,171,0.15);color:var(--error)'};
+
+  const prodsHtml = l.products?.length
+    ? `<div style="background:var(--surface-container);border-radius:10px;padding:10px;margin-top:4px;">
+        ${l.products.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);"><span>${p.product_name}</span><span style="font-weight:700;">₹${p.quoted_price||0}</span></div>`).join('')}
+        ${l.admin_quoted_price!=null?`<div style="padding-top:8px;font-size:12px;color:var(--tertiary);font-weight:700;">Admin revised: ₹${l.admin_quoted_price}</div>`:''}
+      </div>`
+    : `₹${l.admin_quoted_price??l.quoted_price??0} — ${l.product_interest||'--'}`;
+
+  const dr = (lbl,val) => `<div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;align-items:flex-start;"><span style="min-width:100px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--on-surface-variant);padding-top:2px;flex-shrink:0;">${lbl}</span><span style="flex:1;">${val}</span></div>`;
+
+  document.getElementById('leadAdminPopupContent').innerHTML = `
+    <h3 style="font-size:20px;font-weight:900;letter-spacing:-0.3px;color:var(--on-surface);margin-bottom:8px;">${l.customer_name||'--'}</h3>
+    <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;">
+      <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;${ss[l.status]||''}">${l.status}</span>
+      ${days!==null&&days<=2?`<span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(245,158,11,0.15);color:var(--amber);">⚠ ${days<0?'Expired':days+'d left'}</span>`:''}
+    </div>
+    <div style="border-top:1px solid var(--border);">
+      ${dr('Phone',`<a href="tel:${l.phone}" style="color:var(--primary);font-weight:700;text-decoration:none;">${l.phone||'--'}</a>${l.alternate_phone?' / '+l.alternate_phone:''}`)}
+      ${dr('Products',prodsHtml)}
+      ${l.remarks?dr('Remarks',l.remarks):''}
+      ${l.followup_note?dr('Follow-up',`<span style="color:var(--amber);font-weight:600;">${l.followup_note}</span>`):''}
+      ${dr('Added by',`${l.created_by_name||'--'} · ${createdDate}`)}
+      ${dr('Expires',expiryDate)}
+    </div>
+    <div style="margin-top:16px;padding:14px;background:var(--surface-container);border-radius:12px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--on-surface-variant);margin-bottom:10px;">Update Lead</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:4px;">Revised Price (₹)</label>
+          <input id="laRevPrice" type="number" value="${l.admin_quoted_price??''}" placeholder="Amount"
+            style="width:100%;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:4px;">Status</label>
+          <select id="laStatus" style="width:100%;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;">
+            <option value="open"      ${l.status==='open'?'selected':''}>Open</option>
+            <option value="followup"  ${l.status==='followup'?'selected':''}>Follow Up</option>
+            <option value="converted" ${l.status==='converted'?'selected':''}>Converted</option>
+            <option value="lost"      ${l.status==='lost'?'selected':''}>Lost</option>
+          </select>
+        </div>
+      </div>
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:4px;">Follow-up Note</label>
+      <input id="laNote" value="${l.followup_note||''}" placeholder="Add a note for the staff..."
+        style="width:100%;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:10px;">
+      <div id="laMsg" style="font-size:12px;font-weight:600;min-height:14px;margin-bottom:8px;"></div>
+      <button onclick="saveLeadAdminUpdate('${l.id}')"
+        style="padding:9px 20px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">
+        Save Changes
+      </button>
+    </div>`;
+
+  document.getElementById('leadAdminPopupActions').innerHTML =
+    `<button onclick="closeLeadAdminPopup()" style="padding:9px 16px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Close</button>`;
+
+  const pop = document.getElementById('leadAdminPopup');
+  pop.style.cssText = 'display:flex;align-items:flex-end;justify-content:center;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:200;overflow-y:auto;padding:30px 16px;';
+}
+
+function closeLeadAdminPopup() {
+  const pop = document.getElementById('leadAdminPopup');
+  if (pop) pop.style.display = 'none';
+}
+
+async function saveLeadAdminUpdate(id) {
+  const msg    = document.getElementById('laMsg');
+  const price  = document.getElementById('laRevPrice').value;
+  const status = document.getElementById('laStatus').value;
+  const note   = document.getElementById('laNote').value.trim();
+  const upd    = { status };
+  if (price !== '') upd.admin_quoted_price = parseFloat(price)||0;
+  if (note)         upd.followup_note = note;
+  msg.style.color = 'var(--primary)'; msg.textContent = 'Saving...';
+  try {
+    const res = await authFetch(`${BASE_URL}/leads/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(upd)});
+    if (!res.ok) { msg.style.color='var(--error)'; msg.textContent='Failed.'; return; }
+    msg.style.color = 'var(--tertiary)'; msg.textContent = 'Saved!';
+    await loadLeadsAdmin();
+    setTimeout(() => openLeadAdminPopup(id), 300);
+  } catch(e) { msg.style.color='var(--error)'; msg.textContent='Network error.'; }
+}
+
+function openLeadAdminEdit(id) { openLeadAdminPopup(id); }
+
+document.addEventListener('click', e => {
+  const pop = document.getElementById('leadAdminPopup');
+  if (pop && e.target === pop) closeLeadAdminPopup();
+});
+
+</script>
+
+<script>
+/* ════ SERVICE TICKETS COUNT VIEW ════ */
+let allServiceTickets = [];
+let scFilter = 'all';
+
+async function loadServiceCount() {
+  const tbody = document.getElementById('scTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading…</td></tr>';
+  try {
+    const res  = await authFetch(`${BASE_URL}/service/tickets`);
+    allServiceTickets = await res.json();
+    updateSCStats();
+    renderSCTable();
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>';
+  }
+}
+
+function updateSCStats() {
+  const counts = { open:0, assigned:0, in_progress:0, resolved:0 };
+  allServiceTickets.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
+  document.getElementById('sc-open').textContent       = counts.open;
+  document.getElementById('sc-assigned').textContent   = counts.assigned;
+  document.getElementById('sc-inprogress').textContent = counts.in_progress;
+  document.getElementById('sc-resolved').textContent   = counts.resolved;
+}
+
+function setSCFilter(f, btn) {
+  scFilter = f;
+  document.querySelectorAll('#view-service-count .filter-btn').forEach(b => b.classList.toggle('activeFilter', b === btn));
+  renderSCTable();
+}
+
+function renderSCTable() {
+  const tbody = document.getElementById('scTableBody');
+  if (!tbody) return;
+
+  const statusBg = {
+    open:        'rgba(173,198,255,0.15)', open_c:        'var(--primary)',
+    assigned:    'rgba(245,158,11,0.15)',  assigned_c:    'var(--amber)',
+    in_progress: 'rgba(129,140,248,0.15)', in_progress_c: '#818cf8',
+    resolved:    'rgba(78,222,163,0.15)',  resolved_c:    'var(--tertiary)'
+  };
+  const typeBg = {
+    complaint:    'rgba(255,180,171,0.12)', complaint_c:    'var(--error)',
+    installation: 'rgba(78,222,163,0.12)', installation_c: 'var(--tertiary)'
+  };
+
+  let tickets = allServiceTickets.filter(t => {
+    if (scFilter === 'all')          return true;
+    if (scFilter === 'complaint' || scFilter === 'installation') return t.type === scFilter;
+    return t.status === scFilter;
+  });
+
+  // Sort: open first, then by date desc
+  tickets.sort((a, b) => {
+    const order = { open:0, assigned:1, in_progress:2, resolved:3 };
+    const od = (order[a.status]??9) - (order[b.status]??9);
+    if (od !== 0) return od;
+    return (b.created_at?.seconds||0) - (a.created_at?.seconds||0);
+  });
+
+  if (!tickets.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = tickets.map(t => {
+    const dateStr = t.created_at?.seconds
+      ? new Date(t.created_at.seconds * 1000).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+      : '—';
+    const tbg = typeBg[t.type] || 'transparent';
+    const tcl = typeBg[t.type+'_c'] || 'var(--on-surface)';
+    const sbg = statusBg[t.status] || 'transparent';
+    const scl = statusBg[t.status+'_c'] || 'var(--on-surface)';
+    return `<tr>
+      <td><span style="padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${tbg};color:${tcl};">${t.type}</span></td>
+      <td style="font-weight:700;">${t.customer_name || '—'}</td>
+      <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.product_name || '—'}</td>
+      <td style="font-size:12px;color:var(--on-surface-variant);white-space:nowrap;">${dateStr}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;">${t.brand_tracking_number || '<span style="color:var(--on-surface-variant);">—</span>'}</td>
+      <td><span style="padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${sbg};color:${scl};">${t.status.replace(/_/g,' ')}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ════ DELETE LEAD ════ */
+async function deleteLead(id, name, event) {
+  event.stopPropagation();
+  if (!confirm(`Delete lead for "${name}"?\n\nThis cannot be undone.`)) return;
+  try {
+    const res = await authFetch(`${BASE_URL}/leads/${id}`, { method: 'DELETE' });
+    if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to delete.'); return; }
+    // Close popup if open
+    closeLeadAdminPopup();
+    await loadLeadsAdmin();
+  } catch(e) { alert('Network error.'); }
+}
+</script>
 </body>
 </html>

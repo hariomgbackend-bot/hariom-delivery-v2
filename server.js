@@ -93,6 +93,35 @@ cron.schedule("30 0 * * *", async () => {
 }, { timezone: "Asia/Kolkata" });
 
 /* ════════════════════════════════════════════════
+   STALE TICKET REMINDER — runs every day at 9am IST
+   If any ticket has been open/assigned/in_progress
+   for 48+ hours without update, push admin + accountant
+════════════════════════════════════════════════ */
+cron.schedule("0 9 * * *", async () => {
+  try {
+    const cutoff  = Timestamp.fromMillis(Date.now() - 48 * 60 * 60 * 1000);
+    const snap    = await getDocs(query(
+      collection(db, "service_tickets"),
+      where("status", "in", ["open", "assigned", "in_progress"])
+    ));
+    const stale   = snap.docs.filter(d => {
+      const upd = d.data().updated_at || d.data().created_at;
+      return upd && upd.seconds < cutoff.seconds;
+    });
+    if (!stale.length) return;
+    const title = `⚠ ${stale.length} Stale Service Ticket${stale.length > 1 ? "s" : ""}`;
+    const body  = stale.slice(0, 3).map(d => {
+      const t = d.data();
+      return `${t.customer_name || t.phone} — ${t.type}`;
+    }).join(", ") + (stale.length > 3 ? ` +${stale.length - 3} more` : "");
+    await sendAccountantPush(title, body);
+    console.log(`[CRON] Stale ticket reminder sent for ${stale.length} tickets`);
+  } catch (err) {
+    console.error("[CRON] stale ticket reminder error:", err.message);
+  }
+}, { timezone: "Asia/Kolkata" });
+
+/* ════════════════════════════════════════════════
    STARTUP MIGRATION — runs every deploy
    Flips any pending deliveries with future ETA → booked
    Safe to run repeatedly (only touches pending ones)
@@ -941,6 +970,11 @@ app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
         await sendAccountantPush("✅ Delivery Delivered", `${d.customer_name} - ${d.address}`);
         await sendWhatsapp(d.phone, `Hello ${d.customer_name}, your order has been DELIVERED successfully.`);
         await sendSMS(d.phone, "Hariom Delivery: Your order has been delivered successfully.");
+
+        // Auto-create installation ticket if product requires it
+        await autoCreateServiceTicket(d, refDoc.id).catch(e =>
+          console.warn("[autoTicket] error:", e.message)
+        );
       } catch (bgErr) {
         console.error("Background post-delivery tasks error:", bgErr.message);
       }
@@ -1077,7 +1111,7 @@ app.post("/driverDeliveries", pinLimiter, async (req, res) => {
     where("assigned_driver_id", "==", driver_id)
   ));
 
-  res.json({ deliveries: snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status !== "booked"), sessionToken });
+  res.json({ deliveries: snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status !== "booked" && !d.is_self_pickup), sessionToken });
 });
 
 /* ════════════════════════════════════════════════
@@ -1727,6 +1761,894 @@ app.post("/storage/cleanup", authenticate, authorize(["admin"]), async (req, res
 });
 
 
+
+
+/* ════════════════════════════════════════════════
+   WARRANTY HELPER
+   Auto-calculates warranty expiry from
+   delivered_timestamp based on product category
+════════════════════════════════════════════════ */
+function warrantyYears(productName) {
+  const n = (productName || "").toUpperCase();
+  if (/\bWM\b|WASHING/.test(n))             return 2;
+  if (/\bAC\b|AIR.?COND/.test(n))           return 1;
+  if (/\bREF\b|FRIDGE|REFRIGER/.test(n))    return 1;
+  if (/\bLED\b|\bTV\b|TELEVISION/.test(n))  return 1;
+  return 1;
+}
+
+function warrantyExpiry(productName, deliveredTimestamp) {
+  if (!deliveredTimestamp) return null;
+  const deliveredMs = deliveredTimestamp.seconds * 1000;
+  const years       = warrantyYears(productName);
+  const expiry      = new Date(deliveredMs);
+  expiry.setFullYear(expiry.getFullYear() + years);
+  return Timestamp.fromDate(expiry);
+}
+
+/* ════════════════════════════════════════════════
+   AUTO SERVICE TICKET HELPER
+   Called from markDelivered background task.
+   Creates an installation ticket for products
+   that require brand installation.
+════════════════════════════════════════════════ */
+function needsAutoInstallation(productName) {
+  const n = (productName || "").toUpperCase();
+  if (/\bWM\b|WASHING/.test(n))             return true;
+  if (/\bAC\b|AIR.?COND/.test(n))           return true;
+  if (/\bREF\b|FRIDGE|REFRIGER/.test(n))    return true;
+  // LED/TV only 32" and above
+  const sizeMatch = n.match(/\b(\d{2,})\s*"/);
+  if (sizeMatch && parseInt(sizeMatch[1]) >= 32 &&
+      /\bLED\b|\bTV\b|TELEVISION/.test(n))  return true;
+  return false;
+}
+
+async function autoCreateServiceTicket(deliveryData, deliveryId) {
+  if (!needsAutoInstallation(deliveryData.product_name)) return;
+  // Don't double-create if one already exists for this delivery
+  const existing = await getDocs(query(
+    collection(db, "service_tickets"),
+    where("linked_delivery_id", "==", deliveryId),
+    where("type", "==", "installation")
+  ));
+  if (!existing.empty) return;
+
+  const expiry = warrantyExpiry(
+    deliveryData.product_name,
+    deliveryData.delivered_timestamp
+  );
+
+  await addDoc(collection(db, "service_tickets"), {
+    type:               "installation",
+    status:             "open",
+    linked_delivery_id: deliveryId,
+    customer_name:      deliveryData.customer_name  || "",
+    phone:              deliveryData.phone          || "",
+    address:            deliveryData.address        || "",
+    product_name:       deliveryData.product_name   || "",
+    serial_number:      deliveryData.product_serial_number || "",
+    description:        "",
+    created_by:         "system",
+    created_by_role:    "system",
+    assigned_to:        null,
+    created_at:         Timestamp.now(),
+    resolved_at:        null,
+    warranty_expiry:    expiry,
+    is_auto_created:    true
+  });
+  console.log(`[autoTicket] Created installation ticket for delivery ${deliveryId}`);
+}
+
+/* ════════════════════════════════════════════════
+   STAFF — PUBLIC LIST (for login dropdown)
+   GET /staff-list-public
+════════════════════════════════════════════════ */
+app.get("/staff-list-public", async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "staff_users"));
+    res.json(snap.docs
+      .map(d => ({ id: d.id, name: d.data().name, role: d.data().role }))
+      .filter(s => s.role === "staff")
+    );
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   STAFF LOGIN — PIN based (like driver)
+   POST /staff/login
+   Body: { staff_id, pin }
+════════════════════════════════════════════════ */
+app.post("/staff/login", pinLimiter, async (req, res) => {
+  try {
+    const { staff_id, pin } = req.body;
+    if (!staff_id || !pin) return res.status(400).json({ error: "Staff ID and PIN required" });
+
+    const staffRef  = doc(db, "staff_users", staff_id);
+    const snap      = await getDoc(staffRef);
+    if (!snap.exists()) return res.status(404).json({ error: "Staff not found" });
+
+    const staffData = snap.data();
+    if (staffData.role !== "staff") return res.status(403).json({ error: "Use service login for service accounts" });
+    if (staffData.active === false)  return res.status(403).json({ error: "Account deactivated" });
+
+    // Lockout check (mirrors driver logic)
+    const failedAttempts = staffData.failedPinAttempts || 0;
+    const lockedUntil    = staffData.pinLockedUntil    || null;
+    if (lockedUntil) {
+      const lockedUntilDate = new Date(lockedUntil);
+      if (new Date() < lockedUntilDate) {
+        const minutesLeft = Math.ceil((lockedUntilDate - new Date()) / 60000);
+        return res.status(429).json({
+          error: `Account locked. Try again in ${minutesLeft} minute${minutesLeft > 1 ? "s" : ""}.`
+        });
+      } else {
+        await updateDoc(staffRef, { failedPinAttempts: 0, pinLockedUntil: null });
+      }
+    }
+
+    const match = await bcrypt.compare(pin, staffData.pinHash || "");
+    if (!match) {
+      const newAttempts = failedAttempts + 1;
+      const updates     = { failedPinAttempts: newAttempts };
+      if (newAttempts >= 7) {
+        updates.pinLockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        await updateDoc(staffRef, updates);
+        return res.status(429).json({ error: "Too many incorrect attempts. Account locked for 15 minutes." });
+      }
+      await updateDoc(staffRef, updates);
+      return res.status(401).json({ error: `Invalid PIN (${newAttempts}/7)` });
+    }
+
+    await updateDoc(staffRef, { failedPinAttempts: 0, pinLockedUntil: null });
+
+    const token = jwt.sign(
+      { role: "staff", staff_id, name: staffData.name },
+      JWT_SECRET,
+      { expiresIn: "12h" }
+    );
+    res.json({ success: true, token, name: staffData.name });
+  } catch (err) {
+    console.error("/staff/login error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   SERVICE LOGIN — email + password (like accountant)
+   POST /service/login
+════════════════════════════════════════════════ */
+app.post("/service/login", adminLoginLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+
+    const snap = await getDocs(query(
+      collection(db, "staff_users"),
+      where("email", "==", email.toLowerCase().trim()),
+      where("role", "==", "service")
+    ));
+    if (snap.empty) return res.status(401).json({ error: "Invalid credentials" });
+
+    const staffDoc  = snap.docs[0];
+    const staffData = staffDoc.data();
+    if (staffData.active === false) return res.status(403).json({ error: "Account deactivated" });
+
+    const match = await bcrypt.compare(password, staffData.passwordHash || "");
+    if (!match) return res.status(401).json({ error: "Invalid credentials" });
+
+    const token = jwt.sign(
+      { role: "service", staff_id: staffDoc.id, name: staffData.name },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+    res.json({ success: true, token, name: staffData.name });
+  } catch (err) {
+    console.error("/service/login error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   STAFF MANAGEMENT — admin only
+   POST   /addStaff
+   GET    /staff
+   PUT    /staff/:id
+   DELETE /staff/:id
+════════════════════════════════════════════════ */
+app.post("/addStaff", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { name, role, pin, email, password, phone } = req.body;
+    if (!name)   return res.status(400).json({ error: "Name required" });
+    if (!role || !["staff", "service"].includes(role))
+                 return res.status(400).json({ error: "Role must be 'staff' or 'service'" });
+
+    const docData = {
+      name,
+      role,
+      phone:      phone || "",
+      active:     true,
+      created_at: Timestamp.now()
+    };
+
+    if (role === "staff") {
+      if (!pin || !/^\d{6}$/.test(pin))
+        return res.status(400).json({ error: "PIN must be exactly 6 digits" });
+      docData.pinHash = await bcrypt.hash(pin, 10);
+    } else {
+      if (!email || !password)
+        return res.status(400).json({ error: "Email and password required for service accounts" });
+      // Check duplicate email
+      const dupSnap = await getDocs(query(
+        collection(db, "staff_users"),
+        where("email", "==", email.toLowerCase().trim())
+      ));
+      if (!dupSnap.empty) return res.status(409).json({ error: "Email already in use" });
+      docData.email        = email.toLowerCase().trim();
+      docData.passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    const docRef = await addDoc(collection(db, "staff_users"), docData);
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    console.error("/addStaff error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/staff", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "staff_users"));
+    res.json(snap.docs.map(d => {
+      const data = d.data();
+      // Never return hashes
+      const { pinHash, passwordHash, ...safe } = data;
+      return { id: d.id, ...safe };
+    }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/staff/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { pin, password, ...otherFields } = req.body;
+    const refDoc  = doc(db, "staff_users", req.params.id);
+    const snap    = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Staff not found" });
+    const updates = { ...otherFields };
+
+    if (pin) {
+      if (!/^\d{6}$/.test(pin)) return res.status(400).json({ error: "PIN must be 6 digits" });
+      updates.pinHash = await bcrypt.hash(pin, 10);
+    }
+    if (password) {
+      updates.passwordHash = await bcrypt.hash(password, 10);
+    }
+    if (updates.email) updates.email = updates.email.toLowerCase().trim();
+
+    // Remove any accidental hash fields passed from client
+    delete updates.pinHash_raw;
+    delete updates.passwordHash_raw;
+
+    await updateDoc(refDoc, updates);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/staff/:id PUT error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/staff/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    await deleteDoc(doc(db, "staff_users", req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   LEADS
+   GET    /leads              — admin/accountant/staff/service
+   POST   /leads              — staff/accountant/admin
+   PUT    /leads/:id          — staff (own) / admin / accountant
+   DELETE /leads/:id          — admin only
+════════════════════════════════════════════════ */
+app.get("/leads", authenticate, authorize(["admin", "accountant", "staff", "service"]), async (req, res) => {
+  try {
+    const snap  = await getDocs(collection(db, "leads"));
+    let leads   = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Staff can only see their own leads
+    if (req.user.role === "staff") {
+      leads = leads.filter(l => l.created_by === req.user.staff_id);
+    }
+
+    // Sort: open/followup first, then by created_at desc
+    const statusOrder = { open: 0, followup: 1, converted: 2, lost: 3 };
+    leads.sort((a, b) => {
+      const sd = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
+      if (sd !== 0) return sd;
+      return (b.created_at?.seconds ?? 0) - (a.created_at?.seconds ?? 0);
+    });
+
+    res.json(leads);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
+  try {
+    const {
+      customer_name, phone, alternate_phone,
+      product_interest, quoted_price, remarks, status,
+      products   // new: array of { product_name, quoted_price }
+    } = req.body;
+    if (!phone || phone.length !== 10) return res.status(400).json({ error: "Valid 10-digit phone required" });
+
+    // Support both legacy single-product and new multi-product format
+    const productsArray = Array.isArray(products) && products.length > 0
+      ? products.map(p => ({
+          product_name:  (p.product_name || "").trim(),
+          quoted_price:  parseFloat(p.quoted_price) || 0
+        })).filter(p => p.product_name)
+      : product_interest
+        ? [{ product_name: product_interest, quoted_price: parseFloat(quoted_price) || 0 }]
+        : [];
+
+    if (!productsArray.length) return res.status(400).json({ error: "At least one product required" });
+
+    const now     = Timestamp.now();
+    const expires = Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const docRef = await addDoc(collection(db, "leads"), {
+      customer_name:    customer_name   || "",
+      phone:            phone,
+      alternate_phone:  alternate_phone || "",
+      // Legacy single-product fields (kept for backward compat)
+      product_interest: productsArray[0].product_name,
+      quoted_price:     productsArray[0].quoted_price,
+      // New multi-product array
+      products:         productsArray,
+      remarks:          remarks         || "",
+      status:           status          || "open",
+      created_by:       req.user.staff_id || req.user.role,
+      created_by_name:  req.user.name    || req.user.role,
+      created_by_role:  req.user.role,
+      created_at:       now,
+      expires_at:       expires,
+      followup_note:    "",
+      admin_quoted_price: null,
+      converted_delivery_id: null
+    });
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    console.error("/leads POST error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/leads/:id", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
+  try {
+    const refDoc = doc(db, "leads", req.params.id);
+    const snap   = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Lead not found" });
+
+    // Staff can only edit their own leads
+    if (req.user.role === "staff" && snap.data().created_by !== req.user.staff_id) {
+      return res.status(403).json({ error: "You can only edit your own leads" });
+    }
+
+    const allowed = [
+      "customer_name", "phone", "alternate_phone", "product_interest",
+      "quoted_price", "products", "remarks", "status",
+      "followup_note", "admin_quoted_price", "converted_delivery_id"
+    ];
+    const updates = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+
+    // Only admin/accountant can set admin_quoted_price and followup_note
+    if (req.user.role === "staff") {
+      delete updates.admin_quoted_price;
+      delete updates.followup_note;
+    }
+
+    await updateDoc(refDoc, { ...updates, updated_at: Timestamp.now() });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/leads/:id PUT error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/leads/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    await deleteDoc(doc(db, "leads", req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   SERVICE TICKETS
+   GET    /service/tickets        — admin/accountant/service
+   POST   /service/ticket         — admin/accountant/staff/service
+   PUT    /service/ticket/:id     — service/admin
+   GET    /service/search?q=      — service/admin/accountant
+════════════════════════════════════════════════ */
+app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
+  try {
+    const snap   = await getDocs(collection(db, "service_tickets"));
+    let tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Optional filters via query params
+    if (req.query.status) tickets = tickets.filter(t => t.status === req.query.status);
+    if (req.query.type)   tickets = tickets.filter(t => t.type   === req.query.type);
+
+    tickets.sort((a, b) => (b.created_at?.seconds ?? 0) - (a.created_at?.seconds ?? 0));
+    res.json(tickets);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "staff", "service"]), async (req, res) => {
+  try {
+    const {
+      type, linked_delivery_id,
+      first_name, middle_name, last_name,
+      customer_name: raw_customer_name,
+      phone, alternate_phone, address,
+      pincode, state, city, area, addr1, addr2,
+      product_name, serial_number, description
+    } = req.body;
+
+    if (!type || !["installation", "complaint"].includes(type))
+      return res.status(400).json({ error: "Type must be 'installation' or 'complaint'" });
+    if (type === "complaint" && !description?.trim())
+      return res.status(400).json({ error: "Description required for complaints" });
+    if (!phone) return res.status(400).json({ error: "Phone required" });
+
+    // Assemble customer name from parts if provided
+    const customer_name = raw_customer_name ||
+      [first_name, middle_name, last_name].filter(Boolean).map(s => s.trim()).join(" ");
+
+    // Assemble address from parts if provided
+    const full_address = address ||
+      [addr1, addr2, area, city, state && pincode ? `${state} - ${pincode}` : (state || pincode)]
+        .filter(Boolean).join(", ");
+
+    // Check if delivery exists and get warranty expiry
+    let warranty_expiry = null;
+    if (linked_delivery_id) {
+      const delivSnap = await getDoc(doc(db, "deliveries", linked_delivery_id));
+      if (delivSnap.exists()) {
+        const d = delivSnap.data();
+        warranty_expiry = warrantyExpiry(product_name || d.product_name, d.delivered_timestamp);
+      }
+    }
+
+    // Avoid duplicate open installation tickets for same delivery
+    if (type === "installation" && linked_delivery_id) {
+      const dupSnap = await getDocs(query(
+        collection(db, "service_tickets"),
+        where("linked_delivery_id", "==", linked_delivery_id),
+        where("type", "==", "installation"),
+        where("status", "in", ["open", "assigned", "in_progress"])
+      ));
+      if (!dupSnap.empty) {
+        return res.status(409).json({ error: "An open installation ticket already exists for this delivery" });
+      }
+    }
+
+    const docRef = await addDoc(collection(db, "service_tickets"), {
+      type,
+      status:             "open",
+      linked_delivery_id: linked_delivery_id || null,
+      customer_name:      customer_name      || "",
+      phone:              phone,
+      alternate_phone:    alternate_phone     || "",
+      address:            full_address        || "",
+      product_name:       product_name        || "",
+      serial_number:      serial_number       || "",
+      description:        description         || "",
+      created_by:         req.user.staff_id   || req.user.role,
+      created_by_name:    req.user.name       || req.user.role,
+      created_by_role:    req.user.role,
+      raised_by_role:     req.user.role,
+      assigned_to:        null,
+      created_at:         Timestamp.now(),
+      resolved_at:        null,
+      warranty_expiry,
+      is_auto_created:    false,
+      brand_tracking_number: null,
+      brand_request_status:  null,
+    });
+
+    res.json({ success: true, id: docRef.id });
+
+    // Push notification to service panel in background
+    (async () => {
+      try {
+        const raiser = req.user.name || req.user.role;
+        await sendServicePush(
+          `🔧 New ${type === "installation" ? "Installation" : "Complaint"} Ticket`,
+          `${customer_name || phone} — ${product_name || "Product"} — by ${raiser}`
+        );
+      } catch (e) { console.warn("[ticket push]", e.message); }
+    })();
+
+  } catch (err) {
+    console.error("/service/ticket POST error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "accountant"]), async (req, res) => {
+  try {
+    const refDoc   = doc(db, "service_tickets", req.params.id);
+    const snap     = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Ticket not found" });
+    const existing = snap.data();
+
+    const allowed = [
+      "status", "assigned_to", "description", "notes",
+      "brand_request_status", "brand_tracking_number",
+      "customer_name", "phone", "alternate_phone", "address",
+      "product_name", "serial_number"
+    ];
+    const updates = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+
+    const isResolving = updates.status === "resolved" && existing.status !== "resolved";
+    if (isResolving) updates.resolved_at = Timestamp.now();
+
+    await updateDoc(refDoc, { ...updates, updated_at: Timestamp.now() });
+    res.json({ success: true });
+
+    // Background push notifications
+    (async () => {
+      try {
+        const ticket = { ...existing, ...updates };
+        const label  = `${ticket.customer_name || ticket.phone} — ${ticket.product_name || ""}`.trim();
+
+        // 1. Brand tracking reminder: if ticket moved to in_progress but no tracking number yet
+        if (updates.status === "in_progress" && !ticket.brand_tracking_number) {
+          await sendAccountantPush("⚠ Brand Tracking# Missing", `${label} — please raise with brand`);
+          await sendServicePush("⚠ Brand Tracking# Needed", `Add tracking# for: ${label}`);
+          // Also push to admin via accountant channel (admin sees accountant push)
+        }
+
+        // 2. On resolve — notify whoever raised the ticket
+        if (isResolving) {
+          const raiserRole = existing.raised_by_role || existing.created_by_role;
+          const title = `✅ Ticket Resolved`;
+          const body  = `${label} marked resolved`;
+
+          if (raiserRole === "accountant" || raiserRole === "admin") {
+            await sendAccountantPush(title, body);
+          }
+          if (raiserRole === "staff" && existing.created_by) {
+            // Push to the specific staff member's token
+            const staffSnap = await getDoc(doc(db, "staff_users", existing.created_by));
+            if (staffSnap.exists()) {
+              const { pushToken } = staffSnap.data();
+              if (pushToken) {
+                await sendPushToToken(pushToken, title, body,
+                  doc(db, "staff_users", existing.created_by), "pushToken");
+              }
+            }
+          }
+          // Always notify service panel itself on resolve
+          await sendServicePush(title, body);
+        }
+      } catch (bgErr) {
+        console.warn("[ticket PUT push]", bgErr.message);
+      }
+    })();
+  } catch (err) {
+    console.error("/service/ticket/:id PUT error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   DELETE /service/ticket/:id  — service/admin only
+   Requires reason in body. Only allowed while open.
+   Sends push to admin+accountant on deletion.
+════════════════════════════════════════════════ */
+app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]), async (req, res) => {
+  try {
+    const { reason } = req.body;
+    if (!reason?.trim()) return res.status(400).json({ error: "Deletion reason required" });
+
+    const refDoc = doc(db, "service_tickets", req.params.id);
+    const snap   = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Ticket not found" });
+
+    const t = snap.data();
+    if (!["open"].includes(t.status)) {
+      return res.status(400).json({ error: "Only open tickets can be deleted" });
+    }
+
+    await deleteDoc(refDoc);
+    res.json({ success: true });
+
+    // Notify admin + accountant in background
+    (async () => {
+      try {
+        const label = `${t.customer_name || t.phone} — ${t.product_name || t.type}`;
+        const by    = req.user.name || req.user.role;
+        await sendAccountantPush(
+          `🗑 Ticket Deleted by ${by}`,
+          `${label} — Reason: ${reason.trim()}`
+        );
+      } catch (e) { console.warn("[ticket delete push]", e.message); }
+    })();
+  } catch (err) {
+    console.error("/service/ticket DELETE error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Search across deliveries + tickets by phone or name
+app.get("/service/search", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
+  try {
+    const q = (req.query.q || "").toLowerCase().trim();
+    if (!q || q.length < 3) return res.status(400).json({ error: "Query must be at least 3 characters" });
+
+    const [delivSnap, ticketSnap] = await Promise.all([
+      getDocs(collection(db, "deliveries")),
+      getDocs(collection(db, "service_tickets"))
+    ]);
+
+    const deliveries = delivSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d =>
+        d.customer_name?.toLowerCase().includes(q) ||
+        d.phone?.includes(q) ||
+        d.alternate_phone?.includes(q)
+      )
+      .sort((a, b) => (b.delivered_timestamp?.seconds ?? b.created_timestamp?.seconds ?? 0) -
+                      (a.delivered_timestamp?.seconds ?? a.created_timestamp?.seconds ?? 0));
+
+    const tickets = ticketSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d =>
+        d.customer_name?.toLowerCase().includes(q) ||
+        d.phone?.includes(q)
+      )
+      .sort((a, b) => (b.created_at?.seconds ?? 0) - (a.created_at?.seconds ?? 0));
+
+    res.json({ deliveries, tickets });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   BRANDS
+   GET    /brands          — all roles
+   POST   /brands          — admin only
+   PUT    /brands/:id      — admin only
+   DELETE /brands/:id      — admin only
+════════════════════════════════════════════════ */
+app.get("/brands", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "brands"));
+    res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/brands", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { name, installation_method, form_url, whatsapp_number, call_number, message_template, notes } = req.body;
+    if (!name) return res.status(400).json({ error: "Brand name required" });
+    if (!installation_method || !["form", "whatsapp", "call"].includes(installation_method))
+      return res.status(400).json({ error: "installation_method must be form/whatsapp/call" });
+
+    const docRef = await addDoc(collection(db, "brands"), {
+      name,
+      installation_method,
+      form_url:           form_url         || "",
+      whatsapp_number:    whatsapp_number   || "",
+      call_number:        call_number       || "",
+      message_template:   message_template  || "",
+      notes:              notes             || "",
+      created_at:         Timestamp.now()
+    });
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    console.error("/brands POST error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/brands/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const refDoc = doc(db, "brands", req.params.id);
+    const snap   = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Brand not found" });
+    const allowed = ["name", "installation_method", "form_url", "whatsapp_number", "call_number", "message_template", "notes"];
+    const updates = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    await updateDoc(refDoc, updates);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/brands/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    await deleteDoc(doc(db, "brands", req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   SELF-PICKUP CONFIRM
+   POST /markSelfPickup/:id  (multipart/form-data)
+   Fields: serial (if not set), photo
+   Skips loaded step — marks directly as delivered.
+   Only works on is_self_pickup === true deliveries.
+════════════════════════════════════════════════ */
+app.post("/markSelfPickup/:id", upload.single("photo"), async (req, res) => {
+  try {
+    if (!req.file?.buffer) return res.status(400).json({ error: "Photo required" });
+
+    const refDoc = doc(db, "deliveries", req.params.id);
+    const snap   = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    const delivery = snap.data();
+    if (!delivery.is_self_pickup)        return res.status(400).json({ error: "Not a self-pickup delivery" });
+    if (delivery.status === "delivered") return res.status(409).json({ error: "Already marked as delivered" });
+    if (delivery.status !== "pending" && delivery.status !== "booked")
+      return res.status(400).json({ error: "Invalid status for self-pickup confirmation" });
+
+    // Serial number — use existing if already set, otherwise require from body
+    let finalSerial = delivery.product_serial_number;
+    if (!finalSerial) {
+      if (!req.body.serial) return res.status(400).json({ error: "Serial number required" });
+      finalSerial = req.body.serial;
+    }
+
+    // Upload proof photo
+    const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + "_selfpickup");
+    await uploadBytes(storageRef, req.file.buffer, { contentType: req.file.mimetype });
+    const url = await getDownloadURL(storageRef);
+
+    await updateDoc(refDoc, {
+      status:                  "delivered",
+      product_serial_number:   finalSerial,
+      delivered_timestamp:     Timestamp.now(),
+      photo_delivered_url:     url,
+      pickup_confirmed_by:     req.body.confirmed_by || "staff",
+      is_self_pickup:          true
+    });
+
+    res.json({ success: true });
+
+    // Background: notifications + auto-ticket
+    (async () => {
+      try {
+        const freshSnap = await getDoc(refDoc);
+        const d         = freshSnap.data();
+        await sendAccountantPush("🏪 Self Pickup Confirmed", `${d.customer_name} - ${d.product_name}`);
+        await sendWhatsapp(d.phone, `Hello ${d.customer_name}, your order has been picked up successfully.`);
+        await autoCreateServiceTicket(d, refDoc.id);
+      } catch (bgErr) {
+        console.warn("[markSelfPickup] bg error:", bgErr.message);
+      }
+    })();
+  } catch (err) {
+    console.error("/markSelfPickup error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+/* ════════════════════════════════════════════════
+   TALLY PRODUCTS — ADD NEW PRODUCT
+   POST /tally/products/add
+   Appends a new name to the tally_products index doc.
+   Used by staff/service when product not in list.
+════════════════════════════════════════════════ */
+app.post("/tally/products/add", authenticate, authorize(["admin","accountant","staff","service"]), async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Name required" });
+    const clean = name.trim().toUpperCase();
+    const ref   = doc(db, "tally_products", "index");
+    const snap  = await getDoc(ref);
+    const names = snap.exists() ? (snap.data().names || []) : [];
+    if (names.map(n => n.toUpperCase()).includes(clean)) {
+      return res.json({ success: true, already_exists: true });
+    }
+    const updated = [...names, name.trim()];
+    await setDoc(ref, { names: updated, count: updated.length }, { merge: true });
+    res.json({ success: true, added: name.trim() });
+  } catch (err) {
+    console.error("/tally/products/add error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   STAFF PERMISSIONS
+   GET  /staff-permissions        — returns current settings doc
+   PUT  /staff-permissions        — admin saves new settings
+   Stored in settings/staff_permissions Firestore doc
+════════════════════════════════════════════════ */
+app.get("/staff-permissions", authenticate, authorize(["admin","staff"]), async (req, res) => {
+  try {
+    const snap = await getDoc(doc(db, "settings", "staff_permissions"));
+    const defaults = {
+      show_phone:          true,
+      show_address:        true,
+      show_serial:         true,
+      show_driver:         false,
+      show_freight:        false,
+      show_invoice:        false,
+      show_loaded_photo:   false,
+      show_delivered_photo:true,
+      show_warranty:       true,
+      show_whatsapp_share: true,
+      show_raise_ticket:   true,
+    };
+    res.json(snap.exists() ? { ...defaults, ...snap.data() } : defaults);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/staff-permissions", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    await setDoc(doc(db, "settings", "staff_permissions"), req.body, { merge: true });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   SERVICE PUSH TOKEN — save for service panel
+   POST /saveServicePushToken
+════════════════════════════════════════════════ */
+app.post("/saveServicePushToken", async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Token required" });
+    await setDoc(doc(db, "settings", "service"), { pushToken: token }, { merge: true });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ── Push helper for service panel ── */
+async function sendServicePush(title, body) {
+  try {
+    const snap = await getDoc(doc(db, "settings", "service"));
+    if (!snap.exists()) return;
+    const { pushToken } = snap.data();
+    if (!pushToken) return;
+    await sendPushToToken(pushToken, title, body, doc(db, "settings", "service"), "pushToken");
+  } catch (err) {
+    console.warn("sendServicePush error:", err.message);
+  }
+}
 
 // Express async error handler
 app.use((err, req, res, next) => {
