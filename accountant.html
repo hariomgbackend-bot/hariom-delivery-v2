@@ -3277,6 +3277,7 @@ function shareDeliveryWA(deliveryId) {
 ━━━━━━━━━━━━━━
 👤 Customer: ${d.customer_name || "—"}
 📞 Phone: ${d.phone || "—"}
+📞 Alertnate: ${d.alternate_phone || "—"}
 📍 Address: ${d.address || "—"}
 📦 Product: ${d.product_name || "—"}
 🔑 Serial: ${d.product_serial_number || "—"}
@@ -4388,7 +4389,7 @@ function renderTallyInvoiceList() {
       <div class="tally-empty">
         <div class="tally-empty-icon">${_tallyCurrentTab === "today" ? "📅" : "✅"}</div>
         <div class="tally-empty-text">${_tallyCurrentTab === "today" ? "No sales found for today" : "All vouchers already imported"}</div>
-        <div class="tally-empty-sub">${_tallyCurrentTab === "today" ? "Try the "All" tab to see other dates" : "Switch to "All" to re-import"}</div>
+        <div class="tally-empty-sub">${_tallyCurrentTab === "today" ? "Try the 'All' tab to see other dates" : "Switch to 'All' to re-import"}</div>
       </div>`;
     return;
   }
