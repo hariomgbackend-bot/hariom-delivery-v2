@@ -932,19 +932,41 @@ async function loadDeliveries() {
     const res  = await authFetch(`${BASE_URL}/deliveries`);
     const data = await res.json();
     allDeliveries = data;
-    renderDeliveries(data);
+    renderDeliveries(getRecentDeliveries(data)); // show recent only on load
   } catch (e) {
     list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load</p><small>${e.message}</small></div>`;
   }
 }
 
+// Returns last 2 days OR latest 10 — whichever is larger
+function getRecentDeliveries(data) {
+  const cutoff2d = Date.now() - 2 * 24 * 3600 * 1000;
+  const last2d   = data.filter(d => {
+    const ts = d.created_timestamp?.seconds;
+    return ts && ts * 1000 >= cutoff2d;
+  });
+  if (last2d.length >= 10) return last2d;
+  // Fallback: latest 10 by created_timestamp
+  return [...data]
+    .filter(d => d.created_timestamp?.seconds)
+    .sort((a, b) => b.created_timestamp.seconds - a.created_timestamp.seconds)
+    .slice(0, 10);
+}
+
 function filterDeliveries() {
   const q = document.getElementById("delivSearch").value.toLowerCase().trim();
-  if (!q) { renderDeliveries(allDeliveries); return; }
+  if (!q) {
+    // Back to recent-only view when search is cleared
+    renderDeliveries(getRecentDeliveries(allDeliveries));
+    return;
+  }
+  // Search full dataset — no limit
   renderDeliveries(allDeliveries.filter(d =>
     d.customer_name?.toLowerCase().includes(q) ||
     d.phone?.includes(q) ||
-    d.alternate_phone?.includes(q)
+    d.alternate_phone?.includes(q) ||
+    d.product_name?.toLowerCase().includes(q) ||
+    d.address?.toLowerCase().includes(q)
   ));
 }
 
@@ -952,7 +974,16 @@ function renderDeliveries(data) {
   const list = document.getElementById("deliveriesList");
   // Show delivered and loaded only — no pending (staff don't manage dispatch)
   const shown = data.filter(d => ["delivered","loaded","pending","failed"].includes(d.status));
-  document.getElementById("delivBadge").textContent = shown.length;
+  const q         = document.getElementById("delivSearch").value.trim();
+  const totalAll  = allDeliveries.filter(d => ["delivered","loaded","pending","failed"].includes(d.status)).length;
+  const isFiltered = q.length > 0;
+  const isRecent   = !isFiltered && shown.length < totalAll;
+
+  // Badge: show "10 of 247" when in recent mode
+  document.getElementById("delivBadge").textContent =
+    isFiltered ? shown.length :
+    isRecent   ? `${shown.length} of ${totalAll}` :
+    shown.length;
 
   if (!shown.length) {
     list.innerHTML = `<div class="empty-state"><div class="icon">📦</div><p>No deliveries found</p><small>Try a different search</small></div>`;
@@ -980,6 +1011,21 @@ function renderDeliveries(data) {
       </div>
     </div>`;
   }).join("");
+
+  // Show "search for older" hint only in recent mode
+  const _q = document.getElementById("delivSearch").value.trim();
+  const _totalAll = allDeliveries.filter(d => ["delivered","loaded","pending","failed"].includes(d.status)).length;
+  if (!_q && shown.length < _totalAll) {
+    list.innerHTML += `
+      <div style="text-align:center;padding:16px 12px 6px;font-size:12px;
+        color:var(--outline);font-weight:500;letter-spacing:0.2px;">
+        Showing last 2 days · 
+        <span style="color:var(--primary);cursor:pointer;font-weight:700;"
+          onclick="document.getElementById('delivSearch').focus()">
+          Search to find older deliveries ↑
+        </span>
+      </div>`;
+  }
 }
 
 /* Warranty badge helper */
