@@ -735,6 +735,9 @@ let allDeliveries = [];
 let currentFilter = "all";
 let currentPage   = 1;
 const PAGE_SIZE   = 15;
+let _svcMessaging = null;
+let _pushDeferred = false;
+let svcTallyNames = [];
 
 function getToken() { return serviceToken || localStorage.getItem("serviceToken"); }
 function isExpired(token) {
@@ -1208,7 +1211,6 @@ function closeTicketDetail() {
 
 /* ── CREATE TICKET POPUP ── */
 /* ── Tally products cache ── */
-let svcTallyNames = [];
 async function loadSvcTallyProducts() {
   try {
     const res = await fetch(`${BASE_URL}/tally/products`);
@@ -1649,8 +1651,6 @@ const FIREBASE_CONFIG_SVC = {
 };
 const VAPID_KEY_SVC = "BMiekPX2di-maWY-3KoprJFLy2OVNPiqvjuz9W9mpNDuOPWDMhstKpaja8A2zKkp8XpmKxETbi_3hoMaPVgB0dE";
 
-let _svcMessaging    = null;
-let _pushDeferred    = false;
 
 // Defer push registration until Firebase scripts loaded + page idle
 // Never call directly from showApp — that blocks the UI
