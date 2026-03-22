@@ -1467,6 +1467,7 @@ let currentDeliveryId   = null;
 let currentStatus       = null;
 let etaInterval         = null;
 let driverRefreshInterval = null;
+let precompressedBlob    = null;   // Photo compressed on selection — ready before swipe
 let currentDriverId     = null;
 let currentDriverPin    = null;
 let pinAttempts         = 0;
@@ -1964,15 +1965,39 @@ async function openDelivery(id) {
   // Pre-warm GPS immediately when popup opens so it's ready by the time driver swipes
   if (currentStatus === "pending" || currentStatus === "loaded") {
     cachedGpsPosition = null;
+    precompressedBlob = null;   // Reset — new delivery, new photo
     navigator.geolocation.getCurrentPosition(
       pos => { cachedGpsPosition = pos; },
       () => { cachedGpsPosition = null; },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     );
   }
 
   // Init swipe widget after DOM renders
   requestAnimationFrame(() => requestAnimationFrame(initSwipeWidget));
+
+  // Attach photo pre-compression listener — compress immediately on selection
+  // so by the time driver swipes the blob is already ready
+  requestAnimationFrame(() => {
+    const photoInput = document.getElementById("photo");
+    if (photoInput) {
+      photoInput.addEventListener("change", async function() {
+        const file = this.files?.[0];
+        if (!file || !file.type.startsWith("image/")) return;
+        // Show subtle compression-in-progress feedback
+        const label = this.closest(".upload-section")?.querySelector(".upload-label");
+        const origLabel = label?.textContent;
+        if (label) label.textContent = "⏳ Optimising photo…";
+        try {
+          precompressedBlob = await compressImage(file);
+          if (label) label.textContent = "✅ Photo ready";
+        } catch(e) {
+          precompressedBlob = null;
+          if (label && origLabel) label.textContent = origLabel;
+        }
+      });
+    }
+  });
 }
 
 /* ═══════════════════════════════════════
@@ -2034,7 +2059,15 @@ async function updateDelivery() {
   const widget = document.getElementById("swipeWidget");
   if (widget) widget.style.pointerEvents = "none";
 
-  const compressedBlob = await compressImage(file);
+  // Use pre-compressed blob if ready (selected early) — otherwise compress now
+  let compressedBlob;
+  if (precompressedBlob) {
+    compressedBlob = precompressedBlob;
+    precompressedBlob = null;
+  } else {
+    compressedBlob = await compressImage(file);
+  }
+
   const formData = new FormData();
   formData.append("photo", compressedBlob, "upload.jpg");
 
@@ -2095,7 +2128,7 @@ async function updateDelivery() {
         vibrate([100, 50, 200]);
         showToast(currentStatus === "pending" ? "✅ Marked as Loaded!" : "🎉 Marked as Delivered!");
         closePopup();
-        unlockDriver();
+        silentRefresh();   // lightweight — reuses session token, no PIN re-auth
       })
       .catch(() => {
         showToast("⚠ Network error. Please retry.");
@@ -2114,7 +2147,7 @@ async function updateDelivery() {
         showToast("📍 Location access required. Please enable it and try again.");
         if (widget) widget.style.pointerEvents = "auto";
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     );
   }
 }
@@ -2185,7 +2218,7 @@ async function submitFailure() {
     vibrate([100, 50, 100, 50, 200]);
     showToast("❌ Delivery marked as failed");
     closePopup();
-    unlockDriver();
+    silentRefresh();   // lightweight — reuses session token, no PIN re-auth
   } catch (e) {
     showToast("⚠ Network error. Please retry.");
   }

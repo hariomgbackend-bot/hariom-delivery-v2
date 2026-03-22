@@ -411,6 +411,24 @@
     [data-theme="light"] .badge-complaint    { background: rgba(220,38,38,0.1); color: #b91c1c; }
 
     input:focus, select:focus, textarea:focus { outline: none !important; }
+
+    /* Pagination */
+    .pagination {
+      display: flex; align-items: center; justify-content: center;
+      gap: 6px; padding: 16px 0 4px; flex-wrap: wrap;
+    }
+    .pg-btn {
+      min-width: 36px; height: 36px; padding: 0 10px;
+      border: 1px solid var(--outline-variant); border-radius: 9px;
+      background: transparent; color: var(--on-surface-variant);
+      font-family: var(--font-body); font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; display: inline-flex;
+      align-items: center; justify-content: center;
+    }
+    .pg-btn:hover  { border-color: var(--tertiary); color: var(--tertiary); background: rgba(78,222,163,0.06); }
+    .pg-btn.active { background: linear-gradient(135deg,var(--tertiary-container),var(--tertiary)); border-color: transparent; color: #002113; font-weight: 700; }
+    .pg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .pg-info { font-size: 12px; color: var(--on-surface-variant); font-weight: 600; padding: 0 6px; }
   </style>
 </head>
 <body>
@@ -547,6 +565,9 @@
 
       <!-- Mobile cards -->
       <div class="mob-cards" id="ticketsMobCards"></div>
+
+      <!-- Pagination -->
+      <div class="pagination" id="ticketPagination"></div>
     </div>
 
   </div><!-- /container -->
@@ -710,6 +731,8 @@ let serviceName  = "";
 let allTickets   = [];
 let allDeliveries = [];
 let currentFilter = "all";
+let currentPage   = 1;
+const PAGE_SIZE   = 15;
 
 function getToken() { return serviceToken || localStorage.getItem("serviceToken"); }
 function isExpired(token) {
@@ -789,6 +812,7 @@ async function loadTickets() {
   try {
     const res   = await authFetch(`${BASE_URL}/service/tickets`);
     allTickets  = await res.json();
+    currentPage = 1;
     updateStats();
     renderTickets();
   } catch (e) {
@@ -836,6 +860,7 @@ function updateStats() {
 /* ── FILTER ── */
 function setFilter(f, btn) {
   currentFilter = f;
+  currentPage   = 1;
   document.querySelectorAll(".filter-btn").forEach(b => b.classList.toggle("active", b === btn));
   renderTickets();
 }
@@ -849,11 +874,18 @@ function getFilteredTickets() {
   return allTickets;
 }
 
-/* ── RENDER TICKETS ── */
+/* ── RENDER TICKETS with pagination ── */
 function renderTickets() {
-  const tickets = getFilteredTickets();
-  renderTicketsTable(tickets);
-  renderTicketsMob(tickets);
+  const all    = getFilteredTickets();
+  const total  = all.length;
+  const pages  = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentPage > pages) currentPage = pages;
+  const start  = (currentPage - 1) * PAGE_SIZE;
+  const slice  = all.slice(start, start + PAGE_SIZE);
+
+  renderTicketsTable(slice);
+  renderTicketsMob(slice);
+  renderPagination(total, pages);
 }
 
 function warrantyStr(t) {
@@ -915,7 +947,58 @@ function renderTicketsMob(tickets) {
     </div>`).join("");
 }
 
-/* ── TICKET DETAIL POPUP ── */
+function renderPagination(total, pages) {
+  const el = document.getElementById("ticketPagination");
+  if (!el) return;
+
+  if (pages <= 1) { el.innerHTML = ""; return; }
+
+  const start = (currentPage - 1) * PAGE_SIZE + 1;
+  const end   = Math.min(currentPage * PAGE_SIZE, total);
+
+  // Build page buttons — show at most 7: prev, first, ..., window of 3, ..., last, next
+  let btns = "";
+
+  // Prev
+  btns += `<button class="pg-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? "disabled" : ""}>‹</button>`;
+
+  // Page numbers with ellipsis
+  const range = [];
+  if (pages <= 7) {
+    for (let i = 1; i <= pages; i++) range.push(i);
+  } else {
+    range.push(1);
+    if (currentPage > 3) range.push("…");
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(pages - 1, currentPage + 1); i++) range.push(i);
+    if (currentPage < pages - 2) range.push("…");
+    range.push(pages);
+  }
+
+  range.forEach(p => {
+    if (p === "…") {
+      btns += `<span class="pg-info">…</span>`;
+    } else {
+      btns += `<button class="pg-btn ${p === currentPage ? "active" : ""}" onclick="goToPage(${p})">${p}</button>`;
+    }
+  });
+
+  // Next
+  btns += `<button class="pg-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === pages ? "disabled" : ""}>›</button>`;
+
+  el.innerHTML = `<span class="pg-info">${start}–${end} of ${total}</span>` + btns;
+}
+
+function goToPage(p) {
+  const all   = getFilteredTickets();
+  const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+  if (p < 1 || p > pages) return;
+  currentPage = p;
+  renderTickets();
+  // Scroll table back to top smoothly
+  document.getElementById("ticketsTableBody")?.closest(".card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+
 function openTicketDetail(id) {
   const t = allTickets.find(x => x.id === id);
   if (!t) return;
