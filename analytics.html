@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -69,7 +70,7 @@
     .sidebar-logo { width: 32px; height: 32px; border-radius: 8px; object-fit: contain; background: rgba(173,198,255,0.1); flex-shrink: 0; }
     .sidebar-brand-text { font-size: 16px; font-weight: 900; letter-spacing: -0.3px; color: var(--primary); text-transform: uppercase; line-height: 1; }
     .sidebar-brand-sub { font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--amber); background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2); padding: 2px 6px; border-radius: 4px; margin-top: 2px; display: inline-block; }
-    .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
+    .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px 12px; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: rgba(173,198,255,0.15) transparent; }
     .sidebar-item {
       display: flex; align-items: center; gap: 12px;
       padding: 11px 14px; border-radius: 12px; cursor: pointer;
@@ -283,6 +284,18 @@
     .heatmap-labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 6px; }
     .heatmap-label { text-align: center; font-size: 10px; color: var(--on-surface-variant); font-weight: 600; }
 
+    /* ── MAP FILTER BUTTONS ── */
+    .map-filter-btn {
+      padding: 6px 13px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);
+      background: transparent; color: var(--on-surface-variant);
+      font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px;
+    }
+    .map-filter-btn:hover { background: rgba(255,255,255,0.05); color: var(--on-surface); }
+    .map-filter-btn.active { background: rgba(56,189,248,0.12); color: var(--sky); border-color: rgba(56,189,248,0.3); }
+    [data-theme="light"] .map-filter-btn { color: #64748b; }
+    [data-theme="light"] .map-filter-btn.active { background: rgba(2,132,199,0.1); color: #0284c7; border-color: rgba(2,132,199,0.3); }
+
     /* ── LOADING / EMPTY ── */
     .loading-shimmer {
       background: linear-gradient(90deg, var(--surface-container) 25%, var(--surface-container-high) 50%, var(--surface-container) 75%);
@@ -348,31 +361,34 @@
   </div>
   <nav class="sidebar-nav">
     <div class="sidebar-section-label">Dashboard</div>
-    <button class="sidebar-item active" onclick="scrollTo('sec-overview')">
+    <button class="sidebar-item active" onclick="scrollToSec('sec-overview')">
       <span class="material-symbols-outlined">dashboard</span> Overview
     </button>
-    <button class="sidebar-item" onclick="scrollTo('sec-sales')">
+    <button class="sidebar-item" onclick="scrollToSec('sec-sales')">
       <span class="material-symbols-outlined">trending_up</span> Sales
     </button>
-    <button class="sidebar-item" onclick="scrollTo('sec-products')">
+    <button class="sidebar-item" onclick="scrollToSec('sec-products')">
       <span class="material-symbols-outlined">inventory_2</span> Products
     </button>
-    <button class="sidebar-item" onclick="scrollTo('sec-customers')">
+    <button class="sidebar-item" onclick="scrollToSec('sec-customers')">
       <span class="material-symbols-outlined">people</span> Customers
     </button>
-    <button class="sidebar-item" onclick="scrollTo('sec-drivers')">
+    <button class="sidebar-item" onclick="scrollToSec('sec-drivers')">
       <span class="material-symbols-outlined">local_shipping</span> Drivers
     </button>
-    <button class="sidebar-item" onclick="scrollTo('sec-routes')">
+    <button class="sidebar-item" onclick="scrollToSec('sec-routes')">
       <span class="material-symbols-outlined">map</span> Routes
     </button>
-    <button class="sidebar-item" onclick="scrollTo('sec-ops')">
+    <button class="sidebar-item" onclick="scrollToSec('sec-ops')">
       <span class="material-symbols-outlined">health_and_safety</span> Operations
     </button>
-    <button class="sidebar-item" onclick="scrollTo('sec-brands')">
+    <button class="sidebar-item" onclick="scrollToSec('sec-brands')">
       <span class="material-symbols-outlined">storefront</span> Brands
     </button>
-    <button class="sidebar-item" onclick="scrollTo('sec-alerts')">
+    <button class="sidebar-item" onclick="scrollToSec('sec-map')">
+      <span class="material-symbols-outlined">map</span> Delivery Map
+    </button>
+    <button class="sidebar-item" onclick="scrollToSec('sec-alerts')">
       <span class="material-symbols-outlined">warning</span> Alerts
     </button>
     <div class="sidebar-divider"></div>
@@ -652,6 +668,48 @@
         </div>
       </div>
 
+      <!-- ══ SECTION: DELIVERY MAP ══ -->
+      <div id="sec-map" style="margin-top:40px;">
+        <div class="section-heading">
+          <div class="section-title sky">Delivery Map</div>
+          <span style="font-size:11px;color:var(--on-surface-variant);font-family:var(--font-mono)" id="mapStatusLabel"></span>
+        </div>
+
+        <!-- Controls -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+          <!-- Timeline slider -->
+          <div style="display:flex;align-items:center;gap:8px;background:var(--surface-container-low);border-radius:12px;padding:10px 14px;flex:1;min-width:260px;">
+            <span class="material-symbols-outlined" style="font-size:16px;color:var(--sky);flex-shrink:0;">schedule</span>
+            <input type="range" id="mapTimelineSlider" min="0" max="6" value="6" style="flex:1;accent-color:var(--sky);" oninput="onTimelineChange(this.value)">
+            <span id="mapTimelineLabel" style="font-size:12px;font-weight:700;color:var(--sky);min-width:60px;text-align:right;">All Time</span>
+          </div>
+          <!-- Status filter -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="map-filter-btn active" onclick="setMapFilter('all',this)">All</button>
+            <button class="map-filter-btn" onclick="setMapFilter('delivered',this)" style="--fc:var(--tertiary)">Delivered</button>
+            <button class="map-filter-btn" onclick="setMapFilter('failed',this)" style="--fc:var(--error)">Failed</button>
+            <button class="map-filter-btn" onclick="setMapFilter('pending',this)" style="--fc:var(--amber)">Pending</button>
+          </div>
+          <button onclick="renderDeliveryMap()" style="display:flex;align-items:center;gap:6px;padding:9px 14px;background:rgba(56,189,248,0.1);color:var(--sky);border:1px solid rgba(56,189,248,0.2);border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">
+            <span class="material-symbols-outlined" style="font-size:15px;">refresh</span> Refresh
+          </button>
+        </div>
+
+        <!-- Legend -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;" id="mapLegend">
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--on-surface-variant)"><span style="width:10px;height:10px;border-radius:50%;background:var(--tertiary);display:inline-block;"></span>Delivered</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--on-surface-variant)"><span style="width:10px;height:10px;border-radius:50%;background:var(--error);display:inline-block;"></span>Failed</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--on-surface-variant)"><span style="width:10px;height:10px;border-radius:50%;background:var(--amber);display:inline-block;"></span>Pending / Loaded</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--on-surface-variant)"><span style="width:10px;height:10px;border-radius:50%;background:var(--primary);display:inline-block;"></span>Booked</div>
+        </div>
+
+        <!-- Map container -->
+        <div id="deliveryMapContainer" style="border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);height:500px;background:var(--surface-container-low);"></div>
+
+        <!-- Stats row below map -->
+        <div class="bento-grid tight" id="mapStatsCards" style="margin-top:14px;"></div>
+      </div>
+
       <!-- ══ SECTION: ANOMALY ALERTS ══ -->
       <div id="sec-alerts" style="margin-top:40px;margin-bottom:40px;">
         <div class="section-heading">
@@ -724,7 +782,7 @@ function setRange(days) {
   if (_analytics) renderDashboard(_analytics, days);
 }
 
-function scrollTo(id) {
+function scrollToSec(id) {
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1611,8 +1669,207 @@ function renderAlerts(allData) {
     </div>`).join("");
 }
 
+
+/* ════════════════════════════════════════════════
+   DELIVERY MAP — Leaflet
+   Uses delivered_location / loaded_location coords
+   from deliveries. Timeline slider filters by date.
+════════════════════════════════════════════════ */
+
+let _mapInstance    = null;
+let _mapMarkers     = [];
+let _mapFilter      = "all";
+let _mapTimelineDays = 0; // 0 = all
+
+const TIMELINE_OPTS = [
+  { label: "Today",   days: 1   },
+  { label: "3 Days",  days: 3   },
+  { label: "1 Week",  days: 7   },
+  { label: "2 Weeks", days: 14  },
+  { label: "1 Month", days: 30  },
+  { label: "3 Months",days: 90  },
+  { label: "All Time",days: 0   },
+];
+
+function onTimelineChange(val) {
+  const opt = TIMELINE_OPTS[parseInt(val)] || TIMELINE_OPTS[6];
+  document.getElementById("mapTimelineLabel").textContent = opt.label;
+  _mapTimelineDays = opt.days;
+  renderDeliveryMap();
+}
+
+function setMapFilter(f, btn) {
+  _mapFilter = f;
+  document.querySelectorAll(".map-filter-btn").forEach(b => b.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+  renderDeliveryMap();
+}
+
+function _initMap() {
+  if (_mapInstance) return;
+  _mapInstance = L.map("deliveryMapContainer", {
+    center: [18.618, 73.836], // Pune centre
+    zoom: 12,
+    zoomControl: true,
+    attributionControl: true
+  });
+
+  // Dark tile when dark mode, light when light mode
+  const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  const tileUrl = isDark
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+
+  L.tileLayer(tileUrl, {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19
+  }).addTo(_mapInstance);
+}
+
+function _clearMarkers() {
+  _mapMarkers.forEach(m => m.remove());
+  _mapMarkers = [];
+}
+
+function _makeMarker(lat, lng, color, popupHtml) {
+  const icon = L.divIcon({
+    className: "",
+    html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.7);box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`,
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
+    popupAnchor: [0, -8]
+  });
+  return L.marker([lat, lng], { icon }).bindPopup(popupHtml);
+}
+
+function renderDeliveryMap() {
+  if (!_analytics) return;
+
+  _initMap();
+  _clearMarkers();
+
+  const STATUS_COLORS = {
+    delivered: "#4edea3",
+    failed:    "#ffb4ab",
+    loaded:    "#adc6ff",
+    pending:   "#fbbf24",
+    booked:    "#c084fc",
+  };
+
+  // Filter by timeline
+  const cutoff = _mapTimelineDays
+    ? Date.now() - _mapTimelineDays * 86400000
+    : 0;
+
+  const filtered = _analytics.filter(d => {
+    // Status filter
+    if (_mapFilter !== "all") {
+      if (_mapFilter === "pending" && !["pending","loaded","booked"].includes(d.status)) return false;
+      if (_mapFilter !== "pending" && d.status !== _mapFilter) return false;
+    }
+    // Timeline filter
+    if (cutoff) {
+      const ts = tsToDate(d.created_timestamp);
+      if (!ts || ts.getTime() < cutoff) return false;
+    }
+    return true;
+  });
+
+  const bounds = [];
+  let plotted = 0;
+
+  filtered.forEach(d => {
+    const color = STATUS_COLORS[d.status] || "#adc6ff";
+
+    // Try delivered_location first, then loaded_location
+    const locs = [];
+    if (d.delivered_location?.lat && d.delivered_location?.lng) {
+      locs.push({ lat: parseFloat(d.delivered_location.lat), lng: parseFloat(d.delivered_location.lng), type: "Delivered" });
+    }
+    if (d.loaded_location?.lat && d.loaded_location?.lng) {
+      locs.push({ lat: parseFloat(d.loaded_location.lat), lng: parseFloat(d.loaded_location.lng), type: "Loaded" });
+    }
+
+    locs.forEach(loc => {
+      if (!loc.lat || !loc.lng || isNaN(loc.lat) || isNaN(loc.lng)) return;
+      // Sanity check: Pune area roughly
+      if (loc.lat < 10 || loc.lat > 30 || loc.lng < 70 || loc.lng > 80) return;
+
+      const dateStr = d.delivered_timestamp?.seconds
+        ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short" })
+        : d.created_timestamp?.seconds
+          ? new Date(d.created_timestamp.seconds * 1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short" })
+          : "—";
+
+      const popup = `
+        <div style="font-family:'Inter',sans-serif;font-size:12px;min-width:180px;line-height:1.6;">
+          <div style="font-weight:800;font-size:13px;margin-bottom:4px;">${d.customer_name || "—"}</div>
+          <div style="color:#666;margin-bottom:6px;">${d.product_name || "—"}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+            <span style="background:${color}22;color:${color};padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;">${d.status?.toUpperCase()}</span>
+            <span style="color:#999;font-size:10px;">${loc.type} · ${dateStr}</span>
+          </div>
+          ${d.address ? `<div style="color:#888;font-size:11px;margin-top:4px;">${d.address}</div>` : ""}
+          ${d.product_serial_number ? `<div style="color:#888;font-size:10px;font-family:monospace;margin-top:3px;">S/N: ${d.product_serial_number}</div>` : ""}
+          ${d.assigned_driver_name ? `<div style="color:#888;font-size:11px;margin-top:3px;">🚚 ${d.assigned_driver_name}</div>` : ""}
+        </div>`;
+
+      const m = _makeMarker(loc.lat, loc.lng, color, popup);
+      m.addTo(_mapInstance);
+      _mapMarkers.push(m);
+      bounds.push([loc.lat, loc.lng]);
+      plotted++;
+    });
+  });
+
+  // Fit bounds if we have markers
+  if (bounds.length > 0) {
+    try {
+      _mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    } catch(e) {}
+  }
+
+  // Status label
+  const lbl = document.getElementById("mapStatusLabel");
+  if (lbl) {
+    const opt = TIMELINE_OPTS.find(o => o.days === _mapTimelineDays) || TIMELINE_OPTS[6];
+    lbl.textContent = `${plotted} pins · ${filtered.length} deliveries · ${opt.label}`;
+  }
+
+  // Stats cards below map
+  const withLoc   = _analytics.filter(d => d.delivered_location?.lat || d.loaded_location?.lat).length;
+  const locRate   = pct(withLoc, _analytics.length);
+  const delivered = filtered.filter(d=>d.status==="delivered").length;
+  const failed    = filtered.filter(d=>d.status==="failed").length;
+
+  const mapCards = document.getElementById("mapStatsCards");
+  if (mapCards) {
+    mapCards.innerHTML = [
+      { cls:"stat-sky",   label:"Pins Plotted",      val: plotted,      sub:"Coordinates on map" },
+      { cls:"stat-green", label:"Delivered",          val: delivered,    sub:"In selected range" },
+      { cls:"stat-red",   label:"Failed",             val: failed,       sub:"In selected range" },
+      { cls:"stat-amber", label:"Location Capture %", val: locRate+"%",  sub:`${withLoc} of ${_analytics.length} have GPS` },
+    ].map(b=>`<div class="stat-card ${b.cls}"><div class="stat-label">${b.label}</div><div class="stat-value">${b.val}</div><div class="stat-sub">${b.sub}</div></div>`).join("");
+  }
+}
+
+// Invalidate map size when section scrolled into view
+const _mapObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting && _mapInstance) {
+      setTimeout(() => _mapInstance.invalidateSize(), 100);
+    }
+  });
+}, { threshold: 0.1 });
+
+document.addEventListener("DOMContentLoaded", () => {
+  const mapSec = document.getElementById("sec-map");
+  if (mapSec) _mapObserver.observe(mapSec);
+});
+
 /* ── INIT ── */
 document.addEventListener("DOMContentLoaded", loadAnalytics);
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </body>
 </html>
