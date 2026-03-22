@@ -1305,6 +1305,10 @@
     <span class="nav-icon">⬇</span>
     Export
   </button>
+  <button class="kinetic-nav-btn" onclick="openStockSyncModal()">
+    <span class="nav-icon">🔄</span>
+    Sync Stock
+  </button>
   <button class="kinetic-nav-btn" onclick="accountantLogout()">
     <span class="nav-icon">🚪</span>
     Logout
@@ -3755,9 +3759,397 @@ function closePhotoLightbox() {
 }
 document.addEventListener("keydown", e => { if (e.key === "Escape") closePhotoLightbox(); });
 </script>
+
+<style>
+/* ── STOCK SYNC MODAL ── */
+#stockSyncOverlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.85); backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  z-index:999; align-items:center; justify-content:center; padding:20px;
+}
+#stockSyncOverlay.open { display:flex; }
+#stockSyncCard {
+  background:var(--surface-container-low);
+  border-radius:24px; padding:28px; width:100%;
+  max-width:520px; max-height:88vh; overflow-y:auto;
+  border:1px solid rgba(78,222,163,0.15);
+  box-shadow:0 48px 80px rgba(0,0,0,0.5);
+  scrollbar-width:thin; scrollbar-color:rgba(78,222,163,0.2) transparent;
+}
+#stockSyncCard::-webkit-scrollbar { width:5px; }
+#stockSyncCard::-webkit-scrollbar-thumb { background:rgba(78,222,163,0.2); border-radius:10px; }
+.ss-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; gap:12px; }
+.ss-title  { font-size:20px; font-weight:900; color:var(--on-surface); letter-spacing:-0.3px; }
+.ss-sub    { font-size:12px; color:var(--on-surface-variant); margin-top:3px; }
+.ss-close  {
+  background:var(--surface-container-highest); border:none;
+  color:var(--on-surface-variant); width:34px; height:34px;
+  border-radius:50%; font-size:16px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.ss-close:hover { background:var(--surface-container-high); color:var(--on-surface); }
+.ss-dropzone {
+  border:2px dashed rgba(78,222,163,0.3); border-radius:16px;
+  padding:32px 20px; text-align:center; cursor:pointer;
+  background:rgba(78,222,163,0.04); transition:all 0.2s;
+}
+.ss-dropzone:hover, .ss-dropzone.dragover {
+  border-color:var(--tertiary); background:rgba(78,222,163,0.08);
+}
+.ss-dz-icon { font-size:40px; margin-bottom:10px; }
+.ss-dz-label { font-size:15px; font-weight:700; color:var(--on-surface); margin-bottom:6px; }
+.ss-dz-sub   { font-size:12px; color:var(--on-surface-variant); line-height:1.6; }
+.ss-dz-sub b { color:var(--tertiary); }
+.ss-guide {
+  background:var(--surface-container-high); border-radius:12px;
+  padding:13px 16px; margin-top:14px;
+  font-size:12px; color:var(--on-surface-variant); line-height:1.7;
+}
+.ss-guide strong { color:var(--on-surface); font-weight:700; }
+.ss-guide-title {
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:1px; color:var(--tertiary); margin-bottom:8px;
+}
+.ss-stat-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;
+}
+.ss-stat {
+  background:var(--surface-container); border-radius:14px; padding:14px 16px;
+}
+.ss-stat-val { font-size:28px; font-weight:900; letter-spacing:-1px; font-family:'JetBrains Mono',monospace; }
+.ss-stat-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--on-surface-variant); margin-top:4px; }
+.ss-new-list {
+  background:var(--surface-container-lowest); border-radius:12px;
+  padding:12px 14px; max-height:180px; overflow-y:auto;
+  font-size:12px; font-family:'JetBrains Mono',monospace;
+  color:var(--on-surface-variant); line-height:1.8;
+  scrollbar-width:thin; scrollbar-color:rgba(78,222,163,0.15) transparent;
+}
+.ss-msg {
+  font-size:13px; font-weight:600; padding:10px 14px;
+  border-radius:10px; margin-bottom:14px;
+  background:rgba(255,180,171,0.08);
+}
+.ss-btn-primary {
+  width:100%; padding:14px; margin-top:14px;
+  background:linear-gradient(135deg,var(--tertiary-container,#00a572),var(--tertiary,#4edea3));
+  color:#002113; border:none; border-radius:12px;
+  font-family:'Inter',sans-serif; font-size:14px; font-weight:800;
+  cursor:pointer; transition:opacity 0.2s;
+}
+.ss-btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
+.ss-btn-primary:not(:disabled):hover { opacity:0.88; }
+.ss-btn-secondary {
+  width:100%; padding:13px; margin-top:8px;
+  background:var(--surface-container-highest); color:var(--on-surface-variant);
+  border:none; border-radius:12px; font-family:'Inter',sans-serif;
+  font-size:14px; font-weight:700; cursor:pointer;
+}
+.ss-btn-secondary:hover { opacity:0.8; }
+[data-theme="light"] #stockSyncCard { background:white; border-color:rgba(5,150,105,0.2); }
+[data-theme="light"] .ss-dropzone   { background:rgba(5,150,105,0.03); border-color:rgba(5,150,105,0.2); }
+[data-theme="light"] .ss-guide      { background:#f0fdf4; }
+[data-theme="light"] .ss-stat       { background:#f8fffe; }
+[data-theme="light"] .ss-new-list   { background:#f8fafc; }
+</style>
+
+<!-- ══ STOCK SYNC MODAL ══ -->
+<div id="stockSyncOverlay">
+  <div id="stockSyncCard">
+
+    <div class="ss-header">
+      <div>
+        <div class="ss-title">🔄 Sync Stock from Tally</div>
+        <div class="ss-sub">Export stock items XML from Tally, select it here — new products get added automatically</div>
+      </div>
+      <button class="ss-close" onclick="closeStockSyncModal()">✕</button>
+    </div>
+
+    <div id="ssMsgEl" class="ss-msg" style="display:none;"></div>
+
+    <!-- Step 1: upload -->
+    <div id="ssStepUpload">
+      <div class="ss-dropzone" id="ssDZ"
+        onclick="document.getElementById('ssFileInput').click()"
+        ondragover="ssDragOver(event)" ondragleave="ssDragLeave(event)" ondrop="ssDrop(event)">
+        <div class="ss-dz-icon">📂</div>
+        <div class="ss-dz-label" id="ssDZLabel">Click to select Tally XML file</div>
+        <div class="ss-dz-sub">Or drag and drop<br><b>Accepts: .xml exported from Tally stock items</b></div>
+      </div>
+      <input type="file" id="ssFileInput" accept=".xml,application/xml,text/xml"
+        style="display:none" onchange="handleSyncFile(this.files[0])">
+
+      <div class="ss-guide">
+        <div class="ss-guide-title">📋 How to export stock items from Tally</div>
+        <strong>Gateway of Tally → Stock Summary → Alt+E → XML → Save</strong><br>
+        Or: <strong>Inventory Info → Stock Items → Alt+E → XML → Save</strong><br><br>
+        <span style="color:var(--tertiary);font-weight:600;">Note:</span>
+        This will only <strong>add</strong> new products — existing ones are never removed.
+      </div>
+    </div>
+
+    <!-- Step 2: preview + confirm -->
+    <div id="ssStepPreview" style="display:none;">
+      <div class="ss-stat-grid">
+        <div class="ss-stat">
+          <div class="ss-stat-val" id="ssStatExtracted" style="color:var(--primary);">—</div>
+          <div class="ss-stat-lbl">Extracted from XML</div>
+        </div>
+        <div class="ss-stat">
+          <div class="ss-stat-val" id="ssStatNew" style="color:var(--tertiary);">—</div>
+          <div class="ss-stat-lbl">New to Add</div>
+        </div>
+        <div class="ss-stat">
+          <div class="ss-stat-val" id="ssStatExisting" style="color:var(--on-surface-variant);">—</div>
+          <div class="ss-stat-lbl">Already in System</div>
+        </div>
+        <div class="ss-stat">
+          <div class="ss-stat-val" id="ssStatTotal" style="color:var(--amber);">—</div>
+          <div class="ss-stat-lbl">Total After Sync</div>
+        </div>
+      </div>
+
+      <div id="ssNewItemsWrap" style="display:none;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-bottom:8px;">
+          New products to be added:
+        </div>
+        <div class="ss-new-list" id="ssNewItemsList"></div>
+      </div>
+
+      <button class="ss-btn-primary" id="ssConfirmBtn" onclick="confirmStockSync()">
+        ✅ Sync — Add New Products
+      </button>
+      <button class="ss-btn-secondary" onclick="ssGoBack()">← Change File</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════
+   STOCK SYNC MODULE — completely self-contained
+   Flow:
+     1. Accountant picks Tally XML stock export
+     2. Browser extracts STOCKITEM NAME attributes
+        (same regex as clean_tally.py — 100% client-side)
+     3. Compare against current tally_products in memory
+     4. Show preview: X new, Y already exist
+     5. POST /tally/products/sync → server merges into Firestore
+════════════════════════════════════════════════ */
+
+let _ssExtracted   = [];  // names from XML
+let _ssNewNames    = [];  // names not yet in system
+
+/* ── OPEN / CLOSE ── */
+function openStockSyncModal() {
+  document.getElementById("stockSyncOverlay").classList.add("open");
+  _ssReset();
+}
+function closeStockSyncModal() {
+  document.getElementById("stockSyncOverlay").classList.remove("open");
+  document.getElementById("ssFileInput").value = "";
+}
+function _ssReset() {
+  _ssExtracted = [];
+  _ssNewNames  = [];
+  document.getElementById("ssStepUpload").style.display  = "block";
+  document.getElementById("ssStepPreview").style.display = "none";
+  document.getElementById("ssMsgEl").style.display       = "none";
+  const lbl = document.getElementById("ssDZLabel");
+  if (lbl) lbl.textContent = "Click to select Tally XML file";
+  const dz = document.getElementById("ssDZ");
+  const sub = dz?.querySelector(".ss-dz-sub");
+  if (sub) sub.innerHTML = "Or drag and drop<br><b>Accepts: .xml exported from Tally stock items</b>";
+}
+function ssGoBack() {
+  _ssReset();
+  document.getElementById("ssFileInput").value = "";
+}
+
+/* ── DRAG & DROP ── */
+function ssDragOver(e)  { e.preventDefault(); document.getElementById("ssDZ").classList.add("dragover"); }
+function ssDragLeave(e) { document.getElementById("ssDZ").classList.remove("dragover"); }
+function ssDrop(e) {
+  e.preventDefault();
+  document.getElementById("ssDZ").classList.remove("dragover");
+  const f = e.dataTransfer?.files?.[0];
+  if (f) handleSyncFile(f);
+}
+
+/* ── FILE HANDLER ── */
+async function handleSyncFile(file) {
+  if (!file) return;
+  const isXML = file.name.toLowerCase().endsWith(".xml") ||
+                file.type === "application/xml" || file.type === "text/xml";
+  if (!isXML) { _ssMsgError("⚠ Please select an XML file exported from Tally"); return; }
+
+  const lbl = document.getElementById("ssDZLabel");
+  const sub = document.getElementById("ssDZ")?.querySelector(".ss-dz-sub");
+  if (lbl) lbl.textContent = "⏳ Reading file…";
+  if (sub) sub.innerHTML = `<b>${file.name}</b> — ${(file.size/1024).toFixed(0)} KB`;
+  document.getElementById("ssMsgEl").style.display = "none";
+
+  try {
+    // Decode UTF-16 LE (Tally default) — same as invoice import
+    const buf     = await file.arrayBuffer();
+    const bytes   = new Uint8Array(buf);
+    const isUTF16 = bytes[0] === 0xFF && bytes[1] === 0xFE;
+    const text    = isUTF16
+      ? new TextDecoder("utf-16le").decode(buf)
+      : new TextDecoder("utf-8").decode(buf);
+
+    if (lbl) lbl.textContent = "⏳ Extracting product names…";
+    await new Promise(r => setTimeout(r, 30)); // yield to render
+
+    // ── Same regex as clean_tally.py ──
+    const pattern = /<STOCKITEM\s+NAME="([^"]+)"/gi;
+    const seen    = new Set();
+    const names   = [];
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const name = match[1].trim();
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        names.push(name);
+      }
+    }
+    names.sort(); // alphabetical like clean_tally.py
+
+    if (names.length === 0) {
+      _ssMsgError("⚠ No STOCKITEM entries found. Make sure this is a Tally stock items XML export.");
+      if (lbl) lbl.textContent = "Click to select Tally XML file";
+      return;
+    }
+
+    _ssExtracted = names;
+
+    // Compare against current tallyProducts (already loaded on init)
+    const existing = new Set((tallyProducts || []).map(n => n.trim()));
+    _ssNewNames    = names.filter(n => !existing.has(n.trim()));
+
+    // Show preview
+    document.getElementById("ssStepUpload").style.display  = "none";
+    document.getElementById("ssStepPreview").style.display = "block";
+
+    document.getElementById("ssStatExtracted").textContent = names.length.toLocaleString("en-IN");
+    document.getElementById("ssStatNew").textContent       = _ssNewNames.length.toLocaleString("en-IN");
+    document.getElementById("ssStatExisting").textContent  = (names.length - _ssNewNames.length).toLocaleString("en-IN");
+    document.getElementById("ssStatTotal").textContent     = (existing.size + _ssNewNames.length).toLocaleString("en-IN");
+
+    const newWrap = document.getElementById("ssNewItemsWrap");
+    const newList = document.getElementById("ssNewItemsList");
+    if (_ssNewNames.length > 0) {
+      newList.innerHTML = _ssNewNames
+        .slice(0, 200) // show max 200 in preview
+        .map(n => `<div style="padding:1px 0;border-bottom:1px solid rgba(255,255,255,0.04);">+ ${n}</div>`)
+        .join("") +
+        (_ssNewNames.length > 200
+          ? `<div style="color:var(--tertiary);padding-top:6px;">… and ${_ssNewNames.length - 200} more</div>`
+          : "");
+      newWrap.style.display = "block";
+    } else {
+      newList.innerHTML = "";
+      newWrap.style.display = "none";
+    }
+
+    const btn = document.getElementById("ssConfirmBtn");
+    if (_ssNewNames.length === 0) {
+      btn.textContent  = "✅ Already Up to Date — Nothing to Add";
+      btn.disabled     = true;
+    } else {
+      btn.textContent  = `✅ Sync — Add ${_ssNewNames.length.toLocaleString("en-IN")} New Products`;
+      btn.disabled     = false;
+    }
+
+  } catch (e) {
+    _ssMsgError("⚠ Could not read file: " + e.message);
+    if (lbl) lbl.textContent = "Click to select Tally XML file";
+    console.error("[stock-sync]", e);
+  }
+}
+
+/* ── CONFIRM SYNC ── */
+async function confirmStockSync() {
+  if (!_ssNewNames.length) return;
+
+  const btn = document.getElementById("ssConfirmBtn");
+  btn.disabled    = true;
+  btn.textContent = "⏳ Uploading…";
+
+  try {
+    const res  = await authFetch(`${BASE_URL}/tally/products/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names: _ssNewNames })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Server error");
+
+    // Reload tally products in memory so dropdowns are fresh
+    await loadTallyProducts();
+
+    // Show success
+    document.getElementById("ssStepPreview").style.display = "none";
+    document.getElementById("ssStepUpload").style.display  = "block";
+
+    const lbl = document.getElementById("ssDZLabel");
+    const sub = document.getElementById("ssDZ")?.querySelector(".ss-dz-sub");
+    if (lbl) lbl.textContent = "✅ Sync Complete!";
+    if (sub) sub.innerHTML = `
+      <span style="color:var(--tertiary);font-weight:700;">
+        +${data.added} new products added
+      </span><br>
+      Total in system: ${data.total.toLocaleString("en-IN")} products<br>
+      <span style="color:var(--on-surface-variant);">
+        Tally product list is now up to date
+      </span>`;
+
+    _ssMsgSuccess(`✅ ${data.added} new products added · ${data.total} total in system`);
+
+    console.log(`[stock-sync] Added: ${data.added}, Total: ${data.total}`);
+  } catch (e) {
+    btn.disabled    = false;
+    btn.textContent = `✅ Sync — Add ${_ssNewNames.length.toLocaleString("en-IN")} New Products`;
+    _ssMsgError("⚠ Sync failed: " + e.message);
+  }
+}
+
+/* ── HELPERS ── */
+function _ssMsgError(text) {
+  const el = document.getElementById("ssMsgEl");
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = "block";
+  el.style.color   = "var(--error,#ffb4ab)";
+  el.style.background = "rgba(255,180,171,0.08)";
+}
+function _ssMsgSuccess(text) {
+  const el = document.getElementById("ssMsgEl");
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = "block";
+  el.style.color   = "var(--tertiary,#4edea3)";
+  el.style.background = "rgba(78,222,163,0.08)";
+}
+
+// Close on overlay click
+document.getElementById("stockSyncOverlay").addEventListener("click", function(e) {
+  if (e.target === this) closeStockSyncModal();
+});
+
+// Close on Escape (only if stock sync is open)
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" &&
+      document.getElementById("stockSyncOverlay").classList.contains("open")) {
+    closeStockSyncModal();
+  }
+});
+
+console.log("[stock-sync] Module loaded ✓");
+</script>
 </body>
 </html>
-
 <!-- ════════════════════════════════════════════════════════════
      TALLY IMPORT MODULE
      Completely standalone — does NOT touch any existing functions.

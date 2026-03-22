@@ -215,6 +215,72 @@ app.delete("/tally/pending/:invoice_number", authenticate, authorize(["accountan
   res.json({ ok: true, existed });
 });
 
+
+/* ════════════════════════════════════════════════
+   PRODUCT NORMALIZE
+   POST /product/normalize
+   Body: { canonical: "WM SAMSUNG WW80TA046AB1 (FL)", variants: ["WM SAMSUNG WW80TA046AB1","WM SAMSUNG WW80 TA046AB1"] }
+   — Renames product_name on all matching deliveries
+   — Updates tally_products names array
+════════════════════════════════════════════════ */
+app.post("/product/normalize", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { canonical, variants } = req.body;
+    if (!canonical || !Array.isArray(variants) || !variants.length) {
+      return res.status(400).json({ error: "canonical and variants array required" });
+    }
+
+    const canonicalClean = canonical.trim().toUpperCase();
+    const variantSet     = new Set(variants.map(v => v.trim().toUpperCase()));
+
+    let deliveries_updated = 0;
+
+    // ── 1. Rename product_name in all matching deliveries ──
+    const snap = await getDocs(collection(db, "deliveries"));
+    const batch_updates = [];
+
+    snap.docs.forEach(d => {
+      const pn = (d.data().product_name || "").trim().toUpperCase();
+      if (variantSet.has(pn) && pn !== canonicalClean) {
+        batch_updates.push(
+          updateDoc(doc(db, "deliveries", d.id), { product_name: canonical.trim() })
+        );
+        deliveries_updated++;
+      }
+    });
+
+    // Execute in batches of 20
+    for (let i = 0; i < batch_updates.length; i += 20) {
+      await Promise.all(batch_updates.slice(i, i + 20));
+    }
+
+    // ── 2. Update tally_products — remove variants, ensure canonical exists ──
+    const tallyRef  = doc(db, "tally_products", "index");
+    const tallySnap = await getDoc(tallyRef);
+    if (tallySnap.exists()) {
+      const names    = tallySnap.data().names || [];
+      const variantSetRaw = new Set(variants.map(v => v.trim().toUpperCase()));
+      // Keep names that are NOT the variants (case-insensitive), add canonical if missing
+      const filtered = names.filter(n => {
+        const u = n.trim().toUpperCase();
+        return !variantSetRaw.has(u) || u === canonicalClean;
+      });
+      // Ensure canonical is in the list
+      if (!filtered.map(n => n.trim().toUpperCase()).includes(canonicalClean)) {
+        filtered.push(canonical.trim());
+      }
+      await setDoc(tallyRef, { names: filtered, count: filtered.length }, { merge: true });
+    }
+
+    console.log(`[product/normalize] Canonical: "${canonical.trim()}" | Variants renamed: ${variants.length} | Deliveries updated: ${deliveries_updated}`);
+    res.json({ success: true, deliveries_updated, canonical: canonical.trim() });
+
+  } catch (err) {
+    console.error("/product/normalize error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ════════════════════════════════════════════════
    STARTUP MIGRATION — runs every deploy
    Flips any pending deliveries with future ETA → booked
@@ -1669,6 +1735,53 @@ app.get("/tally/products", async (req, res) => {
     res.json({ names: data.names || [], count: data.count || 0 });
   } catch (err) {
     console.error("/tally/products error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+/* ════════════════════════════════════════════════
+   TALLY STOCK SYNC
+   POST /tally/products/sync
+   Body: { names: ["WM SAMSUNG...", "REF HAIER...", ...] }
+   — Only ADDS names not already present
+   — Never removes existing names (old deliveries reference them)
+   — Returns { added, total, duplicates }
+════════════════════════════════════════════════ */
+app.post("/tally/products/sync", authenticate, authorize(["accountant","admin"]), async (req, res) => {
+  try {
+    const incoming = req.body?.names;
+    if (!Array.isArray(incoming) || incoming.length === 0) {
+      return res.status(400).json({ error: "names array required" });
+    }
+
+    // Fetch current list
+    const ref  = doc(db, "tally_products", "index");
+    const snap = await getDoc(ref);
+    const existing     = snap.exists() ? (snap.data().names || []) : [];
+    const existingSet  = new Set(existing.map(n => n.trim()));
+
+    // Find genuinely new names
+    const toAdd = incoming
+      .map(n => n.trim())
+      .filter(n => n && !existingSet.has(n));
+
+    if (toAdd.length === 0) {
+      return res.json({ added: 0, total: existing.length, duplicates: incoming.length });
+    }
+
+    // Merge and sort alphabetically (mirrors clean_tally.py)
+    const merged = [...existing, ...toAdd].sort((a, b) =>
+      a.toUpperCase().localeCompare(b.toUpperCase())
+    );
+
+    await setDoc(ref, { names: merged, count: merged.length }, { merge: true });
+
+    console.log(`[tally/products/sync] +${toAdd.length} new names → total: ${merged.length}`);
+    res.json({ added: toAdd.length, total: merged.length, duplicates: incoming.length - toAdd.length });
+
+  } catch (err) {
+    console.error("/tally/products/sync error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
