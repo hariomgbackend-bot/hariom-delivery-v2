@@ -805,10 +805,18 @@ function showApp() {
 
 /* ── LOAD EVERYTHING ── */
 async function loadAll() {
-  await Promise.all([loadTickets(), loadDeliveries()]);
+  await loadTickets(); // deliveries loaded lazily when needed
 }
 
 async function loadTickets() {
+  // Show skeleton immediately so screen isn't blank
+  const tbody = document.getElementById("ticketsTableBody");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--on-surface-variant);">
+    <div style="display:inline-flex;align-items:center;gap:10px;">
+      <span style="font-size:22px;">⏳</span>
+      <span style="font-size:14px;font-weight:600;">Loading tickets…</span>
+    </div>
+  </td></tr>`;
   try {
     const res   = await authFetch(`${BASE_URL}/service/tickets`);
     allTickets  = await res.json();
@@ -817,15 +825,32 @@ async function loadTickets() {
     renderTickets();
   } catch (e) {
     console.error("loadTickets:", e.message);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--error);">
+      Failed to load tickets — <button onclick="loadTickets()" style="color:var(--primary);background:none;border:none;cursor:pointer;font-weight:700;">Retry</button>
+    </td></tr>`;
   }
 }
 
+// Deliveries are loaded lazily — only fetch the specific one needed
+// instead of dumping the full collection on login (was causing the slow load)
 async function loadDeliveries() {
+  // No-op — kept for compatibility. Use getDelivery(id) instead.
+}
+
+async function getDelivery(id) {
+  // Check in-memory cache first
+  const cached = allDeliveries.find(x => x.id === id);
+  if (cached) return cached;
+  // Fetch just this one delivery
   try {
-    const res    = await authFetch(`${BASE_URL}/deliveries`);
-    allDeliveries = await res.json();
+    const res = await authFetch(`${BASE_URL}/delivery/${id}`);
+    if (!res.ok) return null;
+    const d = await res.json();
+    allDeliveries.push(d); // cache it for subsequent calls
+    return d;
   } catch (e) {
-    console.error("loadDeliveries:", e.message);
+    console.error("getDelivery:", e.message);
+    return null;
   }
 }
 
@@ -1455,8 +1480,8 @@ function getWarrantyHtml(d) {
   return `<span class="badge badge-warranty-ok">In warranty</span>`;
 }
 
-function prefillFromDelivery(deliveryId) {
-  const d = allDeliveries.find(x => x.id === deliveryId);
+async function prefillFromDelivery(deliveryId) {
+  const d = await getDelivery(deliveryId);
   if (!d) return;
   openCreateTicketPopup({
     deliveryId: d.id,
