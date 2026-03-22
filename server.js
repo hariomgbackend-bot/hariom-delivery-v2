@@ -99,7 +99,7 @@ cron.schedule("30 0 * * *", async () => {
 ════════════════════════════════════════════════ */
 cron.schedule("0 9 * * *", async () => {
   try {
-    const cutoff  = Timestamp.fromMillis(Date.now() - 12 * 60 * 60 * 1000);
+    const cutoff  = Timestamp.fromMillis(Date.now() - 48 * 60 * 60 * 1000);
     const snap    = await getDocs(query(
       collection(db, "service_tickets"),
       where("status", "in", ["open", "assigned", "in_progress"])
