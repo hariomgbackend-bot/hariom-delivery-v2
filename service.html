@@ -430,6 +430,8 @@
     .pg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .pg-info { font-size: 12px; color: var(--on-surface-variant); font-weight: 600; padding: 0 6px; }
   </style>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 </head>
 <body>
 
@@ -800,7 +802,9 @@ function showApp() {
   document.getElementById("headerUser").textContent  = serviceName;
   loadAll();
   loadSvcTallyProducts();
-  registerServicePush();
+  // Push registration deferred — never blocks UI interaction
+  // Runs after Firebase scripts have loaded and page is idle
+  _deferPushRegistration();
 }
 
 /* ── LOAD EVERYTHING ── */
@@ -1645,13 +1649,36 @@ const FIREBASE_CONFIG_SVC = {
 };
 const VAPID_KEY_SVC = "BMiekPX2di-maWY-3KoprJFLy2OVNPiqvjuz9W9mpNDuOPWDMhstKpaja8A2zKkp8XpmKxETbi_3hoMaPVgB0dE";
 
-let _svcMessaging = null;
+let _svcMessaging    = null;
+let _pushDeferred    = false;
+
+// Defer push registration until Firebase scripts loaded + page idle
+// Never call directly from showApp — that blocks the UI
+function _deferPushRegistration() {
+  if (_pushDeferred) return;
+  _pushDeferred = true;
+  // Wait for window load (Firebase scripts) then add a 2s idle delay
+  const run = () => setTimeout(registerServicePush, 2000);
+  if (document.readyState === "complete") { run(); }
+  else { window.addEventListener("load", run, { once: true }); }
+}
 
 async function registerServicePush() {
   try {
     if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
 
-    // Init Firebase app — avoid duplicate init
+    // Guard: Firebase must be loaded
+    if (typeof firebase === "undefined" || !firebase.messaging) {
+      console.warn("[service push] Firebase not ready — skipping");
+      return;
+    }
+
+    // Only ask for permission if already granted or default
+    // Never auto-prompt — let user interaction trigger it if needed
+    const currentPerm = Notification.permission;
+    if (currentPerm === "denied") return;
+
+    // Init Firebase messaging — avoid duplicate init
     if (!_svcMessaging) {
       const app = firebase.apps?.length
         ? firebase.app()
@@ -1659,8 +1686,11 @@ async function registerServicePush() {
       _svcMessaging = firebase.messaging(app);
     }
 
-    const perm = await Notification.requestPermission();
-    if (perm !== "granted") { console.log("[service push] Permission denied"); return; }
+    // Request permission only if not yet granted
+    if (currentPerm !== "granted") {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { console.log("[service push] Permission denied"); return; }
+    }
 
     // Register SW
     const regs = await navigator.serviceWorker.getRegistrations();
@@ -1686,7 +1716,6 @@ async function registerServicePush() {
     });
     console.log("[service push] Token saved ✅");
 
-    // Handle foreground messages
     _svcMessaging.onMessage(payload => {
       const { title, body } = payload.notification || {};
       showToast(`🔔 ${title}: ${body}`);
@@ -1713,7 +1742,5 @@ function getBrandTrackingAlarmHtml(ticket) {
     </div>`;
 }
 </script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 </body>
 </html>
