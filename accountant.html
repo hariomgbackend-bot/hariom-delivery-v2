@@ -3277,7 +3277,6 @@ function shareDeliveryWA(deliveryId) {
 ━━━━━━━━━━━━━━
 👤 Customer: ${d.customer_name || "—"}
 📞 Phone: ${d.phone || "—"}
-📞 Alertnate: ${d.alternate_phone || "—"}
 📍 Address: ${d.address || "—"}
 📦 Product: ${d.product_name || "—"}
 🔑 Serial: ${d.product_serial_number || "—"}
@@ -4069,6 +4068,9 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closePhotoLi
       <button class="tally-close-btn" onclick="closeTallyImportModal()" title="Close">✕</button>
     </div>
 
+    <!-- Inline message area -->
+    <div id="tallyMsg" style="display:none;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;background:rgba(255,180,171,0.1);margin-bottom:14px;line-height:1.4;"></div>
+
     <!-- Step indicator -->
     <div class="tally-steps">
       <div class="tally-step active" id="tallyStep1">1. Export XML from Tally</div>
@@ -4200,24 +4202,99 @@ function tallyDrop(e) {
   if (file) handleTallyXMLFile(file);
 }
 
+/* ── LOCAL MESSAGE HELPER (accountant has no global toast) ── */
+function _tallyMsg(text, type) {
+  const el = document.getElementById("tallyMsg");
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = "block";
+  el.style.color   = type === "error"   ? "var(--error, #ffb4ab)"
+                   : type === "success"  ? "var(--tertiary, #4edea3)"
+                   : "var(--on-surface-variant, #c2c6d6)";
+  if (type !== "error") setTimeout(() => { el.style.display = "none"; }, 4000);
+}
+
+/* ── FILE READER — handles UTF-16 LE (Tally default) and UTF-8 ── */
+function _tallyReadFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      const buf = e.target.result;
+      const bytes = new Uint8Array(buf);
+
+      // Check for UTF-16 LE BOM (0xFF 0xFE)
+      if (bytes[0] === 0xFF && bytes[1] === 0xFE) {
+        try {
+          const decoded = new TextDecoder("utf-16le").decode(buf);
+          resolve(decoded);
+        } catch(err) {
+          reject(new Error("Could not decode UTF-16 file: " + err.message));
+        }
+      }
+      // Check for UTF-16 BE BOM (0xFE 0xFF)
+      else if (bytes[0] === 0xFE && bytes[1] === 0xFF) {
+        try {
+          const decoded = new TextDecoder("utf-16be").decode(buf);
+          resolve(decoded);
+        } catch(err) {
+          reject(new Error("Could not decode UTF-16 BE file: " + err.message));
+        }
+      }
+      // UTF-8 or no BOM — standard
+      else {
+        try {
+          const decoded = new TextDecoder("utf-8").decode(buf);
+          resolve(decoded);
+        } catch(err) {
+          reject(new Error("Could not decode file: " + err.message));
+        }
+      }
+    };
+
+    reader.onerror = () => reject(new Error("FileReader error"));
+    reader.readAsArrayBuffer(file); // read as bytes so we can detect BOM
+  });
+}
+
 /* ── FILE HANDLER ── */
 async function handleTallyXMLFile(file) {
   if (!file) return;
   if (!file.name.toLowerCase().endsWith(".xml") && file.type !== "application/xml" && file.type !== "text/xml") {
-    showToast("⚠ Please select an XML file exported from Tally");
+    _tallyMsg("⚠ Please select an XML file exported from Tally", "error");
     return;
   }
 
-  const dropzone = document.getElementById("tallyDropzone");
-  dropzone.querySelector(".tally-dropzone-label").textContent = "⏳ Parsing…";
+  const dropzone   = document.getElementById("tallyDropzone");
+  const labelEl    = dropzone?.querySelector(".tally-dropzone-label");
+  const subEl      = dropzone?.querySelector(".tally-dropzone-sub");
+  if (labelEl) labelEl.textContent = "⏳ Reading file…";
+
+  // Clear any previous error
+  const msgEl = document.getElementById("tallyMsg");
+  if (msgEl) msgEl.style.display = "none";
 
   try {
-    const text = await file.text();
+    // Show parsing state immediately
+    if (labelEl) labelEl.textContent = "⏳ Reading file…";
+    if (subEl) subEl.innerHTML = `<b>File: ${file.name}</b><br>Size: ${(file.size/1024).toFixed(1)} KB — please wait…`;
+
+    // Tally exports XML as UTF-16 LE (with BOM ÿþ).
+    // file.text() defaults to UTF-8 and mangles the content.
+    // We must detect encoding and decode correctly.
+    const text = await _tallyReadFile(file);
+
+    if (labelEl) labelEl.textContent = "⏳ Parsing vouchers…";
+
+    // Yield one frame so the UI update renders before heavy sync parse
+    await new Promise(resolve => setTimeout(resolve, 30));
+
     _tallyParsedVouchers = parseTallyXML(text);
 
     if (_tallyParsedVouchers.length === 0) {
-      showToast("⚠ No Sales vouchers found in this file. Try exporting Day Book or Sales Register.");
-      dropzone.querySelector(".tally-dropzone-label").textContent = "Click to select Tally XML file";
+      _tallyMsg("⚠ No Sales vouchers found. Try Day Book or Sales Register export.", "error");
+      if (labelEl) labelEl.textContent = "Click to select Tally XML file";
+      if (subEl) subEl.innerHTML = "Or drag and drop the file here<br><b>Accepts: .xml files exported from Tally</b>";
       return;
     }
 
@@ -4229,8 +4306,9 @@ async function handleTallyXMLFile(file) {
     renderTallyInvoiceList();
 
   } catch (err) {
-    showToast("⚠ Could not read XML file: " + err.message);
-    dropzone.querySelector(".tally-dropzone-label").textContent = "Click to select Tally XML file";
+    _tallyMsg("⚠ Could not read XML file: " + err.message, "error");
+    if (labelEl) labelEl.textContent = "Click to select Tally XML file";
+    if (subEl) subEl.innerHTML = "Or drag and drop the file here<br><b>Accepts: .xml files exported from Tally</b>";
     console.error("[tally-import]", err);
   }
 }
@@ -4241,104 +4319,89 @@ function tallyGoBack() {
 }
 
 /* ── XML PARSER ── */
+// Rewrote based on actual Tally DayBook XML structure:
+//   - File is UTF-16 LE encoded — browser FileReader must decode it
+//   - Voucher type is VCHTYPE="GST SALES" (not "Sales")
+//   - Serial number is in <BASICUSERDESCRIPTION> (not BATCHNAME)
+//   - Price incl GST is in <INCLVATRATE> e.g. "15000.00/NOS"
+//   - Phone/Address NOT in voucher — in Ledger master (we skip gracefully)
+//   - Multiple products per voucher supported via multiple ALLINVENTORYENTRIES.LIST
+
 function parseTallyXML(xmlText) {
-  const parser  = new DOMParser();
-  const xmlDoc  = parser.parseFromString(xmlText, "application/xml");
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlText, "application/xml");
 
-  // Check for parse errors
   const parseErr = xmlDoc.querySelector("parsererror");
-  if (parseErr) throw new Error("Invalid XML format");
+  if (parseErr) throw new Error("Invalid XML format — check the file is a Tally XML export");
 
-  const vouchers = [];
+  const vouchers  = [];
+  const imported  = _tallyGetImported();
+  const voucherEls = xmlDoc.getElementsByTagName("VOUCHER");
 
-  // Try both VOUCHER and TALLYMESSAGE structures (Tally has slight variations)
-  const voucherEls = xmlDoc.querySelectorAll("VOUCHER");
-
-  voucherEls.forEach(v => {
-    // Only Sales vouchers
-    const vchType = (v.getAttribute("VCHTYPE") || v.querySelector("VOUCHERTYPENAME")?.textContent || "").trim().toUpperCase();
-    if (!vchType.includes("SALES") && !vchType.includes("SALE")) return;
+  Array.from(voucherEls).forEach(v => {
+    // Only GST SALES vouchers (Tally's voucher type name)
+    const vchType = (v.getAttribute("VCHTYPE") || "").trim();
+    if (!vchType.toUpperCase().includes("SALES")) return;
 
     const voucher = {};
 
-    // Invoice / voucher number
+    // ── Invoice number ──
     voucher.invoice_number = (
-      v.querySelector("VOUCHERNUMBER")?.textContent ||
-      v.getAttribute("VOUCHERNUMBER") || ""
+      v.getElementsByTagName("VOUCHERNUMBER")[0]?.textContent || ""
     ).trim();
 
-    // Date — Tally format is YYYYMMDD
-    const rawDate = (v.querySelector("DATE")?.textContent || "").trim();
-    voucher.date = _tallyParseDate(rawDate);
+    // ── Date (YYYYMMDD → display) ──
+    const rawDate = (v.getElementsByTagName("DATE")[0]?.textContent || "").trim();
     voucher.raw_date = rawDate;
+    voucher.date     = _tallyParseDate(rawDate);
 
-    // Party / Customer name
+    // ── Customer name ──
     voucher.customer_name = (
-      v.querySelector("PARTYLEDGERNAME")?.textContent ||
-      v.querySelector("PARTYNAME")?.textContent || ""
+      v.getElementsByTagName("PARTYLEDGERNAME")[0]?.textContent || ""
     ).trim();
 
-    // Phone — look in LEDGER entries or address
-    const allText = v.textContent || "";
-    const phoneMatch = allText.match(/[6-9]\d{9}/);
-    voucher.phone = phoneMatch ? phoneMatch[0] : "";
+    // ── Narration (payment method, useful context) ──
+    voucher.narration = (
+      v.getElementsByTagName("NARRATION")[0]?.textContent || ""
+    ).trim();
 
-    // Address — from BASICBUYERADDRESS or ADDRESS
-    const addrLines = [];
-    v.querySelectorAll("BASICBUYERADDRESS\.LIST BASICBUYERADDRESS, ADDRESS\.LIST ADDRESS, BILLLEDGERADDRESS\.LIST BILLLEDGERADDRESS").forEach(el => {
-      const t = el.textContent.trim();
-      if (t && t.length > 2) addrLines.push(t);
-    });
-    // Fallback: look for ADDRESS elements directly
-    if (!addrLines.length) {
-      v.querySelectorAll("ADDRESS").forEach(el => {
-        const t = el.textContent.trim();
-        if (t && t.length > 2 && !t.match(/^\d{6}$/)) addrLines.push(t);
-      });
-    }
-    voucher.address = addrLines.join(", ");
-
-    // Products from inventory entries
+    // ── Products — multiple ALLINVENTORYENTRIES.LIST per voucher ──
     const products = [];
-    v.querySelectorAll("ALLINVENTORYENTRIES\.LIST, INVENTORYENTRIES\.LIST").forEach(entry => {
+    const invEntries = v.getElementsByTagName("ALLINVENTORYENTRIES.LIST");
+
+    Array.from(invEntries).forEach(entry => {
       const name = (
-        entry.querySelector("STOCKITEMNAME")?.textContent || ""
+        entry.getElementsByTagName("STOCKITEMNAME")[0]?.textContent || ""
       ).trim().toUpperCase();
       if (!name) return;
 
-      // Serial number from batch allocations
-      let serial = "";
-      const batch = entry.querySelector("BATCHALLOCATIONS\.LIST");
-      if (batch) {
-        serial = (
-          batch.querySelector("BATCHNAME")?.textContent ||
-          batch.querySelector("MFDON")?.textContent || ""
-        ).trim();
-      }
+      // Serial number — stored in BASICUSERDESCRIPTION (Tally batch tracking)
+      const serial = (
+        entry.getElementsByTagName("BASICUSERDESCRIPTION")[0]?.textContent || ""
+      ).trim();
 
-      // Amount
-      const amt = parseFloat(
-        entry.querySelector("AMOUNT")?.textContent?.replace(/[^0-9.-]/g, "") || "0"
-      );
+      // Price — INCLVATRATE contains price incl GST e.g. "15000.00/NOS"
+      const inclRateRaw = (
+        entry.getElementsByTagName("INCLVATRATE")[0]?.textContent || ""
+      ).trim();
+      const amount = parseFloat(inclRateRaw.replace(/[^0-9.]/g, "")) || 0;
 
-      products.push({ product_name: name, serial_number: serial, amount: Math.abs(amt) });
+      products.push({ product_name: name, serial_number: serial, amount });
     });
 
-    // Only include if we have a customer name + at least 1 product
     if (!voucher.customer_name || products.length === 0) return;
 
-    voucher.products = products;
-
-    // Summary label for list display
+    voucher.products       = products;
     voucher.product_summary = products.map(p => p.product_name).join(" + ");
+    voucher.total           = products.reduce((s, p) => s + p.amount, 0);
 
-    // Amount total
-    voucher.total = products.reduce((s, p) => s + (p.amount || 0), 0);
+    // ── Already imported? ──
+    voucher.already_imported = imported.includes(voucher.invoice_number);
 
     vouchers.push(voucher);
   });
 
-  // Sort: newest first (by raw date desc), then by invoice number desc
+  // Sort: newest date first, then invoice number desc
   return vouchers.sort((a, b) => {
     if (b.raw_date !== a.raw_date) return b.raw_date.localeCompare(a.raw_date);
     return (b.invoice_number || "").localeCompare(a.invoice_number || "");
@@ -4497,14 +4560,17 @@ function confirmTallyImport() {
 
   // ── Close modal & show confirmation ──
   closeTallyImportModal();
-  showToast(`✅ ${v.customer_name} imported from Tally`);
+  _tallyMsg(`✅ ${v.customer_name} imported from Tally`, "success");
 
-  // Flash formMessage
+  // Flash formMessage with helpful note about missing fields
   const msg = document.getElementById("formMessage");
   if (msg) {
-    msg.style.color = "var(--tertiary, #4edea3)";
-    msg.textContent = `📊 Filled from Tally invoice ${v.invoice_number || ""} — ${v.customer_name}`;
-    setTimeout(() => { msg.textContent = ""; }, 5000);
+    msg.style.color   = "var(--tertiary, #4edea3)";
+    msg.style.fontSize = "13px";
+    msg.innerHTML = `📊 <strong>Tally import:</strong> ${escHtml(v.customer_name)} — ${v.invoice_number || ""}` +
+      `<br><span style="color:var(--on-surface-variant,#c2c6d6);font-size:12px;">` +
+      `📞 Phone &amp; 📍 Address not in Tally voucher — fill manually below</span>`;
+    setTimeout(() => { msg.innerHTML = ""; }, 12000);
   }
 }
 
