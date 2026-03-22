@@ -458,6 +458,36 @@
 
     input:focus, select:focus, textarea:focus { outline: none !important; }
 
+    /* ─── PWA INSTALL BANNER ─── */
+    #installBanner {
+      display: none;
+      background: var(--surface-container-highest);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(173,198,255,0.18);
+      border-radius: 20px;
+      padding: 16px 18px;
+      margin: 12px 0 8px;
+      align-items: center; gap: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+    #installBanner.visible { display: flex; }
+    #installBanner .install-text { flex: 1; font-size: 14px; font-weight: 500; line-height: 1.4; color: var(--on-surface); }
+    #installBanner .install-text strong { display: block; font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+    .btn-install {
+      background: linear-gradient(135deg, var(--primary-container), var(--primary));
+      color: var(--on-primary-container);
+      border: none; border-radius: 10px;
+      padding: 10px 16px;
+      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+      cursor: pointer; flex-shrink: 0; white-space: nowrap;
+    }
+    .btn-install-dismiss {
+      background: none; border: none; color: var(--on-surface-variant);
+      font-size: 18px; cursor: pointer; padding: 4px; flex-shrink: 0;
+    }
+    [data-theme="light"] #installBanner { background: #f0f4fb; border-color: rgba(37,99,235,0.2); }
+    [data-theme="light"] #installBanner .install-text { color: #1a2540; }
+
     /* Lead sort chips */
     .lead-chip {
       padding: 5px 12px; border: 1px solid rgba(173,198,255,0.2);
@@ -548,6 +578,16 @@
 
   <!-- ══ MAIN PANEL (shown after login) ══ -->
   <div id="mainPanel" style="display:none;">
+
+    <!-- PWA INSTALL BANNER -->
+    <div id="installBanner">
+      <div class="install-text">
+        <strong>📲 Install App</strong>
+        Add to home screen for quick access
+      </div>
+      <button class="btn-install" onclick="triggerInstall()">Install</button>
+      <button class="btn-install-dismiss" onclick="dismissInstall()">✕</button>
+    </div>
 
     <!-- TAB: DELIVERIES -->
     <div id="tabDeliveries">
@@ -1442,6 +1482,38 @@ document.getElementById("delivPopup").addEventListener("click", function(e) {
 });
 document.getElementById("leadPopup").addEventListener("click", function(e) {
   if (e.target === this) closeLeadPopup();
+});
+
+/* ═══════════════════════════════════════
+   PWA INSTALL PROMPT
+═══════════════════════════════════════ */
+let deferredInstallPrompt = null;
+
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (!localStorage.getItem("pwa_install_dismissed_staff")) {
+    document.getElementById("installBanner").classList.add("visible");
+  }
+});
+
+async function triggerInstall() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  if (outcome === "accepted") { showToast("🎉 App installed!"); }
+  deferredInstallPrompt = null;
+  document.getElementById("installBanner").classList.remove("visible");
+}
+
+function dismissInstall() {
+  localStorage.setItem("pwa_install_dismissed_staff", "1");
+  document.getElementById("installBanner").classList.remove("visible");
+}
+
+window.addEventListener("appinstalled", () => {
+  document.getElementById("installBanner").classList.remove("visible");
+  showToast("✅ App installed successfully!");
 });
 
 /* ── LEAD FORM COLLAPSE/EXPAND ── */
