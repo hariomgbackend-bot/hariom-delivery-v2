@@ -131,7 +131,7 @@
       display: inline-block;
     }
 
-    .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px 16px; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: rgba(173,198,255,0.15) transparent; }
+    .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
 
     .sidebar-item {
       display: flex;
@@ -1287,6 +1287,11 @@
       Leads
     </button>
 
+    <button class="sidebar-item" id="nav-product-normalizer" onclick="showView('product-normalizer')">
+      <span class="material-symbols-outlined">merge</span>
+      Product Cleanup
+    </button>
+
     <div class="sidebar-divider"></div>
     <div class="sidebar-section-label">Navigate</div>
 
@@ -1874,6 +1879,65 @@
 
   </div><!-- /.content -->
 
+    <!-- ════ VIEW: PRODUCT NAME CLEANUP ════ -->
+    <section id="view-product-normalizer" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Product Name Cleanup</div>
+          <div class="section-subtitle">Find duplicate / near-identical product names across deliveries and tally_products — merge them into one canonical name</div>
+        </div>
+        <button onclick="loadProductNormalizer()" style="padding:8px 14px;font-size:12px;font-weight:700;border:none;border-radius:9px;cursor:pointer;background:var(--surface-container-highest);color:var(--on-surface-variant);">↻ Refresh</button>
+      </div>
+
+      <!-- Summary cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:24px;" id="pnSummaryCards">
+        <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
+          <div id="pnTotalProducts" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--primary);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Total Deliveries</div>
+        </div>
+        <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
+          <div id="pnUniqueRaw" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--amber);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Raw Unique Strings</div>
+        </div>
+        <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
+          <div id="pnGroupCount" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--error);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Duplicate Groups</div>
+        </div>
+        <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
+          <div id="pnTallyCount" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--tertiary);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Tally Products</div>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+        <div style="position:relative;flex:1;min-width:200px;">
+          <span class="material-symbols-outlined" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--on-surface-variant);">search</span>
+          <input id="pnSearchInput" placeholder="Search product name…" oninput="renderProductGroups()"
+            style="width:100%;height:42px;padding:0 14px 0 38px;background:var(--surface-container-high);border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+        </div>
+        <div class="filter-bar" style="margin:0;">
+          <button class="filter-btn activeFilter" onclick="setPNFilter('all',this)">All</button>
+          <button class="filter-btn" onclick="setPNFilter('dupes',this)">Duplicates Only</button>
+          <button class="filter-btn" onclick="setPNFilter('tally-only',this)">Tally Only</button>
+          <button class="filter-btn" onclick="setPNFilter('delivery-only',this)">Deliveries Only</button>
+        </div>
+      </div>
+
+      <!-- Groups list -->
+      <div id="pnGroupsList"></div>
+
+      <!-- Bulk action bar (appears when groups selected) -->
+      <div id="pnBulkBar" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+        background:var(--surface-container-highest);border:1px solid rgba(173,198,255,0.15);
+        border-radius:16px;padding:12px 20px;display:none;align-items:center;gap:12px;
+        box-shadow:0 8px 40px rgba(0,0,0,0.5);z-index:200;min-width:340px;">
+        <span id="pnBulkLabel" style="font-size:13px;font-weight:700;color:var(--on-surface);flex:1;"></span>
+        <button onclick="closePNBulkBar()" style="padding:6px 12px;background:var(--surface-container-low);color:var(--on-surface-variant);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Cancel</button>
+      </div>
+    </section>
+
+
   <!-- LEAD DETAIL POPUP (admin) -->
   <div class="popup-overlay" id="leadAdminPopup" style="display:none;">
     <div class="popup-card" style="max-width:560px;">
@@ -1924,11 +1988,12 @@ const VIEW_LABELS = {
   staff:           'Manage Staff',
   brands:          'Brand Management',
   permissions:     'Staff Permissions',
-  'leads-admin':   'Leads Pipeline'
+  'leads-admin':   'Leads Pipeline',
+  'product-normalizer': 'Product Name Cleanup'
 };
 
 function showView(view) {
-  ['deliveries','payout','storage','service-count','map','staff','brands','permissions','leads-admin'].forEach(v => {
+  ['deliveries','payout','storage','service-count','map','staff','brands','permissions','leads-admin','product-normalizer'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.style.display = v === view ? '' : 'none';
     const nav = document.getElementById('nav-' + v);
@@ -1945,7 +2010,381 @@ function showView(view) {
   if (view === 'brands')          { loadBrands(); }
   if (view === 'permissions')     { loadPermissions(); }
   if (view === 'leads-admin')     { loadLeadsAdmin(); }
+  if (view === 'product-normalizer') { loadProductNormalizer(); }
 }
+
+
+/* ════════════════════════════════════════════════
+   PRODUCT NAME CLEANUP / NORMALIZER
+   — Loads all deliveries + tally_products
+   — Detects near-duplicate names using:
+       1. Exact match after trim/uppercase
+       2. Same prefix (first 3 words match)
+       3. Levenshtein distance ≤ 4 on cleaned strings
+   — Shows groups, lets admin pick canonical name
+   — On confirm: renames product_name on ALL affected
+     deliveries AND updates tally_products list
+════════════════════════════════════════════════ */
+
+let _pnDeliveries  = [];   // all deliveries
+let _pnTallyNames  = [];   // tally_products names array
+let _pnGroups      = [];   // detected groups [{canonical, variants:[{name,sources,deliveryIds}]}]
+let _pnFilter      = 'all';
+
+/* ── Load ── */
+async function loadProductNormalizer() {
+  const list = document.getElementById('pnGroupsList');
+  list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--on-surface-variant);">⏳ Loading product data…</div>';
+
+  try {
+    // Fetch deliveries and tally products in parallel
+    const [delivRes, tallyRes] = await Promise.all([
+      authFetch(`${BASE_URL}/deliveries`),
+      authFetch(`${BASE_URL}/tally/products`)
+    ]);
+    _pnDeliveries = await delivRes.json();
+    const tallyData = await tallyRes.json();
+    _pnTallyNames  = (tallyData.names || []).map(n => n.trim().toUpperCase()).filter(Boolean);
+
+    _pnGroups = detectProductGroups(_pnDeliveries, _pnTallyNames);
+    updatePNSummary();
+    renderProductGroups();
+  } catch(e) {
+    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--error);">Failed to load: ${e.message}</div>`;
+  }
+}
+
+/* ── Detect duplicate groups ── */
+function detectProductGroups(deliveries, tallyNames) {
+  // Collect all unique product name strings with source tracking
+  const nameMap = {}; // cleaned → { original, deliveryIds, inTally, inDeliveries }
+
+  // From deliveries
+  deliveries.forEach(d => {
+    if (!d.product_name) return;
+    const key = cleanProductName(d.product_name);
+    if (!key) return;
+    if (!nameMap[key]) nameMap[key] = { original: d.product_name.trim().toUpperCase(), deliveryIds: [], inTally: false, inDeliveries: true, rawOriginals: new Set() };
+    nameMap[key].deliveryIds.push(d.id);
+    nameMap[key].rawOriginals.add(d.product_name.trim().toUpperCase());
+  });
+
+  // From tally_products
+  tallyNames.forEach(n => {
+    const key = cleanProductName(n);
+    if (!key) return;
+    if (!nameMap[key]) nameMap[key] = { original: n, deliveryIds: [], inTally: true, inDeliveries: false, rawOriginals: new Set() };
+    nameMap[key].inTally = true;
+    nameMap[key].rawOriginals.add(n);
+  });
+
+  const entries = Object.entries(nameMap);
+
+  // Cluster similar entries
+  const visited = new Set();
+  const groups  = [];
+
+  entries.forEach(([keyA, dataA]) => {
+    if (visited.has(keyA)) return;
+    const group = [{ key: keyA, ...dataA }];
+    visited.add(keyA);
+
+    entries.forEach(([keyB, dataB]) => {
+      if (visited.has(keyB)) return;
+      if (areSimilar(keyA, keyB)) {
+        group.push({ key: keyB, ...dataB });
+        visited.add(keyB);
+      }
+    });
+
+    // Pick canonical = the variant with most deliveries
+    // Prefer tally-format name (has EXTRA) as canonical even if fewer deliveries
+    // Because it's the complete name — old deliveries just haven't been updated yet
+    group.sort((a, b) => b.deliveryIds.length - a.deliveryIds.length);
+    const allRaw = new Set(group.flatMap(g => [...g.rawOriginals]));
+    const allIds = group.flatMap(g => g.deliveryIds);
+    const inTally = group.some(g => g.inTally);
+    const inDeliveries = group.some(g => g.inDeliveries);
+
+    // Pick canonical: prefer tally format (has EXTRA) over old format (no EXTRA)
+    // because tally names are the complete canonical names with category extra info.
+    // If multiple tally-format variants exist, pick the one from tally_products list.
+    // Fallback: most-used delivery name.
+    const rawArr       = [...allRaw];
+    const withExtra    = rawArr.filter(v => !!extractExtra(v));
+    const fromTally    = withExtra.filter(v => tallyNames.includes(v));
+    const bestCanonical = fromTally[0] || withExtra[0] || group[0].original;
+
+    groups.push({
+      canonical:     bestCanonical,  // tally format preferred
+      variants:      [...allRaw],         // all raw string variants
+      deliveryIds:   allIds,
+      inTally,
+      inDeliveries,
+      isDuplicate:   allRaw.size > 1,
+      selected:      bestCanonical,       // which variant admin chose as canonical
+    });
+  });
+
+  // Sort: duplicates first, then by delivery count desc
+  return groups.sort((a, b) => {
+    if (b.isDuplicate !== a.isDuplicate) return b.isDuplicate ? 1 : -1;
+    return b.deliveryIds.length - a.deliveryIds.length;
+  });
+}
+
+/* ── Clean product name for comparison ── */
+/* ── Product name format: CATEGORY MAKE MODEL (EXTRA)
+   e.g. "WM SAMSUNG WW80TA046AB1 (FL)"
+        "REF HAIER HRD 2062 PMDG (DC)"
+        "LED SAMSUNG UA43F5500"
+   EXTRA variants by category:
+     WM  → FL (Front Load), TL (Top Load), SA (Semi Auto)
+     REF → DC (Direct Cool), FF (Frost Free), SBS (Side by Side)
+     AC  → INV (Inverter), WIN (Window)
+   Old 3-dropdown deliveries are missing EXTRA — tally_products have it.
+   This normalizer bridges that gap. ── */
+
+// Strip parenthetical extra from end: "WM SAMSUNG WW80TA046AB1 (FL)" → "WM SAMSUNG WW80TA046AB1"
+function stripExtra(name) {
+  return (name || '').trim().toUpperCase().replace(/\s*\([^)]*\)\s*$/g, '').trim();
+}
+
+// Extract just the extra: "WM SAMSUNG WW80TA046AB1 (FL)" → "FL"
+function extractExtra(name) {
+  const m = (name || '').match(/\(([^)]*)\)\s*$/);
+  return m ? m[1].trim() : '';
+}
+
+// Parse into structural parts
+function parseProductName(name) {
+  const upper    = (name || '').trim().toUpperCase();
+  const extra    = extractExtra(upper);
+  const base     = stripExtra(upper);
+  const words    = base.split(/\s+/).filter(Boolean);
+  const category = words[0] || '';
+  const make     = words[1] || '';
+  const model    = words.slice(2).join(' ');
+  return { category, make, model, extra, base, full: upper };
+}
+
+function cleanProductName(name) {
+  // Strip extra, normalise spacing for comparison
+  return stripExtra(name)
+    .replace(/[^A-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/* ── Are two names the same product?
+   Key case: old format missing EXTRA vs new tally format with EXTRA
+   "WM SAMSUNG WW80TA046AB1"      (old 3-dropdown, no extra)
+   "WM SAMSUNG WW80TA046AB1 (FL)" (tally canonical, with extra)
+   → Same product — should be grouped and merged
+
+   ⚠ NO Levenshtein on model numbers — model numbers are exact identifiers.
+     WW80TA046AB1 vs WW80TA046AB2 = completely different products.
+     Only exact base match or same first 2 model words are safe.
+── */
+function areSimilar(a, b) {
+  if (a === b) return true;
+
+  // RULE 1 — Base names match exactly after stripping extra from both
+  // "WM SAMSUNG WW80TA046AB1" == stripExtra("WM SAMSUNG WW80TA046AB1 (FL)")
+  // This is THE primary rule — handles old-format vs tally-format perfectly
+  const baseA = cleanProductName(a);
+  const baseB = cleanProductName(b);
+  if (baseA === baseB && baseA.length > 5) return true;
+
+  // RULE 2 — Same CATEGORY + MAKE + first TWO words of MODEL
+  // Handles cases where model has a suffix that varies slightly
+  // e.g. "HRD 2062 PMDG" vs "HRD 2062 PMDGX" (same base model, minor variant)
+  // Requires at least 2 model words to match — prevents false positives on short models
+  const pA = parseProductName(a);
+  const pB = parseProductName(b);
+  const modelWordsA = pA.model.split(' ').filter(Boolean);
+  const modelWordsB = pB.model.split(' ').filter(Boolean);
+  if (
+    pA.category && pA.category === pB.category &&
+    pA.make     && pA.make     === pB.make     &&
+    modelWordsA.length >= 2 && modelWordsB.length >= 2 &&
+    modelWordsA[0] === modelWordsB[0] &&
+    modelWordsA[1] === modelWordsB[1]
+  ) return true;
+
+  return false;
+}
+
+/* ── Levenshtein distance ── */
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_,i) => Array.from({length: n+1}, (_,j) => j===0?i:0));
+  for (let j=1;j<=n;j++) dp[0][j]=j;
+  for (let i=1;i<=m;i++) for (let j=1;j<=n;j++) {
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+  }
+  return dp[m][n];
+}
+
+/* ── Summary cards ── */
+function updatePNSummary() {
+  const dupGroups = _pnGroups.filter(g => g.isDuplicate).length;
+  document.getElementById('pnTotalProducts').textContent = _pnDeliveries.length;
+  document.getElementById('pnUniqueRaw').textContent     = new Set(_pnDeliveries.map(d=>d.product_name?.trim().toUpperCase()).filter(Boolean)).size;
+  document.getElementById('pnGroupCount').textContent    = dupGroups;
+  document.getElementById('pnTallyCount').textContent    = _pnTallyNames.length;
+}
+
+/* ── Filter ── */
+function setPNFilter(f, btn) {
+  _pnFilter = f;
+  document.querySelectorAll('#view-product-normalizer .filter-btn').forEach(b => b.classList.toggle('activeFilter', b===btn));
+  renderProductGroups();
+}
+
+/* ── Render groups list ── */
+function renderProductGroups() {
+  const list = document.getElementById('pnGroupsList');
+  const q    = (document.getElementById('pnSearchInput')?.value || '').toLowerCase();
+
+  let groups = _pnGroups;
+
+  // Apply filter
+  if (_pnFilter === 'dupes')          groups = groups.filter(g => g.isDuplicate);
+  if (_pnFilter === 'tally-only')     groups = groups.filter(g => g.inTally && !g.inDeliveries);
+  if (_pnFilter === 'delivery-only')  groups = groups.filter(g => g.inDeliveries && !g.inTally);
+
+  // Search
+  if (q) groups = groups.filter(g => g.variants.some(v => v.toLowerCase().includes(q)));
+
+  if (!groups.length) {
+    list.innerHTML = '<div style="padding:40px;text-align:center;color:var(--on-surface-variant);">No products match current filter</div>';
+    return;
+  }
+
+  list.innerHTML = groups.map((g, gi) => {
+    const hasDupe    = g.isDuplicate;
+    const borderCol  = hasDupe ? 'rgba(255,180,171,0.25)' : 'rgba(255,255,255,0.04)';
+    const headerCol  = hasDupe ? 'var(--error)' : 'var(--on-surface-variant)';
+    const badgeTally = g.inTally       ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.12);color:var(--tertiary);">In Tally</span>` : '';
+    const badgeDel   = g.inDeliveries  ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.12);color:var(--primary);">${g.deliveryIds.length} deliveries</span>` : '';
+    const badgeDupe  = hasDupe         ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.12);color:var(--error);">⚠ ${g.variants.length} variants</span>` : '';
+
+    const variantsHtml = g.variants.map((v, vi) => {
+      const extra    = extractExtra(v);
+      const base     = stripExtra(v);
+      const hasExtra = !!extra;
+      const labelBg  = g.selected===v ? 'rgba(173,198,255,0.08)' : 'transparent';
+      const labelBdr = g.selected===v ? '1px solid rgba(173,198,255,0.2)' : '1px solid transparent';
+      const extraBadge = hasExtra
+        ? `<span style="padding:1px 7px;border-radius:6px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.12);color:var(--tertiary);flex-shrink:0;">${escHtml(extra)}</span>`
+        : `<span style="padding:1px 7px;border-radius:6px;font-size:10px;font-weight:600;background:rgba(255,180,171,0.08);color:var(--outline);flex-shrink:0;">No extra</span>`;
+      const mostUsed  = (vi===0 && hasDupe) ? '<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tertiary);flex-shrink:0;">MOST USED</span>' : '';
+      const fullBadge = hasExtra ? '<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--amber);flex-shrink:0;">✓ FULL</span>' : '';
+      return `
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;cursor:pointer;background:${labelBg};border:${labelBdr};transition:all 0.15s;margin-bottom:4px;">
+        <input type="radio" name="pn_${gi}" value="${escHtml(v)}" ${g.selected===v?'checked':''}
+          onchange="selectCanonical(${gi}, '${v.replace(/'/g,"\\'")}', this.closest('label').parentNode)"
+          style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--on-surface);">${escHtml(base)}</div>
+          ${hasExtra ? `<div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;">+ <strong style="color:var(--tertiary);">${escHtml(extra)}</strong></div>` : '<div style="font-size:11px;color:var(--outline);margin-top:2px;">Old format — no extra info</div>'}
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;align-items:center;">${extraBadge}${fullBadge}${mostUsed}</div>
+      </label>`;
+    }).join('');
+
+    return `
+      <div style="background:var(--surface-container-low);border-radius:16px;padding:18px 20px;margin-bottom:12px;border:1px solid ${borderCol};">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:${hasDupe?'14px':'10px'};">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:800;color:${headerCol};letter-spacing:0.2px;word-break:break-all;">${escHtml(g.canonical)}</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;">${badgeDupe}${badgeDel}${badgeTally}</div>
+          </div>
+          ${hasDupe ? `
+          <button onclick="applyCanonical(${gi})" 
+            style="padding:8px 16px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+            Merge → Apply
+          </button>` : ''}
+        </div>
+        ${hasDupe ? `
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-bottom:8px;">
+          Choose canonical name (radio) — all others will be renamed to this:
+        </div>
+        <div class="pn-variants-${gi}">${variantsHtml}</div>
+        ` : ''}
+      </div>`;
+  }).join('');
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function selectCanonical(gi, name, container) {
+  _pnGroups[gi].selected = name;
+  // Re-highlight all labels in this group
+  container.querySelectorAll('label').forEach(lbl => {
+    const radio = lbl.querySelector('input[type=radio]');
+    const isChecked = radio && radio.checked;
+    lbl.style.background = isChecked ? 'rgba(173,198,255,0.08)' : 'transparent';
+    lbl.style.border = `1px solid ${isChecked ? 'rgba(173,198,255,0.2)' : 'transparent'}`;
+  });
+}
+
+/* ── Apply canonical name (merge) ── */
+async function applyCanonical(gi) {
+  const group = _pnGroups[gi];
+  if (!group) return;
+
+  const canonical = group.selected;
+  const toRename  = group.variants.filter(v => v !== canonical);
+
+  if (!toRename.length) {
+    alert('All variants are already the same name.');
+    return;
+  }
+
+  const msg = `Rename ${toRename.length} variant(s) to:
+"${canonical}"
+
+This will update:
+• All matching deliveries (${group.deliveryIds.length})
+• tally_products list
+
+Continue?`;
+  if (!confirm(msg)) return;
+
+  // Show progress
+  const btn = document.querySelector(`[onclick="applyCanonical(${gi})"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Applying…'; }
+
+  try {
+    const res = await authFetch(`${BASE_URL}/product/normalize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ canonical, variants: toRename })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+
+    // Success — reload
+    const summary = `✅ Done!
+
+• ${data.deliveries_updated} deliveries renamed
+• tally_products updated`;
+    alert(summary);
+    await loadProductNormalizer();
+  } catch(e) {
+    alert('Error: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Merge → Apply'; }
+  }
+}
+
+function closePNBulkBar() {
+  document.getElementById('pnBulkBar').style.display = 'none';
+}
+
 </script>
 
 <script>
