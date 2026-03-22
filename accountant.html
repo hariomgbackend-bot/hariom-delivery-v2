@@ -1274,6 +1274,11 @@
     </div>
     <input id="freight_amount" placeholder="Freight Amount" style="display:none">
 
+    <div class="checkbox-row" id="installCheckRow">
+      <input type="checkbox" id="raise_installation">
+      <label for="raise_installation">🔧 Raise Installation Request on create</label>
+    </div>
+
     <div class="form-actions">
       <button class="btn btn-primary" id="createBtn" onclick="createDelivery()">Create Delivery</button>
       <button class="btn btn-danger" type="button" onclick="resetForm()">Reset</button>
@@ -2619,6 +2624,29 @@ async function createDelivery() {
     document.getElementById("formMessage").innerHTML = `<span style='color:#16a34a;'>${msg}</span>`;
     btn.textContent = count === 1 ? "Created ✔" : `${count} Created ✔`;
 
+    // Raise installation if checkbox was checked
+    const raiseInstall = document.getElementById("raise_installation")?.checked;
+    if (raiseInstall && result.ids && result.ids.length > 0) {
+      // Raise for first delivery (typical case — single product)
+      for (const delivId of result.ids) {
+        try {
+          await authFetch(`${BASE_URL}/service/ticket`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "installation",
+              linked_delivery_id: delivId,
+              customer_name: sharedPayload.customer_name,
+              phone:         sharedPayload.phone,
+              address:       sharedPayload.address || "",
+              product_name:  products[0]?.product_name || "",
+              serial_number: products[0]?.product_serial_number || "",
+            })
+          });
+        } catch(e) { console.warn("[install ticket]", e.message); }
+      }
+    }
+
     setTimeout(() => {
       const another = confirm(`${count === 1 ? "Delivery" : count + " deliveries"} created!\n\nCreate another delivery?`);
       if (another) {
@@ -3209,9 +3237,14 @@ function openViewPopup(id) {
       <div style="margin-top:12px;padding:14px;background:rgba(78,222,163,0.07);border:1.5px solid rgba(78,222,163,0.2);border-radius:12px;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--tertiary);margin-bottom:10px;">🔧 After-Sales</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-success btn-sm" onclick="raiseServiceTicket('${delivery.id}','installation')">
-            🔧 Raise Installation
-          </button>
+          ${delivery.installation_ticket_id
+            ? `<button class="btn btn-gray btn-sm" disabled style="opacity:0.65;cursor:not-allowed;">
+                ✅ Installation Already Requested
+               </button>`
+            : `<button class="btn btn-success btn-sm" onclick="raiseServiceTicket('${delivery.id}','installation')">
+                🔧 Raise Installation
+               </button>`
+          }
           <button class="btn btn-danger btn-sm" onclick="raiseServiceTicket('${delivery.id}','complaint')">
             ⚠ Raise Complaint
           </button>
@@ -3258,6 +3291,10 @@ async function raiseServiceTicket(deliveryId, type) {
     const data = await res.json();
     if (!res.ok) { alert(data.error || "Failed to raise ticket."); return; }
     alert(`✅ ${type === "installation" ? "Installation" : "Complaint"} ticket raised successfully!`);
+    // Refresh so view popup reflects updated state
+    await loadDeliveries();
+    // Re-open view popup with refreshed data
+    openViewPopup(deliveryId);
   } catch (e) {
     alert("Network error. Please try again.");
   }

@@ -938,19 +938,13 @@ async function loadDeliveries() {
   }
 }
 
-// Returns last 2 days OR latest 10 — whichever is larger
+// Returns last 7 days — staff only see this week's deliveries
 function getRecentDeliveries(data) {
-  const cutoff2d = Date.now() - 2 * 24 * 3600 * 1000;
-  const last2d   = data.filter(d => {
+  const cutoff7d = Date.now() - 7 * 24 * 3600 * 1000;
+  return data.filter(d => {
     const ts = d.created_timestamp?.seconds;
-    return ts && ts * 1000 >= cutoff2d;
+    return ts && ts * 1000 >= cutoff7d;
   });
-  if (last2d.length >= 10) return last2d;
-  // Fallback: latest 10 by created_timestamp
-  return [...data]
-    .filter(d => d.created_timestamp?.seconds)
-    .sort((a, b) => b.created_timestamp.seconds - a.created_timestamp.seconds)
-    .slice(0, 10);
 }
 
 function filterDeliveries() {
@@ -1019,7 +1013,7 @@ function renderDeliveries(data) {
     list.innerHTML += `
       <div style="text-align:center;padding:16px 12px 6px;font-size:12px;
         color:var(--outline);font-weight:500;letter-spacing:0.2px;">
-        Showing last 2 days · 
+        Showing last 7 days · 
         <span style="color:var(--primary);cursor:pointer;font-weight:700;"
           onclick="document.getElementById('delivSearch').focus()">
           Search to find older deliveries ↑

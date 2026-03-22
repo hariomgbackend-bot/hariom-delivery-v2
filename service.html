@@ -221,9 +221,11 @@
       font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
     }
     .badge-open         { background: rgba(173,198,255,0.15); color: var(--primary); }
+    .badge-new          { background: rgba(173,198,255,0.15); color: var(--primary); }
     .badge-assigned     { background: rgba(245,158,11,0.15);  color: var(--amber); }
     .badge-in_progress  { background: rgba(129,140,248,0.15); color: #818cf8; }
     .badge-resolved     { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
+    .badge-logged       { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
     .badge-installation { background: rgba(78,222,163,0.12);  color: var(--tertiary); }
     .badge-complaint    { background: rgba(255,180,171,0.12); color: var(--error); }
     .badge-warranty-ok       { background: rgba(78,222,163,0.12);  color: var(--tertiary); }
@@ -485,11 +487,11 @@
     <div class="stat-grid" id="statGrid">
       <div class="stat-card stat-primary">
         <div class="stat-val" id="statOpen">—</div>
-        <div class="stat-lbl">Open Tickets</div>
+        <div class="stat-lbl">New Tickets</div>
       </div>
       <div class="stat-card stat-amber">
         <div class="stat-val" id="statInProgress">—</div>
-        <div class="stat-lbl">In Progress</div>
+        <div class="stat-lbl">Logged</div>
       </div>
       <div class="stat-card stat-teal">
         <div class="stat-val" id="statTodayInstall">—</div>
@@ -537,10 +539,8 @@
       <!-- Filter Bar -->
       <div class="filter-bar" id="ticketFilters">
         <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">All <span class="filter-count" id="fc-all"></span></button>
-        <button class="filter-btn" data-filter="open"        onclick="setFilter('open',this)">Open <span class="filter-count" id="fc-open"></span></button>
-        <button class="filter-btn" data-filter="assigned"    onclick="setFilter('assigned',this)">Assigned <span class="filter-count" id="fc-assigned"></span></button>
-        <button class="filter-btn" data-filter="in_progress" onclick="setFilter('in_progress',this)">In Progress <span class="filter-count" id="fc-in_progress"></span></button>
-        <button class="filter-btn" data-filter="resolved"    onclick="setFilter('resolved',this)">Resolved <span class="filter-count" id="fc-resolved"></span></button>
+        <button class="filter-btn" data-filter="new"         onclick="setFilter('new',this)">New <span class="filter-count" id="fc-new"></span></button>
+        <button class="filter-btn" data-filter="logged"      onclick="setFilter('logged',this)">Logged <span class="filter-count" id="fc-logged"></span></button>
         <button class="filter-btn" data-filter="installation" onclick="setFilter('installation',this)">Installation <span class="filter-count" id="fc-installation"></span></button>
         <button class="filter-btn" data-filter="complaint"   onclick="setFilter('complaint',this)">Complaints <span class="filter-count" id="fc-complaint"></span></button>
       </div>
@@ -865,16 +865,16 @@ async function getDelivery(id) {
 function updateStats() {
   const todayStr = new Date().toDateString();
   document.getElementById("statOpen").textContent =
-    allTickets.filter(t => t.status === "open").length;
+    allTickets.filter(t => t.status === "new").length;
   document.getElementById("statInProgress").textContent =
-    allTickets.filter(t => t.status === "in_progress" || t.status === "assigned").length;
+    allTickets.filter(t => t.status === "logged").length;
   document.getElementById("statTodayInstall").textContent =
     allTickets.filter(t => t.type === "installation" &&
       t.created_at?.seconds &&
       new Date(t.created_at.seconds * 1000).toDateString() === todayStr
     ).length;
   document.getElementById("statComplaints").textContent =
-    allTickets.filter(t => t.type === "complaint" && t.status !== "resolved").length;
+    allTickets.filter(t => t.type === "complaint" && t.status !== "logged").length;
 
   // Filter counts
   const counts = {};
@@ -883,7 +883,7 @@ function updateStats() {
     counts[t.status] = (counts[t.status] || 0) + 1;
     counts[t.type]   = (counts[t.type]   || 0) + 1;
   });
-  ["all","open","assigned","in_progress","resolved","installation","complaint"].forEach(k => {
+  ["all","new","logged","installation","complaint"].forEach(k => {
     const el = document.getElementById("fc-" + k);
     if (el) el.textContent = counts[k] || "";
   });
@@ -899,7 +899,7 @@ function setFilter(f, btn) {
 
 function getFilteredTickets() {
   if (currentFilter === "all") return allTickets;
-  if (["open","assigned","in_progress","resolved"].includes(currentFilter))
+  if (["new","logged"].includes(currentFilter))
     return allTickets.filter(t => t.status === currentFilter);
   if (["installation","complaint"].includes(currentFilter))
     return allTickets.filter(t => t.type === currentFilter);
@@ -947,7 +947,7 @@ function renderTicketsTable(tickets) {
       <td style="font-weight:700;">${t.customer_name||"—"}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.product_name||"—"}</td>
       <td><a class="phone-link" href="tel:${t.phone}" onclick="event.stopPropagation()">${t.phone||"—"}</a></td>
-      <td><span class="badge badge-${t.status}">${t.status.replace("_"," ")}</span></td>
+      <td><span class="badge badge-${t.status}">${t.status === "open" ? "new" : t.status.replace("_"," ")}</span></td>
       <td>${warrantyStr(t)}</td>
       <td style="font-size:12px;color:var(--on-surface-variant);">${fmtDate(t.created_at)}</td>
       <td style="font-size:11px;color:var(--on-surface-variant);">${t.created_by_name||t.created_by||"—"}</td>
@@ -972,7 +972,7 @@ function renderTicketsMob(tickets) {
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
           <span class="badge badge-${t.type}">${t.type}</span>
-          <span class="badge badge-${t.status}">${t.status.replace("_"," ")}</span>
+          <span class="badge badge-${t.status}">${t.status === "open" ? "new" : t.status.replace("_"," ")}</span>
         </div>
       </div>
       <div class="mob-card-meta">${warrantyStr(t)} · ${fmtDate(t.created_at)}</div>
@@ -1038,22 +1038,14 @@ function openTicketDetail(id) {
   const warranty    = warrantyStr(t);
   const createdDate = fmtDate(t.created_at);
   const resolvedDate = t.resolved_at ? fmtDate(t.resolved_at) : null;
-  const isOpen      = t.status === "open";
-  const isEditable  = isOpen; // edit + delete only while open
+  const isNew       = t.status === "new" || t.status === "open"; // backwards-compat
+  const isEditable  = isNew; // edit + delete only while new
 
-  // Status buttons — once assigned/in_progress/resolved, can't go back to open
-  const lockedStatuses = ["assigned", "in_progress", "resolved"];
-  const isLocked = lockedStatuses.includes(t.status);
-
-  const statusButtons = ["open","assigned","in_progress","resolved"].map(s => {
-    const isActive  = t.status === s;
-    const isDisabled = s === "open" && isLocked; // can't revert to open once past it
-    return `<button class="btn btn-sm ${isActive ? "btn-teal" : "btn-gray"}"
-      ${isDisabled ? "disabled style=\"opacity:0.35;cursor:not-allowed;\"" : ""}
-      onclick="${isDisabled ? "" : `updateTicketStatus('${t.id}','${s}',this)`}">
-      ${s.replace(/_/g," ")}
-    </button>`;
-  }).join("");
+  // Two statuses: new → logged (requires tracking/ticket number)
+  const isLogged = t.status === "logged";
+  const statusButtons = isLogged
+    ? `<button class="btn btn-sm btn-teal" disabled style="opacity:0.7;">✅ Logged</button>`
+    : `<button class="btn btn-sm btn-gray" onclick="markAsLogged('${t.id}', this)">Mark as Logged</button>`;
 
   document.getElementById("ticketDetailContent").innerHTML = `
     <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -1062,7 +1054,7 @@ function openTicketDetail(id) {
     </h3>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-      <span class="badge badge-${t.status}">${t.status.replace(/_/g," ")}</span>
+      <span class="badge badge-${t.status}">${t.status === "open" ? "new" : t.status.replace(/_/g," ")}</span>
       ${warranty !== "—" ? warranty : ""}
       ${t.is_auto_created ? `<span class="badge" style="background:rgba(173,198,255,0.1);color:var(--on-surface-variant);">Auto-created</span>` : ""}
     </div>
@@ -1084,8 +1076,8 @@ function openTicketDetail(id) {
     ${t.brand_tracking_number ? `<div class="detail-row"><span class="detail-label">Brand Ref#</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${t.brand_tracking_number}</span></div>` : ""}
 
     <!-- Status update -->
-    <div class="section-title" style="margin-top:18px;">Update Status
-      ${isLocked ? `<span style="font-size:10px;font-weight:600;color:var(--on-surface-variant);margin-left:8px;">— cannot revert to Open</span>` : ""}
+    <div class="section-title" style="margin-top:18px;">Status
+      ${isLogged ? `<span style="font-size:10px;font-weight:600;color:var(--tertiary);margin-left:8px;">— logged with tracking number</span>` : `<span style="font-size:10px;font-weight:600;color:var(--on-surface-variant);margin-left:8px;">— enter tracking # to mark as logged</span>`}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">${statusButtons}</div>
 
@@ -1111,7 +1103,7 @@ function openTicketDetail(id) {
       </button>
     </div>` : `
     <div style="margin-top:16px;padding:10px 12px;background:var(--surface-container);border-radius:8px;font-size:11px;color:var(--on-surface-variant);">
-      🔒 Ticket cannot be edited or deleted once ${t.status.replace(/_/g," ")}
+      🔒 Ticket cannot be edited or deleted once logged
     </div>`}
   `;
 
@@ -1167,21 +1159,39 @@ async function loadBrandActions(ticket) {
 }
 
 async function updateTicketStatus(id, status, btn) {
+  // Legacy — redirects to markAsLogged for "logged" status
+  if (status === "logged") { markAsLogged(id, btn); return; }
   try {
     const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status })
     });
     if (!res.ok) { showToast("❌ Failed to update status"); return; }
-    showToast(`✅ Status → ${status.replace("_"," ")}`);
-    // Update button states
-    document.querySelectorAll("#ticketDetailContent .btn-sm[onclick*='updateTicketStatus']").forEach(b => {
-      b.classList.toggle("btn-teal", b === btn);
-      b.classList.toggle("btn-gray", b !== btn);
-    });
-    // Refresh data
+    showToast(`✅ Status → ${status}`);
     await loadTickets();
   } catch (e) { showToast("❌ Network error"); }
+}
+
+async function markAsLogged(id, btn) {
+  // Require ticket/tracking number before marking as logged
+  const trackingNo = prompt("Enter the brand ticket ID or tracking number to log this ticket:\n(This is mandatory)");
+  if (!trackingNo || !trackingNo.trim()) {
+    showToast("⚠ Tracking / ticket number is required to mark as Logged");
+    return;
+  }
+  const val = trackingNo.trim();
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "logged", brand_tracking_number: val })
+    });
+    if (!res.ok) { showToast("❌ Failed to log ticket"); if(btn){btn.disabled=false;btn.textContent="Mark as Logged";} return; }
+    showToast("✅ Ticket logged with tracking # " + val);
+    await loadTickets();
+    // Refresh the popup to show updated state
+    openTicketDetail(id);
+  } catch (e) { showToast("❌ Network error"); if(btn){btn.disabled=false;btn.textContent="Mark as Logged";} }
 }
 
 async function saveTicketNote(id) {
@@ -1524,7 +1534,7 @@ document.addEventListener("keydown", e => {
 /* ── EDIT TICKET (open only) ── */
 function openEditTicket(id) {
   const t = allTickets.find(x => x.id === id);
-  if (!t || t.status !== "open") return;
+  if (!t || (t.status !== "open" && t.status !== "new")) return;
 
   // Replace detail content with edit form inline
   document.getElementById("ticketDetailContent").innerHTML = `
@@ -1727,7 +1737,7 @@ async function registerServicePush() {
 /* ── BRAND TRACKING ALARM in ticket detail ── */
 function getBrandTrackingAlarmHtml(ticket) {
   // Only show alarm when: not resolved, and no tracking number yet
-  if (ticket.status === "resolved") return "";
+  if (ticket.status === "logged") return "";
   if (ticket.brand_tracking_number) return "";
   return `
     <div style="margin:12px 0;padding:12px 14px;background:rgba(245,158,11,0.1);

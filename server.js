@@ -288,6 +288,7 @@ app.post("/product/normalize", authenticate, authorize(["admin"]), async (req, r
 ════════════════════════════════════════════════ */
 async function runStartupMigration() {
   try {
+    // ── Part 1: Deliveries — flip pending with future ETA → booked ──
     const today = todayIST();
     const snap = await getDocs(query(collection(db, "deliveries"), where("status", "==", "pending")));
     let migrated = 0;
@@ -299,6 +300,45 @@ async function runStartupMigration() {
       }
     }
     if (migrated > 0) console.log(`[MIGRATION] Flipped ${migrated} pending → booked`);
+
+    // ── Part 2: Service tickets — migrate legacy statuses to new system ──
+    //   open / assigned / in_progress → new  (still active, not yet logged)
+    //   resolved                      → logged (completed = logged with brand)
+    // Safe to run repeatedly — only touches tickets still on old statuses
+    const STATUS_MAP = {
+      open:        "new",
+      assigned:    "new",
+      in_progress: "new",
+      resolved:    "logged",
+    };
+    const ticketSnap = await getDocs(query(
+      collection(db, "service_tickets"),
+      where("status", "in", ["open", "assigned", "in_progress", "resolved"])
+    ));
+    let ticketsMigrated = 0;
+    const ticketBatch = [];
+    for (const d of ticketSnap.docs) {
+      const oldStatus = d.data().status;
+      const newStatus = STATUS_MAP[oldStatus];
+      if (newStatus) {
+        const updates = { status: newStatus, _migrated_from: oldStatus };
+        // resolved → logged requires a brand_tracking_number placeholder
+        // Use "MIGRATED" so the enforcement check doesn't block it
+        if (newStatus === "logged" && !d.data().brand_tracking_number) {
+          updates.brand_tracking_number = "MIGRATED";
+          updates.notes = (d.data().notes ? d.data().notes + " | " : "") + "Status migrated from resolved";
+        }
+        ticketBatch.push(updateDoc(doc(db, "service_tickets", d.id), updates));
+        ticketsMigrated++;
+      }
+    }
+    // Execute in batches of 20
+    for (let i = 0; i < ticketBatch.length; i += 20) {
+      await Promise.all(ticketBatch.slice(i, i + 20));
+    }
+    if (ticketsMigrated > 0) {
+      console.log(`[MIGRATION] Migrated ${ticketsMigrated} service tickets to new status system`);
+    }
   } catch (err) {
     console.error("[MIGRATION] error:", err.message);
   }
@@ -2440,16 +2480,23 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       }
     }
 
-    // Avoid duplicate open installation tickets for same delivery
+    // Avoid duplicate installation tickets for same delivery
+    // Checks ALL active statuses: new system (new/logged) + legacy (open/assigned/in_progress)
     if (type === "installation" && linked_delivery_id) {
       const dupSnap = await getDocs(query(
         collection(db, "service_tickets"),
         where("linked_delivery_id", "==", linked_delivery_id),
         where("type", "==", "installation"),
-        where("status", "in", ["open", "assigned", "in_progress"])
+        where("status", "in", ["new", "logged", "open", "assigned", "in_progress"])
       ));
       if (!dupSnap.empty) {
-        return res.status(409).json({ error: "An open installation ticket already exists for this delivery" });
+        const existing = dupSnap.docs[0].data();
+        const statusLabel = existing.status === "logged" ? "already logged" : "already open";
+        return res.status(409).json({
+          error: `An installation ticket for this delivery is ${statusLabel}`,
+          ticket_id: dupSnap.docs[0].id,
+          ticket_status: existing.status
+        });
       }
     }
 
