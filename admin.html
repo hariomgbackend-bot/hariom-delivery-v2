@@ -1295,10 +1295,10 @@
     <div class="sidebar-divider"></div>
     <div class="sidebar-section-label">Navigate</div>
 
-    <a class="sidebar-item" href="accountant.html">
-      <span class="material-symbols-outlined">receipt_long</span>
-      Accountant
-    </a>
+    <button class="sidebar-item" id="nav-links" onclick="showView('links')">
+      <span class="material-symbols-outlined">link</span>
+      Panel Links
+    </button>
 
     <a class="sidebar-item" href="analytics.html">
       <span class="material-symbols-outlined">insights</span>
@@ -1938,6 +1938,85 @@
     </section>
 
 
+    <!-- ════ VIEW: PANEL LINKS ════ -->
+    <section id="view-links" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Panel Links</div>
+          <div class="section-subtitle">Quick access to all panels — open or share with staff</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
+
+        <!-- Accountant -->
+        <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(173,198,255,0.08);">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+            <div style="width:42px;height:42px;border-radius:12px;background:rgba(173,198,255,0.12);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🧾</div>
+            <div>
+              <div style="font-size:15px;font-weight:800;color:var(--on-surface);">Accountant</div>
+              <div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;">Create deliveries, manage orders</div>
+            </div>
+          </div>
+          <div id="link-accountant" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--on-surface-variant);background:var(--surface-container);padding:8px 12px;border-radius:8px;margin-bottom:12px;word-break:break-all;"></div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="openPanel('accountant.html')" style="flex:1;padding:9px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Open</button>
+            <button onclick="sharePanel('accountant.html','Accountant Panel')" style="flex:1;padding:9px;background:rgba(173,198,255,0.1);color:var(--primary);border:1px solid rgba(173,198,255,0.2);border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Share</button>
+          </div>
+        </div>
+
+        <!-- Driver Interface -->
+        <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(78,222,163,0.08);">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+            <div style="width:42px;height:42px;border-radius:12px;background:rgba(78,222,163,0.12);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🚚</div>
+            <div>
+              <div style="font-size:15px;font-weight:800;color:var(--on-surface);">Driver Interface</div>
+              <div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;">Driver deliveries & tracking</div>
+            </div>
+          </div>
+          <div id="link-driver" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--on-surface-variant);background:var(--surface-container);padding:8px 12px;border-radius:8px;margin-bottom:12px;word-break:break-all;"></div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="openPanel('driver_interface.html')" style="flex:1;padding:9px;background:linear-gradient(135deg,var(--tertiary-container,#00a572),var(--tertiary,#4edea3));color:#002113;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Open</button>
+            <button onclick="sharePanel('driver_interface.html','Driver Interface')" style="flex:1;padding:9px;background:rgba(78,222,163,0.1);color:var(--tertiary);border:1px solid rgba(78,222,163,0.2);border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Share</button>
+          </div>
+        </div>
+
+        <!-- Staff Panel -->
+        <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(251,191,36,0.08);">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+            <div style="width:42px;height:42px;border-radius:12px;background:rgba(251,191,36,0.12);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">👥</div>
+            <div>
+              <div style="font-size:15px;font-weight:800;color:var(--on-surface);">Staff Panel</div>
+              <div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;">Staff deliveries view & leads</div>
+            </div>
+          </div>
+          <div id="link-staff" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--on-surface-variant);background:var(--surface-container);padding:8px 12px;border-radius:8px;margin-bottom:12px;word-break:break-all;"></div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="openPanel('staff.html')" style="flex:1;padding:9px;background:linear-gradient(135deg,#d97706,#fbbf24);color:#1a0a00;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Open</button>
+            <button onclick="sharePanel('staff.html','Staff Panel')" style="flex:1;padding:9px;background:rgba(251,191,36,0.1);color:var(--amber,#fbbf24);border:1px solid rgba(251,191,36,0.2);border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Share</button>
+          </div>
+        </div>
+
+        <!-- Service Panel -->
+        <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(192,132,252,0.08);">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+            <div style="width:42px;height:42px;border-radius:12px;background:rgba(192,132,252,0.12);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🛠</div>
+            <div>
+              <div style="font-size:15px;font-weight:800;color:var(--on-surface);">Service Panel</div>
+              <div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;">Installation & complaints</div>
+            </div>
+          </div>
+          <div id="link-service" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--on-surface-variant);background:var(--surface-container);padding:8px 12px;border-radius:8px;margin-bottom:12px;word-break:break-all;"></div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="openPanel('service.html')" style="flex:1;padding:9px;background:linear-gradient(135deg,#7c3aed,#c084fc);color:white;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Open</button>
+            <button onclick="sharePanel('service.html','Service Panel')" style="flex:1;padding:9px;background:rgba(192,132,252,0.1);color:#c084fc;border:1px solid rgba(192,132,252,0.2);border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Share</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
   <!-- LEAD DETAIL POPUP (admin) -->
   <div class="popup-overlay" id="leadAdminPopup" style="display:none;">
     <div class="popup-card" style="max-width:560px;">
@@ -1989,11 +2068,12 @@ const VIEW_LABELS = {
   brands:          'Brand Management',
   permissions:     'Staff Permissions',
   'leads-admin':   'Leads Pipeline',
-  'product-normalizer': 'Product Name Cleanup'
+  'product-normalizer': 'Product Name Cleanup',
+  'links': 'Panel Links'
 };
 
 function showView(view) {
-  ['deliveries','payout','storage','service-count','map','staff','brands','permissions','leads-admin','product-normalizer'].forEach(v => {
+  ['deliveries','payout','storage','service-count','map','staff','brands','permissions','leads-admin','product-normalizer','links'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.style.display = v === view ? '' : 'none';
     const nav = document.getElementById('nav-' + v);
@@ -2011,7 +2091,51 @@ function showView(view) {
   if (view === 'permissions')     { loadPermissions(); }
   if (view === 'leads-admin')     { loadLeadsAdmin(); }
   if (view === 'product-normalizer') { loadProductNormalizer(); }
+  if (view === 'links')               { _initLinkUrls(); }
 }
+/* ── PANEL LINKS ── */
+function _initLinkUrls() {
+  const base = window.location.origin;
+  const panels = {
+    'link-accountant': 'accountant.html',
+    'link-driver':     'driver_interface.html',
+    'link-staff':      'staff.html',
+    'link-service':    'service.html',
+  };
+  Object.entries(panels).forEach(([id, path]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = `${base}/${path}`;
+  });
+}
+
+function openPanel(path) {
+  window.open(`${window.location.origin}/${path}`, '_blank');
+}
+
+function sharePanel(path, label) {
+  const url = `${window.location.origin}/${path}`;
+  const text = `Hariom Electronics — ${label}\n${url}`;
+
+  // Try Web Share API (mobile / modern browsers)
+  if (navigator.share) {
+    navigator.share({ title: label, text: `Hariom Electronics — ${label}`, url })
+      .catch(() => {}); // user cancelled — no error needed
+    return;
+  }
+
+  // Fallback: show share options popup
+  const waUrl    = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  const emailUrl = `mailto:?subject=${encodeURIComponent('Hariom Electronics — '+label)}&body=${encodeURIComponent(text)}`;
+  const choice   = confirm(`Share "${label}"\n\nURL: ${url}\n\nClick OK to open WhatsApp, Cancel to copy link.`);
+  if (choice) {
+    window.open(waUrl, '_blank');
+  } else {
+    navigator.clipboard?.writeText(url).then(() => alert('Link copied!')).catch(() => {
+      prompt('Copy this link:', url);
+    });
+  }
+}
+
 
 
 /* ════════════════════════════════════════════════
@@ -2056,73 +2180,106 @@ async function loadProductNormalizer() {
 
 /* ── Detect duplicate groups ── */
 function detectProductGroups(deliveries, tallyNames) {
-  // Collect all unique product name strings with source tracking
-  const nameMap = {}; // cleaned → { original, deliveryIds, inTally, inDeliveries }
+  // O(n) approach — no nested loops, no page freeze.
+  // Strategy: build a Map of cleanedBase → tallyCanonical for fast lookup,
+  // then for each unique delivery product name check if it matches a tally name.
+  // Groups = { canonical (tally name), variants (delivery names that map to it) }
 
-  // From deliveries
+  // ── Step 1: index tally names by cleaned base ──
+  // Multiple tally names can share the same base (e.g. different colours)
+  // We keep only the first match per base as the canonical.
+  const tallyByBase = new Map(); // cleanedBase → tallyName (canonical)
+  tallyNames.forEach(n => {
+    const base = cleanProductName(n);
+    if (!base) return;
+    if (!tallyByBase.has(base)) tallyByBase.set(base, n);
+  });
+  const tallySet = new Set(tallyNames.map(n => n.trim().toUpperCase()));
+
+  // ── Step 2: collect unique delivery product names with usage counts ──
+  const deliveryMap = new Map(); // raw UPPER → { deliveryIds, rawName }
   deliveries.forEach(d => {
     if (!d.product_name) return;
-    const key = cleanProductName(d.product_name);
-    if (!key) return;
-    if (!nameMap[key]) nameMap[key] = { original: d.product_name.trim().toUpperCase(), deliveryIds: [], inTally: false, inDeliveries: true, rawOriginals: new Set() };
-    nameMap[key].deliveryIds.push(d.id);
-    nameMap[key].rawOriginals.add(d.product_name.trim().toUpperCase());
+    const raw = d.product_name.trim().toUpperCase();
+    if (!raw) return;
+    if (!deliveryMap.has(raw)) deliveryMap.set(raw, { deliveryIds: [], rawName: raw });
+    deliveryMap.get(raw).deliveryIds.push(d.id);
   });
 
-  // From tally_products
+  // ── Step 3: group each delivery name to its tally canonical ──
+  // canonical → { deliveryVariants: Map(raw→ids), tallyMatched: bool, inTally: bool }
+  const canonicalMap = new Map();
+
+  const _addToCanonical = (canonical, raw, ids, inTally) => {
+    if (!canonicalMap.has(canonical)) {
+      canonicalMap.set(canonical, {
+        canonical,
+        deliveryVariants: new Map(), // raw delivery name → deliveryIds
+        inTally: false,
+      });
+    }
+    const g = canonicalMap.get(canonical);
+    if (ids.length > 0) {
+      const existing = g.deliveryVariants.get(raw) || [];
+      g.deliveryVariants.set(raw, [...existing, ...ids]);
+    }
+    if (inTally) g.inTally = true;
+  };
+
+  // Process delivery names
+  deliveryMap.forEach(({ deliveryIds, rawName }) => {
+    const base = cleanProductName(rawName);
+    if (tallyByBase.has(base)) {
+      // Exact base match → map to tally canonical
+      const canonical = tallyByBase.get(base);
+      _addToCanonical(canonical.trim().toUpperCase(), rawName, deliveryIds, true);
+    } else {
+      // No tally match — standalone delivery-only entry
+      _addToCanonical(rawName, rawName, deliveryIds, false);
+    }
+  });
+
+  // ── Step 4: also include tally-only names (not in any delivery) ──
   tallyNames.forEach(n => {
-    const key = cleanProductName(n);
-    if (!key) return;
-    if (!nameMap[key]) nameMap[key] = { original: n, deliveryIds: [], inTally: true, inDeliveries: false, rawOriginals: new Set() };
-    nameMap[key].inTally = true;
-    nameMap[key].rawOriginals.add(n);
+    const upper = n.trim().toUpperCase();
+    if (!canonicalMap.has(upper)) {
+      // Check if any delivery variant already maps here
+      const base = cleanProductName(n);
+      const alreadyCovered = [...canonicalMap.values()].some(g =>
+        cleanProductName(g.canonical) === base
+      );
+      if (!alreadyCovered) {
+        _addToCanonical(upper, upper, [], true);
+        canonicalMap.get(upper).inTally = true;
+      }
+    } else {
+      canonicalMap.get(upper).inTally = true;
+    }
   });
 
-  const entries = Object.entries(nameMap);
+  // ── Step 5: build final groups array ──
+  const groups = [];
+  canonicalMap.forEach((g, canonical) => {
+    const variants    = [...g.deliveryVariants.keys()];
+    const allIds      = [...g.deliveryVariants.values()].flat();
+    const inDeliveries = allIds.length > 0;
 
-  // Cluster similar entries
-  const visited = new Set();
-  const groups  = [];
+    // A "duplicate" means delivery used a different string than the canonical
+    const isDuplicate = variants.some(v => v !== canonical) && inDeliveries;
 
-  entries.forEach(([keyA, dataA]) => {
-    if (visited.has(keyA)) return;
-    const group = [{ key: keyA, ...dataA }];
-    visited.add(keyA);
-
-    entries.forEach(([keyB, dataB]) => {
-      if (visited.has(keyB)) return;
-      if (areSimilar(keyA, keyB)) {
-        group.push({ key: keyB, ...dataB });
-        visited.add(keyB);
-      }
-    });
-
-    // Pick canonical = the variant with most deliveries
-    // Prefer tally-format name (has EXTRA) as canonical even if fewer deliveries
-    // Because it's the complete name — old deliveries just haven't been updated yet
-    group.sort((a, b) => b.deliveryIds.length - a.deliveryIds.length);
-    const allRaw = new Set(group.flatMap(g => [...g.rawOriginals]));
-    const allIds = group.flatMap(g => g.deliveryIds);
-    const inTally = group.some(g => g.inTally);
-    const inDeliveries = group.some(g => g.inDeliveries);
-
-    // Pick canonical: prefer tally format (has EXTRA) over old format (no EXTRA)
-    // because tally names are the complete canonical names with category extra info.
-    // If multiple tally-format variants exist, pick the one from tally_products list.
-    // Fallback: most-used delivery name.
-    const rawArr       = [...allRaw];
-    const withExtra    = rawArr.filter(v => !!extractExtra(v));
-    const fromTally    = withExtra.filter(v => tallyNames.includes(v));
-    const bestCanonical = fromTally[0] || withExtra[0] || group[0].original;
+    // Best canonical: prefer tally name over raw delivery name
+    const bestCanonical = tallySet.has(canonical)
+      ? canonical
+      : (tallyByBase.get(cleanProductName(canonical)) || canonical);
 
     groups.push({
-      canonical:     bestCanonical,  // tally format preferred
-      variants:      [...allRaw],         // all raw string variants
-      deliveryIds:   allIds,
-      inTally,
+      canonical:   bestCanonical,
+      variants:    isDuplicate ? [bestCanonical, ...variants.filter(v => v !== bestCanonical)] : variants,
+      deliveryIds: allIds,
+      inTally:     g.inTally,
       inDeliveries,
-      isDuplicate:   allRaw.size > 1,
-      selected:      bestCanonical,       // which variant admin chose as canonical
+      isDuplicate,
+      selected:    bestCanonical,
     });
   });
 
