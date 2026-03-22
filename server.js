@@ -121,6 +121,100 @@ cron.schedule("0 9 * * *", async () => {
   }
 }, { timezone: "Asia/Kolkata" });
 
+
+/* ════════════════════════════════════════════════
+   TALLY LIVE BRIDGE
+   GET  /tally/invoices
+        → Proxies request to Tally's local HTTP server
+          (localhost:9000 on accountant's machine).
+          Works ONLY when server runs locally.
+          On Render (remote), use the XML file import
+          in accountant.html instead.
+   POST /tally/pending
+        → Accepts pre-parsed invoice data pushed by
+          a local bridge script on accountant's PC.
+          Stores in memory (max 50, auto-expire 10min).
+   GET  /tally/pending
+        → Returns pending invoices for accountant UI.
+   DELETE /tally/pending/:invoice_number
+        → Mark as consumed (imported into a delivery).
+════════════════════════════════════════════════ */
+
+// In-memory store for bridge-pushed invoices (no DB needed)
+const _tallyPendingStore = new Map(); // invoiceNumber → { data, ts }
+const TALLY_PENDING_TTL  = 10 * 60 * 1000; // 10 minutes
+
+// Clean expired entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _tallyPendingStore) {
+    if (now - v.ts > TALLY_PENDING_TTL) _tallyPendingStore.delete(k);
+  }
+}, 5 * 60 * 1000);
+
+// ── Proxy: tries to hit Tally on localhost:9000 ──
+// Only useful when server is running on the same machine as Tally.
+app.post("/tally/invoices", authenticate, authorize(["accountant","admin"]), async (req, res) => {
+  const port = req.body?.port || 9000;
+  const xml  = req.body?.xml  || `<ENVELOPE><HEADER><TALLYREQUEST>Export Data</TALLYREQUEST></HEADER><BODY><EXPORTDATA><REQUESTDESC><REPORTNAME>Day Book</REPORTNAME><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES></REQUESTDESC></EXPORTDATA></BODY></ENVELOPE>`;
+
+  try {
+    const tallyRes = await fetch(`http://localhost:${port}`, {
+      method: "POST",
+      headers: { "Content-Type": "text/xml" },
+      body: xml,
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    const text = await tallyRes.text();
+    res.set("Content-Type", "text/xml").send(text);
+  } catch (err) {
+    // Tally not reachable — this is expected on Render
+    res.status(503).json({
+      error: "Tally not reachable",
+      hint: "Tally must be open and running on the same machine as this server, or use the XML file import instead.",
+      detail: err.message
+    });
+  }
+});
+
+// ── Bridge: accept invoice data pushed by local script ──
+app.post("/tally/pending", authenticate, authorize(["accountant","admin"]), async (req, res) => {
+  try {
+    const invoices = req.body?.invoices;
+    if (!Array.isArray(invoices) || invoices.length === 0) {
+      return res.status(400).json({ error: "invoices array required" });
+    }
+    let added = 0;
+    for (const inv of invoices.slice(0, 50)) { // max 50
+      if (!inv.invoice_number) continue;
+      _tallyPendingStore.set(inv.invoice_number, { data: inv, ts: Date.now() });
+      added++;
+    }
+    res.json({ ok: true, added, total: _tallyPendingStore.size });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Get pending invoices ──
+app.get("/tally/pending", authenticate, authorize(["accountant","admin"]), async (req, res) => {
+  const now      = Date.now();
+  const invoices = [];
+  for (const [k, v] of _tallyPendingStore) {
+    if (now - v.ts <= TALLY_PENDING_TTL) invoices.push(v.data);
+  }
+  invoices.sort((a, b) => (b.invoice_number || "").localeCompare(a.invoice_number || ""));
+  res.json({ invoices, count: invoices.length });
+});
+
+// ── Mark as consumed ──
+app.delete("/tally/pending/:invoice_number", authenticate, authorize(["accountant","admin"]), async (req, res) => {
+  const key = req.params.invoice_number;
+  const existed = _tallyPendingStore.has(key);
+  _tallyPendingStore.delete(key);
+  res.json({ ok: true, existed });
+});
+
 /* ════════════════════════════════════════════════
    STARTUP MIGRATION — runs every deploy
    Flips any pending deliveries with future ETA → booked

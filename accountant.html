@@ -1145,12 +1145,20 @@
 <!-- ══ CREATE DELIVERY POPUP ══ -->
 <div class="popup-overlay" id="popup">
   <div class="popup-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
       <h3 style="margin:0;">Create Delivery</h3>
-      <button type="button" onclick="document.getElementById('invoiceFileInput').click()"
-        style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(173,198,255,0.1);color:var(--primary);border:1px solid rgba(173,198,255,0.2);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;">
-        📄 Import Invoice
-      </button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <!-- EXISTING: PDF invoice import — untouched -->
+        <button type="button" onclick="document.getElementById('invoiceFileInput').click()"
+          style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(173,198,255,0.1);color:var(--primary);border:1px solid rgba(173,198,255,0.2);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;">
+          📄 Import Invoice
+        </button>
+        <!-- NEW: Tally XML import — separate module -->
+        <button type="button" onclick="openTallyImportModal()"
+          style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(78,222,163,0.1);color:var(--tertiary);border:1px solid rgba(78,222,163,0.25);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;">
+          📊 From Tally
+        </button>
+      </div>
     </div>
     <input type="file" id="invoiceFileInput" accept=".pdf" style="display:none" onchange="handleInvoiceImport(this)">
     <div id="formMessage" style="margin-bottom:10px;font-size:14px;font-weight:500;"></div>
@@ -3749,6 +3757,797 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closePhotoLi
 </script>
 </body>
 </html>
+
+<!-- ════════════════════════════════════════════════════════════
+     TALLY IMPORT MODULE
+     Completely standalone — does NOT touch any existing functions.
+     How it works:
+       1. Accountant opens Tally → Day Book → Export as XML
+       2. Clicks "📊 From Tally" in Create Delivery popup
+       3. Selects the exported XML file
+       4. Browser parses XML entirely client-side (no server needed)
+       5. Shows list of today's Sales vouchers
+       6. One click fills Create Delivery form
+       7. Already-imported invoices tracked in localStorage
+     ════════════════════════════════════════════════════════════ -->
+
+<style>
+/* ── TALLY MODAL STYLES ── */
+#tallyImportOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 999;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+#tallyImportOverlay.open { display: flex; }
+
+#tallyImportCard {
+  background: var(--surface-container-low);
+  border-radius: 24px;
+  padding: 28px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  overflow-y: auto;
+  border: 1px solid rgba(78,222,163,0.15);
+  box-shadow: 0 48px 80px rgba(0,0,0,0.5);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(78,222,163,0.2) transparent;
+}
+#tallyImportCard::-webkit-scrollbar { width: 5px; }
+#tallyImportCard::-webkit-scrollbar-track { background: transparent; }
+#tallyImportCard::-webkit-scrollbar-thumb { background: rgba(78,222,163,0.2); border-radius: 10px; }
+
+.tally-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+.tally-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--on-surface);
+  letter-spacing: -0.3px;
+}
+.tally-subtitle {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  margin-top: 3px;
+  font-weight: 500;
+}
+.tally-close-btn {
+  background: var(--surface-container-highest);
+  border: none;
+  color: var(--on-surface-variant);
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.tally-close-btn:hover { background: var(--surface-container-high); color: var(--on-surface); }
+
+/* Step indicators */
+.tally-steps {
+  display: flex;
+  gap: 0;
+  margin-bottom: 22px;
+  background: var(--surface-container-lowest);
+  border-radius: 12px;
+  padding: 4px;
+}
+.tally-step {
+  flex: 1;
+  text-align: center;
+  padding: 8px 6px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--on-surface-variant);
+  transition: all 0.2s;
+  line-height: 1.3;
+}
+.tally-step.active {
+  background: rgba(78,222,163,0.15);
+  color: var(--tertiary);
+}
+.tally-step.done {
+  color: var(--tertiary);
+}
+
+/* Upload drop zone */
+.tally-dropzone {
+  border: 2px dashed rgba(78,222,163,0.3);
+  border-radius: 16px;
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(78,222,163,0.04);
+}
+.tally-dropzone:hover, .tally-dropzone.dragover {
+  border-color: var(--tertiary);
+  background: rgba(78,222,163,0.08);
+}
+.tally-dropzone-icon { font-size: 40px; margin-bottom: 10px; }
+.tally-dropzone-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--on-surface);
+  margin-bottom: 6px;
+}
+.tally-dropzone-sub {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  line-height: 1.5;
+}
+.tally-dropzone-sub b { color: var(--tertiary); }
+
+/* How to export guide */
+.tally-guide {
+  background: var(--surface-container-high);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  line-height: 1.7;
+}
+.tally-guide strong { color: var(--on-surface); font-weight: 700; }
+.tally-guide-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--tertiary);
+  margin-bottom: 8px;
+}
+
+/* Invoice list */
+.tally-invoice-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+.tally-invoice-card {
+  background: var(--surface-container);
+  border-radius: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tally-invoice-card:hover {
+  border-color: rgba(78,222,163,0.3);
+  background: var(--surface-container-high);
+}
+.tally-invoice-card.imported {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+.tally-invoice-card.selected {
+  border-color: var(--tertiary);
+  background: rgba(78,222,163,0.08);
+}
+
+.tally-inv-info { flex: 1; min-width: 0; }
+.tally-inv-name { font-size: 15px; font-weight: 700; color: var(--on-surface); }
+.tally-inv-product { font-size: 12px; color: var(--on-surface-variant); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tally-inv-meta { font-size: 11px; color: var(--on-surface-variant); margin-top: 4px; font-family: var(--font-mono, monospace); }
+
+.tally-inv-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tally-inv-badge.new { background: rgba(78,222,163,0.15); color: var(--tertiary); }
+.tally-inv-badge.done { background: rgba(194,198,214,0.1); color: var(--on-surface-variant); }
+
+/* Action bar */
+.tally-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+.tally-btn-primary {
+  flex: 1;
+  padding: 13px;
+  background: linear-gradient(135deg, var(--tertiary-container, #00a572), var(--tertiary, #4edea3));
+  color: #002113;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  letter-spacing: 0.2px;
+}
+.tally-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.tally-btn-primary:not(:disabled):hover { opacity: 0.88; }
+
+.tally-btn-secondary {
+  padding: 13px 18px;
+  background: var(--surface-container-highest);
+  color: var(--on-surface-variant);
+  border: none;
+  border-radius: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.tally-btn-secondary:hover { opacity: 0.8; }
+
+/* Empty / error states */
+.tally-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--on-surface-variant);
+}
+.tally-empty-icon { font-size: 40px; margin-bottom: 10px; }
+.tally-empty-text { font-size: 14px; font-weight: 600; color: var(--on-surface); }
+.tally-empty-sub { font-size: 12px; margin-top: 5px; }
+
+/* Filter tabs */
+.tally-filter-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.tally-filter-tabs { display: flex; gap: 4px; }
+.tally-filter-tab {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid rgba(78,222,163,0.2);
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.tally-filter-tab.active {
+  background: rgba(78,222,163,0.15);
+  color: var(--tertiary);
+  border-color: rgba(78,222,163,0.35);
+}
+.tally-count-label {
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  font-family: monospace;
+}
+
+/* Light mode overrides */
+[data-theme="light"] #tallyImportCard { background: white; border-color: rgba(5,150,105,0.2); }
+[data-theme="light"] .tally-dropzone { background: rgba(5,150,105,0.03); border-color: rgba(5,150,105,0.25); }
+[data-theme="light"] .tally-guide { background: #f0fdf4; }
+[data-theme="light"] .tally-invoice-card { background: #f8fffe; }
+[data-theme="light"] .tally-invoice-card:hover { background: #f0fdf4; border-color: rgba(5,150,105,0.3); }
+[data-theme="light"] .tally-invoice-card.selected { background: rgba(5,150,105,0.06); border-color: #059669; }
+[data-theme="light"] .tally-steps { background: #f8fafc; }
+[data-theme="light"] .tally-step.active { background: rgba(5,150,105,0.1); color: #059669; }
+[data-theme="light"] .tally-inv-badge.new { background: rgba(5,150,105,0.1); color: #047857; }
+[data-theme="light"] .tally-btn-primary { background: linear-gradient(135deg, #047857, #059669); color: white; }
+[data-theme="light"] .tally-btn-secondary { background: #f1f5f9; color: #475569; }
+[data-theme="light"] .tally-close-btn { background: #f1f5f9; color: #64748b; }
+[data-theme="light"] .tally-filter-tab { color: #64748b; border-color: rgba(5,150,105,0.2); }
+[data-theme="light"] .tally-filter-tab.active { background: rgba(5,150,105,0.08); color: #047857; }
+</style>
+
+<!-- ══ TALLY IMPORT MODAL ══ -->
+<div id="tallyImportOverlay">
+  <div id="tallyImportCard">
+
+    <!-- Header -->
+    <div class="tally-header">
+      <div>
+        <div class="tally-title">📊 Import from Tally</div>
+        <div class="tally-subtitle">Export Day Book as XML from Tally, then select the file</div>
+      </div>
+      <button class="tally-close-btn" onclick="closeTallyImportModal()" title="Close">✕</button>
+    </div>
+
+    <!-- Step indicator -->
+    <div class="tally-steps">
+      <div class="tally-step active" id="tallyStep1">1. Export XML from Tally</div>
+      <div class="tally-step" id="tallyStep2">2. Select File</div>
+      <div class="tally-step" id="tallyStep3">3. Choose Invoice</div>
+    </div>
+
+    <!-- Step 1 — Upload area (shown first) -->
+    <div id="tallyStepUpload">
+      <!-- Drop zone -->
+      <div class="tally-dropzone" id="tallyDropzone"
+        onclick="document.getElementById('tallyXMLInput').click()"
+        ondragover="tallyDragOver(event)"
+        ondragleave="tallyDragLeave(event)"
+        ondrop="tallyDrop(event)">
+        <div class="tally-dropzone-icon">📂</div>
+        <div class="tally-dropzone-label">Click to select Tally XML file</div>
+        <div class="tally-dropzone-sub">
+          Or drag and drop the file here<br>
+          <b>Accepts: .xml files exported from Tally</b>
+        </div>
+      </div>
+      <input type="file" id="tallyXMLInput" accept=".xml,application/xml,text/xml"
+        style="display:none" onchange="handleTallyXMLFile(this.files[0])">
+
+      <!-- How to export guide -->
+      <div class="tally-guide">
+        <div class="tally-guide-title">📋 How to export from Tally</div>
+        <strong>Day Book method (recommended):</strong><br>
+        Gateway of Tally → Display → Day Book → select today<br>
+        Press <strong>Alt+E</strong> → XML → accept defaults → Save<br><br>
+        <strong>Voucher Register method:</strong><br>
+        Gateway → Display → Account Books → Sales Register<br>
+        Press <strong>Alt+E</strong> → XML → Save<br><br>
+        <span style="color:var(--tertiary);font-weight:600;">Tip:</span> Save the XML to your Desktop for easy access
+      </div>
+    </div>
+
+    <!-- Step 2 — Invoice list (shown after file selected) -->
+    <div id="tallyStepList" style="display:none;">
+      <div class="tally-filter-row">
+        <div class="tally-filter-tabs">
+          <button class="tally-filter-tab active" id="tallyTabAll" onclick="setTallyTab('all')">All</button>
+          <button class="tally-filter-tab" id="tallyTabToday" onclick="setTallyTab('today')">Today</button>
+          <button class="tally-filter-tab" id="tallyTabNew" onclick="setTallyTab('new')">Not Imported</button>
+        </div>
+        <span class="tally-count-label" id="tallyCountLabel"></span>
+      </div>
+
+      <div class="tally-invoice-list" id="tallyInvoiceList">
+        <!-- injected by JS -->
+      </div>
+
+      <div class="tally-actions">
+        <button class="tally-btn-secondary" onclick="tallyGoBack()">← Change File</button>
+        <button class="tally-btn-primary" id="tallyImportBtn" disabled onclick="confirmTallyImport()">
+          Fill Form with Selected
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   TALLY IMPORT MODULE — completely self-contained
+   No existing functions modified. No existing IDs touched.
+   Calls existing helpers: createProductItemHTML, updateProductCount,
+   toggleTallyInput, tallyProducts (already loaded by initApp)
+════════════════════════════════════════════════════════════ */
+
+const TALLY_IMPORTED_KEY = "hariom_tally_imported"; // localStorage key
+
+let _tallyParsedVouchers = [];   // all parsed vouchers from XML
+let _tallySelectedVoucher = null; // currently selected
+let _tallyCurrentTab      = "all";
+
+/* ── OPEN / CLOSE ── */
+function openTallyImportModal() {
+  document.getElementById("tallyImportOverlay").classList.add("open");
+  // Reset to upload step
+  _tallyResetToUpload();
+}
+
+function closeTallyImportModal() {
+  document.getElementById("tallyImportOverlay").classList.remove("open");
+  // Clear file input so same file can be re-selected
+  const inp = document.getElementById("tallyXMLInput");
+  if (inp) inp.value = "";
+}
+
+function _tallyResetToUpload() {
+  document.getElementById("tallyStepUpload").style.display = "block";
+  document.getElementById("tallyStepList").style.display   = "none";
+  _setTallyStep(1);
+  _tallyParsedVouchers = [];
+  _tallySelectedVoucher = null;
+  _tallyCurrentTab = "all";
+  // Reset step styling
+  ["tallyStep1","tallyStep2","tallyStep3"].forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.classList.remove("active","done");
+    if (i === 0) el.classList.add("active");
+  });
+}
+
+function _setTallyStep(n) {
+  ["tallyStep1","tallyStep2","tallyStep3"].forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.classList.remove("active","done");
+    if (i + 1 < n) el.classList.add("done");
+    else if (i + 1 === n) el.classList.add("active");
+  });
+}
+
+/* ── DRAG & DROP ── */
+function tallyDragOver(e) {
+  e.preventDefault();
+  document.getElementById("tallyDropzone").classList.add("dragover");
+}
+function tallyDragLeave(e) {
+  document.getElementById("tallyDropzone").classList.remove("dragover");
+}
+function tallyDrop(e) {
+  e.preventDefault();
+  document.getElementById("tallyDropzone").classList.remove("dragover");
+  const file = e.dataTransfer?.files?.[0];
+  if (file) handleTallyXMLFile(file);
+}
+
+/* ── FILE HANDLER ── */
+async function handleTallyXMLFile(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".xml") && file.type !== "application/xml" && file.type !== "text/xml") {
+    showToast("⚠ Please select an XML file exported from Tally");
+    return;
+  }
+
+  const dropzone = document.getElementById("tallyDropzone");
+  dropzone.querySelector(".tally-dropzone-label").textContent = "⏳ Parsing…";
+
+  try {
+    const text = await file.text();
+    _tallyParsedVouchers = parseTallyXML(text);
+
+    if (_tallyParsedVouchers.length === 0) {
+      showToast("⚠ No Sales vouchers found in this file. Try exporting Day Book or Sales Register.");
+      dropzone.querySelector(".tally-dropzone-label").textContent = "Click to select Tally XML file";
+      return;
+    }
+
+    // Switch to list step
+    document.getElementById("tallyStepUpload").style.display = "none";
+    document.getElementById("tallyStepList").style.display   = "block";
+    _setTallyStep(2);
+    _tallyCurrentTab = "all";
+    renderTallyInvoiceList();
+
+  } catch (err) {
+    showToast("⚠ Could not read XML file: " + err.message);
+    dropzone.querySelector(".tally-dropzone-label").textContent = "Click to select Tally XML file";
+    console.error("[tally-import]", err);
+  }
+}
+
+function tallyGoBack() {
+  _tallyResetToUpload();
+  document.getElementById("tallyXMLInput").value = "";
+}
+
+/* ── XML PARSER ── */
+function parseTallyXML(xmlText) {
+  const parser  = new DOMParser();
+  const xmlDoc  = parser.parseFromString(xmlText, "application/xml");
+
+  // Check for parse errors
+  const parseErr = xmlDoc.querySelector("parsererror");
+  if (parseErr) throw new Error("Invalid XML format");
+
+  const vouchers = [];
+
+  // Try both VOUCHER and TALLYMESSAGE structures (Tally has slight variations)
+  const voucherEls = xmlDoc.querySelectorAll("VOUCHER");
+
+  voucherEls.forEach(v => {
+    // Only Sales vouchers
+    const vchType = (v.getAttribute("VCHTYPE") || v.querySelector("VOUCHERTYPENAME")?.textContent || "").trim().toUpperCase();
+    if (!vchType.includes("SALES") && !vchType.includes("SALE")) return;
+
+    const voucher = {};
+
+    // Invoice / voucher number
+    voucher.invoice_number = (
+      v.querySelector("VOUCHERNUMBER")?.textContent ||
+      v.getAttribute("VOUCHERNUMBER") || ""
+    ).trim();
+
+    // Date — Tally format is YYYYMMDD
+    const rawDate = (v.querySelector("DATE")?.textContent || "").trim();
+    voucher.date = _tallyParseDate(rawDate);
+    voucher.raw_date = rawDate;
+
+    // Party / Customer name
+    voucher.customer_name = (
+      v.querySelector("PARTYLEDGERNAME")?.textContent ||
+      v.querySelector("PARTYNAME")?.textContent || ""
+    ).trim();
+
+    // Phone — look in LEDGER entries or address
+    const allText = v.textContent || "";
+    const phoneMatch = allText.match(/[6-9]\d{9}/);
+    voucher.phone = phoneMatch ? phoneMatch[0] : "";
+
+    // Address — from BASICBUYERADDRESS or ADDRESS
+    const addrLines = [];
+    v.querySelectorAll("BASICBUYERADDRESS\.LIST BASICBUYERADDRESS, ADDRESS\.LIST ADDRESS, BILLLEDGERADDRESS\.LIST BILLLEDGERADDRESS").forEach(el => {
+      const t = el.textContent.trim();
+      if (t && t.length > 2) addrLines.push(t);
+    });
+    // Fallback: look for ADDRESS elements directly
+    if (!addrLines.length) {
+      v.querySelectorAll("ADDRESS").forEach(el => {
+        const t = el.textContent.trim();
+        if (t && t.length > 2 && !t.match(/^\d{6}$/)) addrLines.push(t);
+      });
+    }
+    voucher.address = addrLines.join(", ");
+
+    // Products from inventory entries
+    const products = [];
+    v.querySelectorAll("ALLINVENTORYENTRIES\.LIST, INVENTORYENTRIES\.LIST").forEach(entry => {
+      const name = (
+        entry.querySelector("STOCKITEMNAME")?.textContent || ""
+      ).trim().toUpperCase();
+      if (!name) return;
+
+      // Serial number from batch allocations
+      let serial = "";
+      const batch = entry.querySelector("BATCHALLOCATIONS\.LIST");
+      if (batch) {
+        serial = (
+          batch.querySelector("BATCHNAME")?.textContent ||
+          batch.querySelector("MFDON")?.textContent || ""
+        ).trim();
+      }
+
+      // Amount
+      const amt = parseFloat(
+        entry.querySelector("AMOUNT")?.textContent?.replace(/[^0-9.-]/g, "") || "0"
+      );
+
+      products.push({ product_name: name, serial_number: serial, amount: Math.abs(amt) });
+    });
+
+    // Only include if we have a customer name + at least 1 product
+    if (!voucher.customer_name || products.length === 0) return;
+
+    voucher.products = products;
+
+    // Summary label for list display
+    voucher.product_summary = products.map(p => p.product_name).join(" + ");
+
+    // Amount total
+    voucher.total = products.reduce((s, p) => s + (p.amount || 0), 0);
+
+    vouchers.push(voucher);
+  });
+
+  // Sort: newest first (by raw date desc), then by invoice number desc
+  return vouchers.sort((a, b) => {
+    if (b.raw_date !== a.raw_date) return b.raw_date.localeCompare(a.raw_date);
+    return (b.invoice_number || "").localeCompare(a.invoice_number || "");
+  });
+}
+
+function _tallyParseDate(raw) {
+  // Tally: YYYYMMDD
+  if (!raw || raw.length !== 8) return raw;
+  const y = raw.slice(0,4), m = raw.slice(4,6), d = raw.slice(6,8);
+  try {
+    return new Date(`${y}-${m}-${d}`).toLocaleDateString("en-IN", {
+      day: "2-digit", month: "short", year: "numeric"
+    });
+  } catch { return raw; }
+}
+
+/* ── LIST RENDER ── */
+function setTallyTab(tab) {
+  _tallyCurrentTab = tab;
+  ["all","today","new"].forEach(t => {
+    document.getElementById("tallyTab" + t.charAt(0).toUpperCase() + t.slice(1))
+      ?.classList.toggle("active", t === tab);
+  });
+  _tallySelectedVoucher = null;
+  document.getElementById("tallyImportBtn").disabled = true;
+  renderTallyInvoiceList();
+}
+
+function renderTallyInvoiceList() {
+  const container = document.getElementById("tallyInvoiceList");
+  const imported  = _tallyGetImported();
+  const todayStr  = _tallyTodayRaw();
+
+  let vouchers = _tallyParsedVouchers;
+
+  if (_tallyCurrentTab === "today") {
+    vouchers = vouchers.filter(v => v.raw_date === todayStr);
+  } else if (_tallyCurrentTab === "new") {
+    vouchers = vouchers.filter(v => !imported.includes(v.invoice_number));
+  }
+
+  const countLabel = document.getElementById("tallyCountLabel");
+  countLabel.textContent = `${vouchers.length} voucher${vouchers.length !== 1 ? "s" : ""}`;
+
+  if (vouchers.length === 0) {
+    container.innerHTML = `
+      <div class="tally-empty">
+        <div class="tally-empty-icon">${_tallyCurrentTab === "today" ? "📅" : "✅"}</div>
+        <div class="tally-empty-text">${_tallyCurrentTab === "today" ? "No sales found for today" : "All vouchers already imported"}</div>
+        <div class="tally-empty-sub">${_tallyCurrentTab === "today" ? "Try the "All" tab to see other dates" : "Switch to "All" to re-import"}</div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = vouchers.map((v, idx) => {
+    const isImported = imported.includes(v.invoice_number);
+    const isSelected = _tallySelectedVoucher && _tallySelectedVoucher.invoice_number === v.invoice_number;
+    return `
+      <div class="tally-invoice-card ${isImported ? "imported" : ""} ${isSelected ? "selected" : ""}"
+        onclick="${isImported ? "" : `selectTallyVoucher(${_tallyParsedVouchers.indexOf(v)})`}">
+        <div class="tally-inv-info">
+          <div class="tally-inv-name">${escHtml(v.customer_name)}</div>
+          <div class="tally-inv-product">${escHtml(v.product_summary)}</div>
+          <div class="tally-inv-meta">
+            ${v.invoice_number ? `#${v.invoice_number} · ` : ""}${v.date || ""}
+            ${v.phone ? ` · 📞 ${v.phone}` : ""}
+            ${v.total ? ` · ₹${v.total.toLocaleString("en-IN")}` : ""}
+          </div>
+        </div>
+        <span class="tally-inv-badge ${isImported ? "done" : "new"}">
+          ${isImported ? "✓ Imported" : "New"}
+        </span>
+      </div>`;
+  }).join("");
+}
+
+function selectTallyVoucher(globalIdx) {
+  _tallySelectedVoucher = _tallyParsedVouchers[globalIdx];
+  _setTallyStep(3);
+  const btn = document.getElementById("tallyImportBtn");
+  if (btn) btn.disabled = false;
+  // Re-render to show selected state
+  renderTallyInvoiceList();
+}
+
+/* ── CONFIRM IMPORT ── */
+function confirmTallyImport() {
+  const v = _tallySelectedVoucher;
+  if (!v) return;
+
+  // ── Fill customer name ──
+  const parts = (v.customer_name || "").trim().split(/\s+/);
+  const fn = document.getElementById("first_name");
+  const mn = document.getElementById("middle_name");
+  const ln = document.getElementById("last_name");
+  if (fn) fn.value = parts[0] || "";
+  if (mn) mn.value = parts.length === 3 ? parts[1] : "";
+  if (ln) ln.value = parts.length >= 2 ? parts[parts.length - 1] : "";
+
+  // ── Fill phone ──
+  const ph = document.getElementById("phone");
+  if (ph && v.phone) ph.value = v.phone;
+
+  // ── Fill address ──
+  const addr1 = document.getElementById("addr1");
+  if (addr1 && v.address) addr1.value = v.address;
+
+  // ── Fill products ── (same logic as handleInvoiceImport for consistency)
+  if (v.products && v.products.length > 0) {
+    const list = document.getElementById("productList");
+    if (list) {
+      list.innerHTML = "";
+      // productItemCounter is a global from the main module
+      if (typeof productItemCounter !== "undefined") productItemCounter = 0;
+
+      v.products.forEach(p => {
+        if (typeof productItemCounter !== "undefined") productItemCounter++;
+        const idx = typeof productItemCounter !== "undefined" ? productItemCounter : 1;
+        const div = document.createElement("div");
+        if (typeof createProductItemHTML === "function") {
+          div.innerHTML = createProductItemHTML(idx);
+          list.appendChild(div.firstElementChild);
+
+          const item = list.lastElementChild;
+
+          // Use tally input for product name
+          const tallyToggle = item.querySelector(`[data-field="tally_toggle"]`);
+          if (tallyToggle && typeof toggleTallyInput === "function") {
+            tallyToggle.checked = true;
+            toggleTallyInput(tallyToggle, idx);
+            const tallyInput = item.querySelector(`[data-field="tally_input"]`);
+            if (tallyInput) tallyInput.value = p.product_name || "";
+          } else {
+            // Fallback: regular product name input
+            const nameInput = item.querySelector(`[data-field="product_name"], input[placeholder*="product"]`);
+            if (nameInput) nameInput.value = p.product_name || "";
+          }
+
+          // Serial number
+          const serial = item.querySelector(`[data-field="serial"]`);
+          if (serial && p.serial_number) serial.value = p.serial_number;
+
+          // Invoice number
+          const invoice = item.querySelector(`[data-field="invoice"]`);
+          if (invoice && v.invoice_number) invoice.value = v.invoice_number;
+        }
+      });
+
+      if (typeof updateProductCount === "function") updateProductCount();
+    }
+  }
+
+  // ── Mark as imported in localStorage ──
+  _tallyMarkImported(v.invoice_number);
+
+  // ── Close modal & show confirmation ──
+  closeTallyImportModal();
+  showToast(`✅ ${v.customer_name} imported from Tally`);
+
+  // Flash formMessage
+  const msg = document.getElementById("formMessage");
+  if (msg) {
+    msg.style.color = "var(--tertiary, #4edea3)";
+    msg.textContent = `📊 Filled from Tally invoice ${v.invoice_number || ""} — ${v.customer_name}`;
+    setTimeout(() => { msg.textContent = ""; }, 5000);
+  }
+}
+
+/* ── IMPORTED TRACKING (localStorage) ── */
+function _tallyGetImported() {
+  try {
+    return JSON.parse(localStorage.getItem(TALLY_IMPORTED_KEY) || "[]");
+  } catch { return []; }
+}
+
+function _tallyMarkImported(invoiceNumber) {
+  if (!invoiceNumber) return;
+  const list = _tallyGetImported();
+  if (!list.includes(invoiceNumber)) {
+    list.push(invoiceNumber);
+    // Keep last 500 to avoid bloat
+    if (list.length > 500) list.splice(0, list.length - 500);
+    localStorage.setItem(TALLY_IMPORTED_KEY, JSON.stringify(list));
+  }
+}
+
+function _tallyTodayRaw() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}${m}${day}`;
+}
+
+// Close on overlay click (outside card)
+document.getElementById("tallyImportOverlay").addEventListener("click", function(e) {
+  if (e.target === this) closeTallyImportModal();
+});
+
+// Close on Escape
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" &&
+      document.getElementById("tallyImportOverlay").classList.contains("open")) {
+    closeTallyImportModal();
+  }
+});
+
+console.log("[tally-import] Module loaded ✓");
+</script>
 
 </body>
 </html>
