@@ -2072,6 +2072,7 @@ async function autoCreateServiceTicket(deliveryData, deliveryId) {
     linked_delivery_id: deliveryId,
     customer_name:      deliveryData.customer_name  || "",
     phone:              deliveryData.phone          || "",
+    alternate_phone:    deliveryData.alternate_phone || "",
     address:            deliveryData.address        || "",
     product_name:       deliveryData.product_name   || "",
     serial_number:      deliveryData.product_serial_number || "",
