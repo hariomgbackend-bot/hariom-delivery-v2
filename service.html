@@ -255,6 +255,57 @@
       .card       { padding: 14px; border-radius: 16px; }
       .header     { padding: 0 14px; height: 56px; }
       .stat-grid  { grid-template-columns: repeat(2,1fr); gap: 10px; }
+
+      /* Header — hide username text on small screens, keep buttons */
+      .header-user { display: none; }
+      .header-btn  { padding: 7px 10px; font-size: 11px; }
+      .header-brand { font-size: 14px; }
+
+      /* Form grids — all collapse to single column on mobile */
+      .form-grid-2,
+      .form-grid-3 { grid-template-columns: 1fr !important; }
+
+      /* Inline grids inside create/edit popups */
+      .popup-card [style*="grid-template-columns:1fr 1fr"],
+      .popup-card [style*="grid-template-columns: 1fr 1fr"],
+      .popup-card [style*="grid-template-columns:1fr 1fr 1fr"],
+      .popup-card [style*="grid-template-columns: 1fr 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Form inputs — bigger touch targets */
+      .form-input, .form-select {
+        height: 50px !important;
+        font-size: 16px !important; /* prevents iOS auto-zoom */
+      }
+
+      /* Buttons in popups — full width on mobile */
+      .popup-actions { flex-direction: column; }
+      .popup-actions button,
+      .popup-actions a { width: 100%; text-align: center; justify-content: center; }
+
+      /* Brand action buttons */
+      .brand-action-btns { flex-direction: column; }
+      .brand-action-btns button,
+      .brand-action-btns a { width: 100%; }
+
+      /* Re-log + logged buttons row */
+      .popup-card [style*="display:flex"][style*="gap:8px"][style*="flex-wrap:wrap"][style*="align-items:center"] {
+        flex-direction: column;
+      }
+
+      /* Filter bar — scroll horizontally instead of wrapping */
+      .filter-bar { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .filter-bar::-webkit-scrollbar { display: none; }
+      .filter-btn { flex-shrink: 0; }
+
+      /* Detail rows in ticket popup — stack label above value */
+      .detail-row { flex-direction: column; gap: 2px; }
+      .detail-label { min-width: unset; }
+
+      /* Stat cards smaller on mobile */
+      .stat-val  { font-size: 26px; }
+      .stat-lbl  { font-size: 9px; }
     }
     @media (min-width: 768px) { .mob-cards { display: none; } }
 
@@ -294,6 +345,10 @@
     @media (max-width:767px) { .popup-card { border-radius: 24px 24px 0 0; max-width: 100%; margin: 0; max-height: 92vh; padding: 22px 18px 30px; } }
     .popup-card h3 { font-size: 20px; font-weight: 900; letter-spacing: -0.3px; color: var(--on-surface); margin-bottom: 20px; }
     .popup-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+    /* ════ FORM GRIDS ════ */
+    .form-grid-2 { grid-template-columns: 1fr 1fr; }
+    .form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
 
     /* ════ FORM FIELDS ════ */
     .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--outline); margin: 14px 0 6px; }
@@ -605,7 +660,7 @@
     </div>
 
     <!-- Split name -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+    <div style="display:grid;gap:8px;margin-bottom:10px;" class="form-grid-3">
       <div class="form-field" style="margin:0">
         <label>First Name *</label>
         <input class="form-input" id="ctFirstName" placeholder="First">
@@ -621,7 +676,7 @@
     </div>
 
     <!-- Phone -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+    <div style="display:grid;gap:8px;margin-bottom:10px;" class="form-grid-2">
       <div class="form-field" style="margin:0">
         <label>Phone *</label>
         <input class="form-input" id="ctPhone" placeholder="10-digit" maxlength="10" inputmode="numeric">
@@ -642,7 +697,7 @@
       </div>
       <div id="ctPinError" style="font-size:11px;color:var(--error);margin-top:3px;"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+    <div style="display:grid;gap:8px;margin-bottom:10px;" class="form-grid-2">
       <div class="form-field" style="margin:0">
         <label>State</label>
         <input class="form-input" id="ctState" placeholder="State" readonly>
@@ -657,7 +712,7 @@
       <select class="form-select" id="ctArea" style="display:none;"></select>
       <input class="form-input" id="ctAreaManual" placeholder="Area / Landmark" style="display:none;">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+    <div style="display:grid;gap:8px;margin-bottom:10px;" class="form-grid-2">
       <div class="form-field" style="margin:0">
         <label>Address Line 1</label>
         <input class="form-input" id="ctAddr1" placeholder="House / Building">
@@ -1591,7 +1646,7 @@ function openEditTicket(id) {
       <label>Customer Name</label>
       <input class="form-input" id="et_name" value="${t.customer_name || ""}">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+    <div style="display:grid;gap:8px;margin-bottom:10px;" class="form-grid-2">
       <div class="form-field" style="margin:0;">
         <label>Phone</label>
         <input class="form-input" id="et_phone" value="${t.phone || ""}" maxlength="10" inputmode="numeric">
@@ -1605,7 +1660,7 @@ function openEditTicket(id) {
       <label>Address</label>
       <input class="form-input" id="et_address" value="${t.address || ""}">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+    <div style="display:grid;gap:8px;margin-bottom:10px;" class="form-grid-2">
       <div class="form-field" style="margin:0;">
         <label>Product Name</label>
         <input class="form-input" id="et_product" value="${t.product_name || ""}">
