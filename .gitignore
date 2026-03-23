@@ -1,3 +1,4 @@
 node_modules/
 firebase-service-account.json
-.envtally_products.json 
+.env
+tally_products.json 
