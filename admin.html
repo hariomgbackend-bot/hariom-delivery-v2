@@ -3466,7 +3466,7 @@ function onSearch() {
   loadAdmin();
 }
 
-setInterval(loadAdmin, 30000);
+setInterval(() => { if (!document.hidden) loadAdmin(); }, 30000);
 loadAdmin();
 
 // ── PAYOUT TOGGLE ──────────────────────────────
