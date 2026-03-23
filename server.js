@@ -2547,7 +2547,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       try {
         const raiser = req.user.name || req.user.role;
         await sendServicePush(
-          `🔧 New ${type === "installation" ? "Installation" : "Complaint"} Ticket`,
+          `🔧 New ${type === "installation" ? "Demo-Installation" : "Complaint"} Ticket`,
           `${customer_name || phone} — ${product_name || "Product"} — by ${raiser}`
         );
       } catch (e) { console.warn("[ticket push]", e.message); }
@@ -2577,6 +2577,20 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
 
     const isResolving = updates.status === "resolved" && existing.status !== "resolved";
     if (isResolving) updates.resolved_at = Timestamp.now();
+
+    // ── Tracking history: append old tracking number before overwriting ──
+    if (req.body._append_tracking && updates.brand_tracking_number) {
+      const history = Array.isArray(existing.tracking_history) ? [...existing.tracking_history] : [];
+      // Save current tracking number to history before replacing
+      if (existing.brand_tracking_number) {
+        history.push({
+          tracking_number: existing.brand_tracking_number,
+          logged_at:       existing.updated_at?.toMillis?.() || existing.created_at?.toMillis?.() || Date.now(),
+          logged_by:       req.user.name || req.user.role
+        });
+      }
+      updates.tracking_history = history;
+    }
 
     await updateDoc(refDoc, { ...updates, updated_at: Timestamp.now() });
     res.json({ success: true });
