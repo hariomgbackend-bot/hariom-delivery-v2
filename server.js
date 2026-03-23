@@ -2098,6 +2098,7 @@ async function autoCreateServiceTicket(deliveryData, deliveryId) {
     created_at:         Timestamp.now(),
     resolved_at:        null,
     warranty_expiry:    expiry,
+    purchase_date:      deliveryData.delivered_timestamp || null,
     is_auto_created:    true
   });
   console.log(`[autoTicket] Created installation ticket for delivery ${deliveryId}`);
@@ -2468,7 +2469,8 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       customer_name: raw_customer_name,
       phone, alternate_phone, address,
       pincode, state, city, area, addr1, addr2,
-      product_name, serial_number, description
+      product_name, serial_number, description,
+      purchase_date
     } = req.body;
 
     if (!type || !["installation", "complaint"].includes(type))
@@ -2494,6 +2496,12 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
         const d = delivSnap.data();
         warranty_expiry = warrantyExpiry(product_name || d.product_name, d.delivered_timestamp);
       }
+    }
+
+    // Parse purchase_date if provided (YYYY-MM-DD string → Timestamp)
+    let purchase_date_ts = null;
+    if (purchase_date) {
+      try { purchase_date_ts = Timestamp.fromDate(new Date(purchase_date + "T00:00:00+05:30")); } catch(_) {}
     }
 
     // Avoid duplicate installation tickets for same delivery
@@ -2535,6 +2543,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       created_at:         Timestamp.now(),
       resolved_at:        null,
       warranty_expiry,
+      purchase_date:      purchase_date_ts,
       is_auto_created:    false,
       brand_tracking_number: null,
       brand_request_status:  null,
@@ -2570,22 +2579,27 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
       "status", "assigned_to", "description", "notes",
       "brand_request_status", "brand_tracking_number",
       "customer_name", "phone", "alternate_phone", "address",
-      "product_name", "serial_number"
+      "product_name", "serial_number", "purchase_date"
     ];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
 
+    // ── logged_at: set on first log AND updated on every re-log ──
+    const isLogging = updates.status === "logged";
+    if (isLogging) {
+      updates.logged_at = Timestamp.now(); // always stamp — first log or re-log
+    }
+
     const isResolving = updates.status === "resolved" && existing.status !== "resolved";
     if (isResolving) updates.resolved_at = Timestamp.now();
 
-    // ── Tracking history: append old tracking number before overwriting ──
+    // ── Tracking history: save old tracking number before overwriting ──
     if (req.body._append_tracking && updates.brand_tracking_number) {
       const history = Array.isArray(existing.tracking_history) ? [...existing.tracking_history] : [];
-      // Save current tracking number to history before replacing
       if (existing.brand_tracking_number) {
         history.push({
           tracking_number: existing.brand_tracking_number,
-          logged_at:       existing.updated_at?.toMillis?.() || existing.created_at?.toMillis?.() || Date.now(),
+          logged_at:       existing.logged_at?.toMillis?.() || existing.updated_at?.toMillis?.() || Date.now(),
           logged_by:       req.user.name || req.user.role
         });
       }
@@ -2679,6 +2693,169 @@ app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]),
     res.status(500).json({ error: err.message });
   }
 });
+
+
+/* ════════════════════════════════════════════════
+   LEGACY IMPORT ENDPOINTS — one-time use
+   DELETE /service/legacy-wipe   — deletes all legacy imported tickets
+   POST   /service/legacy-import — bulk imports tickets from Excel data
+════════════════════════════════════════════════ */
+
+// DELETE /service/legacy-wipe
+app.delete("/service/legacy-wipe", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { confirm_phrase } = req.body;
+    if (confirm_phrase !== "WIPE LEGACY DATA")
+      return res.status(400).json({ error: "Send confirm_phrase: 'WIPE LEGACY DATA'" });
+
+    const snap = await getDocs(query(
+      collection(db, "service_tickets"),
+      where("is_legacy_import", "==", true)
+    ));
+
+    if (snap.empty) return res.json({ deleted: 0, message: "No legacy imported tickets found" });
+
+    const { writeBatch } = await import("firebase/firestore");
+    const BATCH_SIZE = 400;
+    let deleted = 0;
+    const docs = snap.docs;
+    for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + BATCH_SIZE).forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      deleted += docs.slice(i, i + BATCH_SIZE).length;
+    }
+
+    console.log("[legacy-wipe] Deleted " + deleted + " legacy tickets");
+    res.json({ success: true, deleted });
+  } catch (err) {
+    console.error("/service/legacy-wipe error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /service/legacy-import
+app.post("/service/legacy-import", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { tickets, confirm } = req.body;
+    if (!confirm) return res.status(400).json({ error: "Send confirm: true" });
+    if (!Array.isArray(tickets) || !tickets.length)
+      return res.status(400).json({ error: "No tickets provided" });
+
+    const { writeBatch } = await import("firebase/firestore");
+    const BATCH_SIZE = 400;
+    let imported = 0;
+    const errors = [];
+
+    const cleanPhone = (v) => {
+      if (!v) return "";
+      const s = String(v).replace(/\.0$/, "").replace(/\D/g, "");
+      return s.slice(-10);
+    };
+
+    for (let i = 0; i < tickets.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const chunk = tickets.slice(i, i + BATCH_SIZE);
+
+      for (const t of chunk) {
+        try {
+          const type         = t.request_type === "Demo & Installation" ? "installation" : "complaint";
+          const brand        = (t.brand || "").trim();
+          const model        = (t.model_number || "").trim();
+          const product_name = [brand, model].filter(Boolean).join(" ");
+          // Keep complaint number exactly as-is — different brands use different formats
+          const tracking     = t.complaint_number ? String(t.complaint_number).trim() : "";
+          const status       = tracking ? "logged" : "new";
+          const description  = (t.description || "").trim() || "Imported from legacy register";
+
+          let purchase_date_ts = null;
+          if (t.purchase_date) {
+            try { purchase_date_ts = Timestamp.fromDate(new Date(t.purchase_date + "T00:00:00+05:30")); } catch(_) {}
+          }
+
+          let created_at_ts = Timestamp.now();
+          if (t.timestamp) {
+            try { created_at_ts = Timestamp.fromDate(new Date(t.timestamp)); } catch(_) {}
+          }
+
+          let warranty_expiry = null;
+          if (purchase_date_ts) {
+            const d = new Date(purchase_date_ts.seconds * 1000);
+            d.setFullYear(d.getFullYear() + 1);
+            warranty_expiry = Timestamp.fromDate(d);
+          }
+
+          const newRef = doc(collection(db, "service_tickets"));
+          batch.set(newRef, {
+            type,
+            status,
+            customer_name:         (t.customer_name || "").trim(),
+            phone:                 cleanPhone(t.phone),
+            alternate_phone:       cleanPhone(t.alternate_phone),
+            address:               (t.address || "").trim(),
+            product_name,
+            serial_number:         "",
+            description,
+            brand_tracking_number: tracking || null,
+            brand_request_status:  tracking ? "raised" : null,
+            notes:                 (t.comment || "").trim() || "",
+            purchase_date:         purchase_date_ts,
+            warranty_expiry,
+            created_at:            created_at_ts,
+            logged_at:             null,       // null — we don't know when it was actually logged
+            updated_at:            created_at_ts,
+            tracking_history:      [],         // empty — no re-log history for legacy
+            created_by:            "legacy_import",
+            created_by_name:       "Legacy Import",
+            created_by_role:       "admin",
+            raised_by_role:        "admin",
+            linked_delivery_id:    null,
+            assigned_to:           null,
+            resolved_at:           null,
+            is_auto_created:       false,
+            is_legacy_import:      true,
+          });
+          imported++;
+        } catch (e) {
+          errors.push({ row: i, error: e.message });
+        }
+      }
+      await batch.commit();
+    }
+
+    console.log("[legacy-import] Imported " + imported + " tickets, " + errors.length + " errors");
+    res.json({ success: true, imported, errors: errors.slice(0, 10) });
+  } catch (err) {
+    console.error("/service/legacy-import error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /service/legacy-import-cleanup
+// Deletes the legacy_import.html file from the server filesystem after successful use
+// Only removes that specific file — nothing else
+app.delete("/service/legacy-import-cleanup", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { confirm_phrase } = req.body;
+    if (confirm_phrase !== "DELETE IMPORT TOOL") {
+      return res.status(400).json({ error: "Send confirm_phrase: 'DELETE IMPORT TOOL'" });
+    }
+    const fs   = await import("fs");
+    const path = await import("path");
+    const filePath = path.resolve("./legacy_import.html");
+
+    if (!fs.existsSync(filePath)) {
+      return res.json({ success: true, message: "File already gone" });
+    }
+    fs.unlinkSync(filePath);
+    console.log("[legacy-cleanup] Deleted legacy_import.html from server");
+    res.json({ success: true, message: "legacy_import.html deleted from server" });
+  } catch (err) {
+    console.error("/service/legacy-import-cleanup error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Search across deliveries + tickets by phone or name
 app.get("/service/search", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
