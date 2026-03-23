@@ -945,6 +945,8 @@ function renderDashboard(allData, days) {
   renderRankedLists(data);
   renderAlerts(allData); // alerts always use all data
   renderOpsCards(data);
+  renderBrands(data);      // brand intelligence charts
+  renderDeliveryMap();     // delivery map (was only running on manual refresh)
 }
 
 /* ── OVERVIEW CARDS ── */
@@ -1293,9 +1295,17 @@ function renderRankedLists(data) {
       <span class="rank-value" style="color:var(--sky)">${c.count}</span>
     </div>`).join("") || `<div class="empty-state"><div class="empty-icon">👤</div>No repeat customers yet</div>`;
 
-  // Top pincodes
+  // Top pincodes — extract from address string (format: "..., State - 411017")
   const pinCounts = {};
-  data.filter(d=>d.pincode).forEach(d=>{ pinCounts[d.pincode]=(pinCounts[d.pincode]||0)+1; });
+  data.forEach(d => {
+    // Try direct pincode field first, then extract 6-digit number from address
+    let pin = d.pincode;
+    if (!pin && d.address) {
+      const m = d.address.match(/\b(\d{6})\b/);
+      if (m) pin = m[1];
+    }
+    if (pin) pinCounts[pin] = (pinCounts[pin] || 0) + 1;
+  });
   const topPins = Object.entries(pinCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
   const pinMax  = topPins[0]?.[1] || 1;
   document.getElementById("pincodesList").innerHTML = topPins.map(([pin,cnt],i)=>`
@@ -1747,6 +1757,9 @@ function renderDeliveryMap() {
 
   _initMap();
   _clearMarkers();
+
+  // Ensure map knows its container size — needed when first shown inside a hidden div
+  setTimeout(() => { if (_mapInstance) _mapInstance.invalidateSize(); }, 150);
 
   const STATUS_COLORS = {
     delivered: "#4edea3",
