@@ -474,6 +474,9 @@
     </div>
     <div class="header-right">
       <span class="header-user" id="headerUser">—</span>
+      <a href="service_analytics.html" class="header-btn" style="text-decoration:none;">
+        <span class="material-symbols-outlined" style="font-size:15px;">analytics</span> Analytics
+      </a>
       <button class="header-btn" onclick="doLogout()">
         <span class="material-symbols-outlined">logout</span> Logout
       </button>
@@ -495,7 +498,7 @@
       </div>
       <div class="stat-card stat-teal">
         <div class="stat-val" id="statTodayInstall">—</div>
-        <div class="stat-lbl">Today's Installations</div>
+        <div class="stat-lbl">Today's Demo-Installations</div>
       </div>
       <div class="stat-card stat-error">
         <div class="stat-val" id="statComplaints">—</div>
@@ -541,7 +544,7 @@
         <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">All <span class="filter-count" id="fc-all"></span></button>
         <button class="filter-btn" data-filter="new"         onclick="setFilter('new',this)">New <span class="filter-count" id="fc-new"></span></button>
         <button class="filter-btn" data-filter="logged"      onclick="setFilter('logged',this)">Logged <span class="filter-count" id="fc-logged"></span></button>
-        <button class="filter-btn" data-filter="installation" onclick="setFilter('installation',this)">Installation <span class="filter-count" id="fc-installation"></span></button>
+        <button class="filter-btn" data-filter="installation" onclick="setFilter('installation',this)">Demo-Installation <span class="filter-count" id="fc-installation"></span></button>
         <button class="filter-btn" data-filter="complaint"   onclick="setFilter('complaint',this)">Complaints <span class="filter-count" id="fc-complaint"></span></button>
       </div>
 
@@ -596,7 +599,7 @@
     <div class="form-field">
       <label>Type *</label>
       <select class="form-select" id="ctType" onchange="onCtTypeChange()">
-        <option value="installation">Installation</option>
+        <option value="installation">Demo-Installation</option>
         <option value="complaint">Complaint</option>
       </select>
     </div>
@@ -943,7 +946,7 @@ function renderTicketsTable(tickets) {
   }
   tbody.innerHTML = tickets.map(t => `
     <tr class="clickable" onclick="openTicketDetail('${t.id}')">
-      <td><span class="badge badge-${t.type}">${t.type}</span></td>
+      <td><span class="badge badge-${t.type}">${displayType(t.type)}</span></td>
       <td style="font-weight:700;">${t.customer_name||"—"}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.product_name||"—"}</td>
       <td><a class="phone-link" href="tel:${t.phone}" onclick="event.stopPropagation()">${t.phone||"—"}</a></td>
@@ -971,7 +974,7 @@ function renderTicketsMob(tickets) {
           <div class="mob-card-product">${t.product_name||"—"}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-          <span class="badge badge-${t.type}">${t.type}</span>
+          <span class="badge badge-${t.type}">${displayType(t.type)}</span>
           <span class="badge badge-${t.status}">${t.status === "open" ? "new" : t.status.replace("_"," ")}</span>
         </div>
       </div>
@@ -1031,6 +1034,12 @@ function goToPage(p) {
 }
 
 
+
+// Helper: display name for ticket type
+function displayType(type) {
+  return type === "installation" ? "Demo-Installation" : (type || "—");
+}
+
 function openTicketDetail(id) {
   const t = allTickets.find(x => x.id === id);
   if (!t) return;
@@ -1043,13 +1052,32 @@ function openTicketDetail(id) {
 
   // Two statuses: new → logged (requires tracking/ticket number)
   const isLogged = t.status === "logged";
+
+  // Build tracking history display
+  const trackingHistory = Array.isArray(t.tracking_history) && t.tracking_history.length > 0
+    ? `<div style="margin-top:8px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-bottom:6px;">Tracking History</div>
+        ${t.tracking_history.map((h, i) => `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface-container);border-radius:8px;margin-bottom:4px;">
+            <span style="font-size:10px;color:var(--on-surface-variant);min-width:16px;">#${i+1}</span>
+            <span style="font-family:var(--font-mono);font-size:12px;font-weight:700;flex:1;">${h.tracking_number}</span>
+            <span style="font-size:10px;color:var(--on-surface-variant);">${h.logged_at ? fmtDate({seconds: h.logged_at/1000}) : "—"}</span>
+            ${i === t.tracking_history.length - 1 ? '<span style="font-size:10px;background:rgba(78,222,163,0.15);color:var(--tertiary);padding:1px 6px;border-radius:6px;font-weight:700;">Latest</span>' : '<span style="font-size:10px;color:var(--on-surface-variant);">Old</span>'}
+          </div>`).join("")}
+      </div>` : "";
+
   const statusButtons = isLogged
-    ? `<button class="btn btn-sm btn-teal" disabled style="opacity:0.7;">✅ Logged</button>`
+    ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-sm btn-teal" disabled style="opacity:0.7;">✅ Logged</button>
+        <button class="btn btn-sm btn-primary" onclick="reLogTicket('${t.id}')">
+          <span class="material-symbols-outlined" style="font-size:13px;">refresh</span> Re-log (Customer returned)
+        </button>
+      </div>`
     : `<button class="btn btn-sm btn-gray" onclick="markAsLogged('${t.id}', this)">Mark as Logged</button>`;
 
   document.getElementById("ticketDetailContent").innerHTML = `
     <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      <span class="badge badge-${t.type}">${t.type}</span>
+      <span class="badge badge-${t.type}">${displayType(t.type)}</span>
       ${t.customer_name || "—"}
     </h3>
 
@@ -1074,10 +1102,11 @@ function openTicketDetail(id) {
     ${resolvedDate ? `<div class="detail-row"><span class="detail-label">Resolved</span><span class="detail-value">${resolvedDate}</span></div>` : ""}
     ${t.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${t.notes}</span></div>` : ""}
     ${t.brand_tracking_number ? `<div class="detail-row"><span class="detail-label">Brand Ref#</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${t.brand_tracking_number}</span></div>` : ""}
+    ${trackingHistory}
 
     <!-- Status update -->
     <div class="section-title" style="margin-top:18px;">Status
-      ${isLogged ? `<span style="font-size:10px;font-weight:600;color:var(--tertiary);margin-left:8px;">— logged with tracking number</span>` : `<span style="font-size:10px;font-weight:600;color:var(--on-surface-variant);margin-left:8px;">— enter tracking # to mark as logged</span>`}
+      ${isLogged ? `<span style="font-size:10px;font-weight:600;color:var(--tertiary);margin-left:8px;">— logged with brand tracking number</span>` : `<span style="font-size:10px;font-weight:600;color:var(--on-surface-variant);margin-left:8px;">— enter tracking # to mark as logged</span>`}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">${statusButtons}</div>
 
@@ -1184,14 +1213,33 @@ async function markAsLogged(id, btn) {
   try {
     const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "logged", brand_tracking_number: val })
+      body: JSON.stringify({ status: "logged", brand_tracking_number: val, _append_tracking: true })
     });
     if (!res.ok) { showToast("❌ Failed to log ticket"); if(btn){btn.disabled=false;btn.textContent="Mark as Logged";} return; }
     showToast("✅ Ticket logged with tracking # " + val);
     await loadTickets();
-    // Refresh the popup to show updated state
     openTicketDetail(id);
   } catch (e) { showToast("❌ Network error"); if(btn){btn.disabled=false;btn.textContent="Mark as Logged";} }
+}
+
+async function reLogTicket(id) {
+  // Customer came back — re-log with a new tracking number, keep old one in history
+  const trackingNo = prompt("Customer returned — enter NEW brand tracking / ticket number:\n(Previous tracking number will be saved in history)");
+  if (!trackingNo || !trackingNo.trim()) {
+    showToast("⚠ New tracking number is required to re-log");
+    return;
+  }
+  const val = trackingNo.trim();
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "logged", brand_tracking_number: val, _append_tracking: true })
+    });
+    if (!res.ok) { showToast("❌ Failed to re-log ticket"); return; }
+    showToast("✅ Re-logged with new tracking # " + val);
+    await loadTickets();
+    openTicketDetail(id);
+  } catch (e) { showToast("❌ Network error"); }
 }
 
 async function saveTicketNote(id) {
@@ -1480,7 +1528,7 @@ function renderSearchResults(deliveries, tickets) {
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <span class="badge badge-${t.status}">${t.status.replace("_"," ")}</span>
-        <span class="badge badge-${t.type}">${t.type}</span>
+        <span class="badge badge-${t.type}">${displayType(t.type)}</span>
       </div>
     </div>`).join("");
 }
