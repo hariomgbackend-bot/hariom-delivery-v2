@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1326">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <title>Service Analytics — Hariom Electronics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0b1326; --surface-low: #131b2e; --surface: #171f33;
+      --surface-high: #222a3d; --surface-highest: #2d3449;
+      --primary: #adc6ff; --primary-c: #4d8eff;
+      --tertiary: #4edea3; --tertiary-c: #00a572;
+      --error: #ffb4ab; --amber: #f59e0b;
+      --on-surface: #dae2fd; --on-variant: #c2c6d6;
+      --outline: #8c909f; --border: rgba(255,255,255,0.07);
+      --purple: #c084fc; --sky: #38bdf8; --pink: #f472b6;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    html, body { height: 100%; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--on-surface); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+    .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-variation-settings: 'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; font-size: 18px; line-height: 1; vertical-align: middle; }
+
+    /* ── HEADER ── */
+    .header { background: rgba(11,19,38,0.75); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+    .header-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 900; color: var(--tertiary); letter-spacing: -0.3px; text-transform: uppercase; }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .header-btn { background: rgba(173,198,255,0.07); border: 1px solid rgba(173,198,255,0.12); color: rgba(218,226,253,0.7); font-family: 'Inter',sans-serif; font-size: 12px; font-weight: 700; padding: 7px 13px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.15s; }
+    .header-btn:hover { background: rgba(173,198,255,0.14); color: var(--primary); }
+    .range-bar { display: flex; align-items: center; gap: 6px; background: var(--surface-low); border-radius: 10px; padding: 5px 8px; }
+    .range-btn { padding: 4px 10px; border-radius: 7px; border: none; background: transparent; color: var(--on-variant); font-family: 'Inter',sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .range-btn:hover { background: rgba(173,198,255,0.08); color: var(--primary); }
+    .range-btn.active { background: linear-gradient(135deg, var(--primary-c), var(--primary)); color: #00285d; }
+
+    /* ── CONTENT ── */
+    .content { max-width: 1300px; margin: 0 auto; padding: 24px 20px; }
+
+    /* ── STAT CARDS ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .stat-card { background: rgba(45,52,73,0.4); border-radius: 18px; padding: 20px 18px; border: 1px solid rgba(255,255,255,0.05); position: relative; overflow: hidden; transition: transform 0.2s; }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+    .sc-blue::before   { background: linear-gradient(90deg, var(--primary-c), var(--primary)); }
+    .sc-green::before  { background: linear-gradient(90deg, var(--tertiary-c), var(--tertiary)); }
+    .sc-amber::before  { background: linear-gradient(90deg, #d97706, var(--amber)); }
+    .sc-red::before    { background: linear-gradient(90deg, #93000a, var(--error)); }
+    .sc-purple::before { background: linear-gradient(90deg, #7c3aed, var(--purple)); }
+    .sc-sky::before    { background: linear-gradient(90deg, #0284c7, var(--sky)); }
+    .stat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--on-variant); margin-bottom: 10px; }
+    .stat-value { font-family: var(--font-mono); font-size: 28px; font-weight: 700; letter-spacing: -1px; line-height: 1; }
+    .stat-sub { font-size: 11px; color: var(--on-variant); margin-top: 6px; }
+    .sc-blue .stat-value   { color: var(--primary); }
+    .sc-green .stat-value  { color: var(--tertiary); }
+    .sc-amber .stat-value  { color: var(--amber); }
+    .sc-red .stat-value    { color: var(--error); }
+    .sc-purple .stat-value { color: var(--purple); }
+    .sc-sky .stat-value    { color: var(--sky); }
+
+    /* ── SECTION ── */
+    .section-heading { display: flex; align-items: center; justify-content: space-between; margin: 32px 0 16px; }
+    .section-heading:first-child { margin-top: 0; }
+    .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--on-variant); display: flex; align-items: center; gap: 8px; }
+    .section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; border-radius: 2px; }
+    .st-green::before  { background: var(--tertiary); }
+    .st-amber::before  { background: var(--amber); }
+    .st-red::before    { background: var(--error); }
+    .st-blue::before   { background: var(--primary); }
+    .st-purple::before { background: var(--purple); }
+
+    /* ── CHART GRID ── */
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .chart-grid.thirds { grid-template-columns: 1fr 1fr 1fr; }
+    .chart-grid.full   { grid-template-columns: 1fr; }
+    .chart-card { background: var(--surface-low); border-radius: 18px; padding: 22px; border: 1px solid rgba(255,255,255,0.04); }
+    .chart-title { font-size: 13px; font-weight: 700; color: var(--on-surface); margin-bottom: 4px; }
+    .chart-sub { font-size: 11px; color: var(--on-variant); margin-bottom: 16px; }
+    .chart-wrap { position: relative; }
+
+    /* ── RANKED LIST ── */
+    .ranked-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .ranked-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border-radius: 12px; }
+    .rank-num { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--outline); min-width: 20px; }
+    .rank-label { flex: 1; font-size: 13px; font-weight: 600; color: var(--on-surface); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-sub { font-size: 11px; color: var(--on-variant); }
+    .rank-bar-wrap { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; min-width: 60px; }
+    .rank-bar { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+    .rank-value { font-family: var(--font-mono); font-size: 12px; font-weight: 700; min-width: 36px; text-align: right; }
+
+    /* ── TABLE ── */
+    .table-wrap { background: var(--bg); border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.04); overflow-x: auto; margin-top: 14px; }
+    .svc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .svc-table th { background: rgba(45,52,73,0.5); color: var(--on-variant); padding: 10px 14px; text-align: left; font-family: var(--font-mono); font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; white-space: nowrap; }
+    .svc-table td { padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--on-surface); vertical-align: middle; }
+    .svc-table tr:last-child td { border-bottom: none; }
+    .svc-table tr:hover td { background: rgba(173,198,255,0.03); }
+
+    /* ── BADGE ── */
+    .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+    .badge-green  { background: rgba(78,222,163,0.15); color: var(--tertiary); }
+    .badge-amber  { background: rgba(245,158,11,0.15); color: var(--amber); }
+    .badge-red    { background: rgba(255,180,171,0.15); color: var(--error); }
+    .badge-blue   { background: rgba(173,198,255,0.15); color: var(--primary); }
+
+    /* ── LOADING ── */
+    #loadingState { text-align: center; padding: 80px 20px; }
+    .empty-state { text-align: center; padding: 30px; color: var(--on-variant); font-size: 13px; }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(173,198,255,0.15); border-radius: 10px; }
+
+    @media (max-width: 768px) {
+      .chart-grid, .chart-grid.thirds { grid-template-columns: 1fr; }
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-brand">
+    <span class="material-symbols-outlined" style="font-size:22px;">analytics</span>
+    Service Analytics
+  </div>
+  <div class="header-right">
+    <div class="range-bar">
+      <button class="range-btn" onclick="setRange(7,this)">7D</button>
+      <button class="range-btn active" onclick="setRange(30,this)">30D</button>
+      <button class="range-btn" onclick="setRange(90,this)">90D</button>
+      <button class="range-btn" onclick="setRange(0,this)">All</button>
+    </div>
+    <a href="service.html" class="header-btn">
+      <span class="material-symbols-outlined" style="font-size:14px;">arrow_back</span> Back
+    </a>
+  </div>
+</header>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <div id="loadingState">
+    <div style="font-size:32px;margin-bottom:12px;">🔧</div>
+    <div style="font-size:16px;font-weight:700;">Loading service data…</div>
+  </div>
+
+  <div id="dashboard" style="display:none;">
+
+    <!-- OVERVIEW -->
+    <div class="section-heading" style="margin-top:0;">
+      <div class="section-title st-green">Overview</div>
+      <span id="rangeLabel" style="font-size:11px;color:var(--on-variant);font-family:var(--font-mono);"></span>
+    </div>
+    <div class="stat-grid" id="overviewCards"></div>
+
+    <!-- TICKET TYPES & STATUS -->
+    <div class="section-heading"><div class="section-title st-blue">Ticket Breakdown</div></div>
+    <div class="chart-grid thirds">
+      <div class="chart-card">
+        <div class="chart-title">Ticket Types</div>
+        <div class="chart-sub">Demo-Installation vs Complaint</div>
+        <div class="chart-wrap" style="height:220px;"><canvas id="chartTypes"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Status Distribution</div>
+        <div class="chart-sub">Current state of all tickets</div>
+        <div class="chart-wrap" style="height:220px;"><canvas id="chartStatus"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Monthly Trend</div>
+        <div class="chart-sub">Tickets raised per month</div>
+        <div class="chart-wrap" style="height:220px;"><canvas id="chartMonthly"></canvas></div>
+      </div>
+    </div>
+
+    <!-- BRAND ANALYSIS -->
+    <div class="section-heading"><div class="section-title st-amber">Brand Analysis</div></div>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-title">Most Complained Brands</div>
+        <div class="chart-sub">Brands with highest complaint tickets</div>
+        <div class="ranked-list" id="brandComplaintsList"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Most Demo-Installation Requests</div>
+        <div class="chart-sub">Brands with most installation tickets</div>
+        <div class="ranked-list" id="brandInstallList"></div>
+      </div>
+    </div>
+    <div class="chart-grid" style="margin-top:0;">
+      <div class="chart-card">
+        <div class="chart-title">Brand Ticket Volume</div>
+        <div class="chart-sub">Total tickets per brand (top 10)</div>
+        <div class="chart-wrap" style="height:280px;"><canvas id="chartBrandVolume"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Re-log Rate by Brand</div>
+        <div class="chart-sub">Brands whose tickets get re-logged most (unresolved issues)</div>
+        <div class="chart-wrap" style="height:280px;"><canvas id="chartBrandRelog"></canvas></div>
+      </div>
+    </div>
+
+    <!-- PRODUCT ANALYSIS -->
+    <div class="section-heading"><div class="section-title st-red">Product Analysis</div></div>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-title">Most Complained Products</div>
+        <div class="chart-sub">Products appearing most in complaint tickets</div>
+        <div class="ranked-list" id="productComplaintsList"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Most Demo-Installation Products</div>
+        <div class="chart-sub">Products needing most installations</div>
+        <div class="ranked-list" id="productInstallList"></div>
+      </div>
+    </div>
+
+    <!-- RESOLUTION & PERFORMANCE -->
+    <div class="section-heading"><div class="section-title st-purple">Performance</div></div>
+    <div class="chart-grid thirds">
+      <div class="chart-card">
+        <div class="chart-title">Avg Days to Log</div>
+        <div class="chart-sub">Days from ticket creation to first logged</div>
+        <div class="chart-wrap" style="height:200px;"><canvas id="chartDaysToLog"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Re-log Count Distribution</div>
+        <div class="chart-sub">How many times tickets get re-logged</div>
+        <div class="chart-wrap" style="height:200px;"><canvas id="chartRelogDist"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Tickets by Day of Week</div>
+        <div class="chart-sub">Which day gets most service requests</div>
+        <div class="chart-wrap" style="height:200px;"><canvas id="chartDayOfWeek"></canvas></div>
+      </div>
+    </div>
+
+    <!-- FULL SCORECARD -->
+    <div class="section-heading"><div class="section-title st-blue">Brand Scorecard</div></div>
+    <div class="chart-card">
+      <div class="chart-title">Full Brand Breakdown</div>
+      <div class="chart-sub">Complaints, installations, re-logs and resolution per brand</div>
+      <div class="table-wrap">
+        <table class="svc-table">
+          <thead><tr>
+            <th>#</th><th>Brand</th><th>Total</th>
+            <th>Complaints</th><th>Demo-Install</th>
+            <th>New</th><th>Logged</th><th>Re-logs</th>
+          </tr></thead>
+          <tbody id="brandTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /#dashboard -->
+</div>
+
+<script>
+const BASE_URL = window.location.origin;
+let _rangeDays = 30;
+let _allTickets = null;
+const _charts = {};
+
+/* ── AUTH (same pattern as service.html) ── */
+function getToken() { return localStorage.getItem("serviceToken") || localStorage.getItem("adminToken"); }
+function isExpired(token) {
+  try { const p = JSON.parse(atob(token.split(".")[1])); return Date.now() >= p.exp * 1000; }
+  catch { return true; }
+}
+function authFetch(url, opts={}) {
+  const token = getToken();
+  if (!token || isExpired(token)) { window.location.href = "service.html"; throw new Error("expired"); }
+  return fetch(url, { ...opts, headers: { ...(opts.headers||{}), Authorization: "Bearer "+token } });
+}
+
+// Check auth on load
+(function() {
+  const token = getToken();
+  if (!token || isExpired(token)) { window.location.href = "service.html"; }
+})();
+
+/* ── HELPERS ── */
+function pct(a, b) { return b ? Math.round(a/b*100) : 0; }
+function fmtDate(ts) {
+  if (!ts) return null;
+  const d = ts.seconds ? new Date(ts.seconds*1000) : new Date(ts);
+  return d.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
+}
+function tsMs(ts) {
+  if (!ts) return null;
+  return ts.seconds ? ts.seconds*1000 : new Date(ts).getTime();
+}
+function filterByRange(tickets, days) {
+  if (!days) return tickets;
+  const cutoff = Date.now() - days * 86400000;
+  return tickets.filter(t => {
+    const ms = tsMs(t.created_at);
+    return ms && ms >= cutoff;
+  });
+}
+
+function getBrand(productName) {
+  const n = (productName || "").toUpperCase().trim();
+  const stripped = n.replace(/^(WM|LED|REF|AC|A\/C|P-FAN|E-GEYSER|IC|TV|FAN|COOLER|GEYSER)\s+/, "").trim();
+  const brandMap = [
+    ["SAMSUNG"],["WHIRLPOOL"],["HAIER"],["LG"],["BOSCH"],["IFB"],
+    ["VOLTAS"],["DAIKIN"],["HITACHI"],["CARRIER"],["BLUE STAR","BLUESTAR"],
+    ["GODREJ"],["VIDEOCON"],["PANASONIC"],["SONY"],["PHILIPS"],
+    ["BAJAJ"],["ORIENT"],["HAVELLS"],["USHA"],["CROMPTON"],
+    ["LIVPURE"],["SYMPHONY"],["HINDWARE"],["RACOLD"],["AO SMITH","AOSMITH"],
+    ["LLOYD"],["ONIDA"],["MICROMAX"],["TCL"],["HISENSE"],
+  ];
+  for (const aliases of brandMap) {
+    for (const alias of aliases) {
+      if (stripped.startsWith(alias) || n.includes(" "+alias+" ") || n.includes(" "+alias)) return aliases[0];
+    }
+  }
+  const first = stripped.split(/\s+/)[0];
+  return first && first.length > 1 ? first : "Other";
+}
+
+function makeChart(id, config) {
+  if (_charts[id]) _charts[id].destroy();
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  _charts[id] = new Chart(canvas, config);
+}
+
+const C = {
+  text:    "#c2c6d6", grid: "rgba(255,255,255,0.05)",
+  primary: "#adc6ff", green: "#4edea3", amber: "#fbbf24",
+  error:   "#ffb4ab", purple: "#c084fc", sky: "#38bdf8",
+  colors:  ["#adc6ff","#4edea3","#fbbf24","#f472b6","#c084fc","#38bdf8","#2dd4bf","#fb923c","#a3e635","#e879f9"],
+};
+
+/* ── RANGE ── */
+function setRange(days, btn) {
+  _rangeDays = days;
+  document.querySelectorAll(".range-btn").forEach(b => b.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+  if (_allTickets) renderDashboard(_allTickets, days);
+}
+
+/* ── LOAD ── */
+async function loadData() {
+  try {
+    const res  = await authFetch(`${BASE_URL}/service/tickets`);
+    _allTickets = await res.json();
+    document.getElementById("loadingState").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+    renderDashboard(_allTickets, _rangeDays);
+  } catch(e) {
+    document.getElementById("loadingState").innerHTML = `
+      <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+      <div style="font-size:15px;font-weight:700;color:var(--error)">Failed to load</div>
+      <div style="font-size:13px;color:var(--on-variant);margin-top:6px">${e.message}</div>
+      <button onclick="loadData()" style="margin-top:16px;padding:10px 20px;background:var(--primary-c);color:#00285d;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-weight:700;cursor:pointer;">Retry</button>`;
+  }
+}
+
+/* ── RENDER ── */
+function renderDashboard(allData, days) {
+  const data = filterByRange(allData, days);
+  const lbl = document.getElementById("rangeLabel");
+  if (lbl) lbl.textContent = days === 0 ? `All time — ${allData.length} tickets` : `Last ${days} days — ${data.length} tickets`;
+
+  renderOverview(data, allData);
+  renderCharts(data);
+  renderRankedLists(data);
+  renderBrandScorecard(data);
+}
+
+/* ── OVERVIEW CARDS ── */
+function renderOverview(data, allData) {
+  const total       = data.length;
+  const complaints  = data.filter(t => t.type === "complaint").length;
+  const installs    = data.filter(t => t.type === "installation").length;
+  const newTickets  = data.filter(t => ["new","open"].includes(t.status)).length;
+  const logged      = data.filter(t => t.status === "logged").length;
+  const relogged    = data.filter(t => Array.isArray(t.tracking_history) && t.tracking_history.length > 0).length;
+  const relogRate   = pct(relogged, data.filter(t => t.brand_tracking_number).length);
+
+  // Avg days to log
+  let totalDays = 0, countLogged = 0;
+  data.filter(t => t.brand_tracking_number && t.created_at).forEach(t => {
+    const created = tsMs(t.created_at);
+    const updated = tsMs(t.updated_at) || tsMs(t.created_at);
+    if (created && updated) { totalDays += (updated - created) / 86400000; countLogged++; }
+  });
+  const avgDaysToLog = countLogged ? (totalDays / countLogged).toFixed(1) : "—";
+
+  const cards = [
+    { cls:"sc-blue",   label:"Total Tickets",        val: total,          sub:`Last ${_rangeDays || "all"} days` },
+    { cls:"sc-red",    label:"Complaints",            val: complaints,     sub:`${pct(complaints,total)}% of tickets` },
+    { cls:"sc-green",  label:"Demo-Installations",   val: installs,       sub:`${pct(installs,total)}% of tickets` },
+    { cls:"sc-amber",  label:"Awaiting Action",       val: newTickets,     sub:"New / unlogged" },
+    { cls:"sc-sky",    label:"Logged with Brand",     val: logged,         sub:`${pct(logged,total)}% logged` },
+    { cls:"sc-purple", label:"Re-log Rate",           val: relogRate + "%", sub:`${relogged} tickets re-logged` },
+  ];
+
+  document.getElementById("overviewCards").innerHTML = cards.map(c => `
+    <div class="stat-card ${c.cls}">
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value">${c.val}</div>
+      <div class="stat-sub">${c.sub}</div>
+    </div>`).join("");
+}
+
+/* ── CHARTS ── */
+function renderCharts(data) {
+  // Type donut
+  const complaints = data.filter(t => t.type === "complaint").length;
+  const installs   = data.filter(t => t.type === "installation").length;
+  makeChart("chartTypes", {
+    type: "doughnut",
+    data: { labels: ["Complaint", "Demo-Installation"], datasets: [{ data: [complaints, installs], backgroundColor: [C.error, C.green], borderColor: "rgba(0,0,0,0.2)", borderWidth: 2, hoverOffset: 8 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position:"bottom", labels:{color:C.text,padding:12,font:{size:11}} } } }
+  });
+
+  // Status donut
+  const statuses = ["new","open","logged"];
+  const statusLabels = ["New", "Open (legacy)", "Logged"];
+  const statusColors = [C.amber, C.primary, C.green];
+  const statusCounts = statuses.map(s => data.filter(t => t.status === s).length);
+  makeChart("chartStatus", {
+    type: "doughnut",
+    data: { labels: statusLabels, datasets: [{ data: statusCounts, backgroundColor: statusColors, borderColor: "rgba(0,0,0,0.2)", borderWidth: 2, hoverOffset: 8 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position:"bottom", labels:{color:C.text,padding:12,font:{size:11}} } } }
+  });
+
+  // Monthly trend
+  const monthCounts = { complaint:{}, installation:{} };
+  data.forEach(t => {
+    const ms = tsMs(t.created_at);
+    if (!ms) return;
+    const d = new Date(ms);
+    const key = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+    const type = t.type === "complaint" ? "complaint" : "installation";
+    monthCounts[type][key] = (monthCounts[type][key]||0) + 1;
+  });
+  const allMonths = [...new Set([...Object.keys(monthCounts.complaint), ...Object.keys(monthCounts.installation)])].sort().slice(-9);
+  makeChart("chartMonthly", {
+    type: "line",
+    data: {
+      labels: allMonths.map(m => { const [y,mo] = m.split("-"); return new Date(y,mo-1).toLocaleString("en-IN",{month:"short",year:"2-digit"}); }),
+      datasets: [
+        { label:"Complaints",        data: allMonths.map(m=>monthCounts.complaint[m]||0),    borderColor:C.error,  backgroundColor:C.error+"22",  fill:true, tension:0.4, pointRadius:3 },
+        { label:"Demo-Installations",data: allMonths.map(m=>monthCounts.installation[m]||0), borderColor:C.green, backgroundColor:C.green+"22", fill:true, tension:0.4, pointRadius:3 },
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:C.text,font:{size:10},boxWidth:12}}}, scales:{ x:{ticks:{color:C.text},grid:{color:C.grid}}, y:{ticks:{color:C.text},grid:{color:C.grid},beginAtZero:true} } }
+  });
+
+  // Brand volume bar
+  const brandCounts = {};
+  data.forEach(t => {
+    const b = getBrand(t.product_name);
+    if (b !== "Other") brandCounts[b] = (brandCounts[b]||0) + 1;
+  });
+  const topBrands = Object.entries(brandCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  makeChart("chartBrandVolume", {
+    type: "bar",
+    data: { labels: topBrands.map(([k])=>k), datasets: [{ data: topBrands.map(([,v])=>v), backgroundColor: C.colors.map(c=>c+"bb"), borderRadius: 6 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:C.text,font:{size:10}},grid:{display:false}}, y:{ticks:{color:C.text},grid:{color:C.grid},beginAtZero:true} } }
+  });
+
+  // Re-log rate by brand
+  const brandRelog = {};
+  data.forEach(t => {
+    const b = getBrand(t.product_name);
+    if (b === "Other") return;
+    if (!brandRelog[b]) brandRelog[b] = { total:0, relogged:0 };
+    brandRelog[b].total++;
+    if (Array.isArray(t.tracking_history) && t.tracking_history.length > 0) brandRelog[b].relogged++;
+  });
+  const relogEntries = Object.entries(brandRelog)
+    .filter(([,v]) => v.total >= 2)
+    .map(([k,v]) => [k, pct(v.relogged, v.total)])
+    .sort((a,b) => b[1]-a[1]).slice(0,8);
+  makeChart("chartBrandRelog", {
+    type: "bar",
+    data: { labels: relogEntries.map(([k])=>k), datasets: [{ label:"Re-log %", data: relogEntries.map(([,v])=>v), backgroundColor: relogEntries.map(([,v])=>v>30?"rgba(255,180,171,0.75)":v>15?"rgba(251,191,36,0.75)":"rgba(78,222,163,0.75)"), borderRadius:6 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw}% re-logged`}}}, scales:{ x:{ticks:{color:C.text,font:{size:10}},grid:{display:false}}, y:{ticks:{color:C.text,callback:v=>v+"%"},grid:{color:C.grid},min:0,max:100} } }
+  });
+
+  // Days to log distribution (0,1,2,3,4,5+ days)
+  const dayBuckets = [0,0,0,0,0,0];
+  data.filter(t => t.brand_tracking_number && t.created_at && t.updated_at).forEach(t => {
+    const days = Math.floor((tsMs(t.updated_at) - tsMs(t.created_at)) / 86400000);
+    const idx = Math.min(days, 5);
+    dayBuckets[idx]++;
+  });
+  makeChart("chartDaysToLog", {
+    type: "bar",
+    data: { labels: ["Same day","1 day","2 days","3 days","4 days","5+ days"], datasets: [{ data: dayBuckets, backgroundColor: dayBuckets.map((_,i)=>i<=1?C.green+"bb":i<=3?C.amber+"bb":C.error+"bb"), borderRadius:5 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:C.text,font:{size:9}},grid:{display:false}}, y:{ticks:{color:C.text},grid:{color:C.grid},beginAtZero:true} } }
+  });
+
+  // Re-log count distribution
+  const relogBuckets = { "0":0, "1":0, "2":0, "3+":0 };
+  data.filter(t => t.brand_tracking_number).forEach(t => {
+    const count = Array.isArray(t.tracking_history) ? t.tracking_history.length : 0;
+    const key = count >= 3 ? "3+" : String(count);
+    relogBuckets[key]++;
+  });
+  makeChart("chartRelogDist", {
+    type: "doughnut",
+    data: { labels: ["0 re-logs","1 re-log","2 re-logs","3+ re-logs"], datasets: [{ data: Object.values(relogBuckets), backgroundColor: [C.green, C.amber, C.error+"bb", C.error], borderColor:"rgba(0,0,0,0.2)", borderWidth:2 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:"bottom",labels:{color:C.text,padding:10,font:{size:10}}}} }
+  });
+
+  // Day of week
+  const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const dayCounts = new Array(7).fill(0);
+  data.forEach(t => { const ms = tsMs(t.created_at); if (ms) dayCounts[new Date(ms).getDay()]++; });
+  makeChart("chartDayOfWeek", {
+    type: "bar",
+    data: { labels: days, datasets: [{ data: dayCounts, backgroundColor: dayCounts.map((v,i)=>v===Math.max(...dayCounts)?C.amber:C.primary+"88"), borderRadius:5 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:C.text},grid:{display:false}}, y:{ticks:{color:C.text},grid:{color:C.grid},beginAtZero:true} } }
+  });
+}
+
+/* ── RANKED LISTS ── */
+function renderRankedLists(data) {
+  // Brand complaints
+  const brandComplaints = {};
+  data.filter(t => t.type === "complaint").forEach(t => {
+    const b = getBrand(t.product_name);
+    brandComplaints[b] = (brandComplaints[b]||0) + 1;
+  });
+  const topComplaintBrands = Object.entries(brandComplaints).filter(([k])=>k!=="Other").sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxCB = topComplaintBrands[0]?.[1] || 1;
+  document.getElementById("brandComplaintsList").innerHTML = topComplaintBrands.map(([brand,cnt],i) => `
+    <div class="ranked-item">
+      <span class="rank-num">#${i+1}</span>
+      <span class="rank-label">${brand}</span>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${cnt/maxCB*100}%;background:var(--error);"></div></div>
+      <span class="rank-value" style="color:var(--error)">${cnt}</span>
+    </div>`).join("") || `<div class="empty-state">No complaints yet</div>`;
+
+  // Brand installations
+  const brandInstalls = {};
+  data.filter(t => t.type === "installation").forEach(t => {
+    const b = getBrand(t.product_name);
+    brandInstalls[b] = (brandInstalls[b]||0) + 1;
+  });
+  const topInstallBrands = Object.entries(brandInstalls).filter(([k])=>k!=="Other").sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxIB = topInstallBrands[0]?.[1] || 1;
+  document.getElementById("brandInstallList").innerHTML = topInstallBrands.map(([brand,cnt],i) => `
+    <div class="ranked-item">
+      <span class="rank-num">#${i+1}</span>
+      <span class="rank-label">${brand}</span>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${cnt/maxIB*100}%;background:var(--tertiary);"></div></div>
+      <span class="rank-value" style="color:var(--tertiary)">${cnt}</span>
+    </div>`).join("") || `<div class="empty-state">No installations yet</div>`;
+
+  // Product complaints
+  const prodComplaints = {};
+  data.filter(t => t.type === "complaint" && t.product_name).forEach(t => {
+    prodComplaints[t.product_name] = (prodComplaints[t.product_name]||0) + 1;
+  });
+  const topProdComplaints = Object.entries(prodComplaints).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxPC = topProdComplaints[0]?.[1] || 1;
+  document.getElementById("productComplaintsList").innerHTML = topProdComplaints.map(([prod,cnt],i) => `
+    <div class="ranked-item">
+      <span class="rank-num">#${i+1}</span>
+      <span class="rank-label" title="${prod}">${prod.length>32?prod.slice(0,32)+"…":prod}</span>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${cnt/maxPC*100}%;background:var(--error);"></div></div>
+      <span class="rank-value" style="color:var(--error)">${cnt}</span>
+    </div>`).join("") || `<div class="empty-state">No complaints yet</div>`;
+
+  // Product installations
+  const prodInstalls = {};
+  data.filter(t => t.type === "installation" && t.product_name).forEach(t => {
+    prodInstalls[t.product_name] = (prodInstalls[t.product_name]||0) + 1;
+  });
+  const topProdInstalls = Object.entries(prodInstalls).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxPI = topProdInstalls[0]?.[1] || 1;
+  document.getElementById("productInstallList").innerHTML = topProdInstalls.map(([prod,cnt],i) => `
+    <div class="ranked-item">
+      <span class="rank-num">#${i+1}</span>
+      <span class="rank-label" title="${prod}">${prod.length>32?prod.slice(0,32)+"…":prod}</span>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${cnt/maxPI*100}%;background:var(--tertiary);"></div></div>
+      <span class="rank-value" style="color:var(--tertiary)">${cnt}</span>
+    </div>`).join("") || `<div class="empty-state">No installations yet</div>`;
+}
+
+/* ── BRAND SCORECARD ── */
+function renderBrandScorecard(data) {
+  const brands = {};
+  data.forEach(t => {
+    const b = getBrand(t.product_name);
+    if (!brands[b]) brands[b] = { total:0, complaints:0, installs:0, new:0, logged:0, relogged:0 };
+    brands[b].total++;
+    if (t.type === "complaint")    brands[b].complaints++;
+    if (t.type === "installation") brands[b].installs++;
+    if (["new","open"].includes(t.status)) brands[b].new++;
+    if (t.status === "logged")     brands[b].logged++;
+    if (Array.isArray(t.tracking_history) && t.tracking_history.length > 0) brands[b].relogged++;
+  });
+
+  const sorted = Object.entries(brands).filter(([k])=>k!=="Other").sort((a,b)=>b[1].total-a[1].total);
+  const tbody = document.getElementById("brandTableBody");
+  if (!tbody) return;
+
+  tbody.innerHTML = sorted.map(([brand, v], i) => {
+    const relogRate = pct(v.relogged, v.total);
+    const relogColor = relogRate > 30 ? "var(--error)" : relogRate > 15 ? "var(--amber)" : "var(--tertiary)";
+    const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":"";
+    return `<tr>
+      <td style="color:var(--outline);font-family:var(--font-mono);font-size:11px">${i+1}</td>
+      <td style="font-weight:800">${medal} ${brand}</td>
+      <td style="font-family:var(--font-mono);font-weight:700">${v.total}</td>
+      <td style="font-family:var(--font-mono);color:var(--error)">${v.complaints}</td>
+      <td style="font-family:var(--font-mono);color:var(--tertiary)">${v.installs}</td>
+      <td><span class="badge ${v.new>0?'badge-amber':'badge-green'}">${v.new}</span></td>
+      <td><span class="badge badge-blue">${v.logged}</span></td>
+      <td style="font-family:var(--font-mono);color:${relogColor};font-weight:700">${v.relogged} <span style="font-size:10px;opacity:0.7;">(${relogRate}%)</span></td>
+    </tr>`;
+  }).join("");
+}
+
+/* ── INIT ── */
+document.addEventListener("DOMContentLoaded", loadData);
+</script>
+</body>
+</html>
