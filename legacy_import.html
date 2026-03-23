@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Legacy Import Tool — Hariom Service</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #0b1326; color: #dae2fd; min-height: 100vh; padding: 24px; -webkit-font-smoothing: antialiased; }
+    h1 { font-size: 22px; font-weight: 900; color: #4edea3; margin-bottom: 6px; }
+    .sub { font-size: 13px; color: #8c909f; margin-bottom: 28px; }
+    .card { background: #131b2e; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.06); max-width: 800px; }
+    .card h2 { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #c2c6d6; margin-bottom: 14px; }
+    .field { margin-bottom: 14px; }
+    label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #8c909f; margin-bottom: 6px; }
+    input[type=text], input[type=password] { width: 100%; height: 46px; background: #222a3d; border: none; border-radius: 10px; padding: 0 14px; color: #dae2fd; font-family: 'Inter', sans-serif; font-size: 14px; outline: none; }
+    input[type=text]:focus, input[type=password]:focus { box-shadow: 0 0 0 2px #4edea3; }
+    input[type=file] { width: 100%; background: #222a3d; border-radius: 10px; padding: 12px 14px; color: #dae2fd; font-size: 13px; border: 2px dashed rgba(78,222,163,0.3); cursor: pointer; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border-radius: 10px; border: none; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-green  { background: linear-gradient(135deg, #00a572, #4edea3); color: #002113; }
+    .btn-red    { background: linear-gradient(135deg, #93000a, #ffb4ab); color: #fff; }
+    .btn-blue   { background: linear-gradient(135deg, #1d4ed8, #adc6ff); color: #00285d; }
+    .btn-gray   { background: #2d3449; color: #c2c6d6; }
+    #log { background: #060e20; border-radius: 10px; padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; min-height: 120px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 14px; border: 1px solid rgba(255,255,255,0.04); }
+    .ok   { color: #4edea3; }
+    .err  { color: #ffb4ab; }
+    .inf  { color: #adc6ff; }
+    .warn { color: #fbbf24; }
+    #previewTable { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 12px; }
+    #previewTable th { background: #222a3d; padding: 8px 10px; text-align: left; color: #8c909f; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+    #previewTable td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #dae2fd; }
+    #previewTable tr:hover td { background: rgba(173,198,255,0.03); }
+    .steps { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .step { background: #222a3d; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; color: #8c909f; }
+    .step.active { background: rgba(78,222,163,0.15); color: #4edea3; border: 1px solid rgba(78,222,163,0.3); }
+    .step.done   { background: rgba(78,222,163,0.08); color: #4edea3; text-decoration: line-through; opacity: 0.6; }
+    .progress-bar { width: 100%; height: 8px; background: #222a3d; border-radius: 4px; overflow: hidden; margin: 10px 0; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #00a572, #4edea3); border-radius: 4px; transition: width 0.3s; }
+    .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 10px 0; }
+    .stat-box { background: #222a3d; border-radius: 8px; padding: 10px 16px; flex: 1; min-width: 120px; }
+    .stat-box .val { font-size: 24px; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
+    .stat-box .lbl { font-size: 10px; color: #8c909f; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+    .green { color: #4edea3; }
+    .red   { color: #ffb4ab; }
+    .amber { color: #fbbf24; }
+    .blue  { color: #adc6ff; }
+    .warning-box { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 14px 16px; font-size: 13px; color: #fbbf24; margin-bottom: 14px; }
+    .overflow-x { overflow-x: auto; }
+  </style>
+</head>
+<body>
+
+<h1>🔧 Service Tickets — Legacy Import Tool</h1>
+<p class="sub">One-time tool to wipe bad data and import 824 records correctly from Excel</p>
+
+<div class="steps">
+  <div class="step active" id="step1">① Login</div>
+  <div class="step" id="step2">② Load Excel</div>
+  <div class="step" id="step3">③ Preview</div>
+  <div class="step" id="step4">④ Wipe Old Data</div>
+  <div class="step" id="step5">⑤ Import</div>
+  <div class="step" id="step6">✅ Done</div>
+</div>
+
+<!-- STEP 1: LOGIN -->
+<div class="card" id="cardLogin">
+  <h2>Step 1 — Admin Login</h2>
+  <div class="field">
+    <label>Email</label>
+    <input type="text" id="loginEmail" placeholder="admin@hariom.com">
+  </div>
+  <div class="field">
+    <label>Password</label>
+    <input type="password" id="loginPassword" placeholder="••••••••">
+  </div>
+  <button class="btn btn-green" onclick="doLogin()">Login →</button>
+  <div id="loginMsg" style="margin-top:10px;font-size:13px;"></div>
+</div>
+
+<!-- STEP 2: LOAD EXCEL -->
+<div class="card" id="cardExcel" style="display:none;">
+  <h2>Step 2 — Load Excel File</h2>
+  <div class="warning-box">⚠ This tool will DELETE all existing legacy-imported tickets and replace them with correctly mapped data from the Excel file.</div>
+  <div class="field">
+    <label>Select Hariom_Electronics_Sheet.xlsx</label>
+    <input type="file" id="excelFile" accept=".xlsx,.xls" onchange="loadExcel(this)">
+  </div>
+  <div id="excelStatus" style="font-size:13px;color:#8c909f;margin-top:8px;"></div>
+</div>
+
+<!-- STEP 3: PREVIEW -->
+<div class="card" id="cardPreview" style="display:none;">
+  <h2>Step 3 — Preview Import Data</h2>
+  <div class="stat-row" id="previewStats"></div>
+  <div class="overflow-x">
+    <table id="previewTable">
+      <thead><tr>
+        <th>#</th><th>Type</th><th>Status</th><th>Customer</th>
+        <th>Phone</th><th>Product</th><th>Tracking#</th><th>Purchase Date</th>
+      </tr></thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+  <p style="font-size:11px;color:#8c909f;margin-top:8px;">Showing first 20 rows. All 824 will be imported.</p>
+  <div style="margin-top:14px;display:flex;gap:10px;">
+    <button class="btn btn-green" onclick="confirmProceed()">Looks Good — Proceed →</button>
+    <button class="btn btn-gray" onclick="resetTool()">Start Over</button>
+  </div>
+</div>
+
+<!-- STEP 4: WIPE -->
+<div class="card" id="cardWipe" style="display:none;">
+  <h2>Step 4 — Wipe Old Legacy Data</h2>
+  <p style="font-size:13px;color:#c2c6d6;margin-bottom:14px;">This will delete all tickets with <code style="background:#222a3d;padding:2px 6px;border-radius:4px;">is_legacy_import: true</code> from Firestore. New tickets created via the app are NOT affected.</p>
+  <button class="btn btn-red" onclick="doWipe()">🗑 Delete Old Legacy Tickets</button>
+  <div id="wipeLog" class="log" style="display:none;"></div>
+</div>
+
+<!-- STEP 5: IMPORT -->
+<div class="card" id="cardImport" style="display:none;">
+  <h2>Step 5 — Import 824 Records</h2>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div id="progressLabel" style="font-size:12px;color:#8c909f;margin-bottom:10px;">Ready to import</div>
+  <button class="btn btn-blue" id="btnImport" onclick="doImport()">⬆ Start Import</button>
+  <div id="importLog" class="log" style="display:none;"></div>
+</div>
+
+<!-- STEP 6: DONE -->
+<div class="card" id="cardDone" style="display:none;">
+  <h2>✅ Import Complete!</h2>
+  <div class="stat-row" id="doneStats"></div>
+  <p style="font-size:13px;color:#c2c6d6;margin-top:14px;">You can now close this page and open Service Analytics to see the correct data.</p>
+  <div style="margin-top:14px;display:flex;gap:10px;">
+    <a href="service_analytics.html" class="btn btn-green">Open Service Analytics →</a>
+    <a href="service.html" class="btn btn-gray">Back to Service Panel</a>
+  </div>
+</div>
+
+<div id="log" style="display:none;max-width:800px;"></div>
+
+<script>
+const BASE_URL = window.location.origin;
+let adminToken = null;
+let importData = [];
+
+function log(msg, type='', targetId='log') {
+  const d = document.getElementById(targetId);
+  d.style.display = 'block';
+  d.innerHTML += `<span class="${type}">[${new Date().toLocaleTimeString()}] ${msg}</span>\n`;
+  d.scrollTop = d.scrollHeight;
+}
+
+function setStep(n) {
+  for (let i = 1; i <= 6; i++) {
+    const el = document.getElementById('step' + i);
+    if (!el) continue;
+    el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+}
+
+/* ── LOGIN ── */
+async function doLogin() {
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const msg      = document.getElementById('loginMsg');
+  msg.style.color = '#adc6ff'; msg.textContent = 'Logging in…';
+
+  try {
+    const res  = await fetch(`${BASE_URL}/admin/login`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) { msg.style.color = '#ffb4ab'; msg.textContent = data.error || 'Login failed'; return; }
+    adminToken = data.token;
+    msg.style.color = '#4edea3'; msg.textContent = '✅ Logged in as ' + (data.name || 'Admin');
+    document.getElementById('cardLogin').style.display = 'none';
+    document.getElementById('cardExcel').style.display = 'block';
+    setStep(2);
+  } catch(e) {
+    msg.style.color = '#ffb4ab'; msg.textContent = 'Network error: ' + e.message;
+  }
+}
+
+function authFetch(url, opts={}) {
+  return fetch(url, { ...opts, headers: { ...(opts.headers||{}), Authorization: 'Bearer ' + adminToken } });
+}
+
+/* ── LOAD EXCEL ── */
+function loadExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('excelStatus');
+  status.textContent = 'Reading file…';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb   = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
+      const ws   = wb.Sheets['Form Responses 1'];
+      if (!ws) { status.style.color = '#ffb4ab'; status.textContent = '❌ Sheet "Form Responses 1" not found'; return; }
+
+      const rows = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'yyyy-mm-dd' });
+      status.style.color = '#4edea3';
+      status.textContent = `✅ Loaded ${rows.length} rows from Excel`;
+
+      processRows(rows);
+    } catch(e) {
+      status.style.color = '#ffb4ab';
+      status.textContent = '❌ Error reading file: ' + e.message;
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function cleanPhone(v) {
+  if (!v) return '';
+  const s = String(v).replace(/\.0$/, '').replace(/\D/g, '');
+  return s.slice(-10);
+}
+
+function processRows(rows) {
+  importData = rows.map(row => ({
+    timestamp:        row['Timestamp']                  || '',
+    request_type:     row['Request Type']               || '',
+    customer_name:    (row['Name'] || '').trim(),
+    phone:            cleanPhone(row['Phone Number 1']),
+    alternate_phone:  cleanPhone(row['Phone Number 2']),
+    address:          (row['Address'] || '').trim(),
+    brand:            (row['Brand'] || '').trim(),
+    model_number:     (row['Model Number'] || '').trim(),
+    description:      (row['Issue Description'] || '').trim(),
+    purchase_date:    row['Date of purchase'] ? String(row['Date of purchase']).slice(0,10) : '',
+    complaint_number: row['Complain Number (if any)'] ? String(row['Complain Number (if any)']).trim() : '',
+    comment:          (row['Comment'] || '').trim(),
+  }));
+
+  showPreview();
+}
+
+function showPreview() {
+  const total      = importData.length;
+  const installs   = importData.filter(t => t.request_type === 'Demo & Installation').length;
+  const complaints = total - installs;
+  const logged     = importData.filter(t => t.complaint_number).length;
+  const newStatus  = total - logged;
+
+  document.getElementById('previewStats').innerHTML = `
+    <div class="stat-box"><div class="val blue">${total}</div><div class="lbl">Total</div></div>
+    <div class="stat-box"><div class="val green">${installs}</div><div class="lbl">Demo-Install</div></div>
+    <div class="stat-box"><div class="val red">${complaints}</div><div class="lbl">Complaints</div></div>
+    <div class="stat-box"><div class="val green">${logged}</div><div class="lbl">Status: Logged</div></div>
+    <div class="stat-box"><div class="val amber">${newStatus}</div><div class="lbl">Status: New</div></div>
+  `;
+
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = importData.slice(0, 20).map((t, i) => {
+    const type    = t.request_type === 'Demo & Installation' ? 'installation' : 'complaint';
+    const status  = t.complaint_number ? 'logged' : 'new';
+    const product = [t.brand, t.model_number].filter(Boolean).join(' ');
+    const tracking = t.complaint_number || '—';
+    return `<tr>
+      <td style="color:#8c909f;font-family:monospace">${i+1}</td>
+      <td><span style="padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;background:${type==='installation'?'rgba(78,222,163,0.15)':'rgba(255,180,171,0.15)'};color:${type==='installation'?'#4edea3':'#ffb4ab'}">${type}</span></td>
+      <td><span style="padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;background:${status==='logged'?'rgba(78,222,163,0.15)':'rgba(251,191,36,0.15)'};color:${status==='logged'?'#4edea3':'#fbbf24'}">${status}</span></td>
+      <td style="font-weight:600">${t.customer_name}</td>
+      <td style="font-family:monospace">${t.phone}</td>
+      <td style="color:#c2c6d6;font-size:11px">${product.slice(0,30)}</td>
+      <td style="font-family:monospace;font-size:11px;color:#adc6ff">${tracking.slice(0,20)}</td>
+      <td style="font-size:11px;color:#8c909f">${t.purchase_date || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('cardExcel').style.display = 'none';
+  document.getElementById('cardPreview').style.display = 'block';
+  setStep(3);
+}
+
+function confirmProceed() {
+  document.getElementById('cardPreview').style.display = 'none';
+  document.getElementById('cardWipe').style.display = 'block';
+  setStep(4);
+}
+
+/* ── WIPE ── */
+async function doWipe() {
+  const btn = document.querySelector('#cardWipe .btn-red');
+  btn.disabled = true; btn.textContent = '⏳ Checking…';
+  log('Checking what will be deleted…', 'inf', 'wipeLog');
+
+  // First fetch all tickets to show user what's safe
+  try {
+    const checkRes = await authFetch(`${BASE_URL}/service/tickets`);
+    const all      = await checkRes.json();
+    const legacy   = all.filter(t => t.is_legacy_import === true);
+    const newApp   = all.filter(t => t.is_legacy_import !== true);
+    log(`Total tickets in Firestore: ${all.length}`, 'inf', 'wipeLog');
+    log(`✅ Will KEEP: ${newApp.length} tickets created via the app (is_legacy_import ≠ true)`, 'ok', 'wipeLog');
+    log(`🗑 Will DELETE: ${legacy.length} legacy imported tickets (is_legacy_import = true)`, 'warn', 'wipeLog');
+
+    if (legacy.length === 0) {
+      log('ℹ No legacy tickets found — nothing to delete', 'inf', 'wipeLog');
+      btn.disabled = false; btn.textContent = '🗑 Delete Old Legacy Tickets';
+      setTimeout(() => {
+        document.getElementById('cardWipe').style.display = 'none';
+        document.getElementById('cardImport').style.display = 'block';
+        setStep(5);
+      }, 1500);
+      return;
+    }
+
+    log(`\nProceeding with wipe of ${legacy.length} legacy tickets…`, 'warn', 'wipeLog');
+  } catch(e) {
+    log('⚠ Could not pre-check tickets: ' + e.message + ' — proceeding anyway', 'warn', 'wipeLog');
+  }
+
+  btn.textContent = '⏳ Deleting…';
+  try {
+    const res  = await authFetch(`${BASE_URL}/service/legacy-wipe`, {
+      method: 'DELETE',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ confirm_phrase: 'WIPE LEGACY DATA' })
+    });
+    const data = await res.json();
+    if (!res.ok) { log('❌ Wipe failed: ' + (data.error || 'Unknown'), 'err', 'wipeLog'); btn.disabled=false; btn.textContent='🗑 Delete Old Legacy Tickets'; return; }
+    log(`✅ Deleted ${data.deleted} legacy tickets`, 'ok', 'wipeLog');
+    log(`✅ All app-created tickets are safe`, 'ok', 'wipeLog');
+    setTimeout(() => {
+      document.getElementById('cardWipe').style.display = 'none';
+      document.getElementById('cardImport').style.display = 'block';
+      setStep(5);
+    }, 1500);
+  } catch(e) {
+    log('❌ Network error: ' + e.message, 'err', 'wipeLog');
+    btn.disabled = false; btn.textContent = '🗑 Delete Old Legacy Tickets';
+  }
+}
+
+/* ── IMPORT ── */
+async function doImport() {
+  const btn = document.getElementById('btnImport');
+  btn.disabled = true; btn.textContent = '⏳ Importing…';
+  log('Starting import of ' + importData.length + ' records…', 'inf', 'importLog');
+
+  const CHUNK = 200;
+  let totalImported = 0;
+  let totalErrors   = 0;
+
+  for (let i = 0; i < importData.length; i += CHUNK) {
+    const chunk  = importData.slice(i, i + CHUNK);
+    const pct    = Math.round((i / importData.length) * 100);
+    document.getElementById('progressFill').style.width  = pct + '%';
+    document.getElementById('progressLabel').textContent = `Importing… ${i} / ${importData.length} (${pct}%)`;
+    log(`→ Sending records ${i+1}–${Math.min(i+CHUNK, importData.length)}…`, 'inf', 'importLog');
+
+    try {
+      const res  = await authFetch(`${BASE_URL}/service/legacy-import`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ tickets: chunk, confirm: true })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        log(`❌ Chunk failed: ${data.error}`, 'err', 'importLog');
+        totalErrors += chunk.length;
+      } else {
+        totalImported += data.imported;
+        totalErrors   += (data.errors || []).length;
+        log(`✅ Imported ${data.imported} | Errors: ${(data.errors||[]).length}`, 'ok', 'importLog');
+        if (data.errors?.length) {
+          data.errors.forEach(e => log(`  ⚠ Row ${e.row}: ${e.error}`, 'warn', 'importLog'));
+        }
+      }
+    } catch(e) {
+      log(`❌ Network error on chunk: ${e.message}`, 'err', 'importLog');
+      totalErrors += chunk.length;
+    }
+
+    // Small delay between chunks to avoid rate limiting
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  document.getElementById('progressFill').style.width  = '100%';
+  document.getElementById('progressLabel').textContent = 'Complete!';
+  log(`\n━━━ IMPORT COMPLETE ━━━`, 'ok', 'importLog');
+  log(`✅ Imported: ${totalImported}`, 'ok', 'importLog');
+  log(`❌ Errors:   ${totalErrors}`, totalErrors > 0 ? 'err' : 'ok', 'importLog');
+
+  // Self-delete this tool from server — only removes legacy_import.html
+  if (totalErrors === 0) {
+    try {
+      const delRes = await authFetch(`${BASE_URL}/service/legacy-import-cleanup`, {
+        method: 'DELETE',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ confirm_phrase: 'DELETE IMPORT TOOL' })
+      });
+      const delData = await delRes.json();
+      if (delRes.ok) {
+        log('🗑 Import tool self-deleted from server (also delete legacy_import.html from GitHub manually)', 'ok', 'importLog');
+      }
+    } catch(e) {
+      log('⚠ Could not self-delete: ' + e.message + ' — please delete legacy_import.html from GitHub manually', 'warn', 'importLog');
+    }
+  }
+
+  setTimeout(() => {
+    document.getElementById('cardImport').style.display = 'none';
+    document.getElementById('cardDone').style.display   = 'block';
+    document.getElementById('doneStats').innerHTML = `
+      <div class="stat-box"><div class="val green">${totalImported}</div><div class="lbl">Imported</div></div>
+      <div class="stat-box"><div class="val ${totalErrors>0?'red':'green'}">${totalErrors}</div><div class="lbl">Errors</div></div>
+    `;
+    setStep(6);
+  }, 1500);
+}
+
+function resetTool() {
+  importData = [];
+  document.getElementById('cardPreview').style.display = 'none';
+  document.getElementById('cardExcel').style.display   = 'block';
+  document.getElementById('excelFile').value           = '';
+  document.getElementById('excelStatus').textContent   = '';
+  setStep(2);
+}
+
+// Allow Enter key on login
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !adminToken) doLogin();
+});
+</script>
+</body>
+</html>
