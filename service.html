@@ -736,6 +736,10 @@
       <label>Serial Number</label>
       <input class="form-input" id="ctSerial" placeholder="Product serial">
     </div>
+    <div class="form-field">
+      <label>Date of Purchase</label>
+      <input class="form-input" type="date" id="ctPurchaseDate">
+    </div>
 
     <input type="hidden" id="ctLinkedDeliveryId">
 
@@ -989,8 +993,26 @@ function warrantyStr(t) {
 }
 
 function fmtDate(ts) {
-  if (!ts?.seconds) return "—";
-  return new Date(ts.seconds * 1000).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
+  if (!ts) return "—";
+  let d;
+  if (ts.seconds)                          d = new Date(ts.seconds * 1000);       // Firestore Timestamp
+  else if (typeof ts === "number")         d = new Date(ts);                       // milliseconds int
+  else if (typeof ts === "string")         d = new Date(ts);                       // date string
+  else return "—";
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
+}
+
+function fmtDateTime(ts) {
+  if (!ts) return "—";
+  let d;
+  if (ts.seconds)                          d = new Date(ts.seconds * 1000);
+  else if (typeof ts === "number")         d = new Date(ts);
+  else if (typeof ts === "string")         d = new Date(ts);
+  else return "—";
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) + " " +
+         d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
 }
 
 function renderTicketsTable(tickets) {
@@ -1099,9 +1121,11 @@ function openTicketDetail(id) {
   const t = allTickets.find(x => x.id === id);
   if (!t) return;
 
-  const warranty    = warrantyStr(t);
-  const createdDate = fmtDate(t.created_at);
-  const resolvedDate = t.resolved_at ? fmtDate(t.resolved_at) : null;
+  const warranty     = warrantyStr(t);
+  const createdDate  = fmtDateTime(t.created_at);
+  const loggedDate   = t.logged_at   ? fmtDateTime(t.logged_at)   : null;
+  const resolvedDate = t.resolved_at ? fmtDateTime(t.resolved_at) : null;
+  const purchaseDate = t.purchase_date ? fmtDate(t.purchase_date) : null;
   const isNew       = t.status === "new" || t.status === "open"; // backwards-compat
   const isEditable  = isNew; // edit + delete only while new
 
@@ -1154,6 +1178,8 @@ function openTicketDetail(id) {
     <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${t.serial_number || "—"}</span></div>
     ${t.description ? `<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${t.description}</span></div>` : ""}
     <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${createdDate} by ${t.created_by_name || t.created_by || "—"}</span></div>
+    ${purchaseDate ? `<div class="detail-row"><span class="detail-label">Purchase Date</span><span class="detail-value">${purchaseDate}</span></div>` : ""}
+    ${loggedDate   ? `<div class="detail-row"><span class="detail-label">Logged with Brand</span><span class="detail-value">${loggedDate}</span></div>` : ""}
     ${resolvedDate ? `<div class="detail-row"><span class="detail-label">Resolved</span><span class="detail-value">${resolvedDate}</span></div>` : ""}
     ${t.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${t.notes}</span></div>` : ""}
     ${t.brand_tracking_number ? `<div class="detail-row"><span class="detail-label">Brand Ref#</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${t.brand_tracking_number}</span></div>` : ""}
@@ -1422,7 +1448,7 @@ async function onCtPinInput(val) {
 function openCreateTicketPopup(prefill = {}) {
   // Reset all fields
   ["ctFirstName","ctMiddleName","ctLastName","ctPhone","ctAltPhone",
-   "ctPincode","ctState","ctCity","ctAddr1","ctAddr2","ctProduct","ctSerial","ctDesc"].forEach(id => {
+   "ctPincode","ctState","ctCity","ctAddr1","ctAddr2","ctProduct","ctSerial","ctDesc","ctPurchaseDate"].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ""; el.readOnly = false; }
   });
@@ -1518,7 +1544,8 @@ async function submitCreateTicket() {
         pincode, state, city, area, addr1, addr2,
         product_name:  productName,
         serial_number: document.getElementById("ctSerial").value.trim(),
-        description:   desc
+        description:   desc,
+        purchase_date: document.getElementById("ctPurchaseDate").value || null
       })
     });
     const data = await res.json();
@@ -1671,6 +1698,10 @@ function openEditTicket(id) {
       </div>
     </div>
     <div class="form-field">
+      <label>Date of Purchase</label>
+      <input class="form-input" type="date" id="et_purchase_date" value="${t.purchase_date?.seconds ? new Date(t.purchase_date.seconds*1000).toISOString().slice(0,10) : ''}">
+    </div>
+    <div class="form-field">
       <label>Description</label>
       <textarea class="form-input" id="et_desc" rows="3" style="resize:vertical;">${t.description || ""}</textarea>
     </div>
@@ -1693,6 +1724,7 @@ async function submitEditTicket(id) {
     product_name:    document.getElementById("et_product").value.trim(),
     serial_number:   document.getElementById("et_serial").value.trim(),
     description:     document.getElementById("et_desc").value.trim(),
+    purchase_date:   document.getElementById("et_purchase_date").value || null,
   };
   if (!updates.phone || updates.phone.length !== 10) {
     msg.style.color = "var(--error)"; msg.textContent = "Valid 10-digit phone required."; return;
