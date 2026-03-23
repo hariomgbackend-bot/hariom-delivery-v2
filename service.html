@@ -743,9 +743,31 @@
 
     <input type="hidden" id="ctLinkedDeliveryId">
 
-    <div class="form-field" id="ctDescField">
-      <label>Description <span id="ctDescRequired" style="color:var(--error);">*</span></label>
-      <textarea class="form-input" id="ctDesc" rows="3" placeholder="Describe the issue…" style="resize:vertical;"></textarea>
+    <!-- Description — shown for installations as plain textarea -->
+    <div class="form-field" id="ctDescFieldTextarea" style="display:none;">
+      <label>Description</label>
+      <textarea class="form-input" id="ctDescTextarea" rows="3" placeholder="Describe the issue…" style="resize:vertical;"></textarea>
+    </div>
+
+    <!-- Description — shown for complaints as dynamic dropdown -->
+    <div class="form-field" id="ctDescFieldDropdown" style="display:none;">
+      <label>Issue Description <span style="color:var(--error);">*</span></label>
+      <select class="form-select" id="ctDescSelect" onchange="onIssueSelectChange()">
+        <option value="">— Select issue —</option>
+      </select>
+      <div id="ctDescNewWrap" style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+        <input class="form-input" id="ctDescNew" placeholder="Or type a new issue…" style="flex:1;" oninput="onNewIssueInput()">
+      </div>
+      <div style="font-size:11px;color:var(--on-surface-variant);margin-top:4px;">New issues typed here are saved to the list for future use.</div>
+    </div>
+
+    <!-- Priority — shown for complaints -->
+    <div class="form-field" id="ctPriorityField" style="display:none;">
+      <label>Priority</label>
+      <select class="form-select" id="ctPriority">
+        <option value="normal">Normal</option>
+        <option value="urgent">🔴 Urgent</option>
+      </select>
     </div>
 
     <div id="ctMsg" style="font-size:13px;font-weight:600;min-height:18px;margin:8px 0;text-align:center;"></div>
@@ -1145,14 +1167,20 @@ function openTicketDetail(id) {
           </div>`).join("")}
       </div>` : "";
 
+  const reLogSection = isLogged ? `
+    <div class="section-title" style="margin-top:16px;">Re-log (Customer Returned)
+      <span style="font-size:10px;font-weight:600;color:var(--on-surface-variant);margin-left:6px;">— enter new tracking ID to re-log</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+      <input class="form-input" id="ticketRelogInput" placeholder="New brand tracking / ticket ID…" style="flex:1;">
+      <button class="btn btn-primary btn-sm" onclick="reLogTicketInline('${t.id}', this)">
+        <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">refresh</span> Re-log
+      </button>
+    </div>` : "";
+
   const statusButtons = isLogged
-    ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <button class="btn btn-sm btn-teal" disabled style="opacity:0.7;">✅ Logged</button>
-        <button class="btn btn-sm btn-primary" onclick="reLogTicket('${t.id}')">
-          <span class="material-symbols-outlined" style="font-size:13px;">refresh</span> Re-log (Customer returned)
-        </button>
-      </div>`
-    : `<button class="btn btn-sm btn-gray" onclick="markAsLogged('${t.id}', this)">Mark as Logged</button>`;
+    ? `<button class="btn btn-sm btn-teal" disabled style="opacity:0.7;">✅ Logged</button>`
+    : ``;
 
   document.getElementById("ticketDetailContent").innerHTML = `
     <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -1177,6 +1205,7 @@ function openTicketDetail(id) {
     <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${t.product_name || "—"}</span></div>
     <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${t.serial_number || "—"}</span></div>
     ${t.description ? `<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${t.description}</span></div>` : ""}
+    ${t.priority && t.priority !== "normal" ? `<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value" style="color:var(--error);font-weight:700;">🔴 Urgent</span></div>` : (t.priority === "normal" ? `<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value">Normal</span></div>` : "")}
     <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${createdDate} by ${t.created_by_name || t.created_by || "—"}</span></div>
     ${purchaseDate ? `<div class="detail-row"><span class="detail-label">Purchase Date</span><span class="detail-value">${purchaseDate}</span></div>` : ""}
     ${loggedDate   ? `<div class="detail-row"><span class="detail-label">Logged with Brand</span><span class="detail-value">${loggedDate}</span></div>` : ""}
@@ -1193,11 +1222,27 @@ function openTicketDetail(id) {
 
     <!-- Notes / tracking input -->
     ${getBrandTrackingAlarmHtml(t)}
-    <div class="section-title">Add Note / Brand Tracking#</div>
-    <div style="display:flex;gap:8px;margin-bottom:6px;">
-      <input class="form-input" id="ticketNoteInput" placeholder="Notes or brand reference number…" style="flex:1;">
-      <button class="btn btn-primary btn-sm" onclick="saveTicketNote('${t.id}')">Save</button>
+
+    <!-- Tracking ID + Mark as Logged -->
+    ${!isLogged ? `
+    <div class="section-title" style="margin-top:16px;">Brand Tracking ID
+      <span style="font-size:10px;font-weight:600;color:var(--error);margin-left:6px;">— required to mark as logged</span>
     </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+      <input class="form-input" id="ticketTrackingInput" placeholder="Enter brand tracking / ticket ID…" style="flex:1;">
+      <button class="btn btn-teal btn-sm" onclick="markAsLoggedInline('${t.id}', this)">
+        <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">check_circle</span> Mark as Logged
+      </button>
+    </div>` : ""}
+
+    <!-- Note (separate field) -->
+    <div class="section-title" style="margin-top:${isLogged ? "16px" : "4px"};">Add Note</div>
+    <div style="display:flex;gap:8px;margin-bottom:6px;">
+      <input class="form-input" id="ticketNoteInput" placeholder="Add a note…" style="flex:1;">
+      <button class="btn btn-primary btn-sm" onclick="saveTicketNote('${t.id}')">Save Note</button>
+    </div>
+
+    ${reLogSection}
 
     <!-- Brand request actions -->
     <div id="brandActionContainer"></div>
@@ -1283,44 +1328,56 @@ async function updateTicketStatus(id, status, btn) {
 }
 
 async function markAsLogged(id, btn) {
-  // Require ticket/tracking number before marking as logged
-  const trackingNo = prompt("Enter the brand ticket ID or tracking number to log this ticket:\n(This is mandatory)");
-  if (!trackingNo || !trackingNo.trim()) {
-    showToast("⚠ Tracking / ticket number is required to mark as Logged");
+  // Legacy fallback — used by status button; redirects to inline flow
+  showToast("⚠ Please use the Tracking ID field above and click Mark as Logged");
+  if (btn) { btn.disabled = false; }
+}
+
+async function markAsLoggedInline(id, btn) {
+  const trackingInput = document.getElementById("ticketTrackingInput");
+  const val = trackingInput ? trackingInput.value.trim() : "";
+  if (!val) {
+    showToast("⚠ Tracking ID is required to mark as Logged");
+    if (trackingInput) { trackingInput.focus(); trackingInput.style.outline = "2px solid var(--error)"; setTimeout(() => trackingInput.style.outline = "", 1500); }
     return;
   }
-  const val = trackingNo.trim();
   if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
   try {
     const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "logged", brand_tracking_number: val, _append_tracking: true })
     });
-    if (!res.ok) { showToast("❌ Failed to log ticket"); if(btn){btn.disabled=false;btn.textContent="Mark as Logged";} return; }
+    if (!res.ok) { showToast("❌ Failed to log ticket"); if(btn){btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">check_circle</span> Mark as Logged';} return; }
     showToast("✅ Ticket logged with tracking # " + val);
     await loadTickets();
     openTicketDetail(id);
-  } catch (e) { showToast("❌ Network error"); if(btn){btn.disabled=false;btn.textContent="Mark as Logged";} }
+  } catch (e) { showToast("❌ Network error"); if(btn){btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">check_circle</span> Mark as Logged';} }
 }
 
 async function reLogTicket(id) {
-  // Customer came back — re-log with a new tracking number, keep old one in history
-  const trackingNo = prompt("Customer returned — enter NEW brand tracking / ticket number:\n(Previous tracking number will be saved in history)");
-  if (!trackingNo || !trackingNo.trim()) {
-    showToast("⚠ New tracking number is required to re-log");
+  // Legacy — now handled inline via reLogTicketInline
+  showToast("⚠ Please use the Re-log input field and click Re-log");
+}
+
+async function reLogTicketInline(id, btn) {
+  const input = document.getElementById("ticketRelogInput");
+  const val = input ? input.value.trim() : "";
+  if (!val) {
+    showToast("⚠ New tracking ID is required to re-log");
+    if (input) { input.focus(); input.style.outline = "2px solid var(--error)"; setTimeout(() => input.style.outline = "", 1500); }
     return;
   }
-  const val = trackingNo.trim();
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
   try {
     const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "logged", brand_tracking_number: val, _append_tracking: true })
     });
-    if (!res.ok) { showToast("❌ Failed to re-log ticket"); return; }
+    if (!res.ok) { showToast("❌ Failed to re-log ticket"); if(btn){btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">refresh</span> Re-log';} return; }
     showToast("✅ Re-logged with new tracking # " + val);
     await loadTickets();
     openTicketDetail(id);
-  } catch (e) { showToast("❌ Network error"); }
+  } catch (e) { showToast("❌ Network error"); if(btn){btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">refresh</span> Re-log';} }
 }
 
 async function saveTicketNote(id) {
@@ -1328,17 +1385,12 @@ async function saveTicketNote(id) {
   const val   = input.value.trim();
   if (!val) return;
   try {
-    // Detect if it looks like a tracking number (alphanumeric, no spaces)
-    const isTracking = /^[A-Za-z0-9\-\/]+$/.test(val) && val.length >= 4 && !val.includes(" ");
-    const payload    = isTracking
-      ? { brand_tracking_number: val, brand_request_status: "raised" }
-      : { notes: val };
     const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ notes: val })
     });
-    if (!res.ok) { showToast("❌ Failed to save"); return; }
-    showToast("✅ Saved");
+    if (!res.ok) { showToast("❌ Failed to save note"); return; }
+    showToast("✅ Note saved");
     input.value = "";
     await loadTickets();
   } catch (e) { showToast("❌ Network error"); }
@@ -1489,12 +1541,61 @@ function openCreateTicketPopup(prefill = {}) {
 
   document.getElementById("createTicketPopup").classList.add("is-open");
   document.getElementById("ctFirstName").focus();
+  // Reset type-dependent fields to default (installation)
+  document.getElementById("ctType").value = "installation";
+  onCtTypeChange();
+  loadIssueTypes();
+  // Reset description fields
+  document.getElementById("ctDescTextarea").value = "";
+  document.getElementById("ctDescSelect").value = "";
+  document.getElementById("ctDescNew").value = "";
+  document.getElementById("ctPriority").value = "normal";
 }
 
 function onCtTypeChange() {
   const type = document.getElementById("ctType").value;
-  const req  = document.getElementById("ctDescRequired");
-  if (req) req.style.display = type === "complaint" ? "" : "none";
+  const isComplaint = type === "complaint";
+  document.getElementById("ctDescFieldTextarea").style.display  = isComplaint ? "none" : "";
+  document.getElementById("ctDescFieldDropdown").style.display  = isComplaint ? "" : "none";
+  document.getElementById("ctPriorityField").style.display      = isComplaint ? "" : "none";
+}
+
+/* ── ISSUE TYPES (localStorage) ── */
+const ISSUE_TYPES_KEY = "hariom_issue_types";
+
+function loadIssueTypes() {
+  const sel = document.getElementById("ctDescSelect");
+  if (!sel) return;
+  const saved = JSON.parse(localStorage.getItem(ISSUE_TYPES_KEY) || "[]");
+  while (sel.options.length > 1) sel.remove(1);
+  saved.forEach(issue => {
+    const opt = document.createElement("option");
+    opt.value = issue;
+    opt.textContent = issue;
+    sel.appendChild(opt);
+  });
+}
+
+function saveIssueType(issue) {
+  if (!issue) return;
+  const saved = JSON.parse(localStorage.getItem(ISSUE_TYPES_KEY) || "[]");
+  if (!saved.includes(issue)) {
+    saved.push(issue);
+    localStorage.setItem(ISSUE_TYPES_KEY, JSON.stringify(saved));
+    loadIssueTypes();
+  }
+}
+
+function onIssueSelectChange() {
+  const sel = document.getElementById("ctDescSelect");
+  const newInput = document.getElementById("ctDescNew");
+  if (sel.value) newInput.value = "";
+}
+
+function onNewIssueInput() {
+  const sel = document.getElementById("ctDescSelect");
+  const newInput = document.getElementById("ctDescNew");
+  if (newInput.value.trim()) sel.value = "";
 }
 
 function closeCreateTicketPopup() {
@@ -1504,11 +1605,24 @@ function closeCreateTicketPopup() {
 async function submitCreateTicket() {
   const type = document.getElementById("ctType").value;
   const phone = document.getElementById("ctPhone").value.trim();
-  const desc  = document.getElementById("ctDesc").value.trim();
   const msg   = document.getElementById("ctMsg");
 
+  // Resolve description based on type
+  let desc = "";
+  if (type === "complaint") {
+    const selVal = document.getElementById("ctDescSelect").value.trim();
+    const newVal = document.getElementById("ctDescNew").value.trim();
+    desc = newVal || selVal; // new typed value takes priority over dropdown
+    if (!desc) { msg.style.color="var(--error)"; msg.textContent="Issue description is required for complaints."; return; }
+    // Save new issue type to dropdown list
+    if (newVal) saveIssueType(newVal);
+  } else {
+    desc = document.getElementById("ctDescTextarea").value.trim();
+  }
+
+  const priority = type === "complaint" ? document.getElementById("ctPriority").value : "normal";
+
   if (!phone || phone.length !== 10) { msg.style.color="var(--error)"; msg.textContent="Valid 10-digit phone required."; return; }
-  if (type === "complaint" && !desc) { msg.style.color="var(--error)"; msg.textContent="Description required for complaints."; return; }
 
   // Assemble address from parts
   const pincode = document.getElementById("ctPincode").value.trim();
@@ -1545,6 +1659,7 @@ async function submitCreateTicket() {
         product_name:  productName,
         serial_number: document.getElementById("ctSerial").value.trim(),
         description:   desc,
+        priority,
         purchase_date: document.getElementById("ctPurchaseDate").value || null
       })
     });
