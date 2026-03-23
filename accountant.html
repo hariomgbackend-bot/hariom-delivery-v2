@@ -1596,8 +1596,8 @@ function initApp() {
 function startAutoRefresh() {
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
   autoRefreshInterval = setInterval(() => {
-    loadDeliveries();
-  }, 30000);
+  if (!document.hidden) loadDeliveries();
+}, 30000);
 }
 
 /* ── FILTERS ── */
