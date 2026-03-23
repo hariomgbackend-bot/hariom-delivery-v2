@@ -1958,6 +1958,21 @@ app.get("/storage/stats", authenticate, authorize(["admin"]), async (req, res) =
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Returns count + size of photos in a date range — used by admin download confirmation dialog
+app.get("/storage/range-stats", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const fromDate = req.query.from ? new Date(req.query.from + "T00:00:00.000+05:30") : null;
+    const toDate   = req.query.to   ? new Date(req.query.to   + "T23:59:59.999+05:30") : null;
+    const files    = await listPhotos(fromDate, toDate);
+    const totalBytes = files.reduce((s, f) => s + f.sizeBytes, 0);
+    res.json({
+      count:          files.length,
+      totalBytes,
+      totalFormatted: fmtBytes(totalBytes)
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /storage/download-zip?from=YYYY-MM-DD&to=YYYY-MM-DD
 app.get("/storage/download-zip", authenticate, authorize(["admin"]), async (req, res) => {
   try {
