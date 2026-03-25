@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="Hariom Staff">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0b1326">
-  <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="/staff-manifest.json">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
   <title>Staff Panel — Hariom Electronics</title>
@@ -102,6 +102,14 @@
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+    /* ── OFFLINE INDICATOR ── */
+    #offlineBanner {
+      display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+      background: #dc2626; color: white; padding: 10px 16px; font-size: 13px;
+      font-weight: 600; text-align: center;
+    }
+    #offlineBanner.show { display: block; }
+
     /* ── LOGIN CARD ── */
     .login-card {
       background: var(--surface-container-low);
@@ -139,7 +147,14 @@
       font-weight: 700; cursor: pointer; transition: opacity 0.15s, transform 0.1s;
       -webkit-tap-highlight-color: transparent;
     }
-    .btn:active { transform: scale(0.96); opacity: 0.88; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+    .btn:active:not(:disabled) { transform: scale(0.96); opacity: 0.88; }
+    .btn-spinner {
+      width: 16px; height: 16px; border: 2px solid transparent;
+      border-top-color: currentColor; border-radius: 50%;
+      animation: btn-spin 0.7s linear infinite;
+    }
+    @keyframes btn-spin { to { transform: rotate(360deg); } }
     .btn-unlock {
       width: 100%; height: 54px;
       background: linear-gradient(135deg, var(--primary-container), var(--primary));
@@ -336,6 +351,7 @@
     .popup-band-delivered { background: rgba(78,222,163,0.08); }
     .popup-band-loaded    { background: rgba(77,142,255,0.08); }
     .popup-band-pending   { background: rgba(255,179,0,0.08); }
+    .popup-band-failed    { background: rgba(255,180,171,0.08); }
     .popup-band-lead      { background: rgba(173,198,255,0.06); }
     .popup-name { font-size: 22px; font-weight: 800; color: var(--on-surface); letter-spacing: -0.3px; line-height: 1.2; }
     .popup-status-row { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -449,7 +465,9 @@
     [data-theme="light"] .lead-edit-select { background: #e2e8f4; color: #1a2540; }
     [data-theme="light"] .lead-edit-input  { background: #e2e8f4; color: #1a2540; }
     [data-theme="light"] .badge-pending   { background: #fef3c7; color: #92400e; }
+    [data-theme="light"] .badge-loaded    { background: #dbeafe; color: #1e40af; }
     [data-theme="light"] .badge-delivered { background: #dcfce7; color: #166534; }
+    [data-theme="light"] .badge-failed    { background: #fee2e2; color: #991b1b; }
     [data-theme="light"] .badge-open      { background: #dbeafe; color: #1e40af; }
     [data-theme="light"] .badge-followup  { background: #fef3c7; color: #92400e; }
     [data-theme="light"] .badge-converted { background: #dcfce7; color: #166534; }
@@ -535,6 +553,9 @@
   </style>
 </head>
 <body>
+
+<!-- ══ OFFLINE INDICATOR ══ -->
+<div id="offlineBanner">📡 You're offline — changes will sync when reconnected</div>
 
 <!-- ══ HEADER ══ -->
 <div class="header">
@@ -660,7 +681,7 @@
 
           <div id="leadFormMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:10px;text-align:center;"></div>
           <div style="display:flex;gap:10px;">
-            <button class="btn-full btn-full-primary" style="flex:1;" onclick="submitLead()">Save Lead</button>
+            <button class="btn-full btn-full-primary" id="submitLeadBtn" style="flex:1;" onclick="submitLead()">Save Lead</button>
             <button type="button" onclick="toggleLeadForm()"
               style="padding:0 18px;background:var(--surface-container-highest);border:none;border-radius:12px;
                 font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;">
@@ -748,6 +769,14 @@
 
 const BASE_URL = window.location.origin;
 
+/* ── HTML ESCAPE (prevents XSS in innerHTML rendering) ── */
+function esc(s) {
+  if (s == null) return "—";
+  const d = document.createElement("div");
+  d.textContent = String(s);
+  return d.innerHTML || "—";
+}
+
 /* ── ALL STATE DECLARATIONS (hoisted to avoid TDZ errors) ── */
 let staffToken       = null;
 let staffId          = null;
@@ -762,6 +791,23 @@ let tallyNames       = [];
 let leadProductCount = 0;
 let currentLead      = null;
 let staffPerms       = {};
+
+/* ── OFFLINE DETECTION ── */
+window.addEventListener("online", () => {
+  document.getElementById("offlineBanner").classList.remove("show");
+  showToast("✅ Back online!");
+});
+window.addEventListener("offline", () => {
+  document.getElementById("offlineBanner").classList.add("show");
+});
+
+/* ── ESC KEY CLOSES POPUPS ── */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    closeDelivPopup();
+    closeLeadPopup();
+  }
+});
 
 /* ── DARK MODE ── */
 (function() {
@@ -815,7 +861,7 @@ async function loadStaffList() {
     const list = await res.json();
     const sel  = document.getElementById("staffSelect");
     sel.innerHTML = `<option value="">Select your name…</option>` +
-      list.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+      list.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
   } catch (e) {
     document.getElementById("staffSelect").innerHTML = `<option value="">Failed to load</option>`;
   }
@@ -826,6 +872,7 @@ async function doLogin() {
   const staffSel = document.getElementById("staffSelect");
   const pinEl    = document.getElementById("pinInput");
   const msg      = document.getElementById("loginMsg");
+  const btn      = document.querySelector(".btn-unlock");
 
   const id  = staffSel.value;
   const pin = pinEl.value.trim();
@@ -834,6 +881,8 @@ async function doLogin() {
   if (pin.length !== 6) { msg.style.color = "var(--error)"; msg.textContent = "PIN must be 6 digits."; return; }
 
   msg.style.color = "var(--primary)"; msg.textContent = "Verifying…";
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span> Verifying…';
 
   try {
     const res  = await fetch(`${BASE_URL}/staff/login`, {
@@ -845,6 +894,8 @@ async function doLogin() {
     if (!res.ok) {
       msg.style.color = "var(--error)";
       msg.textContent = data.error || "Login failed.";
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">lock_open</span> Enter';
       return;
     }
 
@@ -899,6 +950,7 @@ function showMainPanel() {
 
 function doLogout() {
   staffToken = null; staffId = null; staffName = "";
+  allDeliveries = []; allLeads = []; staffPerms = {};
   localStorage.removeItem("staffToken");
   localStorage.removeItem("staffId");
   localStorage.removeItem("staffName");
@@ -987,29 +1039,27 @@ function renderDeliveries(data) {
   list.innerHTML = shown.map(d => {
     const warranty = getWarrantyBadge(d);
     return `
-    <div class="delivery-card" onclick="openDelivPopup('${d.id}')">
+    <div class="delivery-card" onclick="openDelivPopup('${esc(d.id)}')">
       <div class="card-top">
         <div>
-          <div class="card-name">${d.customer_name || "—"}</div>
-          <div class="card-product">${d.product_name || "—"}</div>
+          <div class="card-name">${esc(d.customer_name)}</div>
+          <div class="card-product">${esc(d.product_name)}</div>
         </div>
         <div class="card-badges">
-          <span class="badge badge-${d.status}">${d.status}</span>
+          <span class="badge badge-${esc(d.status)}">${esc(d.status)}</span>
         </div>
       </div>
       <div class="card-divider"></div>
       ${warranty ? `<div class="warranty-row">${warranty}</div>` : ""}
       <div class="card-footer">
-        <div class="card-address">${d.address || "—"}</div>
+        <div class="card-address">${esc(d.address)}</div>
         <div class="card-chevron">›</div>
       </div>
     </div>`;
   }).join("");
 
   // Show "search for older" hint only in recent mode
-  const _q = document.getElementById("delivSearch").value.trim();
-  const _totalAll = allDeliveries.filter(d => ["delivered","loaded","pending","failed"].includes(d.status)).length;
-  if (!_q && shown.length < _totalAll) {
+  if (!q && shown.length < totalAll) {
     list.innerHTML += `
       <div style="text-align:center;padding:16px 12px 6px;font-size:12px;
         color:var(--outline);font-weight:500;letter-spacing:0.2px;">
@@ -1050,33 +1100,33 @@ function openDelivPopup(id) {
     : "—";
 
   document.getElementById("delivPopupContent").innerHTML = `
-    <div class="popup-band popup-band-${d.status}">
+    <div class="popup-band popup-band-${esc(d.status)}">
       <div class="popup-status-row">
-        <span class="badge badge-${d.status}">${d.status}</span>
+        <span class="badge badge-${esc(d.status)}">${esc(d.status)}</span>
         ${warranty ? warranty : ""}
       </div>
-      <div class="popup-name">${d.customer_name || "—"}</div>
+      <div class="popup-name">${esc(d.customer_name)}</div>
     </div>
     <div class="popup-body">
-      <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${d.phone}">${d.phone || "—"}</a></span></div>
-      ${d.alternate_phone ? `<div class="detail-row"><span class="detail-label">Alt Phone</span><span class="detail-value"><a class="phone-link" href="tel:${d.alternate_phone}">${d.alternate_phone}</a></span></div>` : ""}
-      <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${d.product_name || "—"}</span></div>
-      <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:'JetBrains Mono',monospace;font-size:13px;">${d.product_serial_number || "—"}</span></div>
-      <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${d.address || "—"}</span></div>
+      <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${esc(d.phone)}">${esc(d.phone)}</a></span></div>
+      ${d.alternate_phone ? `<div class="detail-row"><span class="detail-label">Alt Phone</span><span class="detail-value"><a class="phone-link" href="tel:${esc(d.alternate_phone)}">${esc(d.alternate_phone)}</a></span></div>` : ""}
+      <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${esc(d.product_name)}</span></div>
+      <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:'JetBrains Mono',monospace;font-size:13px;">${esc(d.product_serial_number)}</span></div>
+      <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${esc(d.address)}</span></div>
       <div class="detail-row"><span class="detail-label">Delivered</span><span class="detail-value">${delivDate}</span></div>
     </div>`;
 
-  // Action buttons
+  // Action buttons — actionsEl declared outside if to avoid ReferenceError
   const actionsEl = document.getElementById("delivPopupActions");
   let actionBtns = "";
   if (d.status === "delivered") {
     const wa = buildWAMessage(d);
     actionBtns = `
       <div class="popup-actions-row">
-        <button class="btn btn-teal-sm" style="flex:1;" onclick="raiseTicket('${d.id}','installation')">
+        <button class="btn btn-teal-sm" style="flex:1;" onclick="raiseTicket('${esc(d.id)}','installation')">
           <span class="material-symbols-outlined" style="font-size:16px;">build</span> Installation
         </button>
-        <button class="btn btn-danger-sm" style="flex:1;" onclick="raiseTicket('${d.id}','complaint')">
+        <button class="btn btn-danger-sm" style="flex:1;" onclick="raiseTicket('${esc(d.id)}','complaint')">
           <span class="material-symbols-outlined" style="font-size:16px;">warning</span> Complaint
         </button>
       </div>
@@ -1150,6 +1200,7 @@ function buildWAMessage(d) {
 📦 Product: ${d.product_name || "—"}
 🔑 Serial: ${d.product_serial_number || "—"}
 📅 Date : ${delivDate}
+🛡 Warranty till: ${expiryDate}
 ━━━━━━━━━━━━━━
 Hariom Electronics, Pune`;
 }
@@ -1166,7 +1217,7 @@ function shareOnWA(encodedMsg) {
 /* ── Load tally products ── */
 async function loadTallyProducts() {
   try {
-    const res  = await fetch(`${BASE_URL}/tally/products`);
+    const res  = await authFetch(`${BASE_URL}/tally/products`);
     const data = await res.json();
     tallyNames = data.names || [];
   } catch(e) { tallyNames = []; }
@@ -1185,11 +1236,11 @@ function addLeadProduct(prefillName, prefillPrice) {
         id="lprod_${idx}" autocomplete="off"
         oninput="onProdSearch(this, ${idx})"
         onfocus="onProdSearch(this, ${idx})"
-        value="${prefillName||''}">
+        value="${esc(prefillName)||''}">
       <div class="prod-dropdown" id="pdrop_${idx}" style="display:none;"></div>
     </div>
     <input type="number" class="prod-price" placeholder="₹ Quote"
-      id="lprice_${idx}" min="0" value="${prefillPrice||''}">
+      id="lprice_${idx}" min="0" value="${esc(prefillPrice)||''}">
     <button class="prod-remove-btn" onclick="removeLeadProduct(${idx})">×</button>
   `;
   list.appendChild(row);
@@ -1197,8 +1248,10 @@ function addLeadProduct(prefillName, prefillPrice) {
 }
 
 function removeLeadProduct(idx) {
+  const rows = document.querySelectorAll(".lead-product-row");
+  if (rows.length <= 1) { showToast("At least one product is required."); return; }
   const row = document.querySelector(`.lead-product-row[data-idx="${idx}"]`);
-  if (row) row.remove();
+  if (row) { row.remove(); leadProductCount--; }
 }
 
 function onProdSearch(input, idx) {
@@ -1210,12 +1263,13 @@ function onProdSearch(input, idx) {
   const exactMatch = tallyNames.some(n => n.toLowerCase() === q);
 
   let html = filtered.map(n =>
-    `<div class="prod-dropdown-item" onclick="selectProd(${idx},'${n.replace(/'/g,"\'")}')">${n}</div>`
+    `<div class="prod-dropdown-item" data-action="select" data-idx="${idx}" data-name="${n.replace(/"/g,'&quot;')}">${esc(n)}</div>`
   ).join("");
 
   if (!exactMatch && q.length >= 2) {
-    html += `<div class="prod-dropdown-item add-new" onclick="addNewProd(${idx},'${input.value.trim().replace(/'/g,"\'")}')"
-      >+ Add "${input.value.trim()}" to product list</div>`;
+    const rawName = input.value.trim();
+    html += `<div class="prod-dropdown-item add-new" data-action="addnew" data-idx="${idx}" data-name="${esc(rawName).replace(/"/g,'&quot;')}"
+      >+ Add "${esc(rawName)}" to product list</div>`;
   }
 
   if (html) { drop.innerHTML = html; drop.style.display = "block"; }
@@ -1236,11 +1290,21 @@ async function addNewProd(idx, name) {
       body: JSON.stringify({ name })
     });
     tallyNames.push(name);
-  } catch(e) { /* silently continue */ }
+  } catch(e) { console.warn("Failed to add new product:", e.message); }
 }
 
-// Close dropdowns on outside click
+// Event delegation for product dropdown items (safe replacement for inline onclick)
 document.addEventListener("click", e => {
+  const item = e.target.closest(".prod-dropdown-item");
+  if (item) {
+    const action = item.dataset.action;
+    const idx    = item.dataset.idx;
+    const name   = item.dataset.name;
+    if (action === "select")  selectProd(idx, name);
+    if (action === "addnew")  addNewProd(idx, name);
+    return;
+  }
+  // Close dropdowns on outside click
   if (!e.target.closest(".prod-search-wrap")) {
     document.querySelectorAll(".prod-dropdown").forEach(d => d.style.display = "none");
   }
@@ -1308,8 +1372,10 @@ function filterAndRenderLeads() {
       return d === todayStr;
     }
     if (leadSortMode === "tomorrow") {
-      const d = l.created_at?.seconds ? new Date(l.created_at.seconds*1000).toDateString() : null;
-      return d === tomorrowStr;
+      // Filter by followup date tomorrow if present, otherwise no match
+      const followupSec = l.followup_date?.seconds || l.followup_at?.seconds;
+      if (!followupSec) return false;
+      return new Date(followupSec * 1000).toDateString() === tomorrowStr;
     }
     if (leadSortMode === "week") {
       const ms = l.created_at?.seconds ? l.created_at.seconds*1000 : 0;
@@ -1345,8 +1411,8 @@ function renderLeads(data) {
     const expiry = leadExpiryBadge(l);
     // Multi-product summary
     const prodSummary = l.products?.length > 1
-      ? `${l.products[0].product_name} +${l.products.length-1} more`
-      : (l.product_interest || "—");
+      ? `${esc(l.products[0].product_name)} +${l.products.length-1} more`
+      : esc(l.product_interest);
     const totalQuote = l.products?.length
       ? l.products.reduce((s,p) => s + (p.quoted_price||0), 0)
       : (l.quoted_price || 0);
@@ -1355,20 +1421,20 @@ function renderLeads(data) {
       : (totalQuote ? `₹${totalQuote}` : "—");
 
     return `
-    <div class="delivery-card" onclick="openLeadPopup('${l.id}')">
+    <div class="delivery-card" onclick="openLeadPopup('${esc(l.id)}')">
       <div class="card-top">
         <div>
-          <div class="card-name">${l.customer_name || l.phone}</div>
+          <div class="card-name">${esc(l.customer_name || l.phone)}</div>
           <div class="card-product">${prodSummary}</div>
         </div>
         <div class="card-badges">
-          <span class="badge badge-${l.status}">${l.status}</span>
+          <span class="badge badge-${esc(l.status)}">${esc(l.status)}</span>
           ${expiry}
         </div>
       </div>
       <div class="card-divider"></div>
       <div class="card-footer">
-        <div class="card-meta">📞 ${l.phone} · ${priceDisplay}${l.followup_note ? " · 📝 " + l.followup_note : ""}</div>
+        <div class="card-meta">📞 ${esc(l.phone)} · ${priceDisplay}${l.followup_note ? " · 📝 " + esc(l.followup_note) : ""}</div>
         <div class="card-chevron">›</div>
       </div>
     </div>`;
@@ -1379,6 +1445,7 @@ function renderLeads(data) {
 async function submitLead() {
   const phone = document.getElementById("lPhone").value.trim();
   const msg   = document.getElementById("leadFormMsg");
+  const btn   = document.getElementById("submitLeadBtn");
   if (phone.length !== 10) { msg.style.color="var(--error)"; msg.textContent="Valid 10-digit phone required."; return; }
 
   // Collect products
@@ -1393,6 +1460,8 @@ async function submitLead() {
   if (!products.length) { msg.style.color="var(--error)"; msg.textContent="Add at least one product."; return; }
 
   msg.style.color="var(--primary)"; msg.textContent="Saving…";
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span> Saving…';
   try {
     const res = await authFetch(`${BASE_URL}/leads`, {
       method:"POST", headers:{"Content-Type":"application/json"},
@@ -1406,9 +1475,15 @@ async function submitLead() {
       })
     });
     const data = await res.json();
-    if (!res.ok) { msg.style.color="var(--error)"; msg.textContent=data.error||"Failed."; return; }
+    if (!res.ok) {
+      msg.style.color="var(--error)"; msg.textContent=data.error||"Failed.";
+      btn.disabled = false;
+      btn.innerHTML = "Save Lead";
+      return;
+    }
     msg.style.color="var(--tertiary)"; msg.textContent="✅ Lead saved!";
     // Reset
+    btn.innerHTML = "Save Lead";
     ["lPhone","lAltPhone","lName","lRemarks"].forEach(id => { const e=document.getElementById(id); if(e)e.value=""; });
     document.getElementById("lStatus").value = "open";
     document.getElementById("leadProductList").innerHTML = "";
@@ -1419,6 +1494,8 @@ async function submitLead() {
     setTimeout(() => { msg.textContent = ""; collapseLeadForm(); }, 1200);
   } catch(e) {
     msg.style.color="var(--error)"; msg.textContent="Network error.";
+    btn.disabled = false;
+    btn.innerHTML = "Save Lead";
   }
 }
 
@@ -1435,39 +1512,39 @@ function openLeadPopup(id) {
   const prodsHtml = l.products?.length
     ? l.products.map(p =>
         `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
-          <span>${p.product_name}</span>
+          <span>${esc(p.product_name)}</span>
           <span style="font-weight:700;">₹${p.quoted_price||0}</span>
         </div>`
       ).join("")
     : `<div style="font-size:13px;">
-        ${l.product_interest||"—"}
+        ${esc(l.product_interest)||"—"}
         <span style="font-weight:700;float:right;">₹${l.admin_quoted_price ?? l.quoted_price ?? 0}</span>
       </div>`;
 
   document.getElementById("leadPopupContent").innerHTML = `
     <div class="popup-band popup-band-lead">
       <div class="popup-status-row">
-        <span class="badge badge-${l.status}">${l.status}</span>
+        <span class="badge badge-${esc(l.status)}">${esc(l.status)}</span>
         ${expiry}
       </div>
-      <div class="popup-name">${l.customer_name || l.phone}</div>
+      <div class="popup-name">${esc(l.customer_name) || esc(l.phone)}</div>
     </div>
     <div class="popup-body">
-      <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${l.phone}">${l.phone}</a></span></div>
-      ${l.alternate_phone?`<div class="detail-row"><span class="detail-label">Alt Phone</span><span class="detail-value">${l.alternate_phone}</span></div>`:""}
+      <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${esc(l.phone)}">${esc(l.phone)}</a></span></div>
+      ${l.alternate_phone?`<div class="detail-row"><span class="detail-label">Alt Phone</span><span class="detail-value">${esc(l.alternate_phone)}</span></div>`:""}
       <div class="detail-row">
         <span class="detail-label">Products</span>
         <span class="detail-value" style="flex:1;">${prodsHtml}
           ${l.admin_quoted_price != null ? `<div style="font-size:11px;color:var(--tertiary);margin-top:4px;">Admin revised: ₹${l.admin_quoted_price}</div>` : ""}
         </span>
       </div>
-      ${l.remarks?`<div class="detail-row"><span class="detail-label">Remarks</span><span class="detail-value">${l.remarks}</span></div>`:""}
-      ${l.followup_note?`<div class="detail-row"><span class="detail-label">Follow-up</span><span class="detail-value" style="color:var(--amber)">${l.followup_note}</span></div>`:""}
+      ${l.remarks?`<div class="detail-row"><span class="detail-label">Remarks</span><span class="detail-value">${esc(l.remarks)}</span></div>`:""}
+      ${l.followup_note?`<div class="detail-row"><span class="detail-label">Follow-up</span><span class="detail-value" style="color:var(--amber)">${esc(l.followup_note)}</span></div>`:""}
       <div class="detail-row"><span class="detail-label">Added</span><span class="detail-value">${createdDate}</span></div>
       <div class="detail-row">
         <span class="detail-label">Status</span>
         <span class="detail-value">
-          <select class="lead-edit-select" id="popupLeadStatus" onchange="updateLeadStatus('${l.id}', this.value)">
+          <select class="lead-edit-select" id="popupLeadStatus" onchange="updateLeadStatus('${esc(l.id)}', this.value)">
             <option value="open"      ${l.status==="open"?"selected":""}>Open</option>
             <option value="followup"  ${l.status==="followup"?"selected":""}>Follow Up</option>
             <option value="converted" ${l.status==="converted"?"selected":""}>Converted</option>
@@ -1587,5 +1664,16 @@ function collapseLeadForm() {
   if (btn) btn.style.borderRadius = "16px";
 }
 </script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js', {
+    scope: '/staff.html'
+  })
+  .then(() => console.log('Staff SW registered'))
+  .catch(err => console.error('SW failed:', err));
+}
+</script>
+
 </body>
 </html>

@@ -1,0 +1,3226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b1326">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <title>Stock Management — Hariom Electronics</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:                       #0b1326;
+      --surface:                  #0b1326;
+      --surface-container-lowest: #060e20;
+      --surface-container-low:    #131b2e;
+      --surface-container:        #171f33;
+      --surface-container-high:   #222a3d;
+      --surface-container-highest:#2d3449;
+      --primary:                  #adc6ff;
+      --primary-container:        #4d8eff;
+      --on-primary:               #002e6a;
+      --on-primary-container:     #00285d;
+      --tertiary:                #4edea3;
+      --tertiary-container:      #00a572;
+      --error:                   #ffb4ab;
+      --error-container:         #93000a;
+      --on-surface:               #dae2fd;
+      --on-surface-variant:       #c2c6d6;
+      --outline:                  #8c909f;
+      --outline-variant:          #424754;
+      --amber:                    #f59e0b;
+      --border:     rgba(255,255,255,0.07);
+      --font-mono:  'JetBrains Mono', monospace;
+      --font-body:  'Inter', sans-serif;
+      --sidebar-w:   240px;
+      --topbar-h:    64px;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--on-surface);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined';
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      font-size: 20px;
+      line-height: 1;
+      vertical-align: middle;
+      user-select: none;
+    }
+
+    /* ─── SIDEBAR ─── */
+    .sidebar {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: var(--sidebar-w);
+      background: var(--surface-container-lowest);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      padding: 0 0 24px;
+      transition: transform 0.3s ease;
+    }
+
+    .sidebar-brand {
+      padding: 28px 24px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .sidebar-logo {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      object-fit: contain;
+      background: rgba(173,198,255,0.1);
+      flex-shrink: 0;
+    }
+    .sidebar-brand-text {
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: -0.3px;
+      color: var(--primary);
+      text-transform: uppercase;
+    }
+    .sidebar-brand-sub {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--amber);
+      background: rgba(245,158,11,0.1);
+      border: 1px solid rgba(245,158,11,0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 2px;
+      display: inline-block;
+    }
+
+    .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px 16px; overflow-y: auto; }
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      color: rgba(218,226,253,0.45);
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      font-family: 'Inter', sans-serif;
+      min-height: 48px; /* touch target */
+    }
+    .sidebar-item:hover {
+      color: var(--primary);
+      background: rgba(173,198,255,0.06);
+    }
+    .sidebar-item.active {
+      color: var(--primary);
+      background: rgba(77,142,255,0.12);
+      border-right: 3px solid var(--primary-container);
+    }
+    .sidebar-item .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
+
+    .sidebar-divider { height: 1px; background: var(--border); margin: 8px 12px; }
+    .sidebar-section-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--outline);
+      padding: 8px 26px 4px;
+    }
+
+    /* Sidebar close button (mobile only) */
+    .sidebar-close {
+      display: none;
+      position: absolute;
+      top: 12px; right: 12px;
+      background: var(--surface-container-high);
+      border: none;
+      border-radius: 8px;
+      width: 36px; height: 36px;
+      color: var(--on-surface-variant);
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Sidebar overlay */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 199;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-overlay.visible { display: block; }
+
+    /* ─── MAIN LAYOUT ─── */
+    .main-wrap {
+      margin-left: var(--sidebar-w);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(11,19,38,0.85);
+      backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border);
+      height: var(--topbar-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      gap: 12px;
+    }
+
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .hamburger {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--on-surface);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+      min-width: 44px; min-height: 44px;
+      align-items: center; justify-content: center;
+    }
+    .topbar-title { font-size: 16px; font-weight: 800; color: var(--on-surface); }
+    .topbar-subtitle { font-size: 10px; font-family: var(--font-mono); color: var(--tertiary); text-transform: uppercase; letter-spacing: 1px; }
+
+    .topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    .content { flex: 1; padding: 28px 28px 40px; }
+
+    /* ─── SUMMARY GRID ─── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: rgba(45,52,73,0.40);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 20px 18px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+    }
+    .stat-products::before  { background: linear-gradient(90deg, #4d8eff, #adc6ff); }
+    .stat-units::before     { background: linear-gradient(90deg, #00a572, #4edea3); }
+    .stat-available::before { background: linear-gradient(90deg, #22c55e, #86efac); }
+    .stat-transit::before   { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .stat-sold::before      { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+    .stat-mismatch::before  { background: linear-gradient(90deg, #ef4444, #fca5a5); }
+
+    .stat-card .stat-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--on-surface-variant);
+      margin-bottom: 10px;
+    }
+    .stat-card .stat-value {
+      font-family: var(--font-mono);
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .stat-products .stat-value  { color: var(--primary); }
+    .stat-units .stat-value     { color: var(--tertiary); }
+    .stat-available .stat-value { color: #22c55e; }
+    .stat-transit .stat-value   { color: #fbbf24; }
+    .stat-sold .stat-value      { color: #a78bfa; }
+    .stat-mismatch .stat-value  { color: #ef4444; }
+
+    /* ─── SECTION HEADINGS ─── */
+    .section-heading {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .section-title-lg {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      color: var(--on-surface);
+      text-transform: uppercase;
+    }
+    .section-subtitle { font-size: 12px; color: var(--on-surface-variant); font-weight: 500; }
+
+    /* ─── PANELS ─── */
+    .panel {
+      background: var(--surface-container-low);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .panel-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--on-surface);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-title .material-symbols-outlined { color: var(--primary); }
+
+    /* ─── FORMS ─── */
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .form-group { flex: 1; min-width: 180px; }
+    .form-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--outline);
+      margin-bottom: 6px;
+    }
+    .form-input, .form-select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid rgba(173,198,255,0.15);
+      border-radius: 10px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: var(--on-surface);
+      background: var(--surface-container-high);
+      outline: none;
+      transition: border-color 0.2s;
+      min-height: 46px;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(173,198,255,0.1);
+    }
+    .form-select option { background: var(--surface-container-high); }
+
+    /* ─── BUTTONS ─── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      border: none;
+      min-height: 46px;
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn:not(:disabled):active { transform: scale(0.97); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-container), var(--primary));
+      color: var(--on-primary-container);
+    }
+    .btn-success {
+      background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary));
+      color: #002113;
+    }
+    .btn-warning {
+      background: rgba(245,158,11,0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245,158,11,0.3);
+    }
+    .btn-danger {
+      background: rgba(239,68,68,0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239,68,68,0.3);
+    }
+    .btn-gray {
+      background: var(--surface-container-highest);
+      color: var(--on-surface-variant);
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-sm { padding: 8px 14px; font-size: 12px; min-height: 38px; }
+
+    /* ─── TOGGLE ─── */
+    .toggle-wrap { display: flex; align-items: center; gap: 10px; }
+    .toggle {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      background: var(--surface-container-high);
+      border-radius: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border: 1px solid var(--outline-variant);
+      flex-shrink: 0;
+    }
+    .toggle.on { background: var(--tertiary-container); border-color: var(--tertiary); }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 18px; height: 18px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle.on::after { transform: translateX(22px); }
+    .toggle-label { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
+
+    /* ─── TABLES ─── */
+    .table-wrap {
+      background: var(--surface-container-low);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.04);
+      /* Horizontal scroll on mobile */
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 480px; }
+    thead th {
+      background: rgba(45,52,73,0.5);
+      color: var(--on-surface-variant);
+      padding: 12px 16px;
+      text-align: left;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      vertical-align: middle;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(173,198,255,0.04); }
+
+    /* ─── BADGES ─── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .badge-available    { background: rgba(34,197,94,0.15);   color: #22c55e; }
+    .badge-assigned     { background: rgba(139,92,246,0.15);  color: #a78bfa; }
+    .badge-sold         { background: rgba(139,92,246,0.15);  color: #a78bfa; }
+    .badge-warehouse    { background: rgba(173,198,255,0.15); color: var(--primary); }
+    .badge-display      { background: rgba(245,158,11,0.15);  color: #fbbf24; }
+    .badge-in_transit   { background: rgba(245,158,11,0.15);  color: #fbbf24; }
+    .badge-delivered    { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
+    /* FIX: generic fallback for any unknown badge (avoids CSS class name issues with spaces) */
+    .badge-other        { background: rgba(194,198,214,0.15); color: var(--on-surface-variant); }
+
+    /* ─── SCAN LIST ─── */
+    .scan-list {
+      max-height: 240px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+    }
+    .scan-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--surface-container-high);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      gap: 8px;
+    }
+    .scan-item .serial { color: var(--on-surface); font-weight: 600; flex: 1; word-break: break-all; }
+    .scan-item .remove {
+      background: rgba(239,68,68,0.15);
+      color: #ef4444;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      min-height: 36px;
+    }
+
+    /* ─── TOOLBAR ─── */
+    .toolbar {
+      background: var(--surface-container-low);
+      border-radius: 14px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .filter-btn {
+      padding: 8px 14px;
+      border: 1px solid rgba(173,198,255,0.15);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--on-surface-variant);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      min-height: 44px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .filter-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .filter-btn.active { background: var(--primary-container); border-color: transparent; color: white; }
+
+    .search-wrap { position: relative; flex: 1; min-width: 160px; max-width: 320px; }
+    .search-wrap input {
+      width: 100%;
+      padding: 10px 14px 10px 36px;
+      border: 1px solid rgba(173,198,255,0.15);
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: var(--on-surface);
+      background: var(--surface-container-high);
+      outline: none;
+      min-height: 44px;
+    }
+    .search-wrap input::placeholder { color: var(--on-surface-variant); }
+    .search-wrap input:focus { border-color: var(--primary); }
+    .search-wrap::before {
+      content: '🔍';
+      position: absolute;
+      left: 11px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    /* ─── CHECKBOX ─── */
+    .checkbox {
+      width: 28px; height: 28px;
+      border: 2px solid var(--outline-variant);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      cursor: pointer;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .checkbox.checked { background: var(--primary-container); border-color: var(--primary-container); }
+    .checkbox .material-symbols-outlined { font-size: 16px; color: white; }
+
+    /* ─── SYNC STATUS ─── */
+    .sync-status {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--surface-container-high);
+      border-radius: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .sync-status .label { font-size: 12px; color: var(--on-surface-variant); }
+    .sync-status .value { font-family: var(--font-mono); font-size: 12px; color: var(--on-surface); font-weight: 600; }
+    .sync-indicator {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--tertiary);
+      flex-shrink: 0;
+    }
+    .sync-indicator.syncing { animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ─── CATEGORY GRID ─── */
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .category-card {
+      background: var(--surface-container-high);
+      border-radius: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+    .category-card:hover { border-color: var(--primary); }
+    .category-card.selected { border-color: var(--primary-container); background: rgba(77,142,255,0.1); }
+    .category-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--on-surface);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .category-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .category-item:last-child { border-bottom: none; }
+    .category-item .name { color: var(--on-surface-variant); }
+    .category-item .qty { font-family: var(--font-mono); font-weight: 700; color: var(--on-surface); }
+
+    /* ─── ANOMALIES ─── */
+    .anomaly-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px;
+      background: var(--surface-container-high);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      border-left: 3px solid;
+    }
+    .anomaly-item.missing  { border-left-color: #ef4444; }
+    .anomaly-item.extra    { border-left-color: #f59e0b; }
+    .anomaly-item.mismatch { border-left-color: #8b5cf6; }
+    .anomaly-item.oversold { border-left-color: #dc2626; }
+    .anomaly-icon { font-size: 20px; flex-shrink: 0; }
+    .anomaly-content { flex: 1; }
+    .anomaly-title { font-size: 13px; font-weight: 700; color: var(--on-surface); margin-bottom: 4px; }
+    .anomaly-desc  { font-size: 12px; color: var(--on-surface-variant); }
+
+    /* ─── TOAST ─── */
+    #toast {
+      position: fixed;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface-container-highest);
+      color: var(--on-surface);
+      padding: 14px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      border: 1px solid rgba(173,198,255,0.12);
+      max-width: calc(100vw - 40px);
+      white-space: normal;
+      text-align: center;
+    }
+    #toast.show    { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.error   { border-color: var(--error);    color: var(--error); }
+    #toast.success { border-color: var(--tertiary); color: var(--tertiary); }
+    #toast.warning { border-color: var(--amber);    color: var(--amber); }
+
+    /* ─── TRANSFER ─── */
+    .transfer-info {
+      padding: 12px 16px;
+      background: var(--surface-container-high);
+      border-radius: 10px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+    .transfer-count { font-family: var(--font-mono); font-weight: 700; color: var(--primary); font-size: 20px; }
+
+    /* ─── SCAN PROGRESS ─── */
+    .scan-progress {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--surface-container-high);
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+    .scan-progress .item { display: flex; align-items: center; gap: 6px; }
+    .scan-progress .label { font-size: 11px; color: var(--on-surface-variant); }
+    .scan-progress .value { font-family: var(--font-mono); font-weight: 700; color: var(--on-surface); }
+
+    /* ─── LOCATIONS ─── */
+    .location-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .location-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--surface-container-high);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .location-chip .delete {
+      background: none;
+      border: none;
+      color: var(--error);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0 0 0 4px;
+      line-height: 1;
+      min-height: 24px;
+      min-width: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .add-location-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .add-location-row input { flex: 1; min-width: 160px; }
+
+    /* ─── PAGINATION ─── */
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px;
+      flex-wrap: wrap;
+    }
+    .pagination-controls .btn { padding: 10px 18px; }
+    .pagination-info { font-size: 12px; color: var(--on-surface-variant); }
+
+    /* ─── XML DROP ZONE ─── */
+    .xml-drop-zone {
+      border: 2px dashed var(--outline-variant);
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .xml-drop-zone:hover, .xml-drop-zone.dragover {
+      border-color: var(--primary);
+      background: rgba(173,198,255,0.05);
+    }
+    .xml-drop-zone input { display: none; }
+
+    .preview-table { margin-top: 16px; }
+    .preview-table th { background: rgba(45,52,73,0.5); }
+    .preview-missing { color: #ef4444; font-weight: 700; }
+    .preview-ok      { color: var(--tertiary); font-weight: 700; }
+    .preview-table tr.has-missing { background: rgba(239,68,68,0.04); }
+    .btn-xs {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 10px; border-radius: 7px;
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      border: none; white-space: nowrap; min-height: 30px;
+      font-family: 'Inter', sans-serif;
+    }
+    .btn-xs-primary { background: rgba(77,142,255,0.2); color: var(--primary); }
+    .btn-xs-primary:hover { background: rgba(77,142,255,0.35); }
+    .btn-xs:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Active filter indicator dots */
+    .filter-active-dot {
+      display: inline-block; width: 6px; height: 6px;
+      background: var(--primary-container); border-radius: 50%;
+      margin-left: 4px; vertical-align: middle;
+    }
+
+    /* ─── LOADING SPINNER ─── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── LIGHT THEME ─── */
+    [data-theme="light"] {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --surface-container-lowest: #e8edf6;
+      --surface-container-low: #f0f4fb;
+      --surface-container: #e4eaf5;
+      --surface-container-high: #d8e0f0;
+      --surface-container-highest:#cdd5e8;
+      --on-surface: #1a2540;
+      --on-surface-variant: #4a5568;
+      --border: rgba(0,0,0,0.07);
+      --primary: #2563eb;
+      --primary-container: #1d4ed8;
+      --tertiary: #059669;
+      --tertiary-container: #047857;
+      --error: #dc2626;
+      --amber: #d97706;
+    }
+    [data-theme="light"] body            { background: var(--bg); color: var(--on-surface); }
+    [data-theme="light"] .sidebar        { background: #e8edf6; }
+    [data-theme="light"] .stat-card      { background: white; border-color: rgba(0,0,0,0.06); }
+    [data-theme="light"] .panel          { background: white; border-color: #dde3ed; }
+    [data-theme="light"] .table-wrap     { background: white; }
+    [data-theme="light"] thead th        { background: #f8fafc; color: #64748b; }
+    [data-theme="light"] tbody td        { border-color: rgba(0,0,0,0.05); }
+    [data-theme="light"] .form-input,
+    [data-theme="light"] .form-select    { background: #f8fafc; border-color: #dde3ed; color: #1a2540; }
+    [data-theme="light"] .filter-btn     { border-color: #dde3ed; color: #64748b; }
+    [data-theme="light"] .filter-btn.active { background: #2563eb; color: white; }
+    [data-theme="light"] .category-card  { background: #f8fafc; }
+    [data-theme="light"] .anomaly-item   { background: #f8fafc; }
+    [data-theme="light"] .sync-status    { background: #f8fafc; }
+    [data-theme="light"] .scan-item      { background: #f8fafc; }
+    [data-theme="light"] .toolbar        { background: white; }
+    [data-theme="light"] .scan-progress  { background: #f8fafc; }
+    [data-theme="light"] .transfer-info  { background: #f8fafc; }
+    [data-theme="light"] .location-chip  { background: #f8fafc; }
+
+    /* ═══════════════════════════════════════════
+       MOBILE RESPONSIVE — Phone First
+    ═══════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      :root { --sidebar-w: 0px; }
+
+      /* Sidebar becomes a slide-in drawer */
+      .sidebar {
+        width: 260px;
+        transform: translateX(-100%);
+        box-shadow: none;
+      }
+      .sidebar.open {
+        transform: translateX(0);
+        box-shadow: 4px 0 32px rgba(0,0,0,0.4);
+      }
+      .sidebar-close {
+        display: flex;
+      }
+
+      .hamburger {
+        display: flex;
+      }
+
+      .main-wrap { margin-left: 0; }
+
+      .topbar { padding: 0 16px; }
+
+      .content { padding: 16px 16px 32px; }
+
+      /* Summary grid: 2 columns on phone */
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .stat-card { padding: 14px 12px; }
+      .stat-card .stat-value { font-size: 24px; }
+
+      /* Panels */
+      .panel { padding: 14px; }
+
+      /* Form rows stack vertically */
+      .form-row { flex-direction: column; }
+      .form-group { min-width: 100%; }
+
+      /* Tables scroll horizontally */
+      .table-wrap { border-radius: 10px; }
+      table { min-width: 520px; }
+
+      /* Category grid single column */
+      .category-grid { grid-template-columns: 1fr 1fr; }
+
+      /* Scan input big on mobile */
+      #scanSerial {
+        font-size: 18px;
+        padding: 16px 14px;
+        min-height: 56px;
+      }
+
+      /* Toolbar wraps buttons */
+      .toolbar { padding: 10px 12px; }
+
+      /* Transfer checkboxes bigger tap area */
+      .checkbox { width: 36px; height: 36px; }
+
+      /* Buttons full-width in certain contexts */
+      .btn-block-mobile { width: 100%; }
+
+      /* Pagination spacing */
+      .pagination-controls { padding: 12px 8px; }
+
+      /* Section title smaller */
+      .section-title-lg { font-size: 16px; }
+
+      /* Quick actions wrap */
+      #view-dashboard .form-row .btn { flex: 1; min-width: 140px; font-size: 12px; }
+    }
+
+    @media (max-width: 420px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .category-grid { grid-template-columns: 1fr; }
+      #view-dashboard .form-row { flex-direction: row; flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- Sidebar overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<aside class="sidebar" id="sidebar">
+  <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">
+    <span class="material-symbols-outlined">close</span>
+  </button>
+
+  <div class="sidebar-brand">
+    <img src="/icons/icon-72x72.png" class="sidebar-logo" alt="" onerror="this.style.display='none'">
+    <div>
+      <div class="sidebar-brand-text">Hariom</div>
+      <div class="sidebar-brand-sub">STOCK</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="sidebar-section-label">Navigation</div>
+
+    <button class="sidebar-item active" data-view="dashboard">
+      <span class="material-symbols-outlined">dashboard</span>
+      Dashboard
+    </button>
+    <button class="sidebar-item" data-view="scan-in">
+      <span class="material-symbols-outlined">qr_code_scanner</span>
+      Scan-In
+    </button>
+    <button class="sidebar-item" data-view="stock-list">
+      <span class="material-symbols-outlined">inventory_2</span>
+      Stock List
+    </button>
+    <button class="sidebar-item" data-view="transfer">
+      <span class="material-symbols-outlined">swap_horiz</span>
+      Transfer
+    </button>
+    <button class="sidebar-item" data-view="categories">
+      <span class="material-symbols-outlined">category</span>
+      Categories
+    </button>
+    <button class="sidebar-item" data-view="anomalies">
+      <span class="material-symbols-outlined">warning</span>
+      Anomalies
+    </button>
+    <button class="sidebar-item" data-view="xml-import">
+      <span class="material-symbols-outlined">upload_file</span>
+      XML Import
+    </button>
+    <button class="sidebar-item" data-view="locations">
+      <span class="material-symbols-outlined">location_on</span>
+      Locations
+    </button>
+    <button class="sidebar-item" data-view="sync">
+      <span class="material-symbols-outlined">sync</span>
+      Tally Sync
+    </button>
+
+    <div class="sidebar-divider"></div>
+
+    <a class="sidebar-item" href="admin.html">
+      <span class="material-symbols-outlined">arrow_back</span>
+      Back to Admin
+    </a>
+  </nav>
+</aside>
+
+<div class="main-wrap">
+  <header class="topbar">
+    <div class="topbar-left">
+      <!-- Hamburger (mobile) -->
+      <button class="hamburger" id="hamburgerBtn" aria-label="Open menu">
+        <span class="material-symbols-outlined">menu</span>
+      </button>
+      <div>
+        <div class="topbar-title">Stock Management</div>
+        <div class="topbar-subtitle">Inventory Control System</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <!-- Theme toggle -->
+      <button class="btn btn-gray btn-sm" id="themeToggleBtn" title="Toggle theme">
+        <span class="material-symbols-outlined" id="themeIcon">light_mode</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- ── DASHBOARD ── -->
+    <section id="view-dashboard">
+      <div class="summary-grid" id="statsCards"></div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span class="material-symbols-outlined">insights</span>
+          Quick Actions
+        </div>
+        <div class="form-row">
+          <button class="btn btn-primary" data-nav="scan-in">
+            <span class="material-symbols-outlined">qr_code_scanner</span>
+            Scan-In Stock
+          </button>
+          <button class="btn btn-success" data-nav="transfer">
+            <span class="material-symbols-outlined">swap_horiz</span>
+            Transfer Stock
+          </button>
+          <button class="btn btn-warning" data-nav="xml-import">
+            <span class="material-symbols-outlined">upload_file</span>
+            Import XML
+          </button>
+          <button class="btn btn-danger" data-nav="anomalies">
+            <span class="material-symbols-outlined">warning</span>
+            Anomalies
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SCAN-IN ── -->
+    <section id="view-scan-in" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Scan-In System</div>
+          <div class="section-subtitle">Add serials to inventory</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span class="material-symbols-outlined">add_box</span>
+          Add New Serials
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="scanProduct">Product</label>
+            <select class="form-select" id="scanProduct"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="scanLocation">Location</label>
+            <select class="form-select" id="scanLocation"></select>
+          </div>
+        </div>
+
+        <div class="scan-progress" id="scanProgress">
+          <div class="item">
+            <span class="label">Selected:</span>
+            <span class="value" id="selectedProductName">—</span>
+          </div>
+          <div class="item">
+            <span class="label">Tally Qty:</span>
+            <span class="value" id="tallyQtyDisplay">—</span>
+          </div>
+          <div class="item">
+            <span class="label">Scanned:</span>
+            <span class="value" id="scannedCount">0</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:2;">
+            <label class="form-label" for="scanSerial">Serial Number</label>
+            <input type="text" class="form-input" id="scanSerial"
+              placeholder="Enter or scan serial..." autocomplete="off"
+              inputmode="text" autocapitalize="characters">
+          </div>
+          <div class="form-group" style="flex:0;display:flex;align-items:flex-end;">
+            <button class="btn btn-primary" id="addSerialBtn">
+              <span class="material-symbols-outlined">add</span>
+              Add
+            </button>
+          </div>
+        </div>
+
+        <div class="scan-list" id="scanList"></div>
+
+        <button class="btn btn-success btn-block-mobile" id="saveScanBtn" disabled>
+          <span class="material-symbols-outlined">save</span>
+          Save All Serials (<span id="scanCount">0</span>)
+        </button>
+      </div>
+    </section>
+
+    <!-- ── STOCK LIST ── -->
+    <section id="view-stock-list" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Stock List</div>
+          <div class="section-subtitle" id="stockSubtitle">All inventory serials</div>
+        </div>
+        <button class="btn btn-gray btn-sm" id="clearFiltersBtn" style="display:none;">
+          <span class="material-symbols-outlined" style="font-size:16px;">filter_alt_off</span>
+          Clear Filters
+        </button>
+      </div>
+
+      <!-- Combined Filters Row -->
+      <div class="toolbar" style="gap:8px; flex-wrap:wrap;">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);white-space:nowrap; margin-right:4px;">Filters</span>
+        <select class="form-select" id="filterLocation" style="flex:1;min-width:110px;padding:8px 12px;font-size:13px;">
+          <option value="">All Locations</option>
+        </select>
+        <select class="form-select" id="filterStatus" style="flex:1;min-width:110px;padding:8px 12px;font-size:13px;">
+          <option value="">All Availability</option>
+          <option value="good">Good (6+)</option>
+          <option value="average">Average (3-5)</option>
+          <option value="low">Low (1-2)</option>
+          <option value="no_stock">No Stock</option>
+        </select>
+        <select class="form-select" id="filterCategory" style="flex:1;min-width:110px;padding:8px 12px;font-size:13px;">
+          <option value="">All Categories</option>
+        </select>
+        <select class="form-select" id="filterBrand" style="flex:1;min-width:110px;padding:8px 12px;font-size:13px;">
+          <option value="">All Brands</option>
+        </select>
+      </div>
+
+      <!-- Search and XML toggle Row -->
+      <div class="toolbar" style="gap:8px; flex-wrap:wrap;" id="xmlFilterRow">
+        <div class="search-wrap" style="flex:2;min-width:200px;">
+          <input type="text" id="searchSerial" placeholder="Search serial, product, model...">
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="filter-btn" id="filterXmlBtn" data-xml-filter="xml" title="Show only XML-imported placeholder serials" style="gap:6px;">
+            <span class="material-symbols-outlined" style="font-size:14px;">table_rows</span>
+            XML Imports Only
+          </button>
+          <button class="filter-btn" id="filterNonXmlBtn" data-xml-filter="nonxml" title="Hide XML-imported serials (show physically scanned only)">
+            <span class="material-symbols-outlined" style="font-size:14px;">qr_code_scanner</span>
+            Scanned Only
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Brand</th>
+              <th>Model</th>
+              <th>Quantity</th>
+              <th>Locations</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="stockTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="pagination-controls">
+        <button class="btn btn-gray btn-sm" id="prevPage" disabled>
+          <span class="material-symbols-outlined" style="font-size:16px;">chevron_left</span>
+          Prev
+        </button>
+        <span class="pagination-info" id="pageInfo">Page 1</span>
+        <button class="btn btn-gray btn-sm" id="nextPage">
+          Next
+          <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ── TRANSFER ── -->
+    <section id="view-transfer" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Transfer System</div>
+          <div class="section-subtitle">Move stock between locations by product &amp; quantity</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span class="material-symbols-outlined">swap_horiz</span>
+          Transfer Stock
+        </div>
+
+        <!-- Source location -->
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">From Location</label>
+            <div class="toolbar" style="margin:0;padding:0;background:none;">
+              <div id="transferFromButtons" style="display:contents;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Product + Quantity selection -->
+        <div class="form-row" style="margin-top:12px;">
+          <div class="form-group" style="flex:2;">
+            <label class="form-label" for="transferProduct">Product</label>
+            <select class="form-select" id="transferProduct">
+              <option value="">Select product...</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:0.8;">
+            <label class="form-label" for="transferQty">Quantity</label>
+            <input type="number" class="form-input" id="transferQty" min="1" value="1" placeholder="Qty">
+          </div>
+          <div class="form-group" style="flex:0;display:flex;align-items:flex-end;">
+            <button class="btn btn-primary" id="addToCartBtn">
+              <span class="material-symbols-outlined">add_shopping_cart</span>
+              Add
+            </button>
+          </div>
+        </div>
+
+        <!-- Available info -->
+        <div id="transferAvailInfo" style="font-size:12px;color:var(--on-surface-variant);margin-top:4px;display:none;">
+          <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">info</span>
+          Available: <strong id="transferAvailCount">0</strong> units at selected location
+        </div>
+
+        <!-- Transfer Cart -->
+        <div id="transferCartSection" style="display:none;margin-top:16px;">
+          <div class="panel-title" style="font-size:13px;">
+            <span class="material-symbols-outlined">shopping_cart</span>
+            Transfer Cart — <span id="transferCartCount">0</span> items
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  <th style="width:60px;"></th>
+                </tr>
+              </thead>
+              <tbody id="transferCartBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Destination + Execute -->
+        <div class="form-row" style="margin-top:16px;">
+          <div class="form-group">
+            <label class="form-label" for="transferLocation">Transfer To</label>
+            <select class="form-select" id="transferLocation"></select>
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;">
+            <button class="btn btn-success btn-block-mobile" id="transferBtn" disabled>
+              <span class="material-symbols-outlined">check</span>
+              Transfer All (<span id="transferTotalQty">0</span> units)
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CATEGORIES ── -->
+    <section id="view-categories" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Category View</div>
+          <div class="section-subtitle">Stock grouped by category</div>
+        </div>
+      </div>
+      <div class="category-grid" id="categoryGrid"></div>
+    </section>
+
+    <!-- ── ANOMALIES ── -->
+    <section id="view-anomalies" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Anomaly Detection</div>
+          <div class="section-subtitle">Quantity mismatches and issues</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span class="material-symbols-outlined">warning</span>
+          Issues Found
+        </div>
+        <div id="anomalyList"></div>
+        <div id="noAnomalies" style="text-align:center;padding:32px;color:var(--tertiary);">
+          <span class="material-symbols-outlined" style="font-size:48px;">check_circle</span>
+          <p style="margin-top:12px;font-weight:700;">No anomalies detected</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── XML IMPORT ── -->
+    <section id="view-xml-import" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Import from Tally XML</div>
+          <div class="section-subtitle">Upload XML file to compare and mass-import stock</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span class="material-symbols-outlined">upload_file</span>
+          XML File Upload
+        </div>
+
+        <div class="xml-drop-zone" id="xmlDropZone">
+          <input type="file" id="xmlFileInput" accept=".xml">
+          <span class="material-symbols-outlined" style="font-size:48px;color:var(--primary);">cloud_upload</span>
+          <p style="margin-top:12px;color:var(--on-surface-variant);">
+            Drop XML file here or click to browse
+          </p>
+        </div>
+
+        <!-- XML Summary (inserted by JS after import) -->
+      <div id="xmlImportSummary" style="display:none;margin-bottom:24px;"></div>
+
+      <!-- Match Stock Quantity (Part 3) -->
+      <div id="xmlMatchSection" style="display:none;margin-top:24px;">
+        <div class="panel">
+          <div class="panel-title">
+            <span class="material-symbols-outlined">balance</span>
+            Match Stock Quantity (Tally vs System)
+          </div>
+          <p style="font-size:12px;color:var(--on-surface-variant);margin-bottom:16px;">
+            Comparison of quantities from the uploaded XML versus currently scanned serials in the system.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Tally Qty</th>
+                  <th>System Qty</th>
+                  <th>Diff</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="xmlMatchBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="xmlPreview" style="display:none;">
+          <!-- Summary bar -->
+          <div id="xmlSummaryBar" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:20px;padding:14px 16px;border-radius:10px;background:var(--surface-variant);"></div>
+
+          <!-- Controls row -->
+          <div style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:180px;">
+              <label class="form-label" for="xmlDefaultLocation">Import Location</label>
+              <select class="form-select" id="xmlDefaultLocation"></select>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+              <button class="btn btn-primary" id="xmlImportAllBtn" style="white-space:nowrap;">
+                <span class="material-symbols-outlined">download_done</span>
+                Import All
+              </button>
+              <button class="btn btn-secondary" id="xmlImportMissingBtn" style="white-space:nowrap;">
+                <span class="material-symbols-outlined">add_circle</span>
+                Add Missing Only
+              </button>
+              <button class="btn btn-warning" id="xmlImportSelectBtn" style="white-space:nowrap;">
+                <span class="material-symbols-outlined">checklist</span>
+                Select &amp; Import
+              </button>
+            </div>
+          </div>
+
+          <h4 style="margin-top:20px;margin-bottom:12px;font-size:14px;font-weight:700;">
+            Preview — <span id="xmlPreviewCount">0</span> products
+          </h4>
+          <div class="table-wrap preview-table">
+            <table>
+              <thead>
+                <tr>
+                  <th id="xmlSelectAllCol" style="display:none;width:36px;">
+                    <input type="checkbox" id="xmlSelectAll" title="Select all">
+                  </th>
+                  <th>Product</th>
+                  <th>Category</th>
+                  <th>Tally Qty</th>
+                  <th>In Stock</th>
+                  <th>Missing</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="xmlPreviewBody"></tbody>
+            </table>
+          </div>
+
+          <!-- Select mode action bar -->
+          <div id="xmlSelectBar" style="display:none;margin-top:12px;padding:12px 16px;border-radius:10px;background:var(--surface-variant);display:none;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span id="xmlSelectedCount" style="font-size:13px;color:var(--on-surface-variant);">0 selected</span>
+            <button class="btn btn-primary" id="xmlConfirmSelectBtn" style="margin-left:auto;">
+              <span class="material-symbols-outlined">check</span>
+              Import Selected
+            </button>
+            <button class="btn btn-ghost" id="xmlCancelSelectBtn">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── XML IMPORT CONFIRM MODAL ── -->
+    <div id="xmlImportModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border-radius:14px;padding:28px 28px 22px;max-width:440px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,.35);">
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;" id="xmlModalTitle">Confirm Import</div>
+        <div style="font-size:13px;color:var(--on-surface-variant);margin-bottom:20px;line-height:1.6;" id="xmlModalBody"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button class="btn btn-ghost" id="xmlModalCancel">Cancel</button>
+          <button class="btn btn-primary" id="xmlModalConfirm">
+            <span class="material-symbols-outlined">download_done</span>
+            Confirm Import
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PRODUCT RENAME MODAL ── -->
+    <div id="renameModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border-radius:14px;padding:28px 28px 22px;max-width:440px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,.35);">
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Rename Product</div>
+        <div style="font-size:13px;color:var(--on-surface-variant);margin-bottom:16px;">
+          Set a friendly display name for 
+          <strong id="renameOriginalName" style="color:var(--primary);"></strong>. 
+          This only affects how it looks on the screen.
+        </div>
+        <input type="hidden" id="renameDocId">
+        <input type="text" id="renameInput" class="form-input" placeholder="E.g., Haier 1.5T Inverter">
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+          <button class="btn btn-ghost" onclick="document.getElementById('renameModal').style.display='none'">Cancel</button>
+          <button class="btn btn-primary" id="renameConfirmBtn" onclick="saveProductRename()">Save changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LOCATIONS ── -->
+    <section id="view-locations" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Manage Locations</div>
+          <div class="section-subtitle">Add or remove inventory locations</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span class="material-symbols-outlined">location_on</span>
+          Locations
+        </div>
+        <div class="location-list" id="locationList"></div>
+        <div class="add-location-row">
+          <input type="text" class="form-input" id="newLocationName" placeholder="New location name...">
+          <button class="btn btn-primary" id="addLocationBtn">Add Location</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── TALLY SYNC ── -->
+    <section id="view-sync" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Tally Sync</div>
+          <div class="section-subtitle">Synchronize with Tally inventory</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span class="material-symbols-outlined">sync</span>
+          Sync Settings
+        </div>
+
+        <div class="toggle-wrap" style="margin-bottom:16px;">
+          <div class="toggle" id="autoSyncToggle" role="switch" aria-checked="false"></div>
+          <span class="toggle-label">Auto Sync</span>
+        </div>
+
+        <div class="form-row">
+          <button class="btn btn-primary" id="syncNowBtn">
+            <span class="material-symbols-outlined">sync</span>
+            Sync Now
+          </button>
+        </div>
+
+        <div class="sync-status">
+          <div class="sync-indicator" id="syncIndicator"></div>
+          <div>
+            <div class="label">Last Sync</div>
+            <div class="value" id="lastSyncTime">Never</div>
+          </div>
+          <div style="margin-left:auto;">
+            <div class="label">Status</div>
+            <div class="value" id="syncStatus">Ready</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span class="material-symbols-outlined">info</span>
+          Sync Information
+        </div>
+        <p style="font-size:13px;color:var(--on-surface-variant);line-height:1.6;">
+          The sync fetches stock data from Tally's XML API and updates the inventory_products collection.
+          This provides the "source of truth" for quantities. Serial numbers are tracked separately
+          in the inventory_serials collection.
+        </p>
+      </div>
+    </section>
+
+  </div><!-- .content -->
+</div><!-- .main-wrap -->
+
+<script>
+/* ──────────────────────────────────────────
+   CONFIGURATION
+────────────────────────────────────────── */
+const BASE_URL = window.location.origin;
+
+/* ──────────────────────────────────────────
+   STATE
+────────────────────────────────────────── */
+let allSerials = [];
+let allProducts = [];
+let tallyProducts = {};
+let allLocations = [];
+let filterXmlImported = ''; // '' | 'xml' | 'nonxml'
+let pendingSerials = [];
+let selectedTransferSerials = [];
+let transferFrom = '';
+let autoSyncEnabled = false;
+let lastSync = null;
+let currentPage = 0;
+const PAGE_SIZE = 50;
+
+// Parsed XML products stored so "Add to Stock" buttons can reference them
+let xmlParsedProducts = [];
+let xmlSkippedItems = [];
+
+// Product display name mapping { originalProduct: { displayName, docId } }
+let productDisplayNames = {};
+
+// Transfer cart for product+quantity transfer
+let transferCart = [];
+
+/* ──────────────────────────────────────────
+   PRODUCT NAME PARSER
+   Naming convention: CATEGORY BRAND MODEL
+   e.g. "C-FAN ATOMBERG RENESA PLUS"
+        → { category: "C-FAN", brand: "ATOMBERG", model: "RENESA PLUS" }
+   Rule: first hyphenated token = category, second token = brand, rest = model
+   Handles edge cases: single-word names, names without hyphens
+────────────────────────────────────────── */
+// Two-word categories where first TWO tokens together form the category name
+const TWO_WORD_CATEGORIES = new Set([
+  'D FREEZE', 'AIR FRYER', 'TOWER FAN', 'AIR COOLER', 'AIR PURIFIER',
+  'WASHING MACHINE', 'WATER PURIFIER', 'WATER DISPENSER'
+]);
+
+function parseProductName(name) {
+  if (!name) return { category: 'OTHER', brand: 'UNKNOWN', model: '' };
+  const parts = name.trim().split(/\s+/);
+  const upper = parts.map(p => p.toUpperCase());
+
+  let category, brand, model;
+
+  // Check for two-word category first (e.g. "D FREEZE BLUESTAR CF4-230NEYW")
+  const twoWord = upper.length >= 2 ? (upper[0] + ' ' + upper[1]) : '';
+  if (TWO_WORD_CATEGORIES.has(twoWord)) {
+    category = twoWord;
+    brand    = upper[2] || 'UNKNOWN';
+    model    = parts.slice(3).join(' ').toUpperCase() || brand;
+  } else if (upper[0].includes('-') || upper.length === 1) {
+    // Single-token hyphenated category: "C-FAN ATOMBERG RENESA PLUS"
+    category = upper[0];
+    brand    = upper[1] || 'UNKNOWN';
+    model    = parts.slice(2).join(' ').toUpperCase() || brand;
+  } else if (parts.length >= 3) {
+    // Standard: "REF HAIER HRF-618SS" -> category=REF, brand=HAIER, model=HRF-618SS
+    category = upper[0];
+    brand    = upper[1];
+    model    = parts.slice(2).join(' ').toUpperCase();
+  } else if (parts.length === 2) {
+    category = upper[0];
+    brand    = upper[1];
+    model    = upper[1];
+  } else {
+    category = upper[0];
+    brand    = 'UNKNOWN';
+    model    = upper[0];
+  }
+
+  return { category, brand, model };
+}
+
+/* ──────────────────────────────────────────
+   UTILITY HELPERS
+────────────────────────────────────────── */
+
+/** HTML-escape a value for safe insertion into innerHTML */
+function esc(s) {
+  if (s == null) return '—';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+/** Convert arbitrary string to safe CSS class name */
+function safeClass(s) {
+  if (!s) return 'other';
+  return String(s).toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
+}
+
+/** Return badge HTML with safe class */
+function badge(text, classOverride) {
+  const cls = classOverride || safeClass(text);
+  return `<span class="badge badge-${cls}">${esc(text)}</span>`;
+}
+
+let toastTimer = null;
+/** Show a toast notification */
+function showToast(msg, type = 'default') {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  clearTimeout(toastTimer);
+  t.textContent = msg;
+  t.className = 'show' + (type !== 'default' ? ' ' + type : '');
+  toastTimer = setTimeout(() => { t.className = ''; }, 4000);
+}
+
+/**
+ * Normalize product key — consistent matching across XML, serials, products.
+ * Removes bracket content (INV), (1.5T), trims, lowercases.
+ */
+function normalizeProductKey(name) {
+  if (!name) return '';
+  return name
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/** Get display name for a product, falls back to original */
+function getDisplayName(product) {
+  if (!product) return '—';
+  const mapping = productDisplayNames[product];
+  return mapping?.displayName || product;
+}
+
+/** Load product display name mappings from server */
+async function loadProductNames() {
+  try {
+    const res = await fetch(`${BASE_URL}/inventory/product-names`);
+    productDisplayNames = await res.json();
+  } catch (e) { /* non-critical */ }
+}
+
+/* ──────────────────────────────────────────
+   SIDEBAR / NAVIGATION
+────────────────────────────────────────── */
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('visible');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('visible');
+}
+
+/**
+ * Show a view section.
+ * FIX: accept viewName directly, no longer relies on `event` global.
+ */
+function showView(viewName, sourceEl) {
+  // Hide all sections
+  document.querySelectorAll('.content > section').forEach(s => s.style.display = 'none');
+  const target = document.getElementById('view-' + viewName);
+  if (target) target.style.display = '';
+
+  // Update active sidebar item
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+  if (sourceEl) {
+    sourceEl.closest('.sidebar-item')?.classList.add('active');
+  } else {
+    // Find the button by data-view
+    const btn = document.querySelector(`.sidebar-item[data-view="${viewName}"]`);
+    if (btn) btn.classList.add('active');
+  }
+
+  // Close sidebar on mobile after navigation
+  closeSidebar();
+
+  // Load data for view
+  if (viewName === 'dashboard')   loadDashboard();
+  if (viewName === 'scan-in')     loadScanIn();
+  if (viewName === 'stock-list')  { currentPage = 0; loadStockList(); }
+  if (viewName === 'transfer')    loadTransfer();
+  if (viewName === 'categories')  loadCategories();
+  if (viewName === 'anomalies')   loadAnomalies();
+  if (viewName === 'locations')   loadLocations();
+  if (viewName === 'sync')        loadSyncSettings();
+  if (viewName === 'xml-import')  { loadAllData().then(loadXmlImport); }
+}
+
+/* ──────────────────────────────────────────
+   DATA LOADING
+────────────────────────────────────────── */
+
+/** Load all core data from API. */
+async function loadAllData() {
+  try {
+    const [serialsRes, productsRes, locationsRes] = await Promise.all([
+      fetch(`${BASE_URL}/inventory`),
+      fetch(`${BASE_URL}/tally/products`),
+      fetch(`${BASE_URL}/inventory/locations`)
+    ]);
+
+    // FIX: always await .json() on the response object
+    allSerials = await serialsRes.json();
+    if (!Array.isArray(allSerials)) allSerials = [];
+
+    const productsData = await productsRes.json();
+    allProducts = productsData.names || [];
+
+    // FIX: locationsRes is a Response, not an array — parse it
+    const locData = await locationsRes.json();
+    allLocations = Array.isArray(locData) ? locData : [];
+    if (allLocations.length === 0) {
+      allLocations = [{ name: 'Warehouse' }, { name: 'Display' }];
+    }
+
+    // Build local tally count from serials
+    tallyProducts = {};
+    allSerials.forEach(s => {
+      const p = s.product || 'UNKNOWN';
+      tallyProducts[p] = (tallyProducts[p] || 0) + 1;
+    });
+
+    // Load product display name mappings
+    await loadProductNames();
+  } catch (e) {
+    showToast('Failed to load data', 'error');
+  }
+}
+
+/* ──────────────────────────────────────────
+   DASHBOARD
+────────────────────────────────────────── */
+async function loadDashboard() {
+  await loadAllData();
+
+  const byStatus = { available: 0, assigned: 0, sold: 0 };
+  allSerials.forEach(s => {
+    if (s.status && byStatus[s.status] !== undefined) byStatus[s.status]++;
+  });
+
+  const uniqueProducts = new Set(allSerials.map(s => s.product)).size;
+
+  document.getElementById('statsCards').innerHTML = `
+    <div class="stat-card stat-products">
+      <div class="stat-label">Products</div>
+      <div class="stat-value">${uniqueProducts}</div>
+    </div>
+    <div class="stat-card stat-units">
+      <div class="stat-label">Total Units</div>
+      <div class="stat-value">${allSerials.length}</div>
+    </div>
+    <div class="stat-card stat-available">
+      <div class="stat-label">Available</div>
+      <div class="stat-value">${byStatus.available}</div>
+    </div>
+    <div class="stat-card stat-transit">
+      <div class="stat-label">In Transit</div>
+      <div class="stat-value">${allSerials.filter(s => s.location === 'in_transit').length}</div>
+    </div>
+    <div class="stat-card stat-sold">
+      <div class="stat-label">Sold</div>
+      <div class="stat-value">${byStatus.sold}</div>
+    </div>
+    <div class="stat-card stat-mismatch">
+      <div class="stat-label">Anomalies</div>
+      <div class="stat-value" id="anomalyCount">—</div>
+    </div>
+  `;
+
+  loadAnomalyCount();
+}
+
+async function loadAnomalyCount() {
+  try {
+    const res = await fetch(`${BASE_URL}/inventory/anomalies`);
+    const data = await res.json();
+    const count = (data.missing?.length || 0) + (data.extra?.length || 0) +
+                  (data.mismatch?.length || 0) + (data.oversold?.length || 0);
+    const el = document.getElementById('anomalyCount');
+    if (el) el.textContent = count;
+  } catch (e) { /* non-critical */ }
+}
+
+/* ──────────────────────────────────────────
+   SCAN-IN
+   FIX: loadScanIn must be async (uses await)
+────────────────────────────────────────── */
+async function loadScanIn() {
+  await loadAllData();
+
+  const productSelect = document.getElementById('scanProduct');
+  productSelect.innerHTML = '<option value="">Select product...</option>' +
+    allProducts.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+
+  const locationSelect = document.getElementById('scanLocation');
+  locationSelect.innerHTML = allLocations
+    .map(l => `<option value="${esc(l.name)}">${esc(l.name)}</option>`).join('');
+
+  document.getElementById('selectedProductName').textContent = '—';
+  document.getElementById('tallyQtyDisplay').textContent = '—';
+  document.getElementById('scannedCount').textContent = '0';
+  pendingSerials = [];
+  renderPendingSerials();
+
+  // Auto-focus serial input after a short delay
+  setTimeout(() => {
+    const el = document.getElementById('scanSerial');
+    if (el) el.focus();
+  }, 150);
+}
+
+function onProductChange() {
+  const product = document.getElementById('scanProduct').value;
+  document.getElementById('selectedProductName').textContent = product || '—';
+
+  if (product) {
+    const serialsForProduct = allSerials.filter(s => s.product === product).length;
+    document.getElementById('tallyQtyDisplay').textContent = serialsForProduct;
+    document.getElementById('scannedCount').textContent =
+      pendingSerials.filter(s => s.product === product).length;
+  } else {
+    document.getElementById('tallyQtyDisplay').textContent = '—';
+    document.getElementById('scannedCount').textContent = '0';
+  }
+}
+
+function addSerialToList() {
+  const serialEl = document.getElementById('scanSerial');
+  const serial = serialEl.value.trim().toUpperCase();
+  if (!serial) return showToast('Enter serial number', 'error');
+
+  const product = document.getElementById('scanProduct').value;
+  if (!product) return showToast('Select product first', 'error');
+
+  // Check duplicate in pending list
+  if (pendingSerials.some(s => s.serial === serial)) {
+    return showToast('Serial already in list', 'error');
+  }
+  // Check duplicate in existing inventory
+  if (allSerials.some(s => s.serial === serial)) {
+    return showToast('Serial already exists in inventory', 'error');
+  }
+
+  pendingSerials.push({ serial, product });
+  serialEl.value = '';
+  onProductChange();
+  renderPendingSerials();
+
+  setTimeout(() => serialEl.focus(), 50);
+}
+
+function renderPendingSerials() {
+  const list = document.getElementById('scanList');
+  const count = pendingSerials.length;
+
+  // FIX: update span text safely instead of recreating DOM
+  const scanCountEl = document.getElementById('scanCount');
+  if (scanCountEl) scanCountEl.textContent = count;
+
+  const saveBtn = document.getElementById('saveScanBtn');
+  if (saveBtn) saveBtn.disabled = count === 0;
+
+  list.innerHTML = pendingSerials.map((s, i) => `
+    <div class="scan-item">
+      <span class="serial">${esc(s.serial)}</span>
+      <span style="color:var(--on-surface-variant);font-size:11px;flex-shrink:0;">${esc(s.product)}</span>
+      <button class="remove" data-idx="${i}" aria-label="Remove ${esc(s.serial)}">✕</button>
+    </div>
+  `).join('');
+}
+
+function removeSerial(index) {
+  pendingSerials.splice(index, 1);
+  onProductChange();
+  renderPendingSerials();
+}
+
+async function saveScannedSerials() {
+  const product = document.getElementById('scanProduct').value;
+  const location = document.getElementById('scanLocation').value;
+
+  if (!product) return showToast('Select a product first', 'error');
+  if (pendingSerials.length === 0) return showToast('No serials to save', 'error');
+
+  const btn = document.getElementById('saveScanBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Saving...';
+
+  try {
+    const res = await fetch(`${BASE_URL}/add-serial`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        serials: pendingSerials.map(s => s.serial),
+        product,
+        location
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast(data.error || 'Failed to save', 'error');
+    } else {
+      if (data.duplicates && data.duplicates.length > 0) {
+        showToast(`Saved ${data.saved} serials, ${data.duplicates.length} duplicates skipped`, 'warning');
+      } else {
+        showToast(`Saved ${data.saved} serials successfully`, 'success');
+      }
+      pendingSerials = [];
+      renderPendingSerials();
+      onProductChange();
+      await loadAllData();
+    }
+  } catch (e) {
+    showToast('Network error — check connection', 'error');
+  }
+
+  // FIX: restore button content correctly (no re-creating scanCount span)
+  btn.disabled = pendingSerials.length === 0;
+  btn.innerHTML = `<span class="material-symbols-outlined">save</span> Save All Serials (<span id="scanCount">${pendingSerials.length}</span>)`;
+}
+
+/* ──────────────────────────────────────────
+   STOCK LIST
+────────────────────────────────────────── */
+async function loadStockList() {
+  await loadAllData();
+  populateCategoryBrandDropdowns();
+  renderLocationFilters();
+  renderStockList();
+}
+
+/** Build Category and Brand <select> options from live serial data */
+function populateCategoryBrandDropdowns() {
+  const categories = new Set();
+  const brands     = new Set();
+
+  allSerials.forEach(s => {
+    const p = parseProductName(s.product);
+    if (p.category && p.category !== 'OTHER') categories.add(p.category);
+    if (p.brand    && p.brand    !== 'UNKNOWN') brands.add(p.brand);
+  });
+
+  const catSel   = document.getElementById('filterCategory');
+  const brandSel = document.getElementById('filterBrand');
+  if (!catSel || !brandSel) return;
+
+  const prevCat   = catSel.value;
+  const prevBrand = brandSel.value;
+
+  catSel.innerHTML   = '<option value="">All Categories</option>' +
+    [...categories].sort().map(c => `<option value="${esc(c)}" ${prevCat===c?'selected':''}>${esc(c)}</option>`).join('');
+  brandSel.innerHTML = '<option value="">All Brands</option>' +
+    [...brands].sort().map(b => `<option value="${esc(b)}" ${prevBrand===b?'selected':''}>${esc(b)}</option>`).join('');
+}
+
+function renderLocationFilters() {
+  const select = document.getElementById('filterLocation');
+  if (!select) return;
+  const currentVal = select.value;
+  select.innerHTML = `
+    <option value="">All Locations</option>
+    ${allLocations.map(l => `<option value="${esc(l.name)}">${esc(l.name)}</option>`).join('')}
+  `;
+  select.value = currentVal;
+}
+
+function availabilityBadge(available, total) {
+  let label, color, bg;
+  if (total === 0 || available === 0) {
+    label = 'No Stock'; color = '#ef4444'; bg = '#ef444420';
+  } else if (available <= 2) {
+    label = `Low (${available})`; color = '#f59e0b'; bg = '#f59e0b20';
+  } else if (available <= 5) {
+    label = `Average (${available})`; color = '#3b82f6'; bg = '#3b82f620';
+  } else {
+    label = `Good (${available})`; color = '#22c55e'; bg = '#22c55e20';
+  }
+  return `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
+    background:${bg};color:${color};border:1px solid ${color}44;white-space:nowrap;">${label}</span>`;
+}
+
+function renderStockList() {
+  const searchQuery = (document.getElementById('searchSerial')?.value || '').toLowerCase();
+  const filterCategory = document.getElementById('filterCategory')?.value || '';
+  const filterBrand    = document.getElementById('filterBrand')?.value    || '';
+  const filterLocation = document.getElementById('filterLocation')?.value || '';
+  const filterStatus   = document.getElementById('filterStatus')?.value   || '';
+
+  let filtered = allSerials;
+
+  // Location filter
+  if (filterLocation) {
+    filtered = filtered.filter(s => s.location === filterLocation);
+  }
+
+  // Category filter
+  if (filterCategory) {
+    filtered = filtered.filter(s => parseProductName(s.product).category === filterCategory);
+  }
+
+  // Brand filter
+  if (filterBrand) {
+    filtered = filtered.filter(s => parseProductName(s.product).brand === filterBrand);
+  }
+
+  // XML import source filter
+  if (filterXmlImported === 'xml') {
+    filtered = filtered.filter(s => s.importedFromXml === true || s.serial?.startsWith('XMLIMP-'));
+  } else if (filterXmlImported === 'nonxml') {
+    filtered = filtered.filter(s => !s.importedFromXml && !s.serial?.startsWith('XMLIMP-'));
+  }
+
+  // Text search
+  if (searchQuery) {
+    filtered = filtered.filter(s => {
+      const p = parseProductName(s.product);
+      return s.serial?.toLowerCase().includes(searchQuery) ||
+             s.product?.toLowerCase().includes(searchQuery) ||
+             p.brand?.toLowerCase().includes(searchQuery)  ||
+             p.model?.toLowerCase().includes(searchQuery)  ||
+             s.customer?.toLowerCase().includes(searchQuery);
+    });
+  }
+
+  // ── Group by product ──
+  const grouped = {};
+  filtered.forEach(s => {
+    const key = s.product || 'UNKNOWN';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(s);
+  });
+
+  let productKeys = Object.keys(grouped).sort();
+
+  // Availability filter (applied AFTER grouping, since it depends on product availability sum)
+  if (filterStatus) {
+    productKeys = productKeys.filter(key => {
+      const serials = grouped[key];
+      const availableCount = serials.filter(s => s.status === 'available').length;
+      if (filterStatus === 'no_stock') return availableCount === 0;
+      if (filterStatus === 'low') return availableCount > 0 && availableCount <= 2;
+      if (filterStatus === 'average') return availableCount > 2 && availableCount <= 5;
+      if (filterStatus === 'good') return availableCount > 5;
+      return true;
+    });
+  }
+
+  // Show/hide clear filters button
+  const hasFilters = filterLocation || filterStatus || filterCategory || filterBrand || searchQuery || filterXmlImported;
+  const clearBtn = document.getElementById('clearFiltersBtn');
+  if (clearBtn) clearBtn.style.display = hasFilters ? '' : 'none';
+
+  document.getElementById('filterXmlBtn')?.classList.toggle('active', filterXmlImported === 'xml');
+  document.getElementById('filterNonXmlBtn')?.classList.toggle('active', filterXmlImported === 'nonxml');
+
+  // Update subtitle — show total filtered units
+  const subtitle = document.getElementById('stockSubtitle');
+  if (subtitle) {
+    const totalProducts = productKeys.length;
+    let totalUnits = 0;
+    productKeys.forEach(k => totalUnits += grouped[k].length);
+    subtitle.innerHTML = hasFilters
+      ? `Showing <strong style="color:var(--primary);">${totalUnits} units</strong> across ${totalProducts} products matching filters (of ${allSerials.length} total)`
+      : `${totalProducts} products · <strong>${totalUnits} units</strong>`;
+  }
+
+
+  const totalPages = Math.max(1, Math.ceil(productKeys.length / PAGE_SIZE));
+  if (currentPage >= totalPages) currentPage = totalPages - 1;
+
+  const start = currentPage * PAGE_SIZE;
+  const paged = productKeys.slice(start, start + PAGE_SIZE);
+
+  document.getElementById('stockTableBody').innerHTML = paged.map(productKey => {
+    const serials  = grouped[productKey];
+    const p        = parseProductName(productKey);
+    const total    = serials.length;
+    const displayName = getDisplayName(productKey);
+
+    // Status breakdown
+    const available = serials.filter(s => s.status === 'available').length;
+    const inTransit = serials.filter(s => s.status === 'in_transit' || s.location === 'in_transit').length;
+    const sold = serials.filter(s => s.status === 'sold' || s.status === 'delivered').length;
+    const assigned = serials.filter(s => s.status === 'assigned').length;
+
+    // ── Location summary ──
+    const byLoc = {};
+    serials.forEach(s => {
+      const loc = s.location || 'unknown';
+      if (!byLoc[loc]) byLoc[loc] = 0;
+      byLoc[loc]++;
+    });
+
+    const locHtml = Object.entries(byLoc).map(([loc, count]) => {
+      return `<div style="display:inline-flex;align-items:center;gap:4px;margin:2px 4px 2px 0;
+        padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;
+        background:rgba(173,198,255,0.08);border:1px solid rgba(173,198,255,0.15);">
+        <span style="text-transform:uppercase;letter-spacing:.3px;color:var(--on-surface-variant);">${esc(loc)}</span>
+        <span style="color:var(--primary);font-family:var(--font-mono);">${count}</span>
+      </div>`;
+    }).join('');
+
+    // Quantity with big visible display
+    const qtyColor = available === 0 ? '#ef4444' : available <= 2 ? '#f59e0b' : '#22c55e';
+    const qtyHtml = `
+      <div style="text-align:center;">
+        <div style="font-family:var(--font-mono);font-size:28px;font-weight:900;color:${qtyColor};line-height:1;">${total}</div>
+        <div style="display:flex;gap:6px;justify-content:center;margin-top:6px;flex-wrap:wrap;">
+          ${available > 0 ? `<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(34,197,94,0.15);color:#22c55e;">✓ ${available}</span>` : ''}
+          ${inTransit > 0 ? `<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(245,158,11,0.15);color:#fbbf24;">⇄ ${inTransit}</span>` : ''}
+          ${sold > 0 ? `<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(139,92,246,0.15);color:#a78bfa;">✗ ${sold}</span>` : ''}
+          ${assigned > 0 ? `<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(59,130,246,0.15);color:#3b82f6;">⊙ ${assigned}</span>` : ''}
+        </div>
+      </div>
+    `;
+
+    return `
+      <tr>
+        <td>${badge(p.category)}</td>
+        <td style="font-weight:700;">${esc(p.brand)}</td>
+        <td style="color:var(--on-surface-variant);font-size:12px;max-width:200px;">
+          <div style="display:flex;align-items:center;">
+            <div style="font-weight:600;color:var(--on-surface); flex:1;">${esc(displayName !== productKey ? displayName : p.model)}</div>
+            <span class="material-symbols-outlined rename-btn" style="font-size:16px;" data-rename-product="${esc(productKey)}" title="Rename display name">edit</span>
+          </div>
+          ${displayName !== productKey ? `<div style="font-size:10px;color:var(--outline);margin-top:2px;">${esc(p.model)}</div>` : ''}
+        </td>
+        <td style="min-width:140px;">${qtyHtml}</td>
+        <td style="min-width:140px;">${locHtml}</td>
+        <td>${availabilityBadge(available, total)}</td>
+      </tr>
+    `;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--on-surface-variant);">No results</td></tr>';
+
+  document.getElementById('pageInfo').textContent = `Page ${currentPage + 1} of ${totalPages}`;
+  document.getElementById('prevPage').disabled  = currentPage === 0;
+  document.getElementById('nextPage').disabled  = currentPage >= totalPages - 1;
+}
+
+/** Helper: group ALL serials by product (for subtitle totals) */
+function groupAllSerials() {
+  const g = {};
+  allSerials.forEach(s => { const k = s.product || 'UNKNOWN'; if (!g[k]) g[k] = []; g[k].push(s); });
+  return g;
+}
+
+function clearAllFilters() {
+  const els = ['filterLocation', 'filterStatus', 'filterCategory', 'filterBrand', 'searchSerial'];
+  els.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  filterXmlImported = '';
+  currentPage = 0;
+  renderStockList();
+}
+
+function prevPage() {
+  if (currentPage > 0) { currentPage--; renderStockList(); }
+}
+function nextPage() {
+  currentPage++;
+  renderStockList();
+}
+
+/* ──────────────────────────────────────────
+   TRANSFER — Product + Quantity based
+────────────────────────────────────────── */
+async function loadTransfer() {
+  await loadAllData();
+  transferCart = [];
+
+  // Render "from" buttons
+  const fromContainer = document.getElementById('transferFromButtons');
+  fromContainer.innerHTML = allLocations.map(l => `
+    <button class="filter-btn ${transferFrom === l.name ? 'active' : ''}"
+      data-transfer-from="${esc(l.name)}">${esc(l.name)}</button>
+  `).join('');
+
+  // Set default transferFrom
+  if (!transferFrom && allLocations.length > 0) {
+    transferFrom = allLocations[0].name;
+    const firstBtn = fromContainer.querySelector('.filter-btn');
+    if (firstBtn) firstBtn.classList.add('active');
+  }
+
+  renderTransferToOptions();
+  populateTransferProducts();
+  renderTransferCart();
+}
+
+function renderTransferToOptions() {
+  const toSelect = document.getElementById('transferLocation');
+  toSelect.innerHTML = allLocations
+    .filter(l => l.name !== transferFrom)
+    .map(l => `<option value="${esc(l.name)}">${esc(l.name)}</option>`).join('');
+}
+
+function selectTransferFrom(from) {
+  transferFrom = from;
+  transferCart = [];
+
+  // Update button active states
+  document.querySelectorAll('[data-transfer-from]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.transferFrom === from);
+  });
+
+  renderTransferToOptions();
+  populateTransferProducts();
+  renderTransferCart();
+}
+
+function populateTransferProducts() {
+  const productSelect = document.getElementById('transferProduct');
+  if (!productSelect) return;
+
+  // Group available serials by product at the selected source location
+  const byProduct = {};
+  allSerials.forEach(s => {
+    if (s.location === transferFrom && s.status === 'available') {
+      const pName = s.product || 'UNKNOWN';
+      byProduct[pName] = (byProduct[pName] || 0) + 1;
+    }
+  });
+
+  const sortedProducts = Object.entries(byProduct).sort((a, b) => a[0].localeCompare(b[0]));
+  productSelect.innerHTML = '<option value="">Select product...</option>' +
+    sortedProducts.map(([name, qty]) => `<option value="${esc(name)}">${esc(getDisplayName(name))} (${qty} available)</option>`).join('');
+
+  // Hide availability info
+  const availInfo = document.getElementById('transferAvailInfo');
+  if (availInfo) availInfo.style.display = 'none';
+}
+
+function onTransferProductChange() {
+  const product = document.getElementById('transferProduct')?.value;
+  const availInfo = document.getElementById('transferAvailInfo');
+  const availCount = document.getElementById('transferAvailCount');
+  const qtyInput = document.getElementById('transferQty');
+
+  if (!product) {
+    if (availInfo) availInfo.style.display = 'none';
+    return;
+  }
+
+  const available = allSerials.filter(s =>
+    s.product === product && s.location === transferFrom && s.status === 'available'
+  ).length;
+
+  if (availInfo) availInfo.style.display = '';
+  if (availCount) availCount.textContent = available;
+  if (qtyInput) {
+    qtyInput.max = available;
+    qtyInput.value = Math.min(parseInt(qtyInput.value) || 1, available);
+  }
+}
+
+function addToTransferCart() {
+  const product = document.getElementById('transferProduct')?.value;
+  const qty = parseInt(document.getElementById('transferQty')?.value) || 0;
+
+  if (!product) return showToast('Select a product', 'error');
+  if (qty <= 0) return showToast('Enter a valid quantity', 'error');
+
+  const available = allSerials.filter(s =>
+    s.product === product && s.location === transferFrom && s.status === 'available'
+  ).length;
+
+  // Check if product already in cart
+  const existingIdx = transferCart.findIndex(c => c.product === product);
+  const alreadyInCart = existingIdx >= 0 ? transferCart[existingIdx].quantity : 0;
+
+  if (alreadyInCart + qty > available) {
+    return showToast(`Only ${available - alreadyInCart} more available (${alreadyInCart} already in cart)`, 'error');
+  }
+
+  if (existingIdx >= 0) {
+    transferCart[existingIdx].quantity += qty;
+  } else {
+    transferCart.push({ product, quantity: qty, displayName: getDisplayName(product) });
+  }
+
+  // Reset form
+  document.getElementById('transferProduct').value = '';
+  document.getElementById('transferQty').value = '1';
+  const availInfo = document.getElementById('transferAvailInfo');
+  if (availInfo) availInfo.style.display = 'none';
+
+  renderTransferCart();
+  showToast(`Added ${qty}× ${getDisplayName(product)} to cart`, 'success');
+}
+
+function removeFromTransferCart(index) {
+  transferCart.splice(index, 1);
+  renderTransferCart();
+}
+
+function renderTransferCart() {
+  const section = document.getElementById('transferCartSection');
+  const body = document.getElementById('transferCartBody');
+  const countEl = document.getElementById('transferCartCount');
+  const totalQtyEl = document.getElementById('transferTotalQty');
+  const btn = document.getElementById('transferBtn');
+
+  if (!section || !body) return;
+
+  const totalQty = transferCart.reduce((s, c) => s + c.quantity, 0);
+
+  section.style.display = transferCart.length > 0 ? '' : 'none';
+  if (countEl) countEl.textContent = transferCart.length;
+  if (totalQtyEl) totalQtyEl.textContent = totalQty;
+  if (btn) btn.disabled = transferCart.length === 0;
+
+  body.innerHTML = transferCart.map((item, i) => `
+    <tr>
+      <td style="font-weight:600;">${esc(item.displayName)}</td>
+      <td>
+        <span style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--primary);">${item.quantity}</span>
+      </td>
+      <td>
+        <button class="btn-xs btn-xs-primary" data-cart-remove="${i}" style="background:rgba(239,68,68,0.15);color:#ef4444;">
+          <span class="material-symbols-outlined" style="font-size:14px;">delete</span>
+        </button>
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--on-surface-variant);">Cart is empty — add products above</td></tr>';
+}
+
+async function executeTransfer() {
+  const toLocation = document.getElementById('transferLocation')?.value;
+  if (!toLocation) return showToast('Select a destination location', 'error');
+  if (transferCart.length === 0) return showToast('Add products to cart first', 'error');
+  if (transferFrom === toLocation) return showToast('Source and destination cannot be the same', 'error');
+
+  const btn = document.getElementById('transferBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Transferring...';
+
+  try {
+    const res = await fetch(`${BASE_URL}/transfer-by-product`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: transferCart.map(c => ({ product: c.product, quantity: c.quantity })),
+        fromLocation: transferFrom,
+        toLocation
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast(data.error || 'Transfer failed', 'error');
+    } else {
+      showToast(`✓ Transferred ${data.totalTransferred} units successfully`, 'success');
+      transferCart = [];
+      await loadAllData();
+      populateTransferProducts();
+      renderTransferCart();
+    }
+  } catch (e) {
+    showToast('Network error — check connection', 'error');
+  }
+
+  const totalQty = transferCart.reduce((s, c) => s + c.quantity, 0);
+  btn.disabled = transferCart.length === 0;
+  btn.innerHTML = `<span class="material-symbols-outlined">check</span> Transfer All (<span id="transferTotalQty">${totalQty}</span> units)`;
+}
+
+/* ──────────────────────────────────────────
+   CATEGORIES
+────────────────────────────────────────── */
+async function loadCategories() {
+  await loadAllData();
+
+  // Use parseProductName for consistent category grouping
+  const byCategory = {};
+  allSerials.forEach(s => {
+    const p = parseProductName(s.product);
+    const cat = p.category || 'OTHER';
+    if (!byCategory[cat]) byCategory[cat] = { total: 0, products: {} };
+    byCategory[cat].total++;
+    const displayName = getDisplayName(s.product);
+    byCategory[cat].products[displayName] = (byCategory[cat].products[displayName] || 0) + 1;
+  });
+
+  document.getElementById('categoryGrid').innerHTML = Object.entries(byCategory)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([cat, data], idx) => {
+      const productEntries = Object.entries(data.products).sort((a, b) => b[1] - a[1]);
+      return `
+      <div class="category-card" data-cat-idx="${idx}" style="cursor:pointer;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="category-name">${esc(cat)}</div>
+          <span style="font-family:var(--font-mono);font-size:28px;font-weight:900;color:var(--primary);">${data.total}</span>
+        </div>
+        <div style="font-size:11px;color:var(--on-surface-variant);margin-bottom:8px;">${productEntries.length} product${productEntries.length !== 1 ? 's' : ''}</div>
+        <div class="category-products" data-cat-products="${idx}" style="display:none;">
+          ${productEntries.map(([name, qty]) => `
+            <div class="category-item">
+              <span class="name" style="flex:1;">${esc(name)}</span>
+              <span class="qty" style="font-size:14px;">${qty}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div style="text-align:center;margin-top:6px;font-size:10px;color:var(--outline);">
+          <span class="material-symbols-outlined" style="font-size:14px;" data-cat-chevron="${idx}">expand_more</span>
+          Click to expand
+        </div>
+      </div>
+    `;
+    }).join('') || '<p style="color:var(--on-surface-variant);padding:16px;">No categories found.</p>';
+}
+
+/* ──────────────────────────────────────────
+   ANOMALIES
+────────────────────────────────────────── */
+async function loadAnomalies() {
+  const listEl = document.getElementById('anomalyList');
+  const noneEl = document.getElementById('noAnomalies');
+  listEl.innerHTML = '<p style="color:var(--on-surface-variant);padding:8px;">Loading...</p>';
+  noneEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`${BASE_URL}/inventory/anomalies`);
+    const data = await res.json();
+
+    const items = [
+      ...(data.missing  || []).map(i => ({ type: 'missing', ...i })),
+      ...(data.extra    || []).map(i => ({ type: 'extra', ...i })),
+      ...(data.mismatch || []).map(i => ({ type: 'mismatch', ...i })),
+      ...(data.oversold || []).map(i => ({ type: 'oversold', ...i }))
+    ];
+
+    const icons  = { missing: '🔴', extra: '🟡', mismatch: '🟣', oversold: '🔴' };
+    const titles = { missing: 'Missing Units', extra: 'Extra Units', mismatch: 'Qty Mismatch', oversold: 'Oversold' };
+
+    listEl.innerHTML = items.map(item => `
+      <div class="anomaly-item ${item.type}">
+        <span class="anomaly-icon">${icons[item.type] || '⚠️'}</span>
+        <div class="anomaly-content">
+          <div class="anomaly-title">${titles[item.type] || item.type}: ${esc(item.product)}</div>
+          <div class="anomaly-desc">
+            Tally: <strong>${item.tallyQty ?? 0}</strong> &nbsp;|&nbsp;
+            System: <strong>${item.systemQty ?? 0}</strong> &nbsp;|&nbsp;
+            Diff: <strong style="color:${(item.tallyQty ?? 0) !== (item.systemQty ?? 0) ? '#ef4444' : 'inherit'}">${(item.tallyQty ?? 0) - (item.systemQty ?? 0)}</strong>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    noneEl.style.display = items.length === 0 ? 'block' : 'none';
+    if (items.length === 0) listEl.innerHTML = '';
+  } catch (e) {
+    listEl.innerHTML = '';
+    showToast('Failed to load anomalies', 'error');
+  }
+}
+
+/* ──────────────────────────────────────────
+   LOCATIONS
+────────────────────────────────────────── */
+async function loadLocations() {
+  await loadAllData();
+  renderLocations();
+}
+
+function renderLocations() {
+  const list = document.getElementById('locationList');
+  if (!list) return;
+  list.innerHTML = allLocations.map(l => `
+    <div class="location-chip">
+      <span class="material-symbols-outlined" style="font-size:16px;">location_on</span>
+      ${esc(l.name)}
+      ${allLocations.length > 1
+        ? `<button class="delete" data-loc-id="${esc(l.id || l.name)}" aria-label="Delete ${esc(l.name)}">✕</button>`
+        : ''}
+    </div>
+  `).join('');
+}
+
+async function addLocation() {
+  const input = document.getElementById('newLocationName');
+  const name = input.value.trim();
+  if (!name) return showToast('Enter location name', 'error');
+
+  const btn = document.getElementById('addLocationBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Adding...';
+
+  try {
+    const res = await fetch(`${BASE_URL}/inventory/locations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+
+    if (res.status === 409) {
+      showToast('Location already exists', 'error');
+    } else if (!res.ok) {
+      showToast('Failed to add location', 'error');
+    } else {
+      showToast('Location added', 'success');
+      input.value = '';
+      await loadAllData();
+      renderLocations();
+    }
+  } catch (e) {
+    showToast('Network error', 'error');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Add Location';
+}
+
+async function deleteLocation(id) {
+  if (!confirm('Delete this location?')) return;
+
+  try {
+    const res = await fetch(`${BASE_URL}/inventory/locations/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      showToast('Location deleted', 'success');
+      await loadAllData();
+      renderLocations();
+    } else {
+      showToast('Failed to delete location', 'error');
+    }
+  } catch (e) {
+    showToast('Network error', 'error');
+  }
+}
+
+/* ──────────────────────────────────────────
+   XML IMPORT
+────────────────────────────────────────── */
+
+/* ── XML import mode state ── */
+let xmlSelectMode = false;
+let xmlSelectedIndices = new Set();
+
+/** Called when XML view loads — populate the location dropdown */
+function loadXmlImport() {
+  const locSel = document.getElementById('xmlDefaultLocation');
+  if (locSel) {
+    locSel.innerHTML = allLocations
+      .map(l => `<option value="${esc(l.name)}">${esc(l.name)}</option>`).join('');
+  }
+  // Reset state
+  xmlParsedProducts = [];
+  xmlSelectMode = false;
+  xmlSelectedIndices = new Set();
+  document.getElementById('xmlPreview').style.display = 'none';
+  document.getElementById('xmlPreviewBody').innerHTML = '';
+  document.getElementById('xmlSelectBar').style.display = 'none';
+  document.getElementById('xmlSelectAllCol').style.display = 'none';
+}
+
+async function handleXmlFile(file) {
+  if (!file) return;
+  if (allLocations.length === 0) await loadAllData();
+  loadXmlImport();
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const xml = e.target.result;
+      try {
+        const res  = await fetch(`${BASE_URL}/parse-tally-xml`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ xml })
+        });
+        const data = await res.json();
+        if (data.products && data.products.length > 0) {
+          xmlParsedProducts = data.products;
+          xmlSkippedItems = data.skipped || [];
+          renderXmlPreview();
+        } else {
+          showToast('No products found in XML', 'warning');
+        }
+      } catch (err) {
+        showToast('Failed to parse XML', 'error');
+      }
+      resolve();
+    };
+    reader.readAsText(file, 'UTF-16');
+  });
+}
+
+function renderXmlPreview() {
+  const preview = document.getElementById('xmlPreview');
+  const countEl = document.getElementById('xmlPreviewCount');
+  const tbody   = document.getElementById('xmlPreviewBody');
+  if (!preview || !tbody) return;
+
+  preview.style.display = 'block';
+  if (countEl) countEl.textContent = xmlParsedProducts.length;
+
+  // Summary bar
+  const totalTally   = xmlParsedProducts.reduce((s, p) => s + (p.tallyQty ?? 0), 0);
+  const totalInStock = xmlParsedProducts.reduce((s, p) => s + (p.alreadyAdded ?? 0), 0);
+  const totalMissing = xmlParsedProducts.reduce((s, p) => s + (p.missing ?? 0), 0);
+  const complete     = xmlParsedProducts.filter(p => (p.missing ?? 0) === 0).length;
+  const summaryBar   = document.getElementById('xmlSummaryBar');
+  if (summaryBar) {
+    summaryBar.innerHTML = `
+      <div style="flex:1;min-width:100px;text-align:center;">
+        <div style="font-size:11px;color:var(--on-surface-variant);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Products</div>
+        <div style="font-size:22px;font-weight:800;color:var(--primary);">${xmlParsedProducts.length}</div>
+      </div>
+      <div style="flex:1;min-width:100px;text-align:center;">
+        <div style="font-size:11px;color:var(--on-surface-variant);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Tally Total</div>
+        <div style="font-size:22px;font-weight:800;">${totalTally}</div>
+      </div>
+      <div style="flex:1;min-width:100px;text-align:center;">
+        <div style="font-size:11px;color:var(--on-surface-variant);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">In System</div>
+        <div style="font-size:22px;font-weight:800;color:var(--tertiary);">${totalInStock}</div>
+      </div>
+      <div style="flex:1;min-width:100px;text-align:center;">
+        <div style="font-size:11px;color:var(--on-surface-variant);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Missing</div>
+        <div style="font-size:22px;font-weight:800;color:${totalMissing > 0 ? '#ef4444' : 'var(--tertiary)'};">${totalMissing}</div>
+      </div>
+      <div style="flex:1;min-width:100px;text-align:center;">
+        <div style="font-size:11px;color:var(--on-surface-variant);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Complete</div>
+        <div style="font-size:22px;font-weight:800;color:var(--tertiary);">${complete}</div>
+      </div>
+    `;
+  }
+
+  renderXmlTable();
+  renderXmlMatchTable();
+}
+
+function renderXmlTable() {
+  const tbody = document.getElementById('xmlPreviewBody');
+  if (!tbody) return;
+
+  tbody.innerHTML = xmlParsedProducts.map((p, i) => {
+    const missing = p.missing ?? 0;
+    const hasMiss = missing > 0;
+    const checked = xmlSelectedIndices.has(i);
+
+    let statusHtml;
+    if (hasMiss)  statusHtml = `<span style="color:#ef4444;font-weight:700;font-size:12px;">⚠ Missing ${missing}</span>`;
+    else           statusHtml = `<span style="color:var(--tertiary);font-weight:700;font-size:12px;">✓ Complete</span>`;
+
+    const selectCell = xmlSelectMode
+      ? `<td style="text-align:center;"><input type="checkbox" class="xml-row-check" data-idx="${i}" ${checked ? 'checked' : ''}></td>`
+      : '';
+
+    return `
+      <tr class="${hasMiss ? 'has-missing' : ''}" data-xml-row="${i}">
+        ${selectCell}
+        <td style="font-weight:600;max-width:220px;">${esc(p.product)}</td>
+        <td>${badge(p.category || 'OTHER')}</td>
+        <td style="font-family:var(--font-mono);font-weight:700;">${p.tallyQty ?? 0}</td>
+        <td style="font-family:var(--font-mono);color:var(--tertiary);font-weight:700;">${p.alreadyAdded ?? 0}</td>
+        <td class="${hasMiss ? 'preview-missing' : 'preview-ok'}" style="font-family:var(--font-mono);font-weight:700;">${missing}</td>
+        <td>${statusHtml}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/** Part 3: Match Stock Quantity Comparison Table */
+function renderXmlMatchTable() {
+  const matchSection = document.getElementById('xmlMatchSection');
+  const matchBody = document.getElementById('xmlMatchBody');
+  if (!matchSection || !matchBody) return;
+
+  if (xmlParsedProducts.length === 0) {
+    matchSection.style.display = 'none';
+    return;
+  }
+
+  matchSection.style.display = '';
+  matchBody.innerHTML = xmlParsedProducts.map(p => {
+    const diff = (p.tallyQty || 0) - (p.alreadyAdded || 0);
+    const diffColor = diff > 0 ? '#ef4444' : diff < 0 ? '#3b82f6' : '#22c55e';
+    const diffText = diff > 0 ? `-${diff} (MISSING)` : diff < 0 ? `+${Math.abs(diff)} (EXTRA)` : 'MATCH';
+
+    return `
+      <tr>
+        <td style="font-size:12px;font-weight:600;">${esc(getDisplayName(p.product))}</td>
+        <td style="font-family:var(--font-mono);">${p.tallyQty || 0}</td>
+        <td style="font-family:var(--font-mono);">${p.alreadyAdded || 0}</td>
+        <td style="font-family:var(--font-mono);font-weight:900;color:${diffColor};">${diffText}</td>
+        <td>
+          ${diff > 0 ? `
+            <button class="btn-xs btn-xs-primary" onclick="showScanForProduct('${esc(p.product)}')">
+              Scan-In
+            </button>
+          ` : '—'}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function showScanForProduct(productName) {
+  showView('scan-in');
+  const productSelect = document.getElementById('scanProduct');
+  if (productSelect) {
+    productSelect.value = productName;
+    onProductChange();
+  }
+}
+
+/** Part 2: Product Rename Mapping */
+function openRenameModal(productName) {
+  const modal = document.getElementById('renameModal');
+  const originalEl = document.getElementById('renameOriginalName');
+  const input = document.getElementById('renameInput');
+  const docIdHidden = document.getElementById('renameDocId');
+
+  if (!modal || !originalEl || !input) return;
+
+  const mapping = productDisplayNames[productName] || {};
+  originalEl.textContent = productName;
+  input.value = mapping.displayName || '';
+  // docId is productName sanitized for Firestore
+  docIdHidden.value = productName.replace(/[^a-zA-Z0-9]/g, '_');
+
+  modal.style.display = 'flex';
+  input.focus();
+}
+
+async function saveProductRename() {
+  const docId = document.getElementById('renameDocId')?.value;
+  const displayName = document.getElementById('renameInput')?.value?.trim();
+  const originalName = document.getElementById('renameOriginalName')?.textContent;
+
+  if (!docId || !displayName) return showToast('Enter a display name', 'error');
+
+  const btn = document.getElementById('renameConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const res = await fetch(`${BASE_URL}/inventory/products/${encodeURIComponent(docId)}/rename`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName })
+    });
+
+    if (res.ok) {
+      showToast('✓ Product renamed', 'success');
+      document.getElementById('renameModal').style.display = 'none';
+      await loadProductNames();
+      renderStockList();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Failed to rename', 'error');
+    }
+  } catch (e) {
+    showToast('Network error', 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Save changes';
+}
+
+/** Enter / exit select mode */
+function enterXmlSelectMode() {
+  xmlSelectMode = true;
+  xmlSelectedIndices = new Set();
+  document.getElementById('xmlSelectAllCol').style.display = '';
+  document.getElementById('xmlSelectBar').style.display = 'flex';
+  renderXmlTable();
+  updateXmlSelectedCount();
+}
+
+function exitXmlSelectMode() {
+  xmlSelectMode = false;
+  xmlSelectedIndices = new Set();
+  document.getElementById('xmlSelectAllCol').style.display = 'none';
+  document.getElementById('xmlSelectBar').style.display = 'none';
+  const saEl = document.getElementById('xmlSelectAll');
+  if (saEl) saEl.checked = false;
+  renderXmlTable();
+}
+
+function updateXmlSelectedCount() {
+  const el = document.getElementById('xmlSelectedCount');
+  if (el) el.textContent = `${xmlSelectedIndices.size} product${xmlSelectedIndices.size !== 1 ? 's' : ''} selected`;
+}
+
+/** Show confirmation modal then call import */
+function xmlShowConfirmModal(mode, products) {
+  const totalMissing = products.reduce((s, p) => s + Math.max(0, p.missing ?? 0), 0);
+
+  const location = document.getElementById('xmlDefaultLocation')?.value || '';
+  const modeLabel = mode === 'all' ? 'Import All Products' :
+                    mode === 'missing' ? 'Import Missing Only' : 'Import Selected';
+
+  document.getElementById('xmlModalTitle').textContent = `Confirm: ${modeLabel}`;
+  document.getElementById('xmlModalBody').innerHTML = `
+    <strong>${products.length}</strong> product${products.length !== 1 ? 's' : ''} will be imported
+    with tally quantities updated.<br><br>
+    <strong>${totalMissing}</strong> total units are missing serials — you can scan them later via Scan-In.<br><br>
+    <span style="color:var(--tertiary);font-size:12px;">ℹ XML only sets expected quantities. No serials are auto-generated.</span>
+  `;
+
+  const modal = document.getElementById('xmlImportModal');
+  modal.style.display = 'flex';
+
+  // Wire confirm
+  const confirmBtn = document.getElementById('xmlModalConfirm');
+  const cancelBtn  = document.getElementById('xmlModalCancel');
+
+  const cleanup = () => { modal.style.display = 'none'; confirmBtn.onclick = null; cancelBtn.onclick = null; };
+
+  cancelBtn.onclick = cleanup;
+  confirmBtn.onclick = async () => {
+    cleanup();
+    await executeXmlImport(mode, products, location);
+  };
+}
+
+async function executeXmlImport(mode, products, location) {
+  showToast('Importing… please wait', 'default');
+
+  // Disable all import buttons
+  ['xmlImportAllBtn','xmlImportMissingBtn','xmlImportSelectBtn','xmlConfirmSelectBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = true;
+  });
+
+  try {
+    const res  = await fetch(`${BASE_URL}/import-xml-stock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products, location, mode })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast(data.error || 'Import failed', 'error');
+      return;
+    }
+
+    // Show import summary
+    const summaryHtml = `
+      <div style="padding:16px;border-radius:10px;background:var(--surface-container-high);margin-top:16px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+          <span class="material-symbols-outlined" style="color:var(--tertiary);">check_circle</span>
+          Import Complete
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;">
+          <div><span style="font-size:11px;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:.5px;">Processed</span><br>
+            <span style="font-family:var(--font-mono);font-size:20px;font-weight:800;">${data.totalProcessed || 0}</span></div>
+          <div><span style="font-size:11px;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:.5px;">Updated</span><br>
+            <span style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--tertiary);">${data.totalUpdated || 0}</span></div>
+          <div><span style="font-size:11px;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:.5px;">Skipped</span><br>
+            <span style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:${(data.totalSkipped || 0) > 0 ? '#f59e0b' : 'var(--on-surface)'}">${data.totalSkipped || 0}</span></div>
+        </div>
+        ${(data.skippedItems && data.skippedItems.length > 0) ? `
+          <div style="margin-top:12px;font-size:12px;color:var(--on-surface-variant);">
+            <strong>Skipped items:</strong>
+            ${data.skippedItems.map(s => `<div style="padding:2px 0;">• ${esc(s.product)} — ${esc(s.reason)}</div>`).join('')}
+          </div>
+        ` : ''}
+        <div style="margin-top:12px;font-size:12px;color:var(--on-surface-variant);">
+          ${data.message || 'Tally quantities imported. Scan serials manually to add inventory.'}
+        </div>
+      </div>
+    `;
+
+    // Insert summary after the preview section
+    const summaryContainer = document.getElementById('xmlImportSummary');
+    if (summaryContainer) {
+      summaryContainer.innerHTML = summaryHtml;
+      summaryContainer.style.display = '';
+    }
+
+    showToast(`✓ Updated ${data.totalUpdated || 0} products`, 'success');
+    exitXmlSelectMode();
+
+    // Refresh data and re-render preview
+    await loadAllData();
+    const xmlInput = document.getElementById('xmlFileInput');
+    if (xmlInput?.files?.[0]) {
+      await handleXmlFile(xmlInput.files[0]);
+    }
+  } catch (err) {
+    showToast('Import failed: ' + err.message, 'error');
+  } finally {
+    ['xmlImportAllBtn','xmlImportMissingBtn','xmlImportSelectBtn','xmlConfirmSelectBtn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = false;
+    });
+  }
+}
+
+/* ──────────────────────────────────────────
+   TALLY SYNC
+────────────────────────────────────────── */
+async function loadSyncSettings() {
+  try {
+    const res = await fetch(`${BASE_URL}/inventory/sync-settings`);
+    const data = await res.json();
+    autoSyncEnabled = data.autoSync || false;
+    lastSync = data.lastSync;
+
+    const toggle = document.getElementById('autoSyncToggle');
+    if (toggle) {
+      toggle.classList.toggle('on', autoSyncEnabled);
+      toggle.setAttribute('aria-checked', autoSyncEnabled);
+    }
+
+    const lastSyncEl = document.getElementById('lastSyncTime');
+    if (lastSyncEl) {
+      lastSyncEl.textContent = lastSync ? new Date(lastSync).toLocaleString('en-IN') : 'Never';
+    }
+  } catch (e) { /* silent — settings may not be configured */ }
+}
+
+async function toggleAutoSync() {
+  autoSyncEnabled = !autoSyncEnabled;
+  const toggle = document.getElementById('autoSyncToggle');
+  if (toggle) {
+    toggle.classList.toggle('on', autoSyncEnabled);
+    toggle.setAttribute('aria-checked', autoSyncEnabled);
+  }
+
+  try {
+    await fetch(`${BASE_URL}/inventory/sync-settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ autoSync: autoSyncEnabled })
+    });
+    showToast(autoSyncEnabled ? 'Auto sync enabled' : 'Auto sync disabled', 'success');
+  } catch (e) {
+    showToast('Failed to update settings', 'error');
+  }
+}
+
+async function syncNow() {
+  const indicator = document.getElementById('syncIndicator');
+  const statusEl  = document.getElementById('syncStatus');
+  const btn       = document.getElementById('syncNowBtn');
+
+  if (!btn) return;
+
+  indicator?.classList.add('syncing');
+  if (statusEl) statusEl.textContent = 'Syncing...';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Syncing...';
+
+  try {
+    const res = await fetch(`${BASE_URL}/sync-tally`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast(data.error || 'Sync failed', 'error');
+      if (statusEl) statusEl.textContent = 'Failed';
+    } else {
+      showToast(`Synced ${data.count || 0} products`, 'success');
+      if (statusEl) statusEl.textContent = 'Success';
+      const lastSyncEl = document.getElementById('lastSyncTime');
+      if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleString('en-IN');
+      await loadAllData();
+    }
+  } catch (e) {
+    showToast('Sync failed — check Tally connection', 'error');
+    if (statusEl) statusEl.textContent = 'Error';
+  }
+
+  indicator?.classList.remove('syncing');
+  btn.disabled = false;
+  btn.innerHTML = '<span class="material-symbols-outlined">sync</span> Sync Now';
+}
+
+/* ──────────────────────────────────────────
+   THEME TOGGLE
+────────────────────────────────────────── */
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') !== 'light';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  const icon = document.getElementById('themeIcon');
+  if (icon) icon.textContent = isDark ? 'dark_mode' : 'light_mode';
+  try { localStorage.setItem('stock-theme', isDark ? 'light' : 'dark'); } catch(e) {}
+}
+
+function applyStoredTheme() {
+  try {
+    const saved = localStorage.getItem('stock-theme');
+    if (saved === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+      const icon = document.getElementById('themeIcon');
+      if (icon) icon.textContent = 'dark_mode';
+    }
+  } catch(e) {}
+}
+
+/* ──────────────────────────────────────────
+   EVENT LISTENERS — bound with addEventListener
+   FIX: no inline onclick that rely on implicit `event` global
+────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  applyStoredTheme();
+
+  // ── Sidebar navigation ──
+  document.querySelectorAll('.sidebar-item[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => showView(btn.dataset.view, btn));
+  });
+  // ── Quick-action nav buttons ──
+  document.querySelectorAll('[data-nav]').forEach(btn => {
+    btn.addEventListener('click', () => showView(btn.dataset.nav));
+  });
+
+  // ── Hamburger + sidebar close ──
+  document.getElementById('hamburgerBtn')?.addEventListener('click', openSidebar);
+  document.getElementById('sidebarClose')?.addEventListener('click', closeSidebar);
+  document.getElementById('sidebarOverlay')?.addEventListener('click', closeSidebar);
+
+  // ── Theme toggle ──
+  document.getElementById('themeToggleBtn')?.addEventListener('click', toggleTheme);
+
+  // ── Scan-In: product change ──
+  document.getElementById('scanProduct')?.addEventListener('change', onProductChange);
+  document.getElementById('addSerialBtn')?.addEventListener('click', addSerialToList);
+  document.getElementById('scanSerial')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addSerialToList(); }
+  });
+  document.getElementById('scanList')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.remove');
+    if (btn) removeSerial(parseInt(btn.dataset.idx, 10));
+  });
+  document.getElementById('saveScanBtn')?.addEventListener('click', saveScannedSerials);
+
+  // ── Stock list: filters ──
+  document.getElementById('filterXmlBtn')?.addEventListener('click', () => {
+    filterXmlImported = filterXmlImported === 'xml' ? '' : 'xml';
+    currentPage = 0; renderStockList();
+  });
+  document.getElementById('filterNonXmlBtn')?.addEventListener('click', () => {
+    filterXmlImported = filterXmlImported === 'nonxml' ? '' : 'nonxml';
+    currentPage = 0; renderStockList();
+  });
+  document.getElementById('searchSerial')?.addEventListener('input', () => {
+    currentPage = 0; renderStockList();
+  });
+  document.getElementById('filterLocation')?.addEventListener('change', () => {
+    currentPage = 0; renderStockList();
+  });
+  document.getElementById('filterStatus')?.addEventListener('change', () => {
+    currentPage = 0; renderStockList();
+  });
+  document.getElementById('filterCategory')?.addEventListener('change', () => {
+    currentPage = 0; renderStockList();
+  });
+  document.getElementById('filterBrand')?.addEventListener('change', () => {
+    currentPage = 0; renderStockList();
+  });
+
+  // ── Stock list: clear filters ──
+  document.getElementById('clearFiltersBtn')?.addEventListener('click', clearAllFilters);
+
+  // ── Stock list: Rename Product (event delegation) ──
+  document.getElementById('stockTableBody')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.rename-btn');
+    if (btn) openRenameModal(btn.dataset.renameProduct);
+  });
+
+  // ── Pagination ──
+  document.getElementById('prevPage')?.addEventListener('click', prevPage);
+  document.getElementById('nextPage')?.addEventListener('click', nextPage);
+
+  // ── Transfer: from-location buttons (event delegation) ──
+  document.getElementById('transferFromButtons')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-transfer-from]');
+    if (btn) selectTransferFrom(btn.dataset.transferFrom);
+  });
+
+  // ── Transfer: checkbox toggle (event delegation) ──
+  document.getElementById('transferTableBody')?.addEventListener('click', (e) => {
+    const cb = e.target.closest('.checkbox[data-serial]');
+    if (cb) toggleTransferSerial(cb.dataset.serial);
+  });
+
+  // ── Transfer: search ──
+  document.getElementById('transferSearch')?.addEventListener('input', renderTransferList);
+
+  // ── Transfer: execute button ──
+  document.getElementById('transferBtn')?.addEventListener('click', executeTransfer);
+
+  // ── Locations: add ──
+  document.getElementById('addLocationBtn')?.addEventListener('click', addLocation);
+
+  // ── Locations: Enter key ──
+  document.getElementById('newLocationName')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addLocation();
+  });
+
+  // ── Locations: delete (event delegation) ──
+  document.getElementById('locationList')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-loc-id]');
+    if (btn) deleteLocation(btn.dataset.locId);
+  });
+
+  // ── XML drop zone ──
+  const dropZone = document.getElementById('xmlDropZone');
+  const xmlInput = document.getElementById('xmlFileInput');
+
+  dropZone?.addEventListener('click', () => xmlInput?.click());
+  xmlInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleXmlFile(file);
+  });
+  dropZone?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone?.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleXmlFile(file);
+  });
+
+  // ── XML: Import All ──
+  document.getElementById('xmlImportAllBtn')?.addEventListener('click', () => {
+    if (!xmlParsedProducts.length) return showToast('No products loaded', 'warning');
+    xmlShowConfirmModal('all', xmlParsedProducts);
+  });
+
+  // ── XML: Add Missing Only ──
+  document.getElementById('xmlImportMissingBtn')?.addEventListener('click', () => {
+    const missing = xmlParsedProducts.filter(p => (p.missing ?? 0) > 0);
+    if (!missing.length) return showToast('No missing products', 'warning');
+    xmlShowConfirmModal('missing', missing);
+  });
+
+  // ── XML: Select & Import ──
+  document.getElementById('xmlImportSelectBtn')?.addEventListener('click', () => {
+    if (!xmlParsedProducts.length) return showToast('No products loaded', 'warning');
+    enterXmlSelectMode();
+  });
+
+  // ── XML: row checkbox (event delegation) ──
+  document.getElementById('xmlPreviewBody')?.addEventListener('change', (e) => {
+    const cb = e.target.closest('.xml-row-check');
+    if (!cb) return;
+    const idx = parseInt(cb.dataset.idx, 10);
+    if (cb.checked) xmlSelectedIndices.add(idx);
+    else             xmlSelectedIndices.delete(idx);
+    updateXmlSelectedCount();
+    // sync select-all state
+    const allChecked = xmlSelectedIndices.size === xmlParsedProducts.length;
+    const saEl = document.getElementById('xmlSelectAll');
+    if (saEl) saEl.checked = allChecked;
+  });
+
+  // ── XML: select-all checkbox ──
+  document.getElementById('xmlSelectAll')?.addEventListener('change', (e) => {
+    xmlSelectedIndices = e.target.checked
+      ? new Set(xmlParsedProducts.map((_, i) => i))
+      : new Set();
+    updateXmlSelectedCount();
+    renderXmlTable();
+  });
+
+  // ── XML: confirm selected import ──
+  document.getElementById('xmlConfirmSelectBtn')?.addEventListener('click', () => {
+    if (!xmlSelectedIndices.size) return showToast('Select at least one product', 'warning');
+    const selected = [...xmlSelectedIndices].map(i => xmlParsedProducts[i]);
+    xmlShowConfirmModal('select', selected);
+  });
+
+  // ── XML: cancel select ──
+  document.getElementById('xmlCancelSelectBtn')?.addEventListener('click', exitXmlSelectMode);
+
+  // ── Tally sync ──
+  document.getElementById('autoSyncToggle')?.addEventListener('click', toggleAutoSync);
+  document.getElementById('syncNowBtn')?.addEventListener('click', syncNow);
+
+  // ── Boot: load dashboard ──
+  loadDashboard();
+});
+</script>
+</body>
+</html>

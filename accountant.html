@@ -321,7 +321,14 @@
       -webkit-tap-highlight-color: transparent;
     }
     .btn:hover { opacity: 0.88; transform: translateY(-1px); }
-    .btn:active { transform: scale(0.97); }
+    .btn:active:not(:disabled) { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+    .btn-spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid transparent; border-top-color: currentColor;
+      border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .btn-primary {
       background: linear-gradient(135deg, var(--primary-container), var(--primary));
@@ -729,6 +736,28 @@
       flex-wrap: wrap;
     }
 
+    /* ════ TOAST NOTIFICATIONS ════ */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-container-highest); color: var(--on-surface);
+      padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 600;
+      white-space: nowrap; z-index: 9999; opacity: 0;
+      transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+      border: 1px solid rgba(173,198,255,0.12); max-width: 90%;
+      text-align: center;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.error { border-color: var(--error); color: var(--error); }
+    #toast.success { border-color: var(--tertiary); }
+
+    /* ════ OFFLINE INDICATOR ════ */
+    #offlineBanner {
+      display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+      background: #dc2626; color: white; padding: 10px 16px; font-size: 13px;
+      font-weight: 600; text-align: center;
+    }
+    #offlineBanner.show { display: block; }
+
     /* ════ PRODUCT ITEM (multi-product list) ════ */
     #productList { margin-bottom: 4px; }
 
@@ -1030,6 +1059,10 @@
 </head>
 <body>
 
+<!-- ══ TOAST + OFFLINE INDICATOR ══ -->
+<div id="toast"></div>
+<div id="offlineBanner">📡 You're offline — changes will sync when reconnected</div>
+
 <!-- ══ LOGIN SCREEN ══ -->
 <div id="loginScreen">
   <div class="login-card">
@@ -1237,8 +1270,11 @@
     </div>
 
     <div id="selfPickupWrap" style="display:none;margin-bottom:8px;">
-      <div class="section-title">Expected Pickup Date</div>
-      <input type="date" id="pickup_date" style="width:100%;">
+      <div class="section-title">Expected Pickup Date &amp; Time</div>
+      <input type="datetime-local" id="pickup_date" style="width:100%;">
+      <div style="font-size:11px;color:var(--text-muted,#888);margin-top:4px;">
+        Customer will collect from shop — no driver assigned. Staff at shop will mark as delivered.
+      </div>
     </div>
 
     <div id="normalDeliveryWrap">
@@ -1274,18 +1310,7 @@
     </div>
     <input id="freight_amount" placeholder="Freight Amount" style="display:none">
 
-    <div class="checkbox-row" id="installCheckRow">
-      <input type="checkbox" id="raise_installation" onchange="toggleInstallPriority()">
-      <label for="raise_installation">🔧 Raise Installation Request on create</label>
-    </div>
-    <!-- Priority for installation ticket — shown when checkbox is checked -->
-    <div id="installPriorityWrap" style="display:none;margin-bottom:8px;">
-      <div class="section-title">Installation Priority</div>
-      <select id="install_priority">
-        <option value="normal">Normal</option>
-        <option value="urgent">🔴 Urgent</option>
-      </select>
-    </div>
+    <!-- Installation checkbox moved to per-product level (below invoice number) -->
 
     <div class="form-actions">
       <button class="btn btn-primary" id="createBtn" onclick="createDelivery()">Create Delivery</button>
@@ -1352,9 +1377,34 @@ document.addEventListener("DOMContentLoaded", function() {
 /* ── END DARK MODE ───────────────────────────────────── */
 
 /* ══════════════════════════════════════════
-   AUTH — accountant login gate
-══════════════════════════════════════════ */
+AUTH — accountant login gate
+══════════════════════════════════ */
 const BASE_URL = window.location.origin;
+
+/* ── TOAST NOTIFICATION ── */
+function showToast(msg, type = "") {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "show " + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+/* ── OFFLINE DETECTION ── */
+window.addEventListener("online", () => {
+  document.getElementById("offlineBanner").classList.remove("show");
+  showToast("✅ Back online!");
+});
+window.addEventListener("offline", () => {
+  document.getElementById("offlineBanner").classList.add("show");
+});
+
+/* ── ESC KEY CLOSES POPUPS ── */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".popup-overlay.is-open").forEach(el => el.classList.remove("is-open"));
+  }
+});
 
 /* ── STATE — must be declared before any function runs ── */
 let swRegistration      = null;
@@ -1368,6 +1418,8 @@ let allRawDeliveries      = [];   // full unfiltered list — used for repeat cu
 let tallyProducts = [];
 let autoRefreshInterval = null;
 let batchPhones    = [];
+let _deliveriesDebounceTimer = null;
+let _deliveriesInflight = false;
 let batchNumberMap = {};
 let phoneCounts    = {};
 
@@ -1524,7 +1576,7 @@ async function registerAccountantPush(reg, isRetry = false) {
     const registration = reg || swRegistration || await navigator.serviceWorker.ready;
     const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
     if (!token) return;
-    await fetch(`${BASE_URL}/saveAccountantPushToken`, {
+    await authFetch(`${BASE_URL}/saveAccountantPushToken`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token })
@@ -1604,8 +1656,8 @@ function initApp() {
 function startAutoRefresh() {
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
   autoRefreshInterval = setInterval(() => {
-  if (!document.hidden) loadDeliveries();
-}, 30000);
+    if (!document.hidden) loadDeliveries();
+  }, 90000);  // 90s — reduces rate-limit pressure from auto-refresh
 }
 
 /* ── FILTERS ── */
@@ -1728,42 +1780,114 @@ async function loadAllMasters() {
 }
 
 /* ── TALLY PRODUCTS ── */
+let stockSummary = {}; // { "PRODUCT NAME": availableQty }
+
 async function loadTallyProducts() {
   try {
-    const res  = await fetch(`${BASE_URL}/tally/products`);
-    const data = await res.json();
+    const [tallyRes, stockRes] = await Promise.all([
+      fetch(`${BASE_URL}/tally/products`),
+      fetch(`${BASE_URL}/inventory/stock-summary`)
+    ]);
+    const data = await tallyRes.json();
     tallyProducts = data.names || [];
-    console.log(`[tally] ${tallyProducts.length} products loaded`);
+    stockSummary  = stockRes.ok ? await stockRes.json() : {};
+    console.log(`[tally] ${tallyProducts.length} products loaded, ${Object.keys(stockSummary).length} with stock`);
   } catch (e) {
     console.warn("[tally] Failed to load:", e.message);
   }
+}
+
+// Normalise a product name the same way the server does for stock-summary keys
+function normaliseName(n) {
+  return (n || "").trim().toUpperCase().replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/* ── Build the list of available tally products once (cached) ── */
+function getAvailableTallyProducts() {
+  const list = [];
+  tallyProducts.forEach(name => {
+    const qty = stockSummary[normaliseName(name)];
+    if (qty && qty > 0) list.push({ name, qty });
+  });
+  return list;
+}
+
+/* ── Custom any-word search dropdown for Tally products ── */
+function onTallySearch(input, idx) {
+  const item     = document.querySelector(`.product-item[data-idx="${idx}"]`);
+  const dropdown = item.querySelector(`[data-field="tally_dropdown"]`);
+  if (!dropdown) return;
+
+  const query = input.value.trim().toUpperCase();
+  const words = query.split(/\s+/).filter(Boolean);
+  const available = getAvailableTallyProducts();
+
+  // Filter: every typed word must appear somewhere in the product name
+  const matches = words.length === 0
+    ? available
+    : available.filter(p => words.every(w => p.name.toUpperCase().includes(w)));
+
+  if (!matches.length) {
+    dropdown.style.display = "none";
+    return;
+  }
+
+  dropdown.innerHTML = matches.map(p => `
+    <div data-product="${p.name.replace(/"/g,"&quot;")}"
+      style="padding:9px 13px;cursor:pointer;font-size:13px;font-weight:600;
+        border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.1s;"
+      onmousedown="selectTallyProduct('${idx}','${p.name.replace(/'/g,"\\'")}',${p.qty},this)"
+      onmouseover="this.style.background='rgba(78,222,163,0.12)'"
+      onmouseout="this.style.background=''">
+      ${p.name}
+      <span style="font-size:11px;color:#4edea3;margin-left:6px;font-weight:700;">(${p.qty} available)</span>
+    </div>`).join("");
+
+  dropdown.style.display = "block";
+}
+
+function selectTallyProduct(idx, name, qty, el) {
+  const item    = document.querySelector(`.product-item[data-idx="${idx}"]`);
+  const hidden  = item.querySelector(`[data-field="tally_input"]`);
+  const search  = item.querySelector(`[data-field="tally_search"]`);
+  const label   = item.querySelector(`[data-field="tally_selected_label"]`);
+  const dropdown = item.querySelector(`[data-field="tally_dropdown"]`);
+
+  if (hidden)   hidden.value  = name;
+  if (search)   search.value  = name;
+  if (label)    label.textContent = `✔ Selected: ${name}  (${qty} available)`;
+  if (dropdown) dropdown.style.display = "none";
+}
+
+function hideTallyDropdown(idx, delay) {
+  setTimeout(() => {
+    const item     = document.querySelector(`.product-item[data-idx="${idx}"]`);
+    const dropdown = item?.querySelector(`[data-field="tally_dropdown"]`);
+    if (dropdown) dropdown.style.display = "none";
+  }, delay);
 }
 
 function toggleTallyInput(checkbox, idx) {
   const item          = document.querySelector(`.product-item[data-idx="${idx}"]`);
   const tallySection  = item.querySelector(`[data-field="tally_section"]`);
   const normalSection = item.querySelector(`[data-field="normal_section"]`);
-  const tallyInput    = item.querySelector(`[data-field="tally_input"]`);
-  const datalist      = document.getElementById(`tallyList_${idx}`);
+  const hidden        = item.querySelector(`[data-field="tally_input"]`);
+  const search        = item.querySelector(`[data-field="tally_search"]`);
+  const label         = item.querySelector(`[data-field="tally_selected_label"]`);
+  const dropdown      = item.querySelector(`[data-field="tally_dropdown"]`);
 
   if (checkbox.checked) {
     tallySection.style.display  = "block";
     normalSection.style.display = "none";
-    tallyInput.value = "";
-    if (datalist && datalist.children.length === 0) {
-      const frag = document.createDocumentFragment();
-      tallyProducts.forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        frag.appendChild(opt);
-      });
-      datalist.appendChild(frag);
-    }
-    tallyInput.focus();
+    if (hidden)   hidden.value  = "";
+    if (search)   search.value  = "";
+    if (label)    label.textContent = "";
+    if (dropdown) dropdown.style.display = "none";
+    setTimeout(() => search?.focus(), 50);
   } else {
     tallySection.style.display  = "none";
     normalSection.style.display = "block";
-    tallyInput.value = "";
+    if (hidden) hidden.value = "";
   }
 }
 
@@ -1830,8 +1954,13 @@ async function handleInvoiceImport(input) {
         if (tallyToggle) {
           tallyToggle.checked = true;
           toggleTallyInput(tallyToggle, idx);
-          const tallyInput = item.querySelector(`[data-field="tally_input"]`);
-          if (tallyInput) tallyInput.value = p.product_name || "";
+          const tallyInput  = item.querySelector(`[data-field="tally_input"]`);
+          const tallySearch = item.querySelector(`[data-field="tally_search"]`);
+          const tallyLabel  = item.querySelector(`[data-field="tally_selected_label"]`);
+          const pname = p.product_name || "";
+          if (tallyInput)  tallyInput.value  = pname;
+          if (tallySearch) tallySearch.value  = pname;
+          if (tallyLabel && pname)  tallyLabel.textContent = `✔ Selected: ${pname}`;
         }
 
         // Fill serial number
@@ -1902,13 +2031,19 @@ function createProductItemHTML(idx) {
     </label>
 
     <!-- Tally searchable input (hidden by default) -->
-    <div data-field="tally_section" style="display:none;margin-bottom:10px;">
-      <input data-field="tally_input" list="tallyList_${idx}"
-        placeholder="Type to search Tally products..."
-        oninput="this.value=this.value.toUpperCase()"
+    <!-- Tally searchable input (hidden by default) -->
+    <div data-field="tally_section" style="display:none;margin-bottom:10px;position:relative;">
+      <input data-field="tally_input" type="hidden" value="">
+      <input data-field="tally_search" autocomplete="off"
+        placeholder="Type any word to search…"
+        oninput="onTallySearch(this,${idx})"
+        onfocus="onTallySearch(this,${idx})"
+        onblur="hideTallyDropdown(${idx},300)"
         style="width:100%;padding:10px 12px;border:2px solid #86efac;border-radius:9px;font-size:14px;outline:none;background:var(--surface-container-high);color:var(--on-surface);">
-      <datalist id="tallyList_${idx}"></datalist>
-      <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Type at least 2 characters to search</div>
+      <div data-field="tally_dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;
+        background:var(--surface-container-highest);border:1px solid #86efac;border-radius:9px;
+        max-height:220px;overflow-y:auto;margin-top:3px;box-shadow:0 8px 24px rgba(0,0,0,0.3);"></div>
+      <div data-field="tally_selected_label" style="font-size:11px;color:#4edea3;margin-top:4px;min-height:16px;font-weight:600;"></div>
     </div>
 
     <!-- Normal product/make/model (shown by default) -->
@@ -1944,6 +2079,19 @@ function createProductItemHTML(idx) {
 
     <div class="section-title">Invoice Number</div>
     <input data-field="invoice" placeholder="Invoice Number (optional)">
+
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer;font-size:13px;font-weight:600;color:#2563eb;">
+      <input type="checkbox" data-field="raise_installation"
+        onchange="toggleItemInstallPriority(this,${idx})"
+        style="width:15px;height:15px;accent-color:#2563eb;cursor:pointer;">
+      🔧 Raise Installation Request
+    </label>
+    <div data-field="install_priority_wrap" style="display:none;margin-top:6px;margin-bottom:2px;">
+      <select data-field="install_priority" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--on-surface);width:100%;">
+        <option value="normal">Normal Priority</option>
+        <option value="urgent">🔴 Urgent Priority</option>
+      </select>
+    </div>
   </div>`;
 }
 
@@ -2030,10 +2178,6 @@ async function saveItemNew(idx, field) {
   input.style.display = "none";
   item.querySelector(`[data-field="btn_${field}"]`).style.display = "none";
 }
-
-// Legacy — kept for backward compat if anything still calls it
-function handleAddNew(select, type) { }
-async function saveNew(type) { }
 
 function toggleInstruction() {
   const wrap    = document.getElementById("instructionWrap");
@@ -2194,12 +2338,13 @@ function toggleFreight() {
   if (!checked) input.value = "";
 }
 
-function toggleInstallPriority() {
-  const checked = document.getElementById("raise_installation").checked;
-  const wrap = document.getElementById("installPriorityWrap");
-  if (wrap) wrap.style.display = checked ? "block" : "none";
-  if (!checked) {
-    const sel = document.getElementById("install_priority");
+function toggleItemInstallPriority(checkbox, idx) {
+  const item = document.querySelector(`.product-item[data-idx="${idx}"]`);
+  if (!item) return;
+  const wrap = item.querySelector('[data-field="install_priority_wrap"]');
+  if (wrap) wrap.style.display = checkbox.checked ? "block" : "none";
+  if (!checkbox.checked) {
+    const sel = item.querySelector('[data-field="install_priority"]');
     if (sel) sel.value = "normal";
   }
 }
@@ -2562,7 +2707,9 @@ async function createDelivery() {
     products.push({
       product_name:          productName,
       product_serial_number: (item.querySelector(`[data-field="serial"]`)?.value || "").trim(),
-      invoice_number:        (item.querySelector(`[data-field="invoice"]`)?.value || "").trim()
+      invoice_number:        (item.querySelector(`[data-field="invoice"]`)?.value || "").trim(),
+      raise_installation:    item.querySelector(`[data-field="raise_installation"]`)?.checked || false,
+      install_priority:      item.querySelector(`[data-field="install_priority"]`)?.value || "normal"
     });
   }
 
@@ -2642,24 +2789,25 @@ async function createDelivery() {
     document.getElementById("formMessage").innerHTML = `<span style='color:#16a34a;'>${msg}</span>`;
     btn.textContent = count === 1 ? "Created ✔" : `${count} Created ✔`;
 
-    const raiseInstall = document.getElementById("raise_installation")?.checked;
-    if (raiseInstall && result.ids && result.ids.length > 0) {
-      const installPriority = document.getElementById("install_priority")?.value || "normal";
-      // Raise for first delivery (typical case — single product)
-      for (const delivId of result.ids) {
+    // Raise installation tickets only for products that have the checkbox checked
+    if (result.ids && result.ids.length > 0) {
+      for (let i = 0; i < products.length; i++) {
+        if (!products[i].raise_installation) continue;
+        const delivId = result.ids[i];
+        if (!delivId) continue;
         try {
           await authFetch(`${BASE_URL}/service/ticket`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              type: "installation",
+              type:               "installation",
               linked_delivery_id: delivId,
-              customer_name: sharedPayload.customer_name,
-              phone:         sharedPayload.phone,
-              address:       sharedPayload.address || "",
-              product_name:  products[0]?.product_name || "",
-              serial_number: products[0]?.product_serial_number || "",
-              priority:      installPriority,
+              customer_name:      sharedPayload.customer_name,
+              phone:              sharedPayload.phone,
+              address:            sharedPayload.address || "",
+              product_name:       products[i].product_name || "",
+              serial_number:      products[i].product_serial_number || "",
+              priority:           products[i].install_priority || "normal",
             })
           });
         } catch(e) { console.warn("[install ticket]", e.message); }
@@ -2731,13 +2879,7 @@ function resetForm() {
   document.getElementById("freight_charged").checked = false;
   document.getElementById("freight_amount").style.display = "none";
   document.getElementById("freight_amount").value = "";
-  // Reset installation priority
-  const installCheck = document.getElementById("raise_installation");
-  if (installCheck) installCheck.checked = false;
-  const installPriorityWrap = document.getElementById("installPriorityWrap");
-  if (installPriorityWrap) installPriorityWrap.style.display = "none";
-  const installPrioritySel = document.getElementById("install_priority");
-  if (installPrioritySel) installPrioritySel.value = "normal";
+  // Per-product installation checkboxes reset automatically when product items are re-rendered
   // Reset self-pickup
   document.getElementById("is_self_pickup").checked = false;
   document.getElementById("selfPickupWrap").style.display = "none";
@@ -2804,11 +2946,37 @@ function formatDate(dateString) {
 
 /* ── LOAD DELIVERIES ── */
 async function loadDeliveries() {
+  // Debounce: collapse rapid successive calls into one
+  if (_deliveriesDebounceTimer) { clearTimeout(_deliveriesDebounceTimer); }
+  return new Promise(resolve => {
+    _deliveriesDebounceTimer = setTimeout(async () => {
+      _deliveriesDebounceTimer = null;
+      await _doLoadDeliveries();
+      resolve();
+    }, 120);
+  });
+}
+
+async function _doLoadDeliveries() {
+  if (_deliveriesInflight) return;       // skip if a fetch is already running
+  _deliveriesInflight = true;
   let data;
   try {
-    const res = await authFetch(`${BASE_URL}/deliveries`);
+    const res = await fetch(`${BASE_URL}/deliveries`);
+    if (res.status === 429) {
+      console.warn("[deliveries] Rate limited — will retry on next refresh");
+      _deliveriesInflight = false;
+      return;
+    }
     data = await res.json();
-  } catch (e) { return; }
+  } catch (e) { _deliveriesInflight = false; return; }
+  finally { _deliveriesInflight = false; }
+
+  // Guard: server may return {error:...} on unexpected failures
+  if (!Array.isArray(data)) {
+    console.warn("[deliveries] Unexpected response:", data);
+    return;
+  }
 
   allRawDeliveries = data;   // store full list for repeat customer lookup
 
@@ -3001,20 +3169,20 @@ async function loadDeliveries() {
     if (d.status === "failed") tr.style.background = _isDark ? "rgba(255,180,171,0.06)" : "#fff1f2";
 
     tr.innerHTML = `
-      <td>${d.customer_name}${batchTag}${d.previous_failures > 0 ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>` : ""}</td>
-      <td><a class='phone-link' href='tel:${d.phone}'>${d.phone}</a></td>
-      <td>${d.product_name}</td>
-      <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${d.address || '—'}</span></td>
-      <td>${d.assigned_driver_name || "—"}</td>
+      <td>${escHtml(d.customer_name)}${batchTag}${d.previous_failures > 0 ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>` : ""}</td>
+      <td><a class='phone-link' href='tel:${escHtml(d.phone)}'>${escHtml(d.phone)}</a></td>
+      <td>${escHtml(d.product_name)}</td>
+      <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${escHtml(d.address) || '—'}</span></td>
+      <td>${escHtml(d.assigned_driver_name) || "—"}</td>
       <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
       <td>
         <span class="badge badge-${d.status}">${d.status}</span>
         ${d.is_self_pickup ? `<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>` : ""}
         ${(d.status !== "delivered" && d.status !== "failed" && d.status !== "booked" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < new Date()) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
-        ${d.status === "failed" && d.failure_reason ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">${d.failure_reason}</div>` : ""}
+        ${d.status === "failed" && d.failure_reason ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>` : ""}
       </td>
       <td>${getDeliveryRating(d)}</td>
-      <td><button class="btn ${d.status === 'failed' ? 'btn-danger' : 'btn-primary'} btn-sm" onclick="openViewPopup('${d.id}')">${d.status === "failed" ? "⚠ Action" : "View"}</button></td>
+      <td><button class="btn ${d.status === 'failed' ? 'btn-danger' : 'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status === "failed" ? "⚠ Action" : "View"}</button></td>
     `;
     list.appendChild(tr);
   });
@@ -3057,8 +3225,8 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
     card.innerHTML = `
       <div class="mob-card-header">
         <div>
-          <div class="mob-card-name">${d.customer_name}${palette ? `<span style="margin-left:6px;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};">🔗 B${batchNumberMap[d.phone]}</span>` : ""}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${d.product_name}</div>
+          <div class="mob-card-name">${escHtml(d.customer_name)}${palette ? `<span style="margin-left:6px;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};">🔗 B${batchNumberMap[d.phone]}</span>` : ""}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${escHtml(d.product_name)}</div>
         </div>
         <div class="mob-card-badges">
           <span class="badge badge-${d.status}">${d.status}</span>
@@ -3067,8 +3235,8 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
         </div>
       </div>
       <div class="mob-card-meta">
-        <span>📞 <a class="phone-link" href="tel:${d.phone}" onclick="event.stopPropagation()">${d.phone}</a></span>
-        <span>🚚 ${d.assigned_driver_name || "—"}</span>
+        <span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>
+        <span>🚚 ${escHtml(d.assigned_driver_name) || "—"}</span>
         <span>⏱ ${formatDate(d.estimated_delivery_time)}</span>
       </div>
     `;
@@ -3090,7 +3258,7 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
       grp.style.setProperty("--mob-batch-text",  palette.text);
       const hdr = document.createElement("div");
       hdr.className = "mob-batch-group-header";
-      hdr.innerHTML = `🔗 Batch ${bNum} · ${d.customer_name} · ${siblings.length} items`;
+      hdr.innerHTML = `🔗 Batch ${bNum} · ${escHtml(d.customer_name)} · ${siblings.length} items`;
       grp.appendChild(hdr);
       siblings.forEach(item => { rendered.add(item.id); grp.appendChild(makeMobCard(item, palette)); });
       container.appendChild(grp);
@@ -3146,16 +3314,16 @@ function openViewPopup(id) {
 
   content.innerHTML = `
     <div class="section-title">Customer Details</div>
-    <div class="detail-row"><b>Name</b><span>${delivery.customer_name}</span></div>
+    <div class="detail-row"><b>Name</b><span>${escHtml(delivery.customer_name)}</span></div>
     ${popupBatchRow}
-    <div class="detail-row"><b>Phone</b><span>${delivery.phone}</span></div>
-    <div class="detail-row"><b>Alternate</b><span>${delivery.alternate_phone || "—"}</span></div>
-    <div class="detail-row"><b>Address</b><span>${delivery.address}</span></div>
+    <div class="detail-row"><b>Phone</b><span>${escHtml(delivery.phone)}</span></div>
+    <div class="detail-row"><b>Alternate</b><span>${escHtml(delivery.alternate_phone) || "—"}</span></div>
+    <div class="detail-row"><b>Address</b><span>${escHtml(delivery.address)}</span></div>
 
     <div class="section-title">Product Details</div>
-    <div class="detail-row"><b>Product</b><span>${delivery.product_name}</span></div>
-    <div class="detail-row"><b>Serial</b><span>${delivery.product_serial_number || "—"}</span></div>
-    <div class="detail-row"><b>Invoice</b><span>${delivery.invoice_number || "—"}</span></div>
+    <div class="detail-row"><b>Product</b><span>${escHtml(delivery.product_name)}</span></div>
+    <div class="detail-row"><b>Serial</b><span>${escHtml(delivery.product_serial_number) || "—"}</span></div>
+    <div class="detail-row"><b>Invoice</b><span>${escHtml(delivery.invoice_number) || "—"}</span></div>
 
     <div class="section-title">Delivery Info</div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${delivery.status}">${delivery.status}</span></span></div>
@@ -3163,8 +3331,8 @@ function openViewPopup(id) {
     <div class="detail-row" id="driverDetailRow">
       <b>Driver</b>
       <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span id="driverNameDisplay">${delivery.assigned_driver_name || "—"}</span>
-        <button onclick="openInlineDriverChange('${delivery.id}')"
+        <span id="driverNameDisplay">${escHtml(delivery.assigned_driver_name) || "—"}</span>
+        <button onclick="openInlineDriverChange('${escHtml(delivery.id)}')"
           style="padding:3px 10px;font-size:11px;font-weight:700;background:rgba(173,198,255,0.1);color:var(--primary);border:1.5px solid rgba(173,198,255,0.3);border-radius:7px;cursor:pointer;white-space:nowrap;">
           ✏ Change
         </button>
@@ -3173,7 +3341,7 @@ function openViewPopup(id) {
     <div id="inlineDriverChangeArea" style="display:none;padding:10px 0 4px 0;"></div>
     <div class="detail-row"><b>ETA</b><span>${formatDate(delivery.estimated_delivery_time)}</span></div>
     ${ratingRow}
-    <div class="detail-row"><b>Instruction</b><span>${delivery.driver_instructions || "—"}</span></div>
+    <div class="detail-row"><b>Instruction</b><span>${escHtml(delivery.driver_instructions) || "—"}</span></div>
 
     <div class="section-title">Freight</div>
     <div class="detail-row"><b>Freight Applied</b><span>${delivery.freight_charged ? "Yes" : "No"}</span></div>
@@ -3193,7 +3361,7 @@ function openViewPopup(id) {
           <div style="flex:1;min-width:120px;">
             <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📦 Loaded</div>
             <img src="${delivery.photo_loaded_url}"
-              onclick="openPhotoLightbox('${delivery.photo_loaded_url}','Loaded Photo')"
+              onclick="openPhotoLightbox('${escHtml(delivery.photo_loaded_url)}','Loaded Photo')"
               style="width:100%;height:160px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dbeafe;"
               title="Click to view full size">
             <a href="${delivery.photo_loaded_url}" download target="_blank"
@@ -3203,7 +3371,7 @@ function openViewPopup(id) {
           <div style="flex:1;min-width:120px;">
             <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">✅ Delivered</div>
             <img src="${delivery.photo_delivered_url}"
-              onclick="openPhotoLightbox('${delivery.photo_delivered_url}','Delivered Photo')"
+              onclick="openPhotoLightbox('${escHtml(delivery.photo_delivered_url)}','Delivered Photo')"
               style="width:100%;height:160px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dcfce7;"
               title="Click to view full size">
             <a href="${delivery.photo_delivered_url}" download target="_blank"
@@ -3220,35 +3388,35 @@ function openViewPopup(id) {
         ${delivery.failure_reason === "Product Damaged / Not Working" ? "🔴 URGENT — " : ""}${delivery.reversed_from_delivered ? "↩ " : ""}❌ Delivery Failed
       </div>
       ${delivery.reversed_from_delivered ? `<div style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(234,88,12,0.15);color:#fdba74;border:1px solid rgba(234,88,12,0.3);margin-bottom:8px;">↩ Reversed from Delivered</div>` : ""}
-      <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${delivery.failure_reason || "—"}</span></div>
+      <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${escHtml(delivery.failure_reason) || "—"}</span></div>
       ${delivery.failure_photo_url ? `
         <div style="margin:10px 0;">
           <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:6px;">Failure Photo</div>
           <img src="${delivery.failure_photo_url}"
-            onclick="openPhotoLightbox('${delivery.failure_photo_url}','Failure Photo')"
+            onclick="openPhotoLightbox('${escHtml(delivery.failure_photo_url)}','Failure Photo')"
             style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #fca5a5;">
         </div>` : ""}
       ${!delivery.product_returned ? `
         <div style="background:#fef9c3;border-radius:8px;padding:10px 12px;font-size:13px;color:#92400e;margin:10px 0;">
           ⚠ Reschedule is locked until product is marked as returned
         </div>
-        <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="markReturned('${delivery.id}')">
+        <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="markReturned('${escHtml(delivery.id)}')">
           📦 Mark Product Returned
         </button>` : `
         <div style="background:#dcfce7;border-radius:8px;padding:10px 12px;font-size:13px;color:#166534;margin:10px 0;">
           ✅ Product has been returned to warehouse
         </div>
-        <button class="btn btn-success" style="width:100%;margin-top:8px;" onclick="openReschedule('${delivery.id}')">
+        <button class="btn btn-success" style="width:100%;margin-top:8px;" onclick="openReschedule('${escHtml(delivery.id)}')">
           🔄 Reschedule Delivery
         </button>
-        <button class="btn btn-danger" style="width:100%;margin-top:8px;background:#dc2626;" onclick="openDeleteFailed('${delivery.id}')">
+        <button class="btn btn-danger" style="width:100%;margin-top:8px;background:#dc2626;" onclick="openDeleteFailed('${escHtml(delivery.id)}')">
           🗑 Delete This Delivery
         </button>`}
     </div>` : ""}
   `;
 
   if (delivery.status === "pending" || delivery.status === "booked") {
-    content.innerHTML += `<button class="btn btn-primary" style="margin-top:16px;" onclick="editDelivery('${delivery.id}')">✏ Edit</button>`;
+    content.innerHTML += `<button class="btn btn-primary" style="margin-top:16px;" onclick="editDelivery('${escHtml(delivery.id)}')">✏ Edit</button>`;
   }
 
   if (delivery.status === "delivered") {
@@ -3256,7 +3424,7 @@ function openViewPopup(id) {
       <div style="margin-top:16px;padding:14px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:12px;">
         <div style="font-size:13px;font-weight:700;color:#c2410c;margin-bottom:4px;">↩ Customer returned the product?</div>
         <div style="font-size:12px;color:#92400e;margin-bottom:10px;">Use this if the customer refused or returned after delivery. This will move it back to failed so you can reschedule.</div>
-        <button class="btn btn-danger btn-sm" style="background:#ea580c;" onclick="openReverseDelivery('${delivery.id}')">
+        <button class="btn btn-danger btn-sm" style="background:#ea580c;" onclick="openReverseDelivery('${escHtml(delivery.id)}')">
           ↩ Reverse This Delivery
         </button>
       </div>
@@ -3267,14 +3435,14 @@ function openViewPopup(id) {
             ? `<button class="btn btn-gray btn-sm" disabled style="opacity:0.65;cursor:not-allowed;">
                 ✅ Installation Already Requested
                </button>`
-            : `<button class="btn btn-success btn-sm" id="btnRaiseInstall" onclick="showInstallForm('${delivery.id}')">
+            : `<button class="btn btn-success btn-sm" id="btnRaiseInstall" onclick="showInstallForm('${escHtml(delivery.id)}')">
                 🔧 Raise Installation
                </button>`
           }
-          <button class="btn btn-danger btn-sm" id="btnRaiseComplaint" onclick="showComplaintForm('${delivery.id}')">
+          <button class="btn btn-danger btn-sm" id="btnRaiseComplaint" onclick="showComplaintForm('${escHtml(delivery.id)}')">
             ⚠ Raise Complaint
           </button>
-          <button class="btn btn-gray btn-sm" onclick="shareDeliveryWA('${delivery.id}')">
+          <button class="btn btn-gray btn-sm" onclick="shareDeliveryWA('${escHtml(delivery.id)}')">
             📲 Share on WhatsApp
           </button>
         </div>
@@ -3286,7 +3454,7 @@ function openViewPopup(id) {
             <option value="urgent">🔴 Urgent</option>
           </select>
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-success btn-sm" onclick="submitInstallTicket('${delivery.id}')">✅ Confirm Raise</button>
+            <button class="btn btn-success btn-sm" onclick="submitInstallTicket('${escHtml(delivery.id)}')">✅ Confirm Raise</button>
             <button class="btn btn-gray btn-sm" onclick="hideServiceForms()">Cancel</button>
           </div>
         </div>
@@ -3306,7 +3474,7 @@ function openViewPopup(id) {
             style="width:100%;padding:9px 12px;border:none;border-radius:9px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);background:var(--surface-container-highest);margin-bottom:4px;outline:none;box-sizing:border-box;">
           <div style="font-size:11px;color:var(--on-surface-variant);margin-bottom:10px;">New issues typed here are saved for future use.</div>
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-danger btn-sm" onclick="submitComplaintTicket('${delivery.id}')">✅ Raise Complaint</button>
+            <button class="btn btn-danger btn-sm" onclick="submitComplaintTicket('${escHtml(delivery.id)}')">✅ Raise Complaint</button>
             <button class="btn btn-gray btn-sm" onclick="hideServiceForms()">Cancel</button>
           </div>
         </div>
@@ -3317,6 +3485,8 @@ function openViewPopup(id) {
   // Populate issue dropdown in complaint form if rendered
   populateViewIssueDropdown();
 }
+
+function closeViewPopup() {
   document.getElementById("viewPopup").classList.remove("is-open");
 }
 
@@ -3508,7 +3678,7 @@ function openReverseDelivery(id) {
     <div style="background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:12px;padding:18px;margin-bottom:16px;">
       <div style="font-size:16px;font-weight:700;color:#c2410c;margin-bottom:4px;">↩ Reverse Delivery</div>
       <div style="font-size:13px;color:#92400e;">
-        <strong>${delivery.customer_name}</strong> — ${delivery.product_name}
+        <strong>${escHtml(delivery.customer_name)}</strong> — ${escHtml(delivery.product_name)}
       </div>
       <div style="font-size:12px;color:#b45309;margin-top:6px;line-height:1.5;">
         This will move the delivery back to <strong>Failed</strong> status.<br>
@@ -3532,10 +3702,10 @@ function openReverseDelivery(id) {
     </div>
 
     <div style="display:flex;gap:10px;">
-      <button class="btn btn-danger" style="flex:1;background:#ea580c;" onclick="confirmReverseDelivery('${id}')">
+      <button class="btn btn-danger" style="flex:1;background:#ea580c;" onclick="confirmReverseDelivery('${escHtml(id)}')">
         ↩ Confirm Reverse
       </button>
-      <button class="btn btn-gray" style="flex:1;" onclick="openViewPopup('${id}')">
+      <button class="btn btn-gray" style="flex:1;" onclick="openViewPopup('${escHtml(id)}')">
         ← Cancel
       </button>
     </div>
@@ -3611,7 +3781,7 @@ async function openInlineDriverChange(deliveryId) {
       <select id="${selectId}"
         style="flex:1;min-width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
       </select>
-      <button onclick="confirmInlineDriverChange('${deliveryId}','${selectId}')"
+      <button onclick="confirmInlineDriverChange('${escHtml(deliveryId)}','${selectId}')"
         style="padding:8px 14px;background:#2563eb;color:white;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
         ✓ Confirm
       </button>
@@ -3689,16 +3859,16 @@ async function openReschedule(id) {
 
   document.getElementById("viewContent").innerHTML = `
     <h3 style="margin-bottom:4px;">🔄 Reschedule Delivery</h3>
-    <div style="font-size:13px;color:#64748b;margin-bottom:16px;">${delivery.customer_name} — ${delivery.product_name}</div>
-    ${delivery.previous_failures > 0 ? `<div style="background:#fff1f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;font-size:13px;color:#991b1b;margin-bottom:12px;">⚠ Previous failure: ${delivery.failure_reason || "Unknown reason"}</div>` : ""}
+    <div style="font-size:13px;color:#64748b;margin-bottom:16px;">${escHtml(delivery.customer_name)} — ${escHtml(delivery.product_name)}</div>
+    ${delivery.previous_failures > 0 ? `<div style="background:#fff1f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;font-size:13px;color:#991b1b;margin-bottom:12px;">⚠ Previous failure: ${escHtml(delivery.failure_reason) || "Unknown reason"}</div>` : ""}
     <div class="section-title">New Estimated Delivery Time *</div>
     <input type="datetime-local" id="reschedule_eta" style="${inputStyle}">
     <div class="section-title">Reassign Driver (optional — leave to keep current)</div>
     <select id="reschedule_driver" style="${inputStyle}">
-      <option value="">— Keep current driver (${delivery.assigned_driver_name || "none"}) —</option>
+      <option value="">— Keep current driver (${escHtml(delivery.assigned_driver_name) || "none"}) —</option>
     </select>
     <div style="display:flex;gap:10px;margin-top:16px;">
-      <button class="btn btn-success" onclick="saveReschedule('${id}')">✅ Confirm Reschedule</button>
+      <button class="btn btn-success" onclick="saveReschedule('${escHtml(id)}')">✅ Confirm Reschedule</button>
       <button class="btn btn-gray" onclick="closeViewPopup()">Cancel</button>
     </div>
   `;
@@ -3754,23 +3924,23 @@ async function editDelivery(id) {
   document.getElementById("viewContent").innerHTML = `
     <h3 style="margin-bottom:16px;">Edit Delivery</h3>
     <div class="section-title">Customer Name</div>
-    <input id="edit_name" value="${delivery.customer_name}" style="${inputStyle}">
+    <input id="edit_name" value="${escHtml(delivery.customer_name)}" style="${inputStyle}">
     <div class="section-title">Phone</div>
-    <input id="edit_phone" value="${delivery.phone}" style="${inputStyle}">
+    <input id="edit_phone" value="${escHtml(delivery.phone)}" style="${inputStyle}">
     <div class="section-title">Alternate Phone</div>
-    <input id="edit_alt" value="${delivery.alternate_phone || ""}" style="${inputStyle}">
+    <input id="edit_alt" value="${escHtml(delivery.alternate_phone) || ""}" style="${inputStyle}">
     <div class="section-title">Address</div>
-    <textarea id="edit_address" style="${inputStyle}min-height:70px;">${delivery.address}</textarea>
+    <textarea id="edit_address" style="${inputStyle}min-height:70px;">${escHtml(delivery.address)}</textarea>
     <div class="section-title">Product</div>
-    <input id="edit_product" value="${delivery.product_name}" oninput="this.value=this.value.toUpperCase()" style="${inputStyle}">
+    <input id="edit_product" value="${escHtml(delivery.product_name)}" oninput="this.value=this.value.toUpperCase()" style="${inputStyle}">
     <div class="section-title">Serial Number</div>
-    <input id="edit_serial" value="${delivery.product_serial_number || ""}" style="${inputStyle}">
+    <input id="edit_serial" value="${escHtml(delivery.product_serial_number) || ""}" style="${inputStyle}">
     <div class="section-title">Estimated Delivery Time</div>
     <input type="datetime-local" id="edit_eta" value="${delivery.estimated_delivery_time ? new Date(delivery.estimated_delivery_time).toISOString().slice(0,16) : ""}" style="${inputStyle}">
     <div class="section-title">Assign Driver</div>
     <select id="edit_driver" style="${inputStyle}"></select>
     <div style="display:flex;gap:10px;margin-top:16px;">
-      <button class="btn btn-success" onclick="saveDelivery('${id}')">💾 Save Changes</button>
+      <button class="btn btn-success" onclick="saveDelivery('${escHtml(id)}')">💾 Save Changes</button>
       <button class="btn btn-gray" onclick="closeViewPopup()">Cancel</button>
     </div>
   `;
@@ -3834,7 +4004,7 @@ function openDeleteFailed(id) {
       <div style="font-size:16px;font-weight:700;color:#b91c1c;margin-bottom:6px;">🗑 Delete Failed Delivery</div>
       <div style="font-size:13px;color:#64748b;margin-bottom:14px;">
         You are about to permanently delete this delivery record.<br>
-        <strong style="color:#0f172a;">${delivery.customer_name}</strong> — ${delivery.product_name}
+        <strong style="color:#0f172a;">${escHtml(delivery.customer_name)}</strong> — ${escHtml(delivery.product_name)}
       </div>
 
       <label style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:#b91c1c;">
@@ -3848,10 +4018,10 @@ function openDeleteFailed(id) {
     </div>
 
     <div style="display:flex;gap:10px;">
-      <button class="btn btn-danger" style="flex:1;background:#dc2626;" onclick="confirmDeleteFailed('${id}')">
+      <button class="btn btn-danger" style="flex:1;background:#dc2626;" onclick="confirmDeleteFailed('${escHtml(id)}')">
         🗑 Confirm Delete
       </button>
-      <button class="btn btn-gray" style="flex:1;" onclick="openViewPopup('${id}')">
+      <button class="btn btn-gray" style="flex:1;" onclick="openViewPopup('${escHtml(id)}')">
         ← Cancel
       </button>
     </div>
@@ -5064,8 +5234,8 @@ function renderTallyInvoiceList() {
           <div class="tally-inv-name">${escHtml(v.customer_name)}</div>
           <div class="tally-inv-product">${escHtml(v.product_summary)}</div>
           <div class="tally-inv-meta">
-            ${v.invoice_number ? `#${v.invoice_number} · ` : ""}${v.date || ""}
-            ${v.phone ? ` · 📞 ${v.phone}` : ""}
+            ${v.invoice_number ? `#${escHtml(v.invoice_number)} · ` : ""}${escHtml(v.date) || ""}
+            ${v.phone ? ` · 📞 ${escHtml(v.phone)}` : ""}
             ${v.total ? ` · ₹${v.total.toLocaleString("en-IN")}` : ""}
           </div>
         </div>
@@ -5131,7 +5301,14 @@ function confirmTallyImport() {
             tallyToggle.checked = true;
             toggleTallyInput(tallyToggle, idx);
             const tallyInput = item.querySelector(`[data-field="tally_input"]`);
-            if (tallyInput) tallyInput.value = p.product_name || "";
+            if (tallyInput) {
+              const pname2 = p.product_name || "";
+              tallyInput.value = pname2;
+              const ts2 = item.querySelector(`[data-field="tally_search"]`);
+              const tl2 = item.querySelector(`[data-field="tally_selected_label"]`);
+              if (ts2) ts2.value = pname2;
+              if (tl2 && pname2) tl2.textContent = `✔ Selected: ${pname2}`;
+            }
           } else {
             // Fallback: regular product name input
             const nameInput = item.querySelector(`[data-field="product_name"], input[placeholder*="product"]`);
@@ -5157,14 +5334,14 @@ function confirmTallyImport() {
 
   // ── Close modal & show confirmation ──
   closeTallyImportModal();
-  _tallyMsg(`✅ ${v.customer_name} imported from Tally`, "success");
+  _tallyMsg(`✅ ${escHtml(v.customer_name)} imported from Tally`, "success");
 
   // Flash formMessage with helpful note about missing fields
   const msg = document.getElementById("formMessage");
   if (msg) {
     msg.style.color   = "var(--tertiary, #4edea3)";
     msg.style.fontSize = "13px";
-    msg.innerHTML = `📊 <strong>Tally import:</strong> ${escHtml(v.customer_name)} — ${v.invoice_number || ""}` +
+    msg.innerHTML = `📊 <strong>Tally import:</strong> ${escHtml(v.customer_name)} — ${escHtml(v.invoice_number) || ""}` +
       `<br><span style="color:var(--on-surface-variant,#c2c6d6);font-size:12px;">` +
       `📞 Phone &amp; 📍 Address not in Tally voucher — fill manually below</span>`;
     setTimeout(() => { msg.innerHTML = ""; }, 12000);

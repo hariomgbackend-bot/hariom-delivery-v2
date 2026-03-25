@@ -171,7 +171,8 @@
       letter-spacing: 0.2px; -webkit-tap-highlight-color: transparent;
     }
     .btn:hover { opacity: 0.88; transform: translateY(-1px); }
-    .btn:active { transform: scale(0.97); }
+    .btn:active:not(:disabled) { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
     .btn-primary { background: linear-gradient(135deg, var(--primary-container), var(--primary)); color: var(--on-primary-container); }
     .btn-teal    { background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary)); color: #002113; }
     .btn-danger  { background: rgba(147,0,10,0.6); color: var(--error); border: 1px solid rgba(255,180,171,0.2); }
@@ -179,6 +180,12 @@
     .btn-amber   { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
     .btn-sm      { padding: 5px 12px; font-size: 11px; border-radius: 8px; }
     .btn-icon    { padding: 7px; border-radius: 8px; }
+    .btn-spinner {
+      width: 14px; height: 14px; border: 2px solid transparent;
+      border-top-color: currentColor; border-radius: 50%;
+      animation: btn-spin 0.7s linear infinite;
+    }
+    @keyframes btn-spin { to { transform: rotate(360deg); } }
 
     /* ════ FILTER BAR ════ */
     .filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
@@ -422,6 +429,14 @@
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+    /* Offline Indicator */
+    #offlineBanner {
+      display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+      background: #dc2626; color: white; padding: 10px 16px; font-size: 13px;
+      font-weight: 600; text-align: center;
+    }
+    #offlineBanner.show { display: block; }
+
     /* ════ LIGHT MODE ════ */
     [data-theme="light"] {
       --bg: #f0f4fa; --surface: #ffffff;
@@ -491,6 +506,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 </head>
 <body>
+
+<!-- ══ OFFLINE INDICATOR ══ -->
+<div id="offlineBanner">📡 You're offline — changes will sync when reconnected</div>
 
 <!-- ══ LOGIN ══ -->
 <div id="loginScreen">
@@ -773,7 +791,7 @@
     <div id="ctMsg" style="font-size:13px;font-weight:600;min-height:18px;margin:8px 0;text-align:center;"></div>
 
     <div class="popup-actions">
-      <button class="btn btn-teal" onclick="submitCreateTicket()">
+      <button class="btn btn-teal" id="submitTicketBtn" onclick="submitCreateTicket()">
         <span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket
       </button>
       <button class="btn btn-gray" onclick="closeCreateTicketPopup()">Cancel</button>
@@ -793,6 +811,12 @@ const BASE_URL = window.location.origin;
   const saved = localStorage.getItem("hariom_theme");
   if (saved === "light") document.documentElement.setAttribute("data-theme","light");
 })();
+function esc(s) {
+  if (s == null) return "—";
+  const d = document.createElement("div");
+  d.textContent = String(s);
+  return d.innerHTML || "—";
+}
 function toggleDarkMode() {
   const isDark = document.documentElement.getAttribute("data-theme") !== "light";
   document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
@@ -810,6 +834,23 @@ function showToast(msg, ms = 2800) {
   t.textContent = msg; t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), ms);
 }
+
+/* ── OFFLINE DETECTION ── */
+window.addEventListener("online", () => {
+  document.getElementById("offlineBanner").classList.remove("show");
+  showToast("✅ Back online!");
+});
+window.addEventListener("offline", () => {
+  document.getElementById("offlineBanner").classList.add("show");
+});
+
+/* ── ESC KEY CLOSES POPUPS ── */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    closeTicketDetail();
+    closeCreateTicketPopup();
+  }
+});
 
 /* ── AUTH ── */
 let serviceToken = null;
@@ -924,9 +965,6 @@ async function loadTickets() {
 
 // Deliveries are loaded lazily — only fetch the specific one needed
 // instead of dumping the full collection on login (was causing the slow load)
-async function loadDeliveries() {
-  // No-op — kept for compatibility. Use getDelivery(id) instead.
-}
 
 async function getDelivery(id) {
   // Check in-memory cache first
@@ -1045,14 +1083,14 @@ function renderTicketsTable(tickets) {
   }
   tbody.innerHTML = tickets.map(t => `
     <tr class="clickable" onclick="openTicketDetail('${t.id}')">
-      <td><span class="badge badge-${t.type}">${displayType(t.type)}</span></td>
-      <td style="font-weight:700;">${t.customer_name||"—"}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.product_name||"—"}</td>
-      <td><a class="phone-link" href="tel:${t.phone}" onclick="event.stopPropagation()">${t.phone||"—"}</a></td>
-      <td><span class="badge badge-${t.status}">${t.status === "open" ? "new" : t.status.replace("_"," ")}</span></td>
+      <td><span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span></td>
+      <td style="font-weight:700;">${esc(t.customer_name)||"—"}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.product_name)||"—"}</td>
+      <td><a class="phone-link" href="tel:${esc(t.phone)}" onclick="event.stopPropagation()">${esc(t.phone)||"—"}</a></td>
+      <td><span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace("_"," ")}</span></td>
       <td>${warrantyStr(t)}</td>
       <td style="font-size:12px;color:var(--on-surface-variant);">${fmtDate(t.created_at)}</td>
-      <td style="font-size:11px;color:var(--on-surface-variant);">${t.created_by_name||t.created_by||"—"}</td>
+      <td style="font-size:11px;color:var(--on-surface-variant);">${esc(t.created_by_name)||esc(t.created_by)||"—"}</td>
       <td>
         <button class="btn btn-teal btn-sm" onclick="event.stopPropagation();openTicketDetail('${t.id}')">Open</button>
       </td>
@@ -1069,12 +1107,12 @@ function renderTicketsMob(tickets) {
     <div class="mob-ticket-card" onclick="openTicketDetail('${t.id}')">
       <div class="mob-card-row">
         <div>
-          <div class="mob-card-name">${t.customer_name||"—"}</div>
-          <div class="mob-card-product">${t.product_name||"—"}</div>
+          <div class="mob-card-name">${esc(t.customer_name)||"—"}</div>
+          <div class="mob-card-product">${esc(t.product_name)||"—"}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-          <span class="badge badge-${t.type}">${displayType(t.type)}</span>
-          <span class="badge badge-${t.status}">${t.status === "open" ? "new" : t.status.replace("_"," ")}</span>
+          <span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span>
+          <span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace("_"," ")}</span>
         </div>
       </div>
       <div class="mob-card-meta">${warrantyStr(t)} · ${fmtDate(t.created_at)}</div>
@@ -1184,12 +1222,12 @@ function openTicketDetail(id) {
 
   document.getElementById("ticketDetailContent").innerHTML = `
     <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      <span class="badge badge-${t.type}">${displayType(t.type)}</span>
-      ${t.customer_name || "—"}
+      <span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span>
+      ${esc(t.customer_name) || "—"}
     </h3>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-      <span class="badge badge-${t.status}">${t.status === "open" ? "new" : t.status.replace(/_/g," ")}</span>
+      <span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace(/_/g," ")}</span>
       ${warranty !== "—" ? warranty : ""}
       ${t.is_auto_created ? `<span class="badge" style="background:rgba(173,198,255,0.1);color:var(--on-surface-variant);">Auto-created</span>` : ""}
     </div>
@@ -1197,21 +1235,21 @@ function openTicketDetail(id) {
     <div class="detail-row">
       <span class="detail-label">Phone</span>
       <span class="detail-value">
-        <a class="phone-link" href="tel:${t.phone}">${t.phone || "—"}</a>
-        ${t.alternate_phone ? ` &nbsp;·&nbsp; <a class="phone-link" href="tel:${t.alternate_phone}">${t.alternate_phone}</a> <span style="font-size:10px;color:var(--on-surface-variant);">(alt)</span>` : ""}
+        <a class="phone-link" href="tel:${esc(t.phone)}">${esc(t.phone) || "—"}</a>
+        ${t.alternate_phone ? ` &nbsp;·&nbsp; <a class="phone-link" href="tel:${esc(t.alternate_phone)}">${esc(t.alternate_phone)}</a> <span style="font-size:10px;color:var(--on-surface-variant);">(alt)</span>` : ""}
       </span>
     </div>
-    <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${t.address || "—"}</span></div>
-    <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${t.product_name || "—"}</span></div>
-    <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${t.serial_number || "—"}</span></div>
-    ${t.description ? `<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${t.description}</span></div>` : ""}
+    <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${esc(t.address) || "—"}</span></div>
+    <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${esc(t.product_name) || "—"}</span></div>
+    <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${esc(t.serial_number) || "—"}</span></div>
+    ${t.description ? `<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${esc(t.description)}</span></div>` : ""}
     ${t.priority && t.priority !== "normal" ? `<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value" style="color:var(--error);font-weight:700;">🔴 Urgent</span></div>` : (t.priority === "normal" ? `<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value">Normal</span></div>` : "")}
-    <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${createdDate} by ${t.created_by_name || t.created_by || "—"}</span></div>
+    <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${createdDate} by ${esc(t.created_by_name) || esc(t.created_by) || "—"}</span></div>
     ${purchaseDate ? `<div class="detail-row"><span class="detail-label">Purchase Date</span><span class="detail-value">${purchaseDate}</span></div>` : ""}
     ${loggedDate   ? `<div class="detail-row"><span class="detail-label">Logged with Brand</span><span class="detail-value">${loggedDate}</span></div>` : ""}
     ${resolvedDate ? `<div class="detail-row"><span class="detail-label">Resolved</span><span class="detail-value">${resolvedDate}</span></div>` : ""}
-    ${t.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${t.notes}</span></div>` : ""}
-    ${t.brand_tracking_number ? `<div class="detail-row"><span class="detail-label">Brand Ref#</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${t.brand_tracking_number}</span></div>` : ""}
+    ${t.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${esc(t.notes)}</span></div>` : ""}
+    ${t.brand_tracking_number ? `<div class="detail-row"><span class="detail-label">Brand Ref#</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${esc(t.brand_tracking_number)}</span></div>` : ""}
     ${trackingHistory}
 
     <!-- Status update -->
@@ -1258,7 +1296,7 @@ function openTicketDetail(id) {
       </button>
     </div>` : `
     <div style="margin-top:16px;padding:10px 12px;background:var(--surface-container);border-radius:8px;font-size:11px;color:var(--on-surface-variant);">
-      🔒 Ticket cannot be edited or deleted once logged
+      🔒 Logged tickets cannot be edited or deleted
     </div>`}
   `;
 
@@ -1327,12 +1365,6 @@ async function updateTicketStatus(id, status, btn) {
   } catch (e) { showToast("❌ Network error"); }
 }
 
-async function markAsLogged(id, btn) {
-  // Legacy fallback — used by status button; redirects to inline flow
-  showToast("⚠ Please use the Tracking ID field above and click Mark as Logged");
-  if (btn) { btn.disabled = false; }
-}
-
 async function markAsLoggedInline(id, btn) {
   const trackingInput = document.getElementById("ticketTrackingInput");
   const val = trackingInput ? trackingInput.value.trim() : "";
@@ -1352,11 +1384,6 @@ async function markAsLoggedInline(id, btn) {
     await loadTickets();
     openTicketDetail(id);
   } catch (e) { showToast("❌ Network error"); if(btn){btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">check_circle</span> Mark as Logged';} }
-}
-
-async function reLogTicket(id) {
-  // Legacy — now handled inline via reLogTicketInline
-  showToast("⚠ Please use the Re-log input field and click Re-log");
 }
 
 async function reLogTicketInline(id, btn) {
@@ -1500,7 +1527,7 @@ async function onCtPinInput(val) {
 function openCreateTicketPopup(prefill = {}) {
   // Reset all fields
   ["ctFirstName","ctMiddleName","ctLastName","ctPhone","ctAltPhone",
-   "ctPincode","ctState","ctCity","ctAddr1","ctAddr2","ctProduct","ctSerial","ctDesc","ctPurchaseDate"].forEach(id => {
+   "ctPincode","ctState","ctCity","ctAddr1","ctAddr2","ctProduct","ctSerial","ctPurchaseDate"].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ""; el.readOnly = false; }
   });
@@ -1529,7 +1556,7 @@ function openCreateTicketPopup(prefill = {}) {
 
   // Parse address if prefilled — try to extract pincode
   if (prefill.address) {
-    const pin = prefill.address.match(/(\d{6})/);
+    const pin = prefill.address.match(/\b(\d{6})\b/);
     if (pin) {
       document.getElementById("ctPincode").value = pin[1];
       onCtPinInput(pin[1]);
@@ -1606,6 +1633,7 @@ async function submitCreateTicket() {
   const type = document.getElementById("ctType").value;
   const phone = document.getElementById("ctPhone").value.trim();
   const msg   = document.getElementById("ctMsg");
+  const btn   = document.getElementById("submitTicketBtn");
 
   // Resolve description based on type
   let desc = "";
@@ -1644,6 +1672,8 @@ async function submitCreateTicket() {
   }
 
   msg.style.color = "var(--primary)"; msg.textContent = "Saving...";
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span> Saving...';
   try {
     const res = await authFetch(`${BASE_URL}/service/ticket`, {
       method: "POST", headers: {"Content-Type":"application/json"},
@@ -1664,11 +1694,19 @@ async function submitCreateTicket() {
       })
     });
     const data = await res.json();
-    if (!res.ok) { msg.style.color="var(--error)"; msg.textContent=data.error||"Failed."; return; }
+    if (!res.ok) {
+      msg.style.color="var(--error)"; msg.textContent=data.error||"Failed.";
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
+      return;
+    }
     msg.style.color = "var(--tertiary)"; msg.textContent = "Ticket created!";
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
     setTimeout(() => { closeCreateTicketPopup(); loadAll(); }, 800);
   } catch(e) {
     msg.style.color = "var(--error)"; msg.textContent = "Network error.";
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
   }
 }
 
@@ -1707,8 +1745,8 @@ function renderSearchResults(deliveries, tickets) {
     return `
     <div class="search-result-row" onclick="prefillFromDelivery('${d.id}')">
       <div>
-        <div class="srr-name">${d.customer_name||"—"}</div>
-        <div class="srr-product">${d.product_name||"—"} · ${d.phone||"—"}</div>
+        <div class="srr-name">${esc(d.customer_name)||"—"}</div>
+        <div class="srr-product">${esc(d.product_name)||"—"} · ${esc(d.phone)||"—"}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         ${warranty}
@@ -1720,12 +1758,12 @@ function renderSearchResults(deliveries, tickets) {
   tEl.innerHTML = tickets.slice(0,5).map(t => `
     <div class="search-result-row" onclick="openTicketDetail('${t.id}')">
       <div>
-        <div class="srr-name">${t.customer_name||"—"}</div>
-        <div class="srr-product">${t.product_name||"—"}</div>
+        <div class="srr-name">${esc(t.customer_name)||"—"}</div>
+        <div class="srr-product">${esc(t.product_name)||"—"}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span class="badge badge-${t.status}">${t.status.replace("_"," ")}</span>
-        <span class="badge badge-${t.type}">${displayType(t.type)}</span>
+        <span class="badge badge-${esc(t.status)}">${esc(t.status).replace("_"," ")}</span>
+        <span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span>
       </div>
     </div>`).join("");
 }
@@ -1857,7 +1895,7 @@ async function submitEditTicket(id) {
   } catch(e) { msg.style.color="var(--error)"; msg.textContent="Network error."; }
 }
 
-/* ── DELETE TICKET with reason (open only) ── */
+/* ── DELETE TICKET with reason (new tickets only) ── */
 function confirmDeleteTicket(id) {
   const t = allTickets.find(x => x.id === id);
   if (!t) return;
@@ -1970,7 +2008,7 @@ async function registerServicePush() {
     const token = await _svcMessaging.getToken({ vapidKey: VAPID_KEY_SVC, serviceWorkerRegistration: reg });
     if (!token) { console.warn("[service push] No token returned"); return; }
 
-    await fetch(`${BASE_URL}/saveServicePushToken`, {
+    await authFetch(`${BASE_URL}/saveServicePushToken`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token })
     });

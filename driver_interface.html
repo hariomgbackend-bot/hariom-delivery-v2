@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Hariom DMS">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="/driver-manifest.json">
   <meta name="theme-color" content="#0b1326">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
@@ -357,6 +357,11 @@
     }
     .delivery-card:active { transform: scale(0.99); background: var(--surface-container); }
     .delivery-card.priority-urgent { border-left: 4px solid var(--error); }
+    .delivery-card.pending-sync { opacity: 0.85; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
 
     /* ─── BATCH CARD GROUPING ─── */
     .batch-group {
@@ -1125,6 +1130,40 @@
     [data-theme="light"] .card-name { color: #1a2540; }
 
     input:focus { outline: none !important; }
+
+    /* ─── OFFLINE MODE INDICATOR ─── */
+    .offline-indicator {
+      position: fixed;
+      top: calc(14px + var(--safe-top));
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 180, 171, 0.95);
+      color: #b91c1c;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(185, 28, 28, 0.3);
+      animation: pulseOffline 2s ease-in-out infinite;
+    }
+    .offline-indicator.show { display: flex; }
+    @keyframes pulseOffline {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .sync-badge {
+      background: var(--tertiary);
+      color: #002113;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: 8px;
+    }
   </style>
 </head>
 <body>
@@ -1142,6 +1181,12 @@
     <div id="pushDot" class="push-dot" title="Push notification status"></div>
     <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">☀️</button>
   </div>
+</div>
+
+<!-- OFFLINE MODE INDICATOR -->
+<div id="offlineIndicator" class="offline-indicator">
+  <span>📡 Offline Mode</span>
+  <span id="syncBadge" class="sync-badge" style="display:none;">Syncing...</span>
 </div>
 
 <div class="container">
@@ -1377,6 +1422,239 @@ document.addEventListener("DOMContentLoaded", function() {
 /* ── END DARK MODE ───────────────────────────────────── */
 
 /* ═══════════════════════════════════════
+   OFFLINE-FIRST FUNCTIONALITY (HARDENED)
+═══════════════════════════════════════ */
+const OFFLINE_ACTIONS_KEY = "offlineActions";
+const DELIVERIES_CACHE_KEY = "cachedDeliveries";
+let isSyncing = false;
+let isProcessingAction = false;
+
+function isOnline() {
+  return navigator.onLine;
+}
+
+function updateOnlineStatus() {
+  const indicator = document.getElementById("offlineIndicator");
+  if (!isOnline()) {
+    indicator.classList.add("show");
+  } else {
+    indicator.classList.remove("show");
+    const syncBadge = document.getElementById("syncBadge");
+    if (syncBadge) syncBadge.style.display = "none";
+  }
+}
+
+window.addEventListener("online", () => {
+  updateOnlineStatus();
+  setTimeout(() => syncPendingActions(), 500);
+});
+
+window.addEventListener("offline", () => {
+  updateOnlineStatus();
+  if (!allDeliveriesData || allDeliveriesData.length === 0) {
+    const cached = getCachedDeliveries();
+    if (cached && cached.length > 0) {
+      allDeliveriesData = cached;
+      renderDeliveries(allDeliveriesData);
+    }
+  }
+});
+
+if (typeof window !== 'undefined') {
+  updateOnlineStatus();
+}
+
+function getOfflineActions() {
+  try {
+    const stored = localStorage.getItem(OFFLINE_ACTIONS_KEY);
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch (e) {
+    console.warn("[Offline] Failed to get actions:", e);
+    return [];
+  }
+}
+
+function saveOfflineActions(actions) {
+  try {
+    localStorage.setItem(OFFLINE_ACTIONS_KEY, JSON.stringify(actions));
+  } catch (e) {
+    console.warn("[Offline] Failed to save actions:", e);
+  }
+}
+
+function addOfflineAction(deliveryId, action, extraData = {}) {
+  let actions = getOfflineActions();
+  actions = actions.filter(a => a.id !== deliveryId);
+  actions.push({
+    id: deliveryId,
+    action: action,
+    timestamp: Date.now(),
+    ...extraData
+  });
+  saveOfflineActions(actions);
+}
+
+function removeOfflineAction(deliveryId) {
+  let actions = getOfflineActions();
+  actions = actions.filter(a => a.id !== deliveryId);
+  saveOfflineActions(actions);
+}
+
+function cacheDeliveries(deliveries) {
+  try {
+    localStorage.setItem(DELIVERIES_CACHE_KEY, JSON.stringify({
+      data: deliveries,
+      timestamp: Date.now()
+    }));
+  } catch (e) {
+    console.warn("[Cache] Failed to cache deliveries", e);
+  }
+}
+
+function getCachedDeliveries() {
+  try {
+    const cached = localStorage.getItem(DELIVERIES_CACHE_KEY);
+    if (!cached) return null;
+    return JSON.parse(cached).data || null;
+  } catch (e) {
+    console.warn("[Cache] Failed to get cached deliveries:", e);
+    return null;
+  }
+}
+
+async function syncPendingActions() {
+  if (!isOnline()) return;
+  if (isSyncing) return;
+
+  // Snapshot the queue NOW — used for timestamp-safe removal after sync (Bug 4 fix)
+  const actionsSnapshot = getOfflineActions();
+  if (actionsSnapshot.length === 0) return;
+
+  isSyncing = true;
+
+  const syncBadge = document.getElementById("syncBadge");
+  if (syncBadge) {
+    syncBadge.style.display = "inline";
+    syncBadge.textContent = `Syncing ${actionsSnapshot.length}…`;
+  }
+
+  try {
+    const successIds = [];
+
+    for (const action of actionsSnapshot) {
+      try {
+        const endpoint = action.action === "delivered"
+          ? `/markDelivered/${action.id}`
+          : `/markLoaded/${action.id}`;
+
+        // Reconstruct a proper FormData payload matching what the online path sends (Bug 2 fix)
+        const formData = new FormData();
+        formData.append("driver_id", currentDriverId);
+        formData.append("pin",       currentDriverPin);
+        formData.append("_offline_sync", "true");
+
+        // Reconstruct photo blob from stored base64 (Bug 3 fix)
+        if (action.photoBase64) {
+          try {
+            const fetchRes = await fetch(action.photoBase64);
+            const blob = await fetchRes.blob();
+            formData.append("photo", blob, "upload.jpg");
+          } catch (e) {
+            console.warn("[Sync] Photo reconstruction failed for", action.id, e);
+          }
+        }
+
+        // GPS captured at action-creation time
+        if (action.gps) {
+          formData.append("lat", action.gps.lat);
+          formData.append("lng", action.gps.lng);
+        }
+
+        // Serial (mark-loaded actions)
+        if (action.serial) formData.append("serial", action.serial);
+
+        // Freight (mark-delivered actions)
+        if (action.freight && parseFloat(action.freight) > 0) {
+          formData.append("driver_freight_amount", action.freight);
+        }
+        formData.append("freight_acknowledged", "true");
+
+        const fetchOptions = { method: "POST", body: formData };
+        if (driverSessionToken) {
+          fetchOptions.headers = { "Authorization": "Bearer " + driverSessionToken };
+        }
+
+        const res = await fetch(`${BASE_URL}${endpoint}`, fetchOptions);
+        if (res.ok) successIds.push(action.id);
+
+      } catch (e) {
+        console.warn("[Sync] Failed for action:", action.id, e);
+      }
+    }
+
+    // Timestamp-safe removal: only delete entries whose id AND timestamp match the
+    // snapshot we synced — a new action queued mid-sync for the same id is preserved (Bug 4 fix)
+    if (successIds.length > 0) {
+      const syncedEntries = actionsSnapshot.filter(a => successIds.includes(a.id));
+      const liveActions   = getOfflineActions();
+      const remaining     = liveActions.filter(live =>
+        !syncedEntries.some(s => s.id === live.id && s.timestamp === live.timestamp)
+      );
+      saveOfflineActions(remaining);
+
+      if (syncBadge) {
+        const stillPending = remaining.length;
+        if (stillPending === 0) {
+          syncBadge.style.display = "none";
+        } else {
+          syncBadge.textContent = `${stillPending} pending`;
+        }
+      }
+
+      // Accurate toast — don't claim "all" when some failed (Bug 8 fix)
+      const failed = actionsSnapshot.length - successIds.length;
+      showToast(failed > 0
+        ? `⚠ ${successIds.length} synced, ${failed} still pending`
+        : `✅ All changes synced`);
+
+      if (currentDriverId) silentRefresh();
+
+    } else {
+      // Nothing succeeded — keep badge visible with count
+      if (syncBadge) syncBadge.textContent = `${actionsSnapshot.length} pending`;
+    }
+
+  } finally {
+    isSyncing = false;
+    // Always schedule retry from inside finally so an unexpected throw can't strand the queue (Bug 6 fix)
+    const remaining = getOfflineActions();
+    if (remaining.length > 0) scheduleRetry();
+  }
+}
+
+let retryTimer = null;  // Single handle — prevents stacked timers (Bug 5 fix)
+
+function scheduleRetry() {
+  if (retryTimer) return;   // A retry is already scheduled; don't stack another
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (isOnline() && !isSyncing) {
+      const remaining = getOfflineActions();
+      if (remaining.length > 0) syncPendingActions();
+    } else if (getOfflineActions().length > 0) {
+      scheduleRetry();
+    }
+  }, 15000);
+}
+
+function getDeliveryWithOfflineStatus(deliveryId) {
+  const actions = getOfflineActions();
+  const pendingAction = actions.find(a => a.id === deliveryId);
+  return pendingAction?.action || null;
+}
+
+/* ═══════════════════════════════════════
    FIREBASE + STABLE PUSH
 ═══════════════════════════════════════ */
 const firebaseConfig = {
@@ -1442,15 +1720,18 @@ async function registerPushToken(driverId) {
     const reg = swRegistration || await navigator.serviceWorker.ready;
     const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
     if (!token) return;
-    await fetch(`${BASE_URL}/saveDriverPushToken`, {
+    const fetchOptions = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ driver_id: driverId, token })
-    });
+    };
+    if (driverSessionToken) {
+      fetchOptions.headers["Authorization"] = "Bearer " + driverSessionToken;
+    }
+    await fetch(`${BASE_URL}/saveDriverPushToken`, fetchOptions);
     dot.className = "push-dot on";
   } catch (e) {
     console.warn("[Push]", e);
-    // Stale token — delete and retry once
     if (e.message?.includes("registration") || e.message?.includes("InvalidRegistration")) {
       try { await messaging.deleteToken(); setTimeout(() => registerPushToken(driverId), 2500); } catch (_) {}
     } else { dot.className = "push-dot off"; }
@@ -1497,7 +1778,8 @@ function vibrate(pattern) {
 /* ═══════════════════════════════════════
    REMEMBER LAST DRIVER (localStorage)
 ═══════════════════════════════════════ */
-const STORAGE_KEY = "hariom_last_driver";
+const STORAGE_KEY         = "hariom_last_driver";
+const SESSION_KEY         = "hariom_driver_session";  // id + name + pin for offline login
 
 function saveLastDriver(id, name) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ id, name }));
@@ -1505,6 +1787,21 @@ function saveLastDriver(id, name) {
 
 function restoreLastDriver() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; }
+}
+
+// Persists the full session so the driver can re-authenticate while offline.
+// The PIN is already held in memory and sent on every background refresh —
+// persisting it here is not a regression for this deployment model.
+function saveDriverSession(id, name, pin) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ id, name, pin })); } catch (_) {}
+}
+
+function restoreDriverSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; }
+}
+
+function clearDriverSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
 }
 
 /* ═══════════════════════════════════════
@@ -1539,7 +1836,26 @@ async function loadDrivers() {
     if (sk) sk.remove();
   } catch (e) {
     console.warn("[loadDrivers]", e);
-    showToast("⚠ Could not load drivers");
+
+    // Offline fallback: rebuild the select from the last known session so the
+    // login form stays usable — driver can still enter their PIN against cache.
+    const session = restoreDriverSession();
+    const sel = document.getElementById("driverSelect");
+    if (session && sel) {
+      sel.innerHTML = "";
+      const o = document.createElement("option");
+      o.value = session.name; o.text = session.name; o.dataset.id = session.id;
+      sel.appendChild(o);
+      sel.value = session.name;
+      document.getElementById("rememberedTag").style.display = "inline-flex";
+    }
+
+    const sk = document.getElementById("skeletonLoader");
+    if (sk) sk.remove();
+
+    // Only show the error toast when actually online — if offline the form
+    // populates from cache and the offline banner already tells the driver.
+    if (isOnline()) showToast("⚠ Could not load drivers");
   }
 }
 
@@ -1554,6 +1870,57 @@ async function unlockDriver() {
   if (!driverSelect.value || !pin) { showToast("Select driver and enter PIN"); return; }
 
   const driverId = driverSelect.options[driverSelect.selectedIndex].dataset.id;
+
+  // ── OFFLINE PATH ────────────────────────────────────────────────────────────
+  // Validate the PIN against the locally saved session. If it matches, restore
+  // the driver's view from cache so they can work without network.
+  if (!isOnline()) {
+    const session = restoreDriverSession();
+
+    if (!session) {
+      showToast("⚠ No saved session — connect to internet first");
+      return;
+    }
+
+    if (session.id !== driverId || session.pin !== pin) {
+      vibrate([100, 50, 100]);
+      pinAttempts++;
+      if (pinAttempts >= 7) {
+        showToast("🔒 Too many attempts. Contact admin.");
+        pinInput.disabled = true; driverSelect.disabled = true;
+        return;
+      }
+      showToast("❌ Incorrect PIN (" + (7 - pinAttempts) + " attempts left)");
+      return;
+    }
+
+    // PIN matches saved session — restore state fully
+    currentDriverId  = session.id;
+    currentDriverPin = session.pin;
+    pinAttempts      = 0;
+
+    driverSelect.disabled = true;
+    pinInput.style.display = "none";
+    document.getElementById("unlockBtn").style.display       = "none";
+    document.getElementById("changeDriverBtn").style.display = "inline-flex";
+    document.getElementById("rememberedTag").style.display   = "none";
+
+    const cached = getCachedDeliveries();
+    if (cached && cached.length > 0) {
+      allDeliveriesData = cached;
+      applyOfflineActionsToDeliveries();
+      renderDeliveries(allDeliveriesData);
+      loadDeliveryHistory(currentDriverId);
+      showToast("📡 Offline — showing last cached deliveries", 3500);
+    } else {
+      showToast("⚠ Offline and no cached deliveries available", 3500);
+    }
+
+    startDriverAutoRefresh();
+    vibrate([50]);
+    return;
+  }
+  // ── END OFFLINE PATH ────────────────────────────────────────────────────────
 
   // Show loading state
   const btn = document.getElementById("unlockBtn");
@@ -1597,6 +1964,7 @@ async function unlockDriver() {
     currentDriverPin = pin;
     pinAttempts      = 0;
     saveLastDriver(driverId, driverSelect.value);
+    saveDriverSession(driverId, driverSelect.value, pin);  // persist for offline re-auth
 
     await registerPushToken(driverId);
 
@@ -1618,6 +1986,7 @@ async function unlockDriver() {
       loadDispatcherDeliveries();
     } else {
       allDeliveriesData = data;
+      cacheDeliveries(data);
       renderDeliveries(data);
       loadDeliveryHistory(driverId);
     }
@@ -1651,9 +2020,13 @@ function filterDeliveryCards() {
 
 /* ═══════════════════════════════════════
    RENDER — sorted: urgent first, then by ETA
-═══════════════════════════════════════ */
+══════════════════════════════════════ */
 function renderDeliveries(data) {
+  applyOfflineActionsToDeliveries();
   data = data.filter(d => d.status !== "delivered" && d.status !== "failed");
+
+  const offlineActions = getOfflineActions();
+  const pendingSyncIds = offlineActions.map(a => a.id);
 
   // Sort: urgent first, then pending before loaded, then by ETA
   data.sort((a, b) => {
@@ -1707,8 +2080,11 @@ function renderDeliveries(data) {
 
   function makeCard(d, inBatch) {
     const card = document.createElement("div");
+    const isPendingSync = pendingSyncIds.includes(d.id);
     card.className = "delivery-card" +
-      (d.priority === "urgent" ? " priority-urgent" : "");
+      (d.priority === "urgent" ? " priority-urgent" : "") +
+      (isPendingSync ? " pending-sync" : "");
+    card.style.position = "relative";
     card.onclick = () => openDelivery(d.id);
 
     let etaLabel = "";
@@ -1721,6 +2097,10 @@ function renderDeliveries(data) {
       }
     }
 
+    const statusText = isPendingSync 
+      ? `<span class="badge badge-${d.status}" style="position:relative;">${d.status} <span style="display:inline-block;width:6px;height:6px;background:var(--amber);border-radius:50%;margin-left:4px;animation:pulse 1s infinite;"></span></span>`
+      : `<span class="badge badge-${d.status}">${d.status}</span>`;
+
     card.innerHTML = `
       <div class="card-top">
         <div>
@@ -1728,7 +2108,7 @@ function renderDeliveries(data) {
           <div class="card-product">${d.product_name}</div>
         </div>
         <div class="card-badges">
-          <span class="badge badge-${d.status}">${d.status}</span>
+          ${statusText}
           ${d.priority === "urgent" ? `<span class="badge badge-urgent">🔥 Urgent</span>` : ""}
         </div>
       </div>
@@ -1776,8 +2156,33 @@ function renderDeliveries(data) {
    OPEN DELIVERY POPUP
 ═══════════════════════════════════════ */
 async function openDelivery(id) {
-  const res = await fetch(`${BASE_URL}/delivery/${id}`);
-  const d   = await res.json();
+  let d = null;
+
+  if (!isOnline()) {
+    if (!allDeliveriesData || allDeliveriesData.length === 0) {
+      const cached = getCachedDeliveries();
+      if (cached && cached.length > 0) {
+        allDeliveriesData = cached;
+      }
+    }
+    d = allDeliveriesData.find(x => String(x.id) === String(id)) || null;
+    if (!d) { showToast("⚠ Delivery not available offline"); return; }
+  } else {
+    try {
+      const res = await fetch(`${BASE_URL}/delivery/${id}`);
+      if (res.ok) {
+        d = await res.json();
+      } else {
+        // Server error — fall back to cache so the driver isn't blocked
+        d = allDeliveriesData.find(x => String(x.id) === String(id)) || null;
+        if (!d) { showToast("⚠ Could not load delivery"); return; }
+      }
+    } catch (e) {
+      // Network failure mid-session — fall back to cache
+      d = allDeliveriesData.find(x => String(x.id) === String(id)) || null;
+      if (!d) { showToast("⚠ Network error — delivery not in cache"); return; }
+    }
+  }
   currentDeliveryData = d;
   currentDeliveryId   = id;
   currentStatus       = (d.status || "").toLowerCase();
@@ -2050,11 +2455,60 @@ async function compressImage(file) {
    UPDATE DELIVERY
 ═══════════════════════════════════════ */
 async function updateDelivery() {
+  if (isProcessingAction) return;
+  
   const fileInput = document.getElementById("photo");
   if (!fileInput?.files?.length) { showToast("📷 Please upload a photo first"); return; }
   const file = fileInput.files[0];
   if (!file.type.startsWith("image/")) { showToast("Only image files allowed"); return; }
 
+  const actionType = currentStatus === "pending" ? "loaded" : "delivered";
+
+  if (!isOnline()) {
+    isProcessingAction = true;
+
+    // Compress photo immediately and serialise to base64 so it survives localStorage (Bug 3 fix)
+    let photoBase64 = null;
+    try {
+      const blobToStore = precompressedBlob || await compressImage(fileInput.files[0]);
+      precompressedBlob = null;
+      photoBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blobToStore);
+      });
+    } catch (e) {
+      console.warn("[Offline] Photo compression/serialise failed", e);
+    }
+
+    const extraData = {
+      photoBase64,  // base64 data URL — reconstructed into Blob at sync time
+      serial: document.getElementById("serialInput")?.value?.trim() || null,
+      freight: document.getElementById("freightInput")?.value?.trim() || null,
+      // Capture GPS at action time so sync can submit real coordinates (Bug 3 fix)
+      gps: cachedGpsPosition
+        ? { lat: cachedGpsPosition.coords.latitude, lng: cachedGpsPosition.coords.longitude }
+        : null
+    };
+
+    addOfflineAction(currentDeliveryId, actionType, extraData);
+
+    const delivery = allDeliveriesData.find(d => d.id === currentDeliveryId);
+    if (delivery) {
+      delivery.status = actionType;
+    }
+
+    vibrate([100, 50, 200]);
+    showToast("💾 Saved offline. Will sync later");
+    closePopup();
+    renderDeliveries(allDeliveriesData);
+    isProcessingAction = false;
+    return;
+  }
+
+  isProcessingAction = true;
+  
   // Lock swipe widget during upload
   const widget = document.getElementById("swipeWidget");
   if (widget) widget.style.pointerEvents = "none";
@@ -2080,7 +2534,7 @@ async function updateDelivery() {
 
     const serialInput = document.getElementById("serialInput");
     if (currentStatus === "pending" && !currentDeliveryData.product_serial_number) {
-      if (!serialInput?.value?.trim()) { showToast("⚠ Serial number is required"); if(widget) widget.style.pointerEvents="auto"; return; }
+      if (!serialInput?.value?.trim()) { showToast("⚠ Serial number is required"); isProcessingAction = false; if(widget) widget.style.pointerEvents="auto"; return; }
       formData.append("serial", serialInput.value.trim());
     }
 
@@ -2102,6 +2556,7 @@ async function updateDelivery() {
 
         if (freightVal === "" || freightVal === null || freightVal === undefined) {
           showToast("⚠ Please enter freight amount (₹0 if none)");
+          isProcessingAction = false;
           if (widget) widget.style.pointerEvents = "auto";
           return;
         }
@@ -2109,6 +2564,7 @@ async function updateDelivery() {
         const freightNum = parseFloat(freightVal);
         if (isNaN(freightNum) || freightNum < 0) {
           showToast("⚠ Invalid freight amount");
+          isProcessingAction = false;
           if (widget) widget.style.pointerEvents = "auto";
           return;
         }
@@ -2124,6 +2580,7 @@ async function updateDelivery() {
 
     fetch(`${BASE_URL}${endpoint}`, { method: "POST", body: formData })
       .then(res => {
+        isProcessingAction = false;
         if (!res.ok) { showToast("⚠ Update failed. Try again."); if(widget) widget.style.pointerEvents="auto"; return; }
         vibrate([100, 50, 200]);
         showToast(currentStatus === "pending" ? "✅ Marked as Loaded!" : "🎉 Marked as Delivered!");
@@ -2131,19 +2588,19 @@ async function updateDelivery() {
         silentRefresh();   // lightweight — reuses session token, no PIN re-auth
       })
       .catch(() => {
+        isProcessingAction = false;
         showToast("⚠ Network error. Please retry.");
         if (widget) widget.style.pointerEvents = "auto";
       });
   }
 
   if (cachedGpsPosition) {
-    // GPS already warm — submit instantly
     doSubmit(cachedGpsPosition);
   } else {
-    // No cached position — get fresh (shows loading implicitly via locked swipe)
     navigator.geolocation.getCurrentPosition(
       pos => doSubmit(pos),
       () => {
+        isProcessingAction = false;
         showToast("📍 Location access required. Please enable it and try again.");
         if (widget) widget.style.pointerEvents = "auto";
       },
@@ -2184,6 +2641,8 @@ function onFailureReasonChange() {
    SUBMIT FAILURE
 ═══════════════════════════════════════ */
 async function submitFailure() {
+  if (isProcessingAction) return;   // Prevent double-tap duplicate submissions (Bug 7 fix)
+
   const reason = document.getElementById("failureReason")?.value;
   if (!reason) { showToast("⚠ Please select a reason"); return; }
 
@@ -2196,6 +2655,11 @@ async function submitFailure() {
     showToast("📷 Photo required for damaged product");
     return;
   }
+
+  isProcessingAction = true;
+  const confirmBtn = document.querySelector('[onclick="submitFailure()"]');
+  const origBtnText = confirmBtn?.textContent;
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = "Submitting…"; }
 
   const formData = new FormData();
   formData.append("reason", reason);
@@ -2218,9 +2682,12 @@ async function submitFailure() {
     vibrate([100, 50, 100, 50, 200]);
     showToast("❌ Delivery marked as failed");
     closePopup();
-    silentRefresh();   // lightweight — reuses session token, no PIN re-auth
+    silentRefresh();
   } catch (e) {
     showToast("⚠ Network error. Please retry.");
+  } finally {
+    isProcessingAction = false;
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || "Confirm Failure"; }
   }
 }
 
@@ -2242,6 +2709,17 @@ async function silentRefresh() {
   // Feature 7: if dispatcher mode, refresh dispatcher instead
   if (document.getElementById("dispatcherPanel").style.display !== "none") {
     loadDispatcherDeliveries();
+    return;
+  }
+
+  if (!isOnline()) {
+    const cached = getCachedDeliveries();
+    if (cached) {
+      allDeliveriesData = cached;
+      applyOfflineActionsToDeliveries();
+      renderDeliveries(allDeliveriesData);
+      showToast("📡 Loaded from cache (offline)");
+    }
     return;
   }
 
@@ -2270,6 +2748,8 @@ async function silentRefresh() {
         const json = await res.json();
         driverSessionToken = json.sessionToken || null;
         allDeliveriesData = json.deliveries || json;
+        cacheDeliveries(allDeliveriesData);
+        applyOfflineActionsToDeliveries();
         renderDeliveries(allDeliveriesData);
         loadDeliveryHistory(currentDriverId);
         return;
@@ -2285,10 +2765,29 @@ async function silentRefresh() {
     if (res && res.ok) {
       const data = await res.json();
       allDeliveriesData = data;
+      cacheDeliveries(allDeliveriesData);
+      applyOfflineActionsToDeliveries();
       renderDeliveries(allDeliveriesData);
       loadDeliveryHistory(currentDriverId);
     }
-  } catch (_) {}
+  } catch (_) {
+    const cached = getCachedDeliveries();
+    if (cached) {
+      allDeliveriesData = cached;
+      applyOfflineActionsToDeliveries();
+      renderDeliveries(allDeliveriesData);
+    }
+  }
+}
+
+function applyOfflineActionsToDeliveries() {
+  const actions = getOfflineActions();
+  actions.forEach(action => {
+    const delivery = allDeliveriesData.find(d => d.id === action.id);
+    if (delivery) {
+      delivery.status = action.action;
+    }
+  });
 }
 
 /* ═══════════════════════════════════════
@@ -2410,7 +2909,8 @@ function resetInactivityTimer() {
   if (!currentDriverId) return;
   if (inactivityTimer) clearTimeout(inactivityTimer);
   inactivityTimer = setTimeout(() => {
-    if (currentDriverId) {
+    // Never auto-logout when offline — driver can't re-authenticate without network
+    if (currentDriverId && isOnline()) {
       closePopup();
       logoutDriver();
       showToast("🔒 Session expired. Please log in again.", 4000);
@@ -2512,29 +3012,14 @@ let historyData = [];
 let historyOpen = false;
 
 async function loadDeliveryHistory(driverId) {
+  // Derive from the data already fetched — avoids a duplicate API round-trip (M2 fix)
   try {
-    let res;
-    if (driverSessionToken) {
-      res = await fetch(`${BASE_URL}/driverDeliveriesRefresh`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + driverSessionToken
-        },
-        body: JSON.stringify({ driver_id: driverId })
-      });
-      if (res.status === 401) driverSessionToken = null;
-    }
-    if (!driverSessionToken) {
-      res = await fetch(`${BASE_URL}/driverDeliveries`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ driver_id: driverId, pin: currentDriverPin })
-      });
-    }
-    if (!res || !res.ok) return;
-    const json = await res.json();
-    const data = json.deliveries || json;
+    const data = allDeliveriesData && allDeliveriesData.length > 0
+      ? allDeliveriesData
+      : (() => {
+          // Fallback: if called before allDeliveriesData is populated, use cache
+          return getCachedDeliveries() || [];
+        })();
 
     const todayStr = new Date().toDateString();
     historyData = data.filter(d => {
@@ -3085,10 +3570,25 @@ if (!IS_IOS) {
 
 /* ═══════════════════════════════════════
    INIT
-═══════════════════════════════════════ */
+ ═══════════════════════════════════════ */
 loadDrivers();
 
-/* ═══════════════════════════════════════════════════
+if (!isOnline()) {
+  const cached = getCachedDeliveries();
+  if (cached && cached.length > 0) {
+    allDeliveriesData = cached;
+    renderDeliveries(allDeliveriesData);
+  }
+}
+
+if (isOnline()) {
+  const actions = getOfflineActions();
+  if (actions.length > 0) {
+    setTimeout(() => syncPendingActions(), 2000);
+  }
+}
+
+/* ═══════════════════════════════════════
    DISPATCHER PANEL (Feature 7)
    Shown only when driver name === "Unassigned"
 ═══════════════════════════════════════════════════ */
@@ -3130,41 +3630,64 @@ async function loadDispatcherDeliveries() {
 
     // Filter: assigned to "Unassigned" driver (case-insensitive)
     const unassignedDriverId = allDrivers.find(d => d.driver_name.trim().toLowerCase() === "unassigned")?.id;
-    let deliveries = allDeliveries.filter(d => d.assigned_driver_id === unassignedDriverId);
+    let deliveries = allDeliveries.filter(d =>
+      d.assigned_driver_id === unassignedDriverId ||   // normal path
+      d.assigned_driver_id === "self_pickup"         || // legacy: created before Unassigned-ID fix
+      (d.is_self_pickup && !d.assigned_driver_id)       // safety: self-pickup with no driver set
+    );
 
     if (dispatcherTab === "pending") {
       deliveries = deliveries.filter(d => d.status === "pending" || d.status === "booked");
     } else {
-      // All active (not delivered)
       deliveries = deliveries.filter(d => d.status !== "delivered");
     }
 
-    // Sort: urgent first, then by ETA
-    deliveries.sort((a, b) => {
+    // Split: self-pickup vs normal assign
+    const selfPickups = deliveries.filter(d => d.is_self_pickup);
+    const toAssign    = deliveries.filter(d => !d.is_self_pickup);
+
+    const sortFn = (a, b) => {
       if (a.priority === "urgent" && b.priority !== "urgent") return -1;
       if (b.priority === "urgent" && a.priority !== "urgent") return 1;
       return new Date(a.estimated_delivery_time || 0) - new Date(b.estimated_delivery_time || 0);
-    });
+    };
+    selfPickups.sort(sortFn);
+    toAssign.sort(sortFn);
 
-    const tabLabel = dispatcherTab === "pending" ? "pending/booked" : "active";
     if (deliveries.length === 0) {
       container.innerHTML = `
         <div style="text-align:center;padding:40px 20px;background:var(--surface);border-radius:16px;border:1px solid var(--border);">
           <div style="font-size:36px;margin-bottom:10px;">📭</div>
           <div style="font-weight:700;font-size:15px;color:var(--text);">All clear!</div>
-          <div style="font-size:13px;color:var(--muted);margin-top:4px;">No ${tabLabel} deliveries for Unassigned driver</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px;">No pending deliveries or self-pickups</div>
         </div>`;
       return;
     }
 
     container.innerHTML = "";
-    // Add count header
-    const hdr = document.createElement("div");
-    hdr.style.cssText = "font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;";
-    hdr.textContent = `${deliveries.length} Deliver${deliveries.length === 1 ? "y" : "ies"} to Assign`;
-    container.appendChild(hdr);
 
-    deliveries.forEach(d => container.appendChild(buildDispatcherCard(d)));
+    // ── Self-pickup section ──
+    if (selfPickups.length > 0) {
+      const spHdr = document.createElement("div");
+      spHdr.style.cssText = "font-size:12px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:4px;";
+      spHdr.textContent = `🏪 ${selfPickups.length} Self Pickup${selfPickups.length !== 1 ? "s" : ""} — Awaiting Collection`;
+      container.appendChild(spHdr);
+      selfPickups.forEach(d => container.appendChild(buildDispatcherCard(d)));
+      if (toAssign.length > 0) {
+        const divider = document.createElement("div");
+        divider.style.cssText = "height:1px;background:var(--border);margin:14px 0;";
+        container.appendChild(divider);
+      }
+    }
+
+    // ── Normal assign section ──
+    if (toAssign.length > 0) {
+      const hdr = document.createElement("div");
+      hdr.style.cssText = "font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;";
+      hdr.textContent = `${toAssign.length} Deliver${toAssign.length === 1 ? "y" : "ies"} to Assign`;
+      container.appendChild(hdr);
+      toAssign.forEach(d => container.appendChild(buildDispatcherCard(d)));
+    }
 
   } catch (e) {
     container.innerHTML = `
@@ -3255,20 +3778,40 @@ function buildDispatcherCard(d) {
         </div>
       </div>
 
-      <!-- ── Assign footer ── -->
+      <!-- ── Footer: self-pickup = Mark Collected, normal = Assign to Driver ── -->
       <div style="padding:0 16px 14px;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:6px;">Assign to Driver</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <select id="${selectId}"
-            style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--surface);color:var(--text);-webkit-appearance:none;">
-            <option value="">— Select Driver —</option>
-            ${driverOptions}
-          </select>
-          <button type="button" onclick="confirmDispatchAssign('${d.id}','${selectId}')"
-            style="padding:10px 18px;background:var(--accent);color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent;transition:opacity 0.15s;">
-            Assign →
-          </button>
-        </div>
+        ${d.is_self_pickup ? `
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#f59e0b;margin-bottom:8px;">🏪 Self Pickup — Customer Collects at Shop</div>
+          <div id="sp_form_${d.id}">
+            ${!d.product_serial_number ? `
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Serial Number *</label>
+              <input id="sp_serial_${d.id}" placeholder="Scan or enter serial number"
+                style="width:100%;box-sizing:border-box;padding:9px 12px;margin-top:4px;margin-bottom:8px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--surface);color:var(--text);outline:none;">
+            ` : `
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Serial: <strong style="color:var(--text);">${escHtmlDisp(d.product_serial_number)}</strong></div>
+            `}
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Proof Photo *</label>
+            <input type="file" id="sp_photo_${d.id}" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
+              style="display:block;width:100%;box-sizing:border-box;margin-top:4px;margin-bottom:10px;font-size:13px;">
+            <button type="button" onclick="confirmSelfPickup('${d.id}')"
+              style="width:100%;padding:12px;background:#16a34a;color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+              ✅ Mark as Collected
+            </button>
+          </div>
+        ` : `
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:6px;">Assign to Driver</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="${selectId}"
+              style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--surface);color:var(--text);-webkit-appearance:none;">
+              <option value="">— Select Driver —</option>
+              ${driverOptions}
+            </select>
+            <button type="button" onclick="confirmDispatchAssign('${d.id}','${selectId}')"
+              style="padding:10px 18px;background:var(--accent);color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent;transition:opacity 0.15s;">
+              Assign →
+            </button>
+          </div>
+        `}
         <div id="dcard_msg_${d.id}" style="font-size:12px;margin-top:6px;min-height:16px;font-weight:600;"></div>
       </div>
 
@@ -3341,8 +3884,85 @@ async function confirmDispatchAssign(deliveryId, selectId) {
   }
 }
 
+async function confirmSelfPickup(deliveryId) {
+  const msg       = document.getElementById("dcard_msg_" + deliveryId);
+  const photoInput = document.getElementById("sp_photo_" + deliveryId);
+  const serialInput = document.getElementById("sp_serial_" + deliveryId); // null if serial already set
+
+  // Validate
+  if (!photoInput?.files?.length) {
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Please take a proof photo first"; }
+    return;
+  }
+  if (serialInput && !serialInput.value.trim()) {
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Serial number is required"; }
+    serialInput.focus();
+    return;
+  }
+
+  const btn = document.querySelector(`#sp_form_${deliveryId} button`);
+  const origText = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+  if (msg) { msg.style.color = var_muted(); msg.textContent = "Uploading photo…"; }
+
+  try {
+    // Compress photo
+    const compressed = await compressImage(photoInput.files[0]);
+
+    const formData = new FormData();
+    formData.append("photo", compressed, "selfpickup.jpg");
+    formData.append("confirmed_by", "staff");
+    if (serialInput) {
+      formData.append("serial", serialInput.value.trim());
+    }
+
+    const res  = await fetch(`${BASE_URL}/markSelfPickup/${deliveryId}`, {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ " + (data.error || "Failed"); }
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+      return;
+    }
+
+    // Success
+    if (msg) { msg.style.color = "#16a34a"; msg.textContent = "✅ Marked as collected!"; }
+    vibrate([100, 50, 200]);
+    showToast("🏪 Self pickup confirmed!");
+
+    // Animate card out then reload
+    setTimeout(() => {
+      const card = document.getElementById("dcard_" + deliveryId);
+      if (card) {
+        card.style.transition = "opacity 0.4s, transform 0.4s";
+        card.style.opacity = "0";
+        card.style.transform = "translateX(40px)";
+        setTimeout(() => loadDispatcherDeliveries(), 450);
+      }
+    }, 600);
+
+  } catch (e) {
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Network error. Retry."; }
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
+}
+
 function var_muted() {
   return getComputedStyle(document.documentElement).getPropertyValue("--muted").trim() || "#64748b";
 }</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js', {
+    scope: '/driver_interface.html'
+  })
+  .then(() => console.log('Driver SW registered'))
+  .catch(err => console.error('SW failed:', err));
+}
+</script>
+
 </body>
 </html>

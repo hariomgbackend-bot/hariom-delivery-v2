@@ -1002,6 +1002,28 @@
       flex-wrap: wrap;
     }
 
+    /* ════ TOAST NOTIFICATIONS ════ */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-container-highest); color: var(--on-surface);
+      padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 600;
+      white-space: nowrap; z-index: 9999; opacity: 0;
+      transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+      border: 1px solid rgba(173,198,255,0.12); max-width: 90%;
+      text-align: center;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.error { border-color: var(--error); color: var(--error); }
+    #toast.success { border-color: var(--tertiary); }
+
+    /* ════ OFFLINE INDICATOR ════ */
+    #offlineBanner {
+      display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+      background: #dc2626; color: white; padding: 10px 16px; font-size: 13px;
+      font-weight: 600; text-align: center;
+    }
+    #offlineBanner.show { display: block; }
+
     .btn-primary {
       padding: 10px 20px;
       background: linear-gradient(135deg, var(--primary-container), var(--primary));
@@ -1029,6 +1051,15 @@
       cursor: pointer; transition: opacity 0.2s;
     }
     .btn-primary:hover, .btn-danger:hover, .btn-gray:hover { opacity: 0.85; }
+    .btn:disabled, .btn-primary:disabled, .btn-danger:disabled, .btn-gray:disabled {
+      opacity: 0.5; cursor: not-allowed; transform: none !important;
+    }
+    .btn-spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid transparent; border-top-color: currentColor;
+      border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .edit-field { margin-bottom: 12px; }
     .edit-field label {
@@ -1221,6 +1252,10 @@
 </head>
 <body>
 
+<!-- ════ TOAST + OFFLINE INDICATOR ════ -->
+<div id="toast"></div>
+<div id="offlineBanner">📡 You're offline — changes will sync when reconnected</div>
+
 <!-- ════ SIDEBAR ════ -->
 <aside class="sidebar">
   <div class="sidebar-brand">
@@ -1300,12 +1335,17 @@
       Panel Links
     </button>
 
+    <a class="sidebar-item" href="stock.html">
+      <span class="material-symbols-outlined">inventory_2</span>
+      Stock Management
+    </a>
+
     <a class="sidebar-item" href="analytics.html">
       <span class="material-symbols-outlined">insights</span>
       Analytics
     </a>
 
-    <a class="sidebar-item" href="service_analytics.html">
+    <a class="sidebar-item" href="service_analytics.html" onclick="goToServiceAnalytics(event)">
       <span class="material-symbols-outlined">health_and_safety</span>
       Service Analytics
     </a>
@@ -1593,32 +1633,30 @@
       <!-- Stat cards -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:24px;">
         <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
-          <div id="sc-open" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--primary);">—</div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Open</div>
+          <div id="sc-new" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--primary);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">New Tickets</div>
         </div>
         <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
-          <div id="sc-assigned" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--amber);">—</div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Assigned</div>
+          <div id="sc-logged" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--amber);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Logged</div>
         </div>
         <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
-          <div id="sc-inprogress" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:#818cf8;">—</div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">In Progress</div>
+          <div id="sc-installations" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--tertiary);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Demo-Installations</div>
         </div>
         <div style="background:var(--surface-container-low);border-radius:14px;padding:16px 18px;border:1px solid rgba(173,198,255,0.06);">
-          <div id="sc-resolved" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--tertiary);">—</div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Resolved</div>
+          <div id="sc-complaints" style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--error);">—</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-top:4px;">Open Complaints</div>
         </div>
       </div>
 
       <!-- Filter bar -->
       <div class="filter-bar" style="margin-bottom:14px;">
         <button class="filter-btn activeFilter" onclick="setSCFilter('all',this)">All</button>
+        <button class="filter-btn" onclick="setSCFilter('new',this)">New</button>
+        <button class="filter-btn" onclick="setSCFilter('logged',this)">Logged</button>
         <button class="filter-btn" onclick="setSCFilter('complaint',this)">Complaints</button>
-        <button class="filter-btn" onclick="setSCFilter('installation',this)">Installations</button>
-        <button class="filter-btn" onclick="setSCFilter('open',this)">Open</button>
-        <button class="filter-btn" onclick="setSCFilter('assigned',this)">Assigned</button>
-        <button class="filter-btn" onclick="setSCFilter('in_progress',this)">In Progress</button>
-        <button class="filter-btn" onclick="setSCFilter('resolved',this)">Resolved</button>
+        <button class="filter-btn" onclick="setSCFilter('installation',this)">Demo-Installations</button>
       </div>
 
       <!-- Table -->
@@ -1751,8 +1789,8 @@
 
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Email</th><th>Status</th><th>Created</th><th></th></tr></thead>
-          <tbody id="staffTableBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
+          <thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Email</th><th>Status</th><th>Created</th><th>Leads</th><th>Tickets Raised</th><th>Tickets Logged</th><th></th></tr></thead>
+          <tbody id="staffTableBody"><tr><td colspan="10" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -2028,7 +2066,7 @@
             </div>
           </div>
           <div style="display:flex;gap:8px;">
-            <button onclick="openPanel('service_analytics.html')" style="flex:1;padding:9px;background:linear-gradient(135deg,#7c3aed,#c084fc);color:white;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Open</button>
+            <button onclick="goToServiceAnalytics()" style="flex:1;padding:9px;background:linear-gradient(135deg,#7c3aed,#c084fc);color:white;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Open</button>
           </div>
         </div>
 
@@ -2073,7 +2111,12 @@ function openTagPrint(e) {
   e.preventDefault();
   const token = localStorage.getItem('adminToken');
   if (!token) { alert('Please log in first'); return; }
-  window.open('https://hariom-delivery.web.app/#token=' + encodeURIComponent(token), '_blank');
+  const printWindow = window.open('https://hariom-delivery.web.app/', '_blank');
+  if (printWindow) {
+    printWindow.addEventListener('load', () => {
+      printWindow.postMessage({ type: 'ADMIN_TOKEN', token }, 'https://hariom-delivery.web.app');
+    }, { once: true });
+  }
 }
 
 /* ════ VIEW SWITCHER ════ */
@@ -2129,6 +2172,14 @@ function _initLinkUrls() {
 
 function openPanel(path) {
   window.open(`${window.location.origin}/${path}`, '_blank');
+}
+
+// Change 5: navigate to service_analytics with admin token so it doesn't need serviceToken
+function goToServiceAnalytics(event) {
+  if (event) event.preventDefault();
+  // Store a flag so service_analytics knows to go back to admin
+  sessionStorage.setItem('svcAnalyticsFrom', 'admin');
+  window.location.href = 'service_analytics.html';
 }
 
 function sharePanel(path, label) {
@@ -2561,10 +2612,285 @@ function closePNBulkBar() {
   document.getElementById('pnBulkBar').style.display = 'none';
 }
 
+
+
+/* STAFF MANAGEMENT */
+function openAddStaffModal(){
+  ['sName','sPin','sEmail','sPassword'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('sRole').value='staff';
+  document.getElementById('staffFormMsg').textContent='';
+  onStaffRoleChange();
+  document.getElementById('addStaffForm').style.display='';
+  document.getElementById('sName').focus();
+}
+function onStaffRoleChange(){
+  const r=document.getElementById('sRole').value;
+  document.getElementById('staffPinFields').style.display=r==='staff'?'':'none';
+  document.getElementById('staffEmailFields').style.display=r==='service'?'':'none';
+}
+async function submitAddStaff(){
+  const msg=document.getElementById('staffFormMsg');
+  const name=document.getElementById('sName').value.trim();
+  const role=document.getElementById('sRole').value;
+  const phone=document.getElementById('sPhone')?.value.trim()||'';
+  if(!name){msg.style.color='var(--error)';msg.textContent='Name required.';return;}
+  const p={name,role,phone};
+  if(role==='staff'){
+    const pin=document.getElementById('sPin').value.trim();
+    if(!/^\d{6}$/.test(pin)){msg.style.color='var(--error)';msg.textContent='PIN must be 6 digits.';return;}
+    p.pin=pin;
+  }else{
+    const email=document.getElementById('sEmail').value.trim();
+    const pass=document.getElementById('sPassword').value;
+    if(!email||!pass){msg.style.color='var(--error)';msg.textContent='Email and password required.';return;}
+    if(pass.length<6){msg.style.color='var(--error)';msg.textContent='Password min 6 chars.';return;}
+    p.email=email;p.password=pass;
+  }
+  msg.style.color='var(--primary)';msg.textContent='Saving...';
+  try{
+    const res=await authFetch(`${BASE_URL}/addStaff`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+    const data=await res.json();
+    if(!res.ok){msg.style.color='var(--error)';msg.textContent=data.error||'Failed.';return;}
+    msg.style.color='var(--tertiary)';msg.textContent='Staff added!';
+    setTimeout(()=>{document.getElementById('addStaffForm').style.display='none';loadStaff();},800);
+  }catch(e){msg.style.color='var(--error)';msg.textContent='Network error.';}
+}
+async function loadStaff(){
+  const tb=document.getElementById('staffTableBody');if(!tb)return;
+  tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
+  try{
+    // Fetch staff, leads and service tickets in parallel for activity counters
+    const [staffRes, leadsRes, ticketsRes] = await Promise.all([
+      authFetch(`${BASE_URL}/staff`),
+      authFetch(`${BASE_URL}/leads`),
+      authFetch(`${BASE_URL}/service/tickets`)
+    ]);
+    const staff   = await staffRes.json();
+    const leads   = await leadsRes.json();
+    const tickets = await ticketsRes.json();
+
+    if(!staff.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No staff members yet</td></tr>';return;}
+
+    // Build lookup maps: staff_id → counts
+    const leadsCount   = {};
+    const raisedCount  = {};
+    const loggedCount  = {};
+
+    leads.forEach(l => {
+      const key = l.created_by || '';
+      if (key) leadsCount[key] = (leadsCount[key] || 0) + 1;
+    });
+    tickets.forEach(t => {
+      const rKey = t.created_by || '';
+      if (rKey) raisedCount[rKey] = (raisedCount[rKey] || 0) + 1;
+      if (t.status === 'logged') {
+        // logged_by may be set; fall back to created_by for service role tickets
+        const lKey = t.logged_by || (t.created_by_role === 'service' ? t.created_by : '');
+        if (lKey) loggedCount[lKey] = (loggedCount[lKey] || 0) + 1;
+      }
+    });
+
+    tb.innerHTML=staff.map(s=>{
+      const dt=s.created_at?.seconds?new Date(s.created_at.seconds*1000).toLocaleDateString('en-IN'):'--';
+      const ab=s.active===false
+        ?`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">Inactive</span>`
+        :`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.15);color:var(--tertiary);">Active</span>`;
+      const rb=s.role==='service'
+        ?`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.12);color:var(--tertiary);">Service</span>`
+        :`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.15);color:var(--primary);">Staff</span>`;
+
+      const cLeads   = leadsCount[s.id]  || 0;
+      const cRaised  = raisedCount[s.id] || 0;
+      const cLogged  = loggedCount[s.id] || 0;
+
+      const statCell = (val, color) => val > 0
+        ? `<span style="font-weight:700;color:${color};">${val}</span>`
+        : `<span style="color:var(--on-surface-variant);">—</span>`;
+
+      return `<tr>
+        <td style="font-weight:700;">${escHtml(s.name)}</td>
+        <td style="font-size:12px;color:var(--on-surface-variant);">${escHtml(s.phone||'--')}</td>
+        <td>${rb}</td>
+        <td style="font-size:12px;color:var(--on-surface-variant);">${escHtml(s.email||'--')}</td>
+        <td>${ab}</td>
+        <td style="font-size:12px;color:var(--on-surface-variant);">${dt}</td>
+        <td style="text-align:center;">${statCell(cLeads, 'var(--primary)')}</td>
+        <td style="text-align:center;">${statCell(cRaised, 'var(--amber)')}</td>
+        <td style="text-align:center;">${s.role==='service' ? statCell(cLogged, 'var(--tertiary)') : '<span style="color:var(--on-surface-variant);font-size:11px;">N/A</span>'}</td>
+        <td style="white-space:nowrap;">
+          <button onclick="toggleStaffActive('${escHtml(s.id)}',${s.active!==false})" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:4px;background:${s.active===false?'rgba(78,222,163,0.12)':'rgba(255,180,171,0.1)'};color:${s.active===false?'var(--tertiary)':'var(--error)'};">${s.active===false?'Activate':'Deactivate'}</button>
+          <button onclick="resetStaffCredential('${escHtml(s.id)}','${escHtml(s.role)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:4px;background:rgba(173,198,255,0.1);color:var(--primary);">Reset</button>
+          <button onclick="staffDeleteBtn(this)" data-sid="${escHtml(s.id)}" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(147,0,10,0.5);color:var(--error);">Delete</button>
+        </td></tr>`;
+    }).join('');
+  }catch(e){tb.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>`;}
+}
+async function toggleStaffActive(id,active){
+  try{await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:!active})});loadStaff();}
+  catch(e){alert('Failed.');}
+}
+async function resetStaffCredential(id,role){
+  if(role==='staff'){
+    const pin=prompt('New 6-digit PIN:');
+    if(!pin||!/^\d{6}$/.test(pin)){alert('6 digits required.');return;}
+    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});if(r.ok)alert('PIN updated!');}catch(e){alert('Error.');}
+  }else{
+    const pw=prompt('New password (min 6):');
+    if(!pw||pw.length<6){alert('Min 6 chars.');return;}
+    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});if(r.ok)alert('Password updated!');}catch(e){alert('Error.');}
+  }
+}
+
+async function deleteStaff(id, name){
+  if(!confirm(`Delete staff member "${name}"?\n\nThis cannot be undone. All their data (leads, tickets) will remain but will no longer be linked to an active account.`)) return;
+  try{
+    const res = await authFetch(`${BASE_URL}/staff/${id}`, { method: 'DELETE' });
+    if(!res.ok){ const d=await res.json(); alert(d.error||'Failed to delete.'); return; }
+    alert(`✅ "${name}" deleted.`);
+    loadStaff();
+  }catch(e){ alert('Network error.'); }
+}
+
+// Helper: called from the delete button; reads staff name from a sibling cell to avoid escaping
+function staffDeleteBtn(btn) {
+  const row  = btn.closest('tr');
+  const name = row ? row.querySelector('td:first-child')?.textContent?.trim() : '';
+  const id   = btn.dataset.sid;
+  deleteStaff(id, name);
+}
+
+/* BRANDS MANAGEMENT */
+function openAddBrandForm(){
+  document.getElementById('bEditId').value='';
+  document.getElementById('brandFormTitle').textContent='New Brand';
+  ['bName','bFormUrl','bWaNumber','bCallNumber','bTemplate','bNotes'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('bMethod').value='form';
+  document.getElementById('brandFormMsg').textContent='';
+  onBrandMethodChange();
+  document.getElementById('brandForm').style.display='';
+  document.getElementById('bName').focus();
+}
+function closeBrandForm(){document.getElementById('brandForm').style.display='none';}
+function onBrandMethodChange(){
+  const m=document.getElementById('bMethod').value;
+  document.getElementById('bFormUrlWrap').style.display=m==='form'?'':'none';
+  document.getElementById('bWaWrap').style.display=m==='whatsapp'?'':'none';
+  document.getElementById('bCallWrap').style.display=m==='call'?'':'none';
+}
+async function submitBrandForm(){
+  const msg=document.getElementById('brandFormMsg');
+  const editId=document.getElementById('bEditId').value;
+  const name=document.getElementById('bName').value.trim();
+  const method=document.getElementById('bMethod').value;
+  if(!name){msg.style.color='var(--error)';msg.textContent='Brand name required.';return;}
+  const p={name,installation_method:method,
+    form_url:document.getElementById('bFormUrl').value.trim(),
+    whatsapp_number:document.getElementById('bWaNumber').value.trim(),
+    call_number:document.getElementById('bCallNumber').value.trim(),
+    message_template:document.getElementById('bTemplate').value.trim(),
+    notes:document.getElementById('bNotes').value.trim()};
+  msg.style.color='var(--primary)';msg.textContent='Saving...';
+  try{
+    const url=editId?`${BASE_URL}/brands/${editId}`:`${BASE_URL}/brands`;
+    const res=await authFetch(url,{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+    const data=await res.json();
+    if(!res.ok){msg.style.color='var(--error)';msg.textContent=data.error||'Failed.';return;}
+    msg.style.color='var(--tertiary)';msg.textContent=editId?'Brand updated!':'Brand added!';
+    setTimeout(()=>{closeBrandForm();loadBrands();},700);
+  }catch(e){msg.style.color='var(--error)';msg.textContent='Network error.';}
+}
+async function loadBrands(){
+  const tb=document.getElementById('brandsTableBody');if(!tb)return;
+  tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
+  try{
+    const res=await authFetch(`${BASE_URL}/brands`);
+    const brands=await res.json();
+    if(!brands.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No brands configured yet.</td></tr>';return;}
+    tb.innerHTML=brands.map(b=>{
+      const mb={'form':`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.15);color:var(--primary);">Form</span>`,
+        'whatsapp':`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.15);color:var(--tertiary);">WhatsApp</span>`,
+        'call':`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(245,158,11,0.15);color:var(--amber);">Call</span>`}[b.installation_method]||b.installation_method;
+      const ct=b.installation_method==='form'?(b.form_url?`<a href="${escHtml(b.form_url)}" target="_blank" style="color:var(--primary);font-size:12px;">Open</a>`:'--'):b.installation_method==='whatsapp'?(b.whatsapp_number||'--'):(b.call_number||'--');
+      return `<tr><td style="font-weight:700;">${escHtml(b.name)}</td><td>${mb}</td><td style="font-size:12px;">${ct}</td>
+        <td style="font-size:11px;color:var(--on-surface-variant);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(b.message_template||'')}">${escHtml(b.message_template||'--')}</td>
+        <td style="font-size:11px;color:var(--on-surface-variant);">${escHtml(b.notes||'--')}</td>
+        <td style="white-space:nowrap;">
+          <button onclick="editBrand('${escHtml(b.id)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:6px;background:rgba(173,198,255,0.1);color:var(--primary);">Edit</button>
+          <button onclick="deleteBrand('${escHtml(b.id)}','${escHtml(b.name)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(255,180,171,0.1);color:var(--error);">Delete</button>
+        </td></tr>`;
+    }).join('');
+  }catch(e){tb.innerHTML=`<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>`;}
+}
+async function editBrand(id){
+  try{
+    const res=await authFetch(`${BASE_URL}/brands`);const brands=await res.json();const b=brands.find(x=>x.id===id);if(!b)return;
+    document.getElementById('bEditId').value=b.id;document.getElementById('brandFormTitle').textContent='Edit Brand';
+    document.getElementById('bName').value=b.name||'';document.getElementById('bMethod').value=b.installation_method||'form';
+    document.getElementById('bFormUrl').value=b.form_url||'';document.getElementById('bWaNumber').value=b.whatsapp_number||'';
+    document.getElementById('bCallNumber').value=b.call_number||'';document.getElementById('bTemplate').value=b.message_template||'';
+    document.getElementById('bNotes').value=b.notes||'';document.getElementById('brandFormMsg').textContent='';
+    onBrandMethodChange();document.getElementById('brandForm').style.display='';
+    document.getElementById('brandForm').scrollIntoView({behavior:'smooth'});
+  }catch(e){alert('Failed to load brand.');}
+}
+async function deleteBrand(id,name){
+  if(!confirm(`Delete brand "${name}"?`))return;
+  try{await authFetch(`${BASE_URL}/brands/${id}`,{method:'DELETE'});loadBrands();}catch(e){alert('Failed.');}
+}
+
+/* RAISE SERVICE TICKET + WA SHARE FROM ADMIN */
+async function raiseServiceTicket(deliveryId,type){
+  let desc='';
+  if(type==='complaint'){desc=prompt('Describe the complaint:');if(!desc||!desc.trim()){alert('Description required.');return;}}
+  try{
+    const dr=await authFetch(`${BASE_URL}/delivery/${deliveryId}`);const d=await dr.json();
+    const res=await authFetch(`${BASE_URL}/service/ticket`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type,linked_delivery_id:deliveryId,customer_name:d.customer_name,phone:d.phone,
+        address:d.address,product_name:d.product_name,serial_number:d.product_serial_number,description:desc||''})});
+    const data=await res.json();
+    if(!res.ok){alert(data.error||'Failed.');return;}
+    alert((type==='installation'?'Installation':'Complaint')+' ticket raised!');
+  }catch(e){alert('Network error.');}
+}
+function shareDeliveryWA(deliveryId){
+  authFetch(`${BASE_URL}/delivery/${deliveryId}`).then(r=>r.json()).then(d=>{
+    const dd=d.delivered_timestamp?.seconds?new Date(d.delivered_timestamp.seconds*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'--';
+    const yr=/\bWM\b|WASHING/.test((d.product_name||'').toUpperCase())?2:1;
+    const ed=d.delivered_timestamp?.seconds?new Date(d.delivered_timestamp.seconds*1000+yr*365.25*24*3600*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'--';
+    const m=encodeURIComponent(`Hariom Electronics\n---\nCustomer: ${d.customer_name||'--'}\nPhone: ${d.phone||'--'}\nAddress: ${d.address||'--'}\nProduct: ${d.product_name||'--'}\nSerial: ${d.product_serial_number||'--'}\nDelivered: ${dd}\nWarranty till: ${ed}\n---\nHariom Electronics, Pune`);
+    window.open('https://wa.me/?text='+m,'_blank');
+  }).catch(()=>alert('Failed.'));
+}
+
 </script>
 
 <script>
 const BASE_URL = window.location.origin;
+
+/* ── TOAST NOTIFICATION ── */
+function showToast(msg, type = "") {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "show " + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+/* ── OFFLINE DETECTION ── */
+window.addEventListener("online", () => {
+  document.getElementById("offlineBanner").classList.remove("show");
+  showToast("✅ Back online!");
+});
+window.addEventListener("offline", () => {
+  document.getElementById("offlineBanner").classList.add("show");
+});
+
+/* ── ESC KEY CLOSES POPUPS ── */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".popup-overlay.is-open").forEach(el => el.classList.remove("is-open"));
+  }
+});
 
 /* ── DARK MODE ───────────────────────────────────────── */
 (function() {
@@ -2818,14 +3144,14 @@ async function loadAdmin() {
     row.innerHTML = `
       <td><span class="row-chevron">▶</span></td>
       <td>
-        <b>${d.customer_name || ""}</b>${batchTag}
-        ${d.phone ? `<div style="margin-top:2px;"><a href="tel:${d.phone}" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">📞 ${d.phone}</a></div>` : ""}
-        ${d.status === "failed" ? `<div style="font-size:11px;color:#dc2626;margin-top:2px;">${d.failure_reason || ""}</div>` : ""}
+        <b>${escHtml(d.customer_name || "")}</b>${batchTag}
+        ${d.phone ? `<div style="margin-top:2px;"><a href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">📞 ${escHtml(d.phone)}</a></div>` : ""}
+        ${d.status === "failed" ? `<div style="font-size:11px;color:#dc2626;margin-top:2px;">${escHtml(d.failure_reason || "")}</div>` : ""}
       </td>
-      <td style="color:var(--muted)">${d.assigned_driver_name || "—"}</td>
-      <td>${d.product_name || ""}</td>
+      <td style="color:var(--muted)">${escHtml(d.assigned_driver_name || "—")}</td>
+      <td>${escHtml(d.product_name || "")}</td>
       <td>
-        <span class="badge badge-${d.status}">${d.status}</span>
+        <span class="badge badge-${escHtml(d.status)}">${escHtml(d.status)}</span>
         ${d.priority === "urgent" ? `<span class="badge badge-urgent" style="margin-left:4px;">🔥</span>` : ""}
         ${(d.status !== "delivered" && d.status !== "failed" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
       </td>
@@ -2851,7 +3177,7 @@ async function loadAdmin() {
       <div class="detail-expand-inner">
         <div class="detail-expand-item">
           <span class="detail-expand-label">Priority</span>
-          <span class="detail-expand-value"><span class="badge badge-${d.priority||'normal'}">${d.priority||"normal"}</span></span>
+          <span class="detail-expand-value"><span class="badge badge-${escHtml(d.priority||'normal')}">${escHtml(d.priority||"normal")}</span></span>
         </div>
         <div class="detail-expand-item">
           <span class="detail-expand-label">Rating</span>
@@ -2871,15 +3197,15 @@ async function loadAdmin() {
         </div>
         <div class="detail-expand-item">
           <span class="detail-expand-label">Loaded Photo</span>
-          <span class="detail-expand-value">${d.photo_loaded_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_loaded_url}')">📷 View</button>` : "—"}</span>
+          <span class="detail-expand-value">${d.photo_loaded_url ? `<button class="btn-sm" onclick="viewImage('${escHtml(d.photo_loaded_url)}')">📷 View</button>` : "—"}</span>
         </div>
         <div class="detail-expand-item">
           <span class="detail-expand-label">Delivered Photo</span>
-          <span class="detail-expand-value">${d.photo_delivered_url ? `<button class="btn-sm" onclick="viewImage('${d.photo_delivered_url}')">📷 View</button>` : "—"}</span>
+          <span class="detail-expand-value">${d.photo_delivered_url ? `<button class="btn-sm" onclick="viewImage('${escHtml(d.photo_delivered_url)}')">📷 View</button>` : "—"}</span>
         </div>
         <div class="detail-expand-item">
           <span class="detail-expand-label">Location</span>
-          <span class="detail-expand-value">${mapLink ? `<a href="${mapLink}" target="_blank" style="color:var(--accent);font-weight:600;text-decoration:none;">📍 Map</a>` : "—"}</span>
+          <span class="detail-expand-value">${mapLink ? `<a href="${escHtml(mapLink)}" target="_blank" style="color:var(--accent);font-weight:600;text-decoration:none;">📍 Map</a>` : "—"}</span>
         </div>
       </div>
     </td>`;
@@ -2978,19 +3304,19 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
     card.innerHTML = `
       <div class="mob-dc-header">
         <div>
-          <div class="mob-dc-name">${d.customer_name || ""}${batchPill}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${d.product_name || ""}</div>
+          <div class="mob-dc-name">${escHtml(d.customer_name || "")}${batchPill}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${escHtml(d.product_name || "")}</div>
         </div>
         <div class="mob-dc-badges">
-          <span class="badge badge-${d.status}">${d.status}</span>
+          <span class="badge badge-${escHtml(d.status)}">${escHtml(d.status)}</span>
           ${d.priority === "urgent" ? `<span class="badge badge-urgent">🔥</span>` : ""}
           ${ratingBadge(d)}
         </div>
       </div>
       <div class="mob-dc-meta">
-        <span>🚚 ${d.assigned_driver_name || "—"}</span>
+        <span>🚚 ${escHtml(d.assigned_driver_name || "—")}</span>
         <span>⏱ ${fmtETA(d.estimated_delivery_time)}</span>
-        ${d.phone ? `<span>📞 <a class="phone-link" href="tel:${d.phone}" onclick="event.stopPropagation()">${d.phone}</a></span>` : ""}
+        ${d.phone ? `<span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>` : ""}
       </div>
     `;
     return card;
@@ -3011,7 +3337,7 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
       grp.style.setProperty("--mc-text",   palette.text);
       const hdr = document.createElement("div");
       hdr.className = "mob-batch-grp-hdr";
-      hdr.innerHTML = `🔗 Batch ${bNum} · ${d.customer_name} · ${siblings.length} items`;
+      hdr.innerHTML = `🔗 Batch ${bNum} · ${escHtml(d.customer_name)} · ${siblings.length} items`;
       grp.appendChild(hdr);
       siblings.forEach(item => { rendered.add(item.id); grp.appendChild(makeMobCard(item, palette)); });
       container.appendChild(grp);
@@ -3079,43 +3405,43 @@ function viewDetails(d) {
 
   document.getElementById("popupContent").innerHTML = `
     <h3>Delivery Details</h3>
-    <div class="detail-row"><b>Delivery ID</b><span style="font-size:12px;word-break:break-all;color:var(--muted)">${d.id || ""}</span></div>
-    <div class="detail-row"><b>Customer</b><span style="font-weight:600">${d.customer_name || "—"}</span></div>
-    <div class="detail-row"><b>Phone</b><span>${d.phone ? '<a class="phone-link" href="tel:' + d.phone + '">' + d.phone + '</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Alternate Phone</b><span>${d.alternate_phone ? '<a class="phone-link" href="tel:' + d.alternate_phone + '">' + d.alternate_phone + '</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Address</b><span>${d.address || "—"}</span></div>
-    <div class="detail-row"><b>Product</b><span>${d.product_name || "—"}</span></div>
-    <div class="detail-row"><b>Make / Model</b><span>${[d.product_make, d.product_model].filter(Boolean).join(" / ") || "—"}</span></div>
-    <div class="detail-row"><b>Serial No.</b><span id="adminSrDisplay">${d.product_serial_number || "—"}</span></div>
-    <div class="detail-row"><b>Invoice No.</b><span>${d.invoice_number || "—"}</span></div>
-    <div class="detail-row"><b>Status</b><span><span class="badge badge-${d.status}">${d.status}</span></span></div>
-    <div class="detail-row"><b>Priority</b><span><span class="badge badge-${d.priority || "normal"}">${d.priority || "normal"}</span></span></div>
+    <div class="detail-row"><b>Delivery ID</b><span style="font-size:12px;word-break:break-all;color:var(--muted)">${escHtml(d.id || "")}</span></div>
+    <div class="detail-row"><b>Customer</b><span style="font-weight:600">${escHtml(d.customer_name || "—")}</span></div>
+    <div class="detail-row"><b>Phone</b><span>${d.phone ? '<a class="phone-link" href="tel:' + escHtml(d.phone) + '">' + escHtml(d.phone) + '</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Alternate Phone</b><span>${d.alternate_phone ? '<a class="phone-link" href="tel:' + escHtml(d.alternate_phone) + '">' + escHtml(d.alternate_phone) + '</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Address</b><span>${escHtml(d.address || "—")}</span></div>
+    <div class="detail-row"><b>Product</b><span>${escHtml(d.product_name || "—")}</span></div>
+    <div class="detail-row"><b>Make / Model</b><span>${escHtml([d.product_make, d.product_model].filter(Boolean).join(" / ") || "—")}</span></div>
+    <div class="detail-row"><b>Serial No.</b><span id="adminSrDisplay">${escHtml(d.product_serial_number || "—")}</span></div>
+    <div class="detail-row"><b>Invoice No.</b><span>${escHtml(d.invoice_number || "—")}</span></div>
+    <div class="detail-row"><b>Status</b><span><span class="badge badge-${escHtml(d.status)}">${escHtml(d.status)}</span></span></div>
+    <div class="detail-row"><b>Priority</b><span><span class="badge badge-${escHtml(d.priority || "normal")}">${escHtml(d.priority || "normal")}</span></span></div>
     <div class="detail-row"><b>ETA</b><span>${d.estimated_delivery_time ? new Date(d.estimated_delivery_time).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}) : "—"}</span></div>
     <div class="detail-row"><b>Delivery Rating</b><span>${(() => { if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—"; const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000; if (diff<=-10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">\u26a1 Early (' + Math.abs(Math.round(diff)) + 'm early)</span>'; if (diff<=10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">\u2705 On Time</span>'; if (diff<=30) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">\ud83d\udd50 Late (' + Math.round(diff) + 'm)</span>'; return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">\ud83d\udd34 Very Late (' + Math.round(diff) + 'm)</span>'; })()}</span></div>
-    <div class="detail-row"><b>Driver</b><span>${d.assigned_driver_name || "—"}</span></div>
-    <div class="detail-row"><b>Driver Instructions</b><span>${d.driver_instructions && d.driver_instructions !== "none" ? d.driver_instructions : "—"}</span></div>
+    <div class="detail-row"><b>Driver</b><span>${escHtml(d.assigned_driver_name || "—")}</span></div>
+    <div class="detail-row"><b>Driver Instructions</b><span>${d.driver_instructions && d.driver_instructions !== "none" ? escHtml(d.driver_instructions) : "—"}</span></div>
     <div class="detail-row"><b>Freight</b><span>${freightDisplay}</span></div>
     <div class="detail-row"><b>Distance Covered</b><span>${d.distance_km != null ? "<strong style=\"color:#16a34a;\">" + d.distance_km + " km</strong>" : "—"}</span></div>
     <div class="detail-row"><b>Created At</b><span>${ts(d.created_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded At</b><span>${ts(d.loaded_timestamp)}</span></div>
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
-    <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + d.loaded_location.lat + ',' + d.loaded_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + d.delivered_location.lat + ',' + d.delivered_location.lng + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Loaded Photo</b><span id="adminLoadedPhotoDisplay">${d.photo_loaded_url ? '<a href="' + d.photo_loaded_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Delivered Photo</b><span id="adminDeliveredPhotoDisplay">${d.photo_delivered_url ? '<a href="' + d.photo_delivered_url + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + escHtml(d.loaded_location.lat) + ',' + escHtml(d.loaded_location.lng) + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + escHtml(d.delivered_location.lat) + ',' + escHtml(d.delivered_location.lng) + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Loaded Photo</b><span id="adminLoadedPhotoDisplay">${d.photo_loaded_url ? '<a href="' + escHtml(d.photo_loaded_url) + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Delivered Photo</b><span id="adminDeliveredPhotoDisplay">${d.photo_delivered_url ? '<a href="' + escHtml(d.photo_delivered_url) + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
     <div id="adminCorrectArea" style="display:none;margin-top:8px;"></div>
 
     ${d.status === "failed" ? `
     <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:14px;margin-top:16px;">
       <div style="font-weight:700;color:#b91c1c;margin-bottom:8px;">${d.failure_reason === "Product Damaged / Not Working" ? "🔴 URGENT — " : ""}❌ Delivery Failed</div>
-      <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${d.failure_reason || "—"}</span></div>
+      <div class="detail-row"><b>Reason</b><span style="color:#dc2626;font-weight:600;">${escHtml(d.failure_reason || "—")}</span></div>
       <div class="detail-row"><b>Product Returned</b><span>${d.product_returned ? "✅ Yes" : "❌ Not yet"}</span></div>
-      ${d.failure_photo_url ? `<div class="detail-row"><b>Failure Photo</b><span><a href="${d.failure_photo_url}" target="_blank" style="color:var(--accent);">View Photo</a></span></div>` : ""}
+      ${d.failure_photo_url ? `<div class="detail-row"><b>Failure Photo</b><span><a href="${escHtml(d.failure_photo_url)}" target="_blank" style="color:var(--accent);">View Photo</a></span></div>` : ""}
     </div>` : ""}
 
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn-primary" onclick="enableEdit()">✏ Edit</button>
-      <button class="btn-danger" onclick="deleteDelivery('${d.id}')">🗑 Delete</button>
+      <button class="btn-danger" onclick="deleteDelivery('${escHtml(d.id)}')">🗑 Delete</button>
     </div>
   `;
 
@@ -3141,9 +3467,9 @@ function enableEdit() {
 
       document.getElementById("popupContent").innerHTML = `
         <h3>Edit Delivery</h3>
-        <div class="edit-field"><label>Customer Name</label><input id="edit_customer" value="${d.customer_name}"></div>
-        <div class="edit-field"><label>Phone</label><input id="edit_phone" value="${d.phone}"></div>
-        <div class="edit-field"><label>Address</label><input id="edit_address" value="${d.address}"></div>
+        <div class="edit-field"><label>Customer Name</label><input id="edit_customer" value="${escHtml(d.customer_name)}"></div>
+        <div class="edit-field"><label>Phone</label><input id="edit_phone" value="${escHtml(d.phone)}"></div>
+        <div class="edit-field"><label>Address</label><input id="edit_address" value="${escHtml(d.address)}"></div>
 
         <div class="edit-field">
           <label>Product</label>
@@ -3154,7 +3480,7 @@ function enableEdit() {
             </label>
           </div>
           <div id="edit_product_normal">
-            <input id="edit_product" value="${d.product_name}" oninput="this.value=this.value.toUpperCase()" placeholder="Product name">
+            <input id="edit_product" value="${escHtml(d.product_name)}" oninput="this.value=this.value.toUpperCase()" placeholder="Product name">
           </div>
           <div id="edit_product_tally" style="display:none;">
             <input id="edit_product_tally_input" list="editTallyList" placeholder="Search Tally products…" oninput="this.value=this.value.toUpperCase()" style="width:100%;">
@@ -3175,25 +3501,25 @@ function enableEdit() {
             <option ${d.priority === "urgent" ? "selected" : ""}>urgent</option>
           </select>
         </div>
-        <div class="edit-field"><label>ETA</label><input id="edit_eta" value="${d.estimated_delivery_time || ""}"></div>
-        <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${d.product_serial_number || ""}"></div>
+        <div class="edit-field"><label>ETA</label><input id="edit_eta" value="${escHtml(d.estimated_delivery_time || "")}"></div>
+        <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${escHtml(d.product_serial_number || "")}"></div>
 
         <div style="margin-top:12px;padding:14px;background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.15);border-radius:12px;">
           <div style="font-size:10px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">📷 Replace Photos (optional)</div>
           <div class="edit-field" style="margin-bottom:10px;">
             <label>Loaded Photo</label>
-            ${d.photo_loaded_url ? `<div style="margin-bottom:4px;"><a href="${d.photo_loaded_url}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
+            ${d.photo_loaded_url ? `<div style="margin-bottom:4px;"><a href="${escHtml(d.photo_loaded_url)}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
             <input type="file" id="edit_loaded_photo" accept="image/*" style="font-size:13px;color:var(--on-surface);">
           </div>
           <div class="edit-field">
             <label>Delivered Photo</label>
-            ${d.photo_delivered_url ? `<div style="margin-bottom:4px;"><a href="${d.photo_delivered_url}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
+            ${d.photo_delivered_url ? `<div style="margin-bottom:4px;"><a href="${escHtml(d.photo_delivered_url)}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
             <input type="file" id="edit_delivered_photo" accept="image/*" style="font-size:13px;color:var(--on-surface);">
           </div>
         </div>
 
         <div style="margin-top:20px;display:flex;gap:10px;">
-          <button class="btn-primary" onclick="updateDelivery('${d.id}')">Save Changes</button>
+          <button class="btn-primary" onclick="updateDelivery('${escHtml(d.id)}')">Save Changes</button>
           <button class="btn-gray" onclick="document.getElementById('popup').classList.remove('is-open')">Cancel</button>
         </div>
       `;
@@ -3211,7 +3537,7 @@ function enableEdit() {
     .catch(() => {
       // Fallback if driver list fails — show plain text input
       document.getElementById("edit_driver_select")?.insertAdjacentHTML("afterend",
-        `<input id="edit_driver" value="${d.assigned_driver_name || ""}" style="width:100%;">`);
+        `<input id="edit_driver" value="${escHtml(d.assigned_driver_name || "")}" style="width:100%;">`);
     });
 }
 
@@ -3326,10 +3652,10 @@ function openAdminCorrect(deliveryId, field) {
     area.innerHTML = `
       <div style="background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;">
         <div style="font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.5px;">Edit Serial Number</div>
-        <input id="${inputId}" value="${current}"
+        <input id="${inputId}" value="${escHtml(current)}"
           style="padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;">
         <div style="display:flex;gap:8px;">
-          <button onclick="saveAdminCorrect('${deliveryId}','sr')"
+          <button onclick="saveAdminCorrect('${escHtml(deliveryId)}','sr')"
             style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">
             💾 Save
           </button>
@@ -3343,11 +3669,11 @@ function openAdminCorrect(deliveryId, field) {
     const label = field === "loaded_photo" ? "Loaded Photo" : "Delivered Photo";
     area.innerHTML = `
       <div style="background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;">
-        <div style="font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.5px;">Replace ${label}</div>
+        <div style="font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.5px;">Replace ${escHtml(label)}</div>
         <input id="${inputId}" type="file" accept="image/*"
           style="font-family:'DM Sans',sans-serif;font-size:13px;">
         <div style="display:flex;gap:8px;">
-          <button onclick="saveAdminCorrect('${deliveryId}','${field}')"
+          <button onclick="saveAdminCorrect('${escHtml(deliveryId)}','${escHtml(field)}')"
             style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">
             📤 Upload & Replace
           </button>
@@ -3406,11 +3732,11 @@ async function saveAdminCorrect(deliveryId, field) {
       }
       if (field === "loaded_photo" && data.updated?.includes("photo_loaded_url")) {
         const disp = document.getElementById("adminLoadedPhotoDisplay");
-        if (disp) disp.innerHTML = `<a href="${data.photo_loaded_url || '#'}" target="_blank" style="color:var(--accent)">View Photo ✓</a>`;
+        if (disp) disp.innerHTML = `<a href="${escHtml(data.photo_loaded_url) || '#'}" target="_blank" style="color:var(--accent)">View Photo ✓</a>`;
       }
       if (field === "delivered_photo" && data.updated?.includes("photo_delivered_url")) {
         const disp = document.getElementById("adminDeliveredPhotoDisplay");
-        if (disp) disp.innerHTML = `<a href="${data.photo_delivered_url || '#'}" target="_blank" style="color:var(--accent)">View Photo ✓</a>`;
+        if (disp) disp.innerHTML = `<a href="${escHtml(data.photo_delivered_url) || '#'}" target="_blank" style="color:var(--accent)">View Photo ✓</a>`;
       }
     }
 
@@ -3606,10 +3932,10 @@ function renderPayoutTable(data) {
         : `<button onclick="markOneFreightPaid('${d.id}','${custSafe}',${amt})" style="padding:4px 10px;background:#dc2626;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Mark Paid</button>`;
 
     const rowStyle = isPaid ? "background:rgba(74,222,128,0.05);opacity:0.7;" : "";
-    return `<tr style="border-bottom:1px solid var(--border);${rowStyle}" id="payout-row-${d.id}">
+    return `<tr style="border-bottom:1px solid var(--border);${rowStyle}" id="payout-row-${escHtml(d.id)}">
       <td style="padding:10px 12px;color:var(--muted);font-size:12px;">${i+1}</td>
-      <td style="padding:10px 12px;font-weight:600;">${d.customer_name||"\u2014"}</td>
-      <td style="padding:10px 12px;color:var(--muted);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${d.address||""}">${d.address||"\u2014"}</td>
+      <td style="padding:10px 12px;font-weight:600;">${escHtml(d.customer_name||"\u2014")}</td>
+      <td style="padding:10px 12px;color:var(--muted);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(d.address||"")}">${escHtml(d.address||"\u2014")}</td>
       <td style="padding:10px 12px;white-space:nowrap;">${delivTime}</td>
       <td style="padding:10px 12px;text-align:right;">${freightCell}</td>
       <td style="padding:10px 12px;text-align:right;">${distCell}</td>
@@ -4166,7 +4492,7 @@ async function reloadMap() {
     // Legend chip
     const chip = document.createElement('div');
     chip.className = 'map-legend-item';
-    chip.innerHTML = `<span class="map-legend-dot" style="background:${color}"></span>${driver.name}<span style="opacity:.5;font-size:11px;margin-left:4px;">${sorted.length} stop${sorted.length!==1?'s':''}</span>`;
+    chip.innerHTML = `<span class="map-legend-dot" style="background:${color}"></span>${escHtml(driver.name)}<span style="opacity:.5;font-size:11px;margin-left:4px;">${sorted.length} stop${sorted.length!==1?'s':''}</span>`;
     legend.appendChild(chip);
 
     // Collect all route waypoints: loaded → delivered per stop, then next stop loaded
@@ -4277,14 +4603,14 @@ function buildPopup(d, stopNum, color, type) {
     <div style="min-width:190px;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6;">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
         <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></div>
-        <b style="font-size:13px;">${d.assigned_driver_name || 'Unassigned'}</b>
+        <b style="font-size:13px;">${escHtml(d.assigned_driver_name || 'Unassigned')}</b>
         <span style="margin-left:auto;opacity:.5;font-size:10px;">Stop #${stopNum}</span>
       </div>
       <div style="margin-bottom:5px;">${statusBadge}</div>
-      <div><b>Customer:</b> ${d.customer_name || '—'}</div>
-      <div><b>Product:</b> ${d.product_name || '—'}</div>
-      <div><b>SR#:</b> ${d.serial_number || '—'}</div>
-      <div><b>Address:</b> ${d.address || '—'}</div>
+      <div><b>Customer:</b> ${escHtml(d.customer_name || '—')}</div>
+      <div><b>Product:</b> ${escHtml(d.product_name || '—')}</div>
+      <div><b>SR#:</b> ${escHtml(d.serial_number || '—')}</div>
+      <div><b>Address:</b> ${escHtml(d.address || '—')}</div>
       <div><b>Time:</b> ${ts}</div>
       ${d.freight_amount ? `<div><b>Freight:</b> ₹${d.freight_amount}</div>` : ''}
     </div>`;
@@ -4292,195 +4618,7 @@ function buildPopup(d, stopNum, color, type) {
 </script>
 
 
-<script>
-/* STAFF MANAGEMENT */
-function openAddStaffModal(){
-  ['sName','sPin','sEmail','sPassword'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  document.getElementById('sRole').value='staff';
-  document.getElementById('staffFormMsg').textContent='';
-  onStaffRoleChange();
-  document.getElementById('addStaffForm').style.display='';
-  document.getElementById('sName').focus();
-}
-function onStaffRoleChange(){
-  const r=document.getElementById('sRole').value;
-  document.getElementById('staffPinFields').style.display=r==='staff'?'':'none';
-  document.getElementById('staffEmailFields').style.display=r==='service'?'':'none';
-}
-async function submitAddStaff(){
-  const msg=document.getElementById('staffFormMsg');
-  const name=document.getElementById('sName').value.trim();
-  const role=document.getElementById('sRole').value;
-  const phone=document.getElementById('sPhone')?.value.trim()||'';
-  if(!name){msg.style.color='var(--error)';msg.textContent='Name required.';return;}
-  const p={name,role,phone};
-  if(role==='staff'){
-    const pin=document.getElementById('sPin').value.trim();
-    if(!/^\d{6}$/.test(pin)){msg.style.color='var(--error)';msg.textContent='PIN must be 6 digits.';return;}
-    p.pin=pin;
-  }else{
-    const email=document.getElementById('sEmail').value.trim();
-    const pass=document.getElementById('sPassword').value;
-    if(!email||!pass){msg.style.color='var(--error)';msg.textContent='Email and password required.';return;}
-    if(pass.length<6){msg.style.color='var(--error)';msg.textContent='Password min 6 chars.';return;}
-    p.email=email;p.password=pass;
-  }
-  msg.style.color='var(--primary)';msg.textContent='Saving...';
-  try{
-    const res=await authFetch(`${BASE_URL}/addStaff`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
-    const data=await res.json();
-    if(!res.ok){msg.style.color='var(--error)';msg.textContent=data.error||'Failed.';return;}
-    msg.style.color='var(--tertiary)';msg.textContent='Staff added!';
-    setTimeout(()=>{document.getElementById('addStaffForm').style.display='none';loadStaff();},800);
-  }catch(e){msg.style.color='var(--error)';msg.textContent='Network error.';}
-}
-async function loadStaff(){
-  const tb=document.getElementById('staffTableBody');if(!tb)return;
-  tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
-  try{
-    const res=await authFetch(`${BASE_URL}/staff`);
-    const staff=await res.json();
-    if(!staff.length){tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No staff members yet</td></tr>';return;}
-    tb.innerHTML=staff.map(s=>{
-      const dt=s.created_at?.seconds?new Date(s.created_at.seconds*1000).toLocaleDateString('en-IN'):'--';
-      const ab=s.active===false
-        ?`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">Inactive</span>`
-        :`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.15);color:var(--tertiary);">Active</span>`;
-      const rb=s.role==='service'
-        ?`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.12);color:var(--tertiary);">Service</span>`
-        :`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.15);color:var(--primary);">Staff</span>`;
-      return `<tr>
-        <td style="font-weight:700;">${s.name}</td>
-        <td style="font-size:12px;color:var(--on-surface-variant);">${s.phone||'--'}</td>
-        <td>${rb}</td>
-        <td style="font-size:12px;color:var(--on-surface-variant);">${s.email||'--'}</td>
-        <td>${ab}</td><td style="font-size:12px;color:var(--on-surface-variant);">${dt}</td>
-        <td style="white-space:nowrap;">
-          <button onclick="toggleStaffActive('${s.id}',${s.active!==false})" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:6px;background:${s.active===false?'rgba(78,222,163,0.12)':'rgba(255,180,171,0.1)'};color:${s.active===false?'var(--tertiary)':'var(--error)'};">${s.active===false?'Activate':'Deactivate'}</button>
-          <button onclick="resetStaffCredential('${s.id}','${s.role}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(173,198,255,0.1);color:var(--primary);">Reset</button>
-        </td></tr>`;
-    }).join('');
-  }catch(e){tb.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>`;}
-}
-async function toggleStaffActive(id,active){
-  try{await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:!active})});loadStaff();}
-  catch(e){alert('Failed.');}
-}
-async function resetStaffCredential(id,role){
-  if(role==='staff'){
-    const pin=prompt('New 6-digit PIN:');
-    if(!pin||!/^\d{6}$/.test(pin)){alert('6 digits required.');return;}
-    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});if(r.ok)alert('PIN updated!');}catch(e){alert('Error.');}
-  }else{
-    const pw=prompt('New password (min 6):');
-    if(!pw||pw.length<6){alert('Min 6 chars.');return;}
-    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});if(r.ok)alert('Password updated!');}catch(e){alert('Error.');}
-  }
-}
 
-/* BRANDS MANAGEMENT */
-function openAddBrandForm(){
-  document.getElementById('bEditId').value='';
-  document.getElementById('brandFormTitle').textContent='New Brand';
-  ['bName','bFormUrl','bWaNumber','bCallNumber','bTemplate','bNotes'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  document.getElementById('bMethod').value='form';
-  document.getElementById('brandFormMsg').textContent='';
-  onBrandMethodChange();
-  document.getElementById('brandForm').style.display='';
-  document.getElementById('bName').focus();
-}
-function closeBrandForm(){document.getElementById('brandForm').style.display='none';}
-function onBrandMethodChange(){
-  const m=document.getElementById('bMethod').value;
-  document.getElementById('bFormUrlWrap').style.display=m==='form'?'':'none';
-  document.getElementById('bWaWrap').style.display=m==='whatsapp'?'':'none';
-  document.getElementById('bCallWrap').style.display=m==='call'?'':'none';
-}
-async function submitBrandForm(){
-  const msg=document.getElementById('brandFormMsg');
-  const editId=document.getElementById('bEditId').value;
-  const name=document.getElementById('bName').value.trim();
-  const method=document.getElementById('bMethod').value;
-  if(!name){msg.style.color='var(--error)';msg.textContent='Brand name required.';return;}
-  const p={name,installation_method:method,
-    form_url:document.getElementById('bFormUrl').value.trim(),
-    whatsapp_number:document.getElementById('bWaNumber').value.trim(),
-    call_number:document.getElementById('bCallNumber').value.trim(),
-    message_template:document.getElementById('bTemplate').value.trim(),
-    notes:document.getElementById('bNotes').value.trim()};
-  msg.style.color='var(--primary)';msg.textContent='Saving...';
-  try{
-    const url=editId?`${BASE_URL}/brands/${editId}`:`${BASE_URL}/brands`;
-    const res=await authFetch(url,{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
-    const data=await res.json();
-    if(!res.ok){msg.style.color='var(--error)';msg.textContent=data.error||'Failed.';return;}
-    msg.style.color='var(--tertiary)';msg.textContent=editId?'Brand updated!':'Brand added!';
-    setTimeout(()=>{closeBrandForm();loadBrands();},700);
-  }catch(e){msg.style.color='var(--error)';msg.textContent='Network error.';}
-}
-async function loadBrands(){
-  const tb=document.getElementById('brandsTableBody');if(!tb)return;
-  tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
-  try{
-    const res=await authFetch(`${BASE_URL}/brands`);
-    const brands=await res.json();
-    if(!brands.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No brands configured yet.</td></tr>';return;}
-    tb.innerHTML=brands.map(b=>{
-      const mb={'form':`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.15);color:var(--primary);">Form</span>`,
-        'whatsapp':`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.15);color:var(--tertiary);">WhatsApp</span>`,
-        'call':`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(245,158,11,0.15);color:var(--amber);">Call</span>`}[b.installation_method]||b.installation_method;
-      const ct=b.installation_method==='form'?(b.form_url?`<a href="${b.form_url}" target="_blank" style="color:var(--primary);font-size:12px;">Open</a>`:'--'):b.installation_method==='whatsapp'?(b.whatsapp_number||'--'):(b.call_number||'--');
-      return `<tr><td style="font-weight:700;">${b.name}</td><td>${mb}</td><td style="font-size:12px;">${ct}</td>
-        <td style="font-size:11px;color:var(--on-surface-variant);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${b.message_template||''}">${b.message_template||'--'}</td>
-        <td style="font-size:11px;color:var(--on-surface-variant);">${b.notes||'--'}</td>
-        <td style="white-space:nowrap;">
-          <button onclick="editBrand('${b.id}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:6px;background:rgba(173,198,255,0.1);color:var(--primary);">Edit</button>
-          <button onclick="deleteBrand('${b.id}','${b.name}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(255,180,171,0.1);color:var(--error);">Delete</button>
-        </td></tr>`;
-    }).join('');
-  }catch(e){tb.innerHTML=`<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>`;}
-}
-async function editBrand(id){
-  try{
-    const res=await authFetch(`${BASE_URL}/brands`);const brands=await res.json();const b=brands.find(x=>x.id===id);if(!b)return;
-    document.getElementById('bEditId').value=b.id;document.getElementById('brandFormTitle').textContent='Edit Brand';
-    document.getElementById('bName').value=b.name||'';document.getElementById('bMethod').value=b.installation_method||'form';
-    document.getElementById('bFormUrl').value=b.form_url||'';document.getElementById('bWaNumber').value=b.whatsapp_number||'';
-    document.getElementById('bCallNumber').value=b.call_number||'';document.getElementById('bTemplate').value=b.message_template||'';
-    document.getElementById('bNotes').value=b.notes||'';document.getElementById('brandFormMsg').textContent='';
-    onBrandMethodChange();document.getElementById('brandForm').style.display='';
-    document.getElementById('brandForm').scrollIntoView({behavior:'smooth'});
-  }catch(e){alert('Failed to load brand.');}
-}
-async function deleteBrand(id,name){
-  if(!confirm(`Delete brand "${name}"?`))return;
-  try{await authFetch(`${BASE_URL}/brands/${id}`,{method:'DELETE'});loadBrands();}catch(e){alert('Failed.');}
-}
-
-/* RAISE SERVICE TICKET + WA SHARE FROM ADMIN */
-async function raiseServiceTicket(deliveryId,type){
-  let desc='';
-  if(type==='complaint'){desc=prompt('Describe the complaint:');if(!desc||!desc.trim()){alert('Description required.');return;}}
-  try{
-    const dr=await authFetch(`${BASE_URL}/delivery/${deliveryId}`);const d=await dr.json();
-    const res=await authFetch(`${BASE_URL}/service/ticket`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({type,linked_delivery_id:deliveryId,customer_name:d.customer_name,phone:d.phone,
-        address:d.address,product_name:d.product_name,serial_number:d.product_serial_number,description:desc||''})});
-    const data=await res.json();
-    if(!res.ok){alert(data.error||'Failed.');return;}
-    alert((type==='installation'?'Installation':'Complaint')+' ticket raised!');
-  }catch(e){alert('Network error.');}
-}
-function shareDeliveryWA(deliveryId){
-  authFetch(`${BASE_URL}/delivery/${deliveryId}`).then(r=>r.json()).then(d=>{
-    const dd=d.delivered_timestamp?.seconds?new Date(d.delivered_timestamp.seconds*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'--';
-    const yr=/\bWM\b|WASHING/.test((d.product_name||'').toUpperCase())?2:1;
-    const ed=d.delivered_timestamp?.seconds?new Date(d.delivered_timestamp.seconds*1000+yr*365.25*24*3600*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'--';
-    const m=encodeURIComponent(`Hariom Electronics\n---\nCustomer: ${d.customer_name||'--'}\nPhone: ${d.phone||'--'}\nAddress: ${d.address||'--'}\nProduct: ${d.product_name||'--'}\nSerial: ${d.product_serial_number||'--'}\nDelivered: ${dd}\nWarranty till: ${ed}\n---\nHariom Electronics, Pune`);
-    window.open('https://wa.me/?text='+m,'_blank');
-  }).catch(()=>alert('Failed.'));
-}
-</script>
 
 
 <script>
@@ -4586,8 +4724,8 @@ function renderLeadsAdmin() {
 
   tbody.innerHTML = leads.map(l => {
     const prodSummary = l.products?.length > 1
-      ? `${l.products[0].product_name} <span style="color:var(--primary);font-weight:700;">+${l.products.length-1}</span>`
-      : (l.product_interest||'--');
+      ? `${escHtml(l.products[0].product_name)} <span style="color:var(--primary);font-weight:700;">+${l.products.length-1}</span>`
+      : (escHtml(l.product_interest)||'--');
     const adminPrice = l.admin_quoted_price!=null
       ? `<span style="color:var(--tertiary);font-weight:700;">₹${l.admin_quoted_price}</span>`
       : `<span style="color:var(--on-surface-variant);">₹${l.quoted_price||0}</span>`;
@@ -4595,19 +4733,19 @@ function renderLeadsAdmin() {
     const exp  = days===null?'--':days<0?`<span style="color:var(--error)">Expired</span>`
                : days<=2?`<span style="color:var(--amber)">⚠ ${days}d</span>` : days+'d';
     const s = ss[l.status]||{bg:'transparent',cl:'var(--on-surface)'};
-    return `<tr style="cursor:pointer;" onclick="openLeadAdminPopup('${l.id}')">
-      <td style="font-weight:700;">${l.customer_name||'--'}</td>
-      <td style="font-size:12px;">${l.phone||'--'}</td>
+    return `<tr style="cursor:pointer;" onclick="openLeadAdminPopup('${escHtml(l.id)}')">
+      <td style="font-weight:700;">${escHtml(l.customer_name||'--')}</td>
+      <td style="font-size:12px;">${escHtml(l.phone||'--')}</td>
       <td style="font-size:12px;">${prodSummary}</td>
       <td>${adminPrice}</td>
-      <td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:${s.bg};color:${s.cl};">${l.status}</span></td>
+      <td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:${s.bg};color:${s.cl};">${escHtml(l.status)}</span></td>
       <td style="font-size:12px;">${exp}</td>
-      <td style="font-size:11px;color:var(--on-surface-variant);">${l.created_by_name||'--'}</td>
-      <td style="font-size:12px;color:var(--amber);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.followup_note||'--'}</td>
+      <td style="font-size:11px;color:var(--on-surface-variant);">${escHtml(l.created_by_name||'--')}</td>
+      <td style="font-size:12px;color:var(--amber);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(l.followup_note||'--')}</td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap;">
-        <button onclick="openLeadAdminPopup('${l.id}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(173,198,255,0.1);color:var(--primary);margin-right:4px;">View</button>
-        <button onclick="openLeadAdminPopup('${l.id}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(78,222,163,0.1);color:var(--tertiary);margin-right:4px;">Edit</button>
-        <button onclick="deleteLead('${l.id}','${(l.customer_name||l.phone||'').replace(/'/g,"\\'")}',event)" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(255,180,171,0.1);color:var(--error);">Delete</button>
+        <button onclick="openLeadAdminPopup('${escHtml(l.id)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(173,198,255,0.1);color:var(--primary);margin-right:4px;">View</button>
+        <button onclick="openLeadAdminPopup('${escHtml(l.id)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(78,222,163,0.1);color:var(--tertiary);margin-right:4px;">Edit</button>
+        <button onclick="deleteLead('${escHtml(l.id)}','${escHtml((l.customer_name||l.phone||'').replace(/'/g,"\\'"))}',event)" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(255,180,171,0.1);color:var(--error);">Delete</button>
       </td>
     </tr>`;
   }).join('');
@@ -4626,25 +4764,25 @@ function openLeadAdminPopup(id) {
 
   const prodsHtml = l.products?.length
     ? `<div style="background:var(--surface-container);border-radius:10px;padding:10px;margin-top:4px;">
-        ${l.products.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);"><span>${p.product_name}</span><span style="font-weight:700;">₹${p.quoted_price||0}</span></div>`).join('')}
+        ${l.products.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);"><span>${escHtml(p.product_name)}</span><span style="font-weight:700;">₹${p.quoted_price||0}</span></div>`).join('')}
         ${l.admin_quoted_price!=null?`<div style="padding-top:8px;font-size:12px;color:var(--tertiary);font-weight:700;">Admin revised: ₹${l.admin_quoted_price}</div>`:''}
       </div>`
-    : `₹${l.admin_quoted_price??l.quoted_price??0} — ${l.product_interest||'--'}`;
+    : `₹${l.admin_quoted_price??l.quoted_price??0} — ${escHtml(l.product_interest||'--')}`;
 
   const dr = (lbl,val) => `<div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;align-items:flex-start;"><span style="min-width:100px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--on-surface-variant);padding-top:2px;flex-shrink:0;">${lbl}</span><span style="flex:1;">${val}</span></div>`;
 
   document.getElementById('leadAdminPopupContent').innerHTML = `
-    <h3 style="font-size:20px;font-weight:900;letter-spacing:-0.3px;color:var(--on-surface);margin-bottom:8px;">${l.customer_name||'--'}</h3>
+    <h3 style="font-size:20px;font-weight:900;letter-spacing:-0.3px;color:var(--on-surface);margin-bottom:8px;">${escHtml(l.customer_name||'--')}</h3>
     <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;">
-      <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;${ss[l.status]||''}">${l.status}</span>
+      <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;${ss[l.status]||''}">${escHtml(l.status)}</span>
       ${days!==null&&days<=2?`<span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(245,158,11,0.15);color:var(--amber);">⚠ ${days<0?'Expired':days+'d left'}</span>`:''}
     </div>
     <div style="border-top:1px solid var(--border);">
-      ${dr('Phone',`<a href="tel:${l.phone}" style="color:var(--primary);font-weight:700;text-decoration:none;">${l.phone||'--'}</a>${l.alternate_phone?' / '+l.alternate_phone:''}`)}
+      ${dr('Phone',`<a href="tel:${escHtml(l.phone)}" style="color:var(--primary);font-weight:700;text-decoration:none;">${escHtml(l.phone||'--')}</a>${l.alternate_phone?' / '+escHtml(l.alternate_phone):''}`)}
       ${dr('Products',prodsHtml)}
-      ${l.remarks?dr('Remarks',l.remarks):''}
-      ${l.followup_note?dr('Follow-up',`<span style="color:var(--amber);font-weight:600;">${l.followup_note}</span>`):''}
-      ${dr('Added by',`${l.created_by_name||'--'} · ${createdDate}`)}
+      ${l.remarks?dr('Remarks',escHtml(l.remarks)):''}
+      ${l.followup_note?dr('Follow-up',`<span style="color:var(--amber);font-weight:600;">${escHtml(l.followup_note)}</span>`):''}
+      ${dr('Added by',`${escHtml(l.created_by_name||'--')} · ${createdDate}`)}
       ${dr('Expires',expiryDate)}
     </div>
     <div style="margin-top:16px;padding:14px;background:var(--surface-container);border-radius:12px;">
@@ -4666,10 +4804,10 @@ function openLeadAdminPopup(id) {
         </div>
       </div>
       <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:4px;">Follow-up Note</label>
-      <input id="laNote" value="${l.followup_note||''}" placeholder="Add a note for the staff..."
+      <input id="laNote" value="${escHtml(l.followup_note||'')}" placeholder="Add a note for the staff..."
         style="width:100%;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:10px;">
       <div id="laMsg" style="font-size:12px;font-weight:600;min-height:14px;margin-bottom:8px;"></div>
-      <button onclick="saveLeadAdminUpdate('${l.id}')"
+      <button onclick="saveLeadAdminUpdate('${escHtml(l.id)}')"
         style="padding:9px 20px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">
         Save Changes
       </button>
@@ -4734,12 +4872,18 @@ async function loadServiceCount() {
 }
 
 function updateSCStats() {
-  const counts = { open:0, assigned:0, in_progress:0, resolved:0 };
-  allServiceTickets.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
-  document.getElementById('sc-open').textContent       = counts.open;
-  document.getElementById('sc-assigned').textContent   = counts.assigned;
-  document.getElementById('sc-inprogress').textContent = counts.in_progress;
-  document.getElementById('sc-resolved').textContent   = counts.resolved;
+  let cNew = 0, cLogged = 0, cInstall = 0, cOpenComplaints = 0;
+  allServiceTickets.forEach(t => {
+    // "new" covers both legacy 'open' and new 'new' status
+    if (t.status === 'new' || t.status === 'open') cNew++;
+    if (t.status === 'logged') cLogged++;
+    if (t.type === 'installation') cInstall++;
+    if (t.type === 'complaint' && t.status !== 'logged') cOpenComplaints++;
+  });
+  document.getElementById('sc-new').textContent          = cNew;
+  document.getElementById('sc-logged').textContent       = cLogged;
+  document.getElementById('sc-installations').textContent = cInstall;
+  document.getElementById('sc-complaints').textContent   = cOpenComplaints;
 }
 
 function setSCFilter(f, btn) {
@@ -4753,7 +4897,9 @@ function renderSCTable() {
   if (!tbody) return;
 
   const statusBg = {
+    new:         'rgba(173,198,255,0.15)', new_c:         'var(--primary)',
     open:        'rgba(173,198,255,0.15)', open_c:        'var(--primary)',
+    logged:      'rgba(78,222,163,0.15)',  logged_c:      'var(--tertiary)',
     assigned:    'rgba(245,158,11,0.15)',  assigned_c:    'var(--amber)',
     in_progress: 'rgba(129,140,248,0.15)', in_progress_c: '#818cf8',
     resolved:    'rgba(78,222,163,0.15)',  resolved_c:    'var(--tertiary)'
@@ -4764,15 +4910,17 @@ function renderSCTable() {
   };
 
   let tickets = allServiceTickets.filter(t => {
-    if (scFilter === 'all')          return true;
+    if (scFilter === 'all') return true;
+    if (scFilter === 'new') return t.status === 'new' || t.status === 'open';
+    if (scFilter === 'logged') return t.status === 'logged';
     if (scFilter === 'complaint' || scFilter === 'installation') return t.type === scFilter;
     return t.status === scFilter;
   });
 
-  // Sort: open first, then by date desc
+  // Sort: new first, then logged, then by date desc
   tickets.sort((a, b) => {
-    const order = { open:0, assigned:1, in_progress:2, resolved:3 };
-    const od = (order[a.status]??9) - (order[b.status]??9);
+    const order = { new:0, open:0, logged:1 };
+    const od = (order[a.status] ?? 2) - (order[b.status] ?? 2);
     if (od !== 0) return od;
     return (b.created_at?.seconds||0) - (a.created_at?.seconds||0);
   });
@@ -4790,13 +4938,18 @@ function renderSCTable() {
     const tcl = typeBg[t.type+'_c'] || 'var(--on-surface)';
     const sbg = statusBg[t.status] || 'transparent';
     const scl = statusBg[t.status+'_c'] || 'var(--on-surface)';
+    const displayStatus = t.status === 'open' ? 'new' : t.status.replace(/_/g,' ');
+    const displayType   = t.type === 'installation' ? 'Demo-Installation' : t.type;
+    const priorityBadge = t.priority === 'urgent'
+      ? `<span style="margin-left:4px;padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;background:rgba(255,180,171,0.2);color:var(--error);">🔴 Urgent</span>`
+      : '';
     return `<tr>
-      <td><span style="padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${tbg};color:${tcl};">${t.type}</span></td>
-      <td style="font-weight:700;">${t.customer_name || '—'}</td>
-      <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.product_name || '—'}</td>
+      <td><span style="padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${tbg};color:${tcl};">${escHtml(displayType)}</span>${priorityBadge}</td>
+      <td style="font-weight:700;">${escHtml(t.customer_name || '—')}</td>
+      <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t.product_name || '—')}</td>
       <td style="font-size:12px;color:var(--on-surface-variant);white-space:nowrap;">${dateStr}</td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;">${t.brand_tracking_number || '<span style="color:var(--on-surface-variant);">—</span>'}</td>
-      <td><span style="padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${sbg};color:${scl};">${t.status.replace(/_/g,' ')}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;">${t.brand_tracking_number ? escHtml(t.brand_tracking_number) : '<span style="color:var(--on-surface-variant);">—</span>'}</td>
+      <td><span style="padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${sbg};color:${scl};">${escHtml(displayStatus)}</span></td>
     </tr>`;
   }).join('');
 }

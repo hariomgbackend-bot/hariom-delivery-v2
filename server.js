@@ -43,14 +43,23 @@ const upload = multer({
 const app = express();
 app.set("trust proxy", 1); // Required on Render — sits behind a reverse proxy
 app.use(cors({
-  origin: [
-    'https://hariom-delivery.onrender.com',
-    'https://hariom-delivery-v2.onrender.com',
-    'https://hariom-delivery.web.app'
-  ],
+  origin: (origin, callback) => {
+    const allowed = [
+      'https://hariom-delivery.onrender.com',
+      'https://hariom-delivery-v2.onrender.com',
+      'https://hariom-delivery.web.app'
+    ];
+    // Allow requests with no origin (same-origin, curl, Postman)
+    // and any localhost / 127.0.0.1 port for local development
+    if (!origin || allowed.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    }
+  },
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" })); // XML imports can be large
 app.use(express.static("."));
 
 app.get("/", (req, res) => {
@@ -102,7 +111,7 @@ cron.schedule("0 9 * * *", async () => {
     const cutoff  = Timestamp.fromMillis(Date.now() - 48 * 60 * 60 * 1000);
     const snap    = await getDocs(query(
       collection(db, "service_tickets"),
-      where("status", "in", ["open", "assigned", "in_progress"])
+      where("status", "in", ["new", "open"])
     ));
     const stale   = snap.docs.filter(d => {
       const upd = d.data().updated_at || d.data().created_at;
@@ -353,11 +362,31 @@ async function runStartupMigration() {
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 600,                // raised: multiple pages + auto-refresh + staff/driver apps share this
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false }, // Render proxy header — handled by trust proxy above
+  validate: { xForwardedForHeader: false },
   message: { error: "Too many requests. Please wait a few minutes." }
+});
+
+// Generous limiter for high-frequency read endpoints (deliveries list, auto-refresh)
+const readLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  message: { error: "Too many requests." }
+});
+
+// Write limiter for create/update delivery actions
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  message: { error: "Too many requests. Please slow down." }
 });
 
 const pinLimiter = rateLimit({
@@ -492,7 +521,7 @@ app.post("/correctDelivery/:id", authenticate, authorize(["admin"]), upload.fiel
             current.photo_loaded_url.split("/o/")[1].split("?")[0].replace(/%2F/g, "/")
           );
           await adminBucket.file(oldPath).delete().catch(() => {});
-        } catch (_) {}
+        } catch (err) { console.error("Failed to delete old loaded photo:", err.message); }
       }
       const storageRef = ref(storage, "delivery_proofs_loaded/" + Date.now() + "_corrected");
       await uploadBytes(storageRef, req.files.loaded_photo[0].buffer, { contentType: req.files.loaded_photo[0].mimetype });
@@ -507,7 +536,7 @@ app.post("/correctDelivery/:id", authenticate, authorize(["admin"]), upload.fiel
             current.photo_delivered_url.split("/o/")[1].split("?")[0].replace(/%2F/g, "/")
           );
           await adminBucket.file(oldPath).delete().catch(() => {});
-        } catch (_) {}
+        } catch (err) { console.error("Failed to delete old delivered photo:", err.message); }
       }
       const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + "_corrected");
       await uploadBytes(storageRef, req.files.delivered_photo[0].buffer, { contentType: req.files.delivered_photo[0].mimetype });
@@ -746,7 +775,7 @@ app.post("/models", async (req, res) => {
    Blocks identical customer+phone+product within 60 seconds
 ════════════════════════════════════════════════ */
 
-app.post("/createDelivery", async (req, res) => {
+app.post("/createDelivery", writeLimiter, async (req, res) => {
   try {
     const data = req.body;
 
@@ -815,18 +844,37 @@ app.post("/createDelivery", async (req, res) => {
 /* ════════════════════════════════════════════════
    CREATE MULTIPLE DELIVERIES (batch from one form)
 ════════════════════════════════════════════════ */
-app.post("/createDeliveries", async (req, res) => {
+app.post("/createDeliveries", writeLimiter, async (req, res) => {
   try {
     const { shared, products, requestId } = req.body;
 
     if (!shared || !products || !Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ error: "shared payload and products array required" });
     }
-    if (!shared.estimated_delivery_time) {
-      return res.status(400).json({ error: "ETA is required" });
-    }
-    if (new Date(shared.estimated_delivery_time) < new Date()) {
-      return res.status(400).json({ error: "ETA cannot be in the past" });
+    const isSelfPickup = shared.is_self_pickup === true;
+
+    if (!isSelfPickup) {
+      // Normal delivery — ETA and driver are required
+      if (!shared.estimated_delivery_time) {
+        return res.status(400).json({ error: "ETA is required" });
+      }
+      if (new Date(shared.estimated_delivery_time) < new Date()) {
+        return res.status(400).json({ error: "ETA cannot be in the past" });
+      }
+    } else {
+      // Self-pickup — assign to "Unassigned" driver so it appears in dispatcher panel
+      if (!shared.estimated_delivery_time) {
+        const eod = new Date();
+        eod.setHours(23, 59, 0, 0);
+        shared.estimated_delivery_time = eod.toISOString().slice(0, 16);
+      }
+      // Look up the real "Unassigned" driver doc so dispatcher panel picks it up
+      const driversSnap = await getDocs(collection(db, "drivers"));
+      const unassignedDoc = driversSnap.docs.find(d =>
+        (d.data().driver_name || "").trim().toLowerCase() === "unassigned"
+      );
+      shared.assigned_driver_id   = unassignedDoc ? unassignedDoc.id : "self_pickup";
+      shared.assigned_driver_name = "Unassigned";
     }
 
     // ── Idempotency check ──────────────────────────────────────────────────
@@ -918,7 +966,7 @@ app.post("/createDeliveries", async (req, res) => {
    GET DELIVERIES
 ════════════════════════════════════════════════ */
 
-app.get("/deliveries", async (req, res) => {
+app.get("/deliveries", readLimiter, async (req, res) => {
   try {
     const snapshot = await getDocs(collection(db, "deliveries"));
     let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1031,7 +1079,7 @@ app.post("/deleteFailedDelivery/:id", authenticate, authorize(["accountant", "ad
 
 /* ════════════════════════════════════════════════
    MARK LOADED
-════════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 
 app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
   try {
@@ -1063,6 +1111,20 @@ app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
       // Freight is captured at delivery time (markDelivered), not here
     });
 
+    // Update inventory_serials: set location to in_transit, status to assigned
+    const serialSnap = await getDocs(query(
+      collection(db, "inventory_serials"),
+      where("serial", "==", finalSerial.trim())
+    ));
+    if (!serialSnap.empty) {
+      await updateDoc(doc(db, "inventory_serials", serialSnap.docs[0].id), {
+        location: "in_transit",
+        status: "assigned",
+        deliveryId: req.params.id,
+        updatedAt: Timestamp.now()
+      });
+    }
+
     // ✅ Respond immediately — push runs in background
     res.json({ success: true });
 
@@ -1076,7 +1138,7 @@ app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
 
 /* ════════════════════════════════════════════════
    MARK DELIVERED
-════════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 
 app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
   try {
@@ -1139,6 +1201,23 @@ app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
       photo_delivered_url: url,
       ...freightFields
     });
+
+    // Update inventory_serials: set status to sold, location to delivered, store customer
+    const serial = deliveryData.product_serial_number;
+    if (serial) {
+      const serialSnap = await getDocs(query(
+        collection(db, "inventory_serials"),
+        where("serial", "==", serial.trim())
+      ));
+      if (!serialSnap.empty) {
+        await updateDoc(doc(db, "inventory_serials", serialSnap.docs[0].id), {
+          status: "sold",
+          location: "delivered",
+          customer: deliveryData.customer_name || null,
+          updatedAt: Timestamp.now()
+        });
+      }
+    }
 
     // ✅ Respond to driver immediately
     res.json({ success: true });
@@ -1354,7 +1433,7 @@ app.post("/driver/verify-pin", pinLimiter, async (req, res) => {
    PUSH TOKENS
 ════════════════════════════════════════════════ */
 
-app.post("/saveAccountantPushToken", async (req, res) => {
+app.post("/saveAccountantPushToken", authenticate, async (req, res) => {
   try {
     const { token } = req.body;
     if (!token) return res.status(400).json({ error: "Token required" });
@@ -1366,7 +1445,7 @@ app.post("/saveAccountantPushToken", async (req, res) => {
   }
 });
 
-app.post("/saveDriverPushToken", async (req, res) => {
+app.post("/saveDriverPushToken", authenticate, async (req, res) => {
   try {
     const { driver_id, token } = req.body;
     if (!driver_id || !token) return res.status(400).json({ error: "Missing data" });
@@ -2352,7 +2431,7 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
       product_interest, quoted_price, remarks, status,
       products   // new: array of { product_name, quoted_price }
     } = req.body;
-    if (!phone || phone.length !== 10) return res.status(400).json({ error: "Valid 10-digit phone required" });
+    if (!phone || phone.length !== 10 || !/^\d+$/.test(phone)) return res.status(400).json({ error: "Valid 10-digit phone required" });
 
     // Support both legacy single-product and new multi-product format
     const productsArray = Array.isArray(products) && products.length > 0
@@ -2501,7 +2580,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
     // Parse purchase_date if provided (YYYY-MM-DD string → Timestamp)
     let purchase_date_ts = null;
     if (purchase_date) {
-      try { purchase_date_ts = Timestamp.fromDate(new Date(purchase_date + "T00:00:00+05:30")); } catch(_) {}
+      try { purchase_date_ts = Timestamp.fromDate(new Date(purchase_date + "T00:00:00+05:30")); } catch(err) { console.warn("Invalid purchase_date:", err.message); }
     }
 
     // Avoid duplicate installation tickets for same delivery
@@ -2670,8 +2749,8 @@ app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]),
     if (!snap.exists()) return res.status(404).json({ error: "Ticket not found" });
 
     const t = snap.data();
-    if (!["open"].includes(t.status)) {
-      return res.status(400).json({ error: "Only open tickets can be deleted" });
+    if (!["new", "open"].includes(t.status)) {
+      return res.status(400).json({ error: "Only new tickets can be deleted. Logged tickets cannot be deleted." });
     }
 
     await deleteDoc(refDoc);
@@ -2770,12 +2849,12 @@ app.post("/service/legacy-import", authenticate, authorize(["admin"]), async (re
 
           let purchase_date_ts = null;
           if (t.purchase_date) {
-            try { purchase_date_ts = Timestamp.fromDate(new Date(t.purchase_date + "T00:00:00+05:30")); } catch(_) {}
+            try { purchase_date_ts = Timestamp.fromDate(new Date(t.purchase_date + "T00:00:00+05:30")); } catch(err) { console.warn("Invalid purchase_date in import:", err.message); }
           }
 
           let created_at_ts = Timestamp.now();
           if (t.timestamp) {
-            try { created_at_ts = Timestamp.fromDate(new Date(t.timestamp)); } catch(_) {}
+            try { created_at_ts = Timestamp.fromDate(new Date(t.timestamp)); } catch(err) { console.warn("Invalid timestamp in import:", err.message); }
           }
 
           let warranty_expiry = null;
@@ -3087,7 +3166,7 @@ app.put("/staff-permissions", authenticate, authorize(["admin"]), async (req, re
    SERVICE PUSH TOKEN — save for service panel
    POST /saveServicePushToken
 ════════════════════════════════════════════════ */
-app.post("/saveServicePushToken", async (req, res) => {
+app.post("/saveServicePushToken", authenticate, async (req, res) => {
   try {
     const { token } = req.body;
     if (!token) return res.status(400).json({ error: "Token required" });
@@ -3129,11 +3208,844 @@ process.on("uncaughtException", (err) => {
 });
 
 /* ════════════════════════════════════════════════
-   START
+   STOCK MANAGEMENT SYSTEM
+   Inventory tracking with serial numbers
+═══════════════════════════════════════════════ */
+
+function getCategory(productName) {
+  if (!productName) return "OTHER";
+  const n = productName.trim().toUpperCase();
+  const parts = n.split(/\s+/);
+  const twoWord = parts.length >= 2 ? parts[0] + ' ' + parts[1] : '';
+
+  // Two-word categories take priority
+  if (twoWord === 'D FREEZE')        return 'D FREEZE';
+  if (twoWord === 'AIR FRYER')       return 'AIR FRYER';
+  if (twoWord === 'TOWER FAN')       return 'TOWER FAN';
+  if (twoWord === 'AIR COOLER')      return 'AIR COOLER';
+  if (twoWord === 'AIR PURIFIER')    return 'AIR PURIFIER';
+  if (twoWord === 'WASHING MACHINE') return 'WASHING MACHINE';
+  if (twoWord === 'WATER PURIFIER')  return 'WATER PURIFIER';
+  if (twoWord === 'WATER DISPENSER') return 'WATER DISPENSER';
+
+  // Single-word first-token categories
+  const cat = parts[0];
+  const knownCats = new Set([
+    'AC','REF','LED','WM','COOLER','C-FAN','HT','COOKTOP','E-GEYSER','MIXER',
+    'IP','SM','STABILIZER','IC','P-FAN','R-HEATER','VC','VISI','WD','WP',
+    'W-FAN','ATTAMAKER','CHIMNEY','LAPTOP','COOKER','GIFT','I-ROD','KETTLE',
+    'MOBILE','NUTRI','OTG','PRINTER','SMARTWATCH','T-FAN','V-FAN','BATTERY',
+    'TOWER','UTTAM','JUICER','IRON','FAN'
+  ]);
+  if (knownCats.has(cat)) return cat;
+  return cat || 'OTHER';
+}
+
+function cleanProductName(name) {
+  if (!name) return "";
+  return name.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function extractQuantity(qtyStr) {
+  if (!qtyStr) return 0;
+  const match = String(qtyStr).match(/\d+/);
+  return match ? parseInt(match[0]) : 0;
+}
+
+/**
+ * Normalize product key for consistent matching across XML import,
+ * inventory_serials, and inventory_products.
+ * Removes parenthesized text like (INV), (1.5T), trims, lowercases.
+ */
+function normalizeProductKey(name) {
+  if (!name) return "";
+  return name
+    .replace(/\s*\([^)]*\)\s*/g, " ")  // remove brackets content
+    .replace(/\s+/g, " ")               // collapse whitespace
+    .trim()
+    .toLowerCase();
+}
+
+app.get("/sync-tally", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const tallyRes = await fetch("http://localhost:9000", {
+      method: "POST",
+      headers: { "Content-Type": "text/xml" },
+      body: `<ENVELOPE><HEADER><TALLYREQUEST>Export Data</TALLYREQUEST></HEADER><BODY><EXPORTDATA><REQUESTDESC><REPORTNAME>Stock Summary</REPORTNAME><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES></REQUESTDESC></EXPORTDATA></BODY></ENVELOPE>`,
+      signal: AbortSignal.timeout(10000)
+    });
+
+    const xmlText = await tallyRes.text();
+
+    const products = [];
+    const lines = xmlText.split("\n");
+
+    for (const line of lines) {
+      const nameMatch = line.match(/<DSPDISPNAME>([^<]+)<\/DSPDISPNAME>/);
+      const qtyMatch = line.match(/<DSPCLQTY>([^<]+)<\/DSPCLQTY>/);
+
+      if (nameMatch && qtyMatch) {
+        const rawName = nameMatch[1].trim();
+        const qty = extractQuantity(qtyMatch[1]);
+        if (rawName && qty > 0) {
+          const product = cleanProductName(rawName);
+          products.push({
+            product,
+            tallyQty: qty,
+            category: getCategory(product),
+            lastSync: Timestamp.now()
+          });
+        }
+      }
+    }
+
+    const uniqueProducts = {};
+    products.forEach(p => {
+      if (!uniqueProducts[p.product] || uniqueProducts[p.product].tallyQty < p.tallyQty) {
+        uniqueProducts[p.product] = p;
+      }
+    });
+
+    let count = 0;
+    for (const [product, data] of Object.entries(uniqueProducts)) {
+      await setDoc(doc(db, "inventory_products", product.replace(/[^a-zA-Z0-9]/g, "_")), data, { merge: true });
+      count++;
+    }
+
+    await setDoc(doc(db, "system_config", "sync"), {
+      lastSync: Timestamp.now(),
+      productCount: count
+    }, { merge: true });
+
+    res.json({ success: true, count, synced: Object.keys(uniqueProducts).length });
+  } catch (err) {
+    console.error("/sync-tally error:", err.message);
+    res.status(503).json({
+      error: "Tally not reachable",
+      hint: "Make sure Tally is running on localhost:9000"
+    });
+  }
+});
+
+app.post("/add-serial", async (req, res) => {
+  try {
+    const { serials, product, location } = req.body;
+
+    if (!serials || !Array.isArray(serials) || serials.length === 0) {
+      return res.status(400).json({ error: "Serials array required" });
+    }
+    if (!product) return res.status(400).json({ error: "Product name required" });
+    
+    let validLocations = ["warehouse", "display", "in_transit", "delivered"];
+    const locSnap = await getDocs(collection(db, "inventory_locations"));
+    if (!locSnap.empty) {
+      validLocations = locSnap.docs.map(d => d.data().name);
+    }
+    if (!validLocations.includes(location)) {
+      return res.status(400).json({ error: "Valid location required" });
+    }
+
+    const category = getCategory(product);
+    let saved = 0;
+    const duplicateSerials = [];
+    const errors = [];
+
+    for (const serial of serials) {
+      const cleanSerial = String(serial).trim();
+      if (!cleanSerial) continue;
+
+      const existing = await getDocs(query(
+        collection(db, "inventory_serials"),
+        where("serial", "==", cleanSerial)
+      ));
+
+      if (!existing.empty) {
+        duplicateSerials.push(cleanSerial);
+        continue;
+      }
+
+      try {
+        await addDoc(collection(db, "inventory_serials"), {
+          serial: cleanSerial,
+          product: cleanProductName(product),
+          category,
+          location,
+          status: "available",
+          deliveryId: null,
+          customer: null,
+          createdAt: Timestamp.now()
+        });
+        saved++;
+      } catch (e) {
+        errors.push({ serial: cleanSerial, error: e.message });
+      }
+    }
+
+    res.json({ saved, duplicates: duplicateSerials, errors: errors.length > 0 ? errors : undefined });
+  } catch (err) {
+    console.error("/add-serial error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/transfer-serial", async (req, res) => {
+  try {
+    const { serials, location } = req.body;
+
+    if (!serials || !Array.isArray(serials) || serials.length === 0) {
+      return res.status(400).json({ error: "Serials array required" });
+    }
+    
+    let validLocations = ["warehouse", "display", "in_transit", "delivered"];
+    const locSnap = await getDocs(collection(db, "inventory_locations"));
+    if (!locSnap.empty) {
+      validLocations = locSnap.docs.map(d => d.data().name);
+    }
+    if (!validLocations.includes(location)) {
+      return res.status(400).json({ error: "Valid location required" });
+    }
+
+    let transferred = 0;
+    const errors = [];
+    const notAvailable = [];
+
+    for (const serial of serials) {
+      const cleanSerial = String(serial).trim();
+      if (!cleanSerial) continue;
+
+      const snap = await getDocs(query(
+        collection(db, "inventory_serials"),
+        where("serial", "==", cleanSerial)
+      ));
+
+      if (snap.empty) {
+        errors.push({ serial: cleanSerial, error: "Not found" });
+        continue;
+      }
+
+      const currentStatus = snap.docs[0].data().status;
+      if (currentStatus !== "available") {
+        notAvailable.push(cleanSerial);
+        continue;
+      }
+
+      try {
+        await updateDoc(doc(db, "inventory_serials", snap.docs[0].id), {
+          location,
+          updatedAt: Timestamp.now()
+        });
+        transferred++;
+      } catch (e) {
+        errors.push({ serial: cleanSerial, error: e.message });
+      }
+    }
+
+    res.json({ 
+      transferred, 
+      notAvailable,
+      errors: errors.length > 0 ? errors : undefined 
+    });
+  } catch (err) {
+    console.error("/transfer-serial error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/inventory", async (req, res) => {
+  try {
+    const snapshot = await getDocs(collection(db, "inventory_serials"));
+    const serials = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json(serials);
+  } catch (err) {
+    console.error("/inventory error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   GET /inventory/stock-summary
+   Returns available unit count per product name.
+   Used by accountant dropdown to show "PRODUCT — (qty)".
+   Only counts serials with status "available".
 ════════════════════════════════════════════════ */
+app.get("/inventory/stock-summary", async (req, res) => {
+  try {
+    const snapshot = await getDocs(
+      query(collection(db, "inventory_serials"), where("status", "==", "available"))
+    );
+    const summary = {};
+    snapshot.docs.forEach(d => {
+      const product = d.data().product;
+      if (product) summary[product] = (summary[product] || 0) + 1;
+    });
+    res.json(summary); // { "REF HAIER HRF-618SS": 3, "WM SAMSUNG ...": 1, ... }
+  } catch (err) {
+    console.error("/inventory/stock-summary error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/inventory/anomalies", async (req, res) => {
+  try {
+    const [serialsSnap, productsSnap] = await Promise.all([
+      getDocs(collection(db, "inventory_serials")),
+      getDocs(collection(db, "inventory_products"))
+    ]);
+
+    const serials = serialsSnap.docs.map(d => d.data());
+    const products = productsSnap.docs.map(d => d.data());
+
+    const byProduct = {};
+    serials.forEach(s => {
+      const p = s.product || "UNKNOWN";
+      if (!byProduct[p]) byProduct[p] = 0;
+      byProduct[p]++;
+    });
+
+    const missing = [];
+    const extra = [];
+    const mismatch = [];
+    const oversold = [];
+
+    products.forEach(p => {
+      const productName = p.product || "UNKNOWN";
+      const tallyQty = p.tallyQty || 0;
+      const systemQty = byProduct[productName] || 0;
+
+      if (tallyQty < 0) {
+        oversold.push({ product: productName, tallyQty, systemQty });
+      } else if (systemQty === 0 && tallyQty > 0) {
+        missing.push({ product: productName, tallyQty, systemQty });
+      } else if (systemQty > tallyQty) {
+        extra.push({ product: productName, tallyQty, systemQty });
+      } else if (systemQty < tallyQty) {
+        missing.push({ product: productName, tallyQty, systemQty });
+      } else if (systemQty !== tallyQty) {
+        mismatch.push({ product: productName, tallyQty, systemQty });
+      }
+    });
+
+    Object.keys(byProduct).forEach(productName => {
+      const exists = products.some(p => p.product === productName);
+      if (!exists) {
+        extra.push({ product: productName, tallyQty: 0, systemQty: byProduct[productName] });
+      }
+    });
+
+    res.json({ missing, extra, mismatch, oversold });
+  } catch (err) {
+    console.error("/inventory/anomalies error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/inventory/locations", async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "inventory_locations"));
+    const locations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (locations.length === 0) {
+      const defaults = [
+        { name: "Warehouse" },
+        { name: "Display" }
+      ];
+      for (const loc of defaults) {
+        await addDoc(collection(db, "inventory_locations"), loc);
+      }
+      return res.json(defaults);
+    }
+    res.json(locations);
+  } catch (err) {
+    console.error("/inventory/locations error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/inventory/locations", async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Location name required" });
+    
+    const snap = await getDocs(query(
+      collection(db, "inventory_locations"),
+      where("name", "==", name.trim())
+    ));
+    if (!snap.empty) return res.status(409).json({ error: "Location already exists" });
+
+    const docRef = await addDoc(collection(db, "inventory_locations"), { name: name.trim() });
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    console.error("/inventory/locations POST error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/inventory/locations/:id", async (req, res) => {
+  try {
+    await deleteDoc(doc(db, "inventory_locations", req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/inventory/locations DELETE error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/inventory/sync-settings", async (req, res) => {
+  try {
+    const snap = await getDoc(doc(db, "system_config", "sync"));
+    const data = snap.exists() ? snap.data() : {};
+    res.json({
+      autoSync: data.autoSync || false,
+      lastSync: data.lastSync?.toDate?.() || null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/inventory/sync-settings", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const { autoSync } = req.body;
+    await setDoc(doc(db, "system_config", "sync"), {
+      autoSync: !!autoSync,
+      updatedAt: Timestamp.now()
+    }, { merge: true });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/assign-serial-to-delivery", async (req, res) => {
+  try {
+    const { serial, deliveryId, customer } = req.body;
+
+    if (!serial) return res.status(400).json({ error: "Serial required" });
+
+    const snap = await getDocs(query(
+      collection(db, "inventory_serials"),
+      where("serial", "==", serial.trim())
+    ));
+
+    if (snap.empty) {
+      return res.status(404).json({ error: "Serial not found in inventory" });
+    }
+
+    const updates = {
+      status: "assigned",
+      deliveryId: deliveryId || null,
+      customer: customer || null,
+      updatedAt: Timestamp.now()
+    };
+
+    await updateDoc(doc(db, "inventory_serials", snap.docs[0].id), updates);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/assign-serial-to-delivery error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/update-serial-status", async (req, res) => {
+  try {
+    const { serial, status, location, customer } = req.body;
+
+    if (!serial) return res.status(400).json({ error: "Serial required" });
+
+    const snap = await getDocs(query(
+      collection(db, "inventory_serials"),
+      where("serial", "==", serial.trim())
+    ));
+
+    if (snap.empty) {
+      return res.status(404).json({ error: "Serial not found in inventory" });
+    }
+
+    const updates = {};
+    if (status) updates.status = status;
+    if (location) updates.location = location;
+    if (customer !== undefined) updates.customer = customer;
+    updates.updatedAt = Timestamp.now();
+
+    await updateDoc(doc(db, "inventory_serials", snap.docs[0].id), updates);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/update-serial-status error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/parse-tally-xml", async (req, res) => {
+  try {
+    let xml = req.body?.xml;
+    if (!xml || typeof xml !== "string" || !xml.trim()) {
+      return res.status(400).json({ error: "XML content required" });
+    }
+
+    // Strip UTF-16 BOM (\uFEFF) if the browser passed it through
+    xml = xml.replace(/^\uFEFF/, "");
+
+    const products = [];
+    const skipped = [];
+
+    // Parse block-by-block: each product is a DSPACCNAME block followed by DSPSTKINFO.
+    const blockRegex = /<DSPACCNAME>[\s\S]*?<DSPDISPNAME>([^<]+)<\/DSPDISPNAME>[\s\S]*?<\/DSPACCNAME>\s*<DSPSTKINFO>[\s\S]*?<DSPCLQTY>([^<]*)<\/DSPCLQTY>[\s\S]*?<\/DSPSTKINFO>/g;
+
+    let match;
+    while ((match = blockRegex.exec(xml)) !== null) {
+      const rawName = match[1].trim();
+      const qty = extractQuantity(match[2]);
+      if (!rawName) {
+        skipped.push({ name: "(empty)", reason: "Empty product name" });
+        continue;
+      }
+      if (qty <= 0) {
+        skipped.push({ name: rawName, reason: "Zero or negative quantity" });
+        continue;
+      }
+      const cleaned = cleanProductName(rawName);
+      products.push({ product: cleaned, originalXmlName: rawName, tallyQty: qty, category: getCategory(cleaned) });
+    }
+
+    // Fallback to parallel array approach if block regex matched nothing
+    if (products.length === 0) {
+      const nameRegex = /<DSPDISPNAME>([^<]+)<\/DSPDISPNAME>/g;
+      const qtyRegex  = /<DSPCLQTY>([^<]*)<\/DSPCLQTY>/g;
+      const names = [], qtys = [];
+      let nm, qm;
+      while ((nm = nameRegex.exec(xml)) !== null) names.push(nm[1].trim());
+      while ((qm = qtyRegex.exec(xml))  !== null) qtys.push(extractQuantity(qm[1]));
+      const minLen = Math.min(names.length, qtys.length);
+      for (let i = 0; i < minLen; i++) {
+        if (!names[i]) {
+          skipped.push({ name: "(empty)", reason: "Empty product name" });
+          continue;
+        }
+        if (qtys[i] <= 0) {
+          skipped.push({ name: names[i], reason: "Zero or negative quantity" });
+          continue;
+        }
+        const cleaned = cleanProductName(names[i]);
+        products.push({ product: cleaned, originalXmlName: names[i], tallyQty: qtys[i], category: getCategory(cleaned) });
+      }
+    }
+
+    if (products.length === 0) {
+      return res.json({ products: [], skipped });
+    }
+
+    // Deduplicate XML products by normalized key — sum quantities for duplicates
+    const deduped = {};
+    for (const p of products) {
+      const nk = normalizeProductKey(p.product);
+      if (deduped[nk]) {
+        deduped[nk].tallyQty += p.tallyQty;
+      } else {
+        deduped[nk] = { ...p, normalizedKey: nk };
+      }
+    }
+    const dedupedList = Object.values(deduped);
+
+    // Build serial counts by normalized product key
+    const serialsSnap = await getDocs(collection(db, "inventory_serials"));
+    const serialsByNormKey = {};
+    serialsSnap.docs.forEach(d => {
+      const data = d.data();
+      const nk = normalizeProductKey(data.product || "UNKNOWN");
+      serialsByNormKey[nk] = (serialsByNormKey[nk] || 0) + 1;
+    });
+
+    const result = dedupedList.map(p => {
+      const nk = normalizeProductKey(p.product);
+      const existing = serialsByNormKey[nk] || 0;
+      return {
+        product:      p.product,
+        originalXmlName: p.originalXmlName,
+        category:     p.category,
+        tallyQty:     p.tallyQty,
+        alreadyAdded: existing,
+        missing:      Math.max(0, p.tallyQty - existing)
+      };
+    });
+
+    res.json({ products: result, skipped, totalXmlProducts: result.length });
+  } catch (err) {
+    console.error("/parse-tally-xml error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   XML IMPORT — Update inventory_products with tally quantities
+   XML does NOT contain serial numbers — do NOT auto-generate serials.
+   This endpoint only creates/updates inventory_products records.
+════════════════════════════════════════════════ */
+app.post("/import-xml-stock", async (req, res) => {
+  try {
+    const { products, location, mode } = req.body;
+
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ error: "products array required" });
+    }
+
+    let totalProcessed = 0;
+    let totalUpdated = 0;
+    let totalSkipped = 0;
+    const productResults = [];
+    const skippedItems = [];
+
+    // Fresh serial counts by normalized key
+    const serialsSnap = await getDocs(collection(db, "inventory_serials"));
+    const serialsByNormKey = {};
+    serialsSnap.docs.forEach(d => {
+      const data = d.data();
+      const nk = normalizeProductKey(data.product || "UNKNOWN");
+      serialsByNormKey[nk] = (serialsByNormKey[nk] || 0) + 1;
+    });
+
+    for (const p of products) {
+      totalProcessed++;
+      const productName = cleanProductName(p.product || "");
+      if (!productName) {
+        totalSkipped++;
+        skippedItems.push({ product: p.product || "(empty)", reason: "Invalid product name" });
+        continue;
+      }
+
+      const nk = normalizeProductKey(productName);
+      const tallyQty = parseInt(p.tallyQty) || 0;
+      const existingSerials = serialsByNormKey[nk] || 0;
+      const missing = Math.max(0, tallyQty - existingSerials);
+
+      // In "missing" or "select" mode, skip products with no missing units
+      if ((mode === "missing" || mode === "select") && missing === 0) {
+        totalSkipped++;
+        skippedItems.push({ product: productName, reason: "No missing units (already complete)" });
+        continue;
+      }
+
+      const category = getCategory(productName);
+      const docId = productName.replace(/[^a-zA-Z0-9]/g, "_");
+
+      // Create/update the inventory_products document with tally data
+      await setDoc(doc(db, "inventory_products", docId), {
+        product: productName,
+        originalName: p.originalXmlName || productName,
+        normalizedKey: nk,
+        category,
+        tallyQty,
+        systemQty: existingSerials,
+        missing,
+        lastImport: Timestamp.now()
+      }, { merge: true });
+
+      totalUpdated++;
+      productResults.push({
+        product: productName,
+        tallyQty,
+        systemQty: existingSerials,
+        missing,
+        status: missing > 0 ? "needs_serials" : "complete"
+      });
+    }
+
+    // Also ensure products are in the tally_products index
+    const tallyRef = doc(db, "tally_products", "index");
+    const tallySnap = await getDoc(tallyRef);
+    const existingNames = tallySnap.exists() ? (tallySnap.data().names || []) : [];
+    const existingNormSet = new Set(existingNames.map(n => normalizeProductKey(n)));
+
+    const newNames = productResults
+      .map(p => p.product)
+      .filter(name => !existingNormSet.has(normalizeProductKey(name)));
+
+    if (newNames.length > 0) {
+      const merged = [...existingNames, ...newNames].sort((a, b) =>
+        a.toUpperCase().localeCompare(b.toUpperCase())
+      );
+      await setDoc(tallyRef, { names: merged, count: merged.length }, { merge: true });
+    }
+
+    res.json({
+      ok: true,
+      totalProcessed,
+      totalUpdated,
+      totalSkipped,
+      skippedItems,
+      products: productResults,
+      // XML does not contain serials — no serials were generated
+      totalSaved: 0,
+      message: "Tally quantities imported. Scan serials manually to add inventory."
+    });
+  } catch (err) {
+    console.error("/import-xml-stock error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   PRODUCT NAME MAPPING
+   PUT  /inventory/products/:docId/rename
+   GET  /inventory/product-names
+════════════════════════════════════════════════ */
+app.put("/inventory/products/:docId/rename", async (req, res) => {
+  try {
+    const { displayName } = req.body;
+    if (!displayName || !displayName.trim()) {
+      return res.status(400).json({ error: "displayName required" });
+    }
+
+    const docRef = doc(db, "inventory_products", req.params.docId);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const currentData = snap.data();
+    await updateDoc(docRef, {
+      displayName: displayName.trim(),
+      originalName: currentData.originalName || currentData.product || "",
+      updatedAt: Timestamp.now()
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/inventory/products rename error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/inventory/product-names", async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "inventory_products"));
+    const mapping = {};
+    snap.docs.forEach(d => {
+      const data = d.data();
+      if (data.displayName && data.product) {
+        mapping[data.product] = {
+          displayName: data.displayName,
+          originalName: data.originalName || data.product,
+          docId: d.id
+        };
+      }
+    });
+    res.json(mapping);
+  } catch (err) {
+    console.error("/inventory/product-names error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   TRANSFER BY PRODUCT + QUANTITY
+   POST /transfer-by-product
+   Body: { items: [{ product, quantity }], fromLocation, toLocation }
+   Auto-selects available serials from source location.
+════════════════════════════════════════════════ */
+app.post("/transfer-by-product", async (req, res) => {
+  try {
+    const { items, fromLocation, toLocation } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "items array required" });
+    }
+    if (!fromLocation) return res.status(400).json({ error: "fromLocation required" });
+    if (!toLocation) return res.status(400).json({ error: "toLocation required" });
+    if (fromLocation === toLocation) {
+      return res.status(400).json({ error: "Source and destination cannot be the same" });
+    }
+
+    // Validate locations
+    let validLocations = ["warehouse", "display", "in_transit", "delivered"];
+    const locSnap = await getDocs(collection(db, "inventory_locations"));
+    if (!locSnap.empty) {
+      validLocations = locSnap.docs.map(d => d.data().name);
+    }
+    if (!validLocations.includes(fromLocation)) {
+      return res.status(400).json({ error: `Invalid source location: ${fromLocation}` });
+    }
+    if (!validLocations.includes(toLocation)) {
+      return res.status(400).json({ error: `Invalid destination location: ${toLocation}` });
+    }
+
+    let totalTransferred = 0;
+    const results = [];
+    const errors = [];
+
+    for (const item of items) {
+      const product = item.product;
+      const requestedQty = parseInt(item.quantity) || 0;
+
+      if (!product || requestedQty <= 0) {
+        errors.push({ product: product || "(unknown)", error: "Invalid product or quantity" });
+        continue;
+      }
+
+      // Query available serials for this product at the source location
+      const snap = await getDocs(query(
+        collection(db, "inventory_serials"),
+        where("product", "==", product),
+        where("location", "==", fromLocation),
+        where("status", "==", "available")
+      ));
+
+      const availableDocs = snap.docs;
+      if (availableDocs.length === 0) {
+        errors.push({ product, error: "No available units at source location" });
+        continue;
+      }
+
+      if (availableDocs.length < requestedQty) {
+        errors.push({
+          product,
+          error: `Only ${availableDocs.length} available, requested ${requestedQty}`
+        });
+        continue;
+      }
+
+      // Auto-select first N serials
+      const toTransfer = availableDocs.slice(0, requestedQty);
+      let transferred = 0;
+
+      for (const serialDoc of toTransfer) {
+        try {
+          await updateDoc(doc(db, "inventory_serials", serialDoc.id), {
+            location: toLocation,
+            updatedAt: Timestamp.now()
+          });
+          transferred++;
+        } catch (e) {
+          errors.push({ product, serial: serialDoc.data().serial, error: e.message });
+        }
+      }
+
+      totalTransferred += transferred;
+      results.push({
+        product,
+        requested: requestedQty,
+        transferred,
+        available: availableDocs.length
+      });
+    }
+
+    res.json({
+      ok: true,
+      totalTransferred,
+      items: results,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (err) {
+    console.error("/transfer-by-product error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   START
+═══════════════════════════════════════════════ */
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
   runStartupMigration();
 });
+

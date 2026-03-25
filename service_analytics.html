@@ -26,7 +26,7 @@
     body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--on-surface); min-height: 100vh; -webkit-font-smoothing: antialiased; }
     .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-variation-settings: 'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; font-size: 18px; line-height: 1; vertical-align: middle; }
 
-    /* ── *HEADER* ── */
+    /* ── HEADER ── */
     .header { background: rgba(11,19,38,0.75); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
     .header-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 900; color: var(--tertiary); letter-spacing: -0.3px; text-transform: uppercase; }
     .header-right { display: flex; align-items: center; gap: 8px; }
@@ -136,8 +136,8 @@
       <button class="range-btn" onclick="setRange(90,this)">90D</button>
       <button class="range-btn" onclick="setRange(0,this)">All</button>
     </div>
-    <a href="service.html" class="header-btn">
-     <!-- <span class="material-symbols-outlined" style="font-size:14px;">arrow_back</span> Back-->
+    <a href="#" onclick="goBack()" class="header-btn">
+      <span class="material-symbols-outlined" style="font-size:14px;">arrow_back</span> Back
     </a>
   </div>
 </header>
@@ -267,22 +267,33 @@ let _rangeDays = 30;
 let _allTickets = null;
 const _charts = {};
 
-/* ── AUTH (same pattern as service.html) ── */
-function getToken() { return localStorage.getItem("serviceToken") || localStorage.getItem("adminToken"); }
+/* ── AUTH — accepts both adminToken and serviceToken ── */
+function getBackUrl() {
+  return sessionStorage.getItem('svcAnalyticsFrom') === 'admin' ? 'admin.html' : 'service.html';
+}
+function goBack() {
+  const dest = getBackUrl();
+  sessionStorage.removeItem('svcAnalyticsFrom');
+  window.location.href = dest;
+}
+function getToken() {
+  // Prefer adminToken (set when navigating from admin), fall back to serviceToken
+  return localStorage.getItem("adminToken") || localStorage.getItem("serviceToken");
+}
 function isExpired(token) {
   try { const p = JSON.parse(atob(token.split(".")[1])); return Date.now() >= p.exp * 1000; }
   catch { return true; }
 }
 function authFetch(url, opts={}) {
   const token = getToken();
-  if (!token || isExpired(token)) { window.location.href = "service.html"; throw new Error("expired"); }
+  if (!token || isExpired(token)) { window.location.href = getBackUrl(); throw new Error("expired"); }
   return fetch(url, { ...opts, headers: { ...(opts.headers||{}), Authorization: "Bearer "+token } });
 }
 
 // Check auth on load
 (function() {
   const token = getToken();
-  if (!token || isExpired(token)) { window.location.href = "service.html"; }
+  if (!token || isExpired(token)) { window.location.href = getBackUrl(); }
 })();
 
 /* ── HELPERS ── */
