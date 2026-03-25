@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tally Sync Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 36px;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #93c5fd;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 28px;
+    }
+
+    .field-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      align-items: flex-end;
+    }
+    .field {
+      flex: 1;
+    }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 10px 14px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 14px;
+      font-family: 'Segoe UI', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: #3b82f6; }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 13px 20px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      margin-bottom: 20px;
+    }
+    .btn:hover { background: #1d4ed8; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { background: #334155; color: #64748b; cursor: not-allowed; transform: none; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Result box */
+    #result {
+      display: none;
+      border-radius: 10px;
+      padding: 18px 20px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    #result.success {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    #result.error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    #result.warning {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .result-big {
+      font-size: 48px;
+      font-weight: 800;
+      font-family: 'Courier New', monospace;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .result-big.green  { color: #4ade80; }
+    .result-big.red    { color: #f87171; }
+    .result-big.amber  { color: #fbbf24; }
+
+    .result-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 14px;
+    }
+
+    .product-list {
+      margin-top: 14px;
+      max-height: 260px;
+      overflow-y: auto;
+      border-top: 1px solid #334155;
+      padding-top: 12px;
+    }
+    .product-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid #1e293b;
+      font-size: 13px;
+    }
+    .product-row:last-child { border-bottom: none; }
+    .product-name { color: #cbd5e1; }
+    .product-qty {
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      color: #60a5fa;
+      font-size: 13px;
+    }
+
+    .log {
+      margin-top: 14px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      color: #475569;
+      border-top: 1px solid #334155;
+      padding-top: 10px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🔗 Tally Sync Test</h1>
+  <p class="subtitle">Connects to Tally on this machine and reads Stock Summary</p>
+
+  <div class="field-row">
+    <div class="field">
+      <label>Tally Port</label>
+      <input type="number" id="port" value="9000" placeholder="9000">
+    </div>
+    <div class="field">
+      <label>Timeout (seconds)</label>
+      <input type="number" id="timeout" value="10" placeholder="10" min="3" max="60">
+    </div>
+  </div>
+
+  <button class="btn" id="syncBtn" onclick="runSync()">
+    ▶ Connect &amp; Sync Stock Summary
+  </button>
+
+  <div id="result"></div>
+</div>
+
+<script>
+  // Tally Stock Summary XML request
+  const TALLY_XML = `<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Export Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <EXPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>Stock Summary</REPORTNAME>
+        <STATICVARIABLES>
+          <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        </STATICVARIABLES>
+      </REQUESTDESC>
+    </EXPORTDATA>
+  </BODY>
+</ENVELOPE>`;
+
+  function extractQuantity(qtyStr) {
+    if (!qtyStr) return 0;
+    const match = String(qtyStr).match(/[\d.]+/);
+    return match ? parseFloat(match[0]) : 0;
+  }
+
+  function parseStockXml(xml) {
+    // Extract name+qty pairs using the same regex as server.js
+    const nameRegex = /<DSPDISPNAME>([^<]+)<\/DSPDISPNAME>/g;
+    const qtyRegex  = /<DSPCLQTY>([^<]+)<\/DSPCLQTY>/g;
+
+    const names = [], qtys = [];
+    let m;
+    while ((m = nameRegex.exec(xml)) !== null) names.push(m[1].trim());
+    while ((m = qtyRegex.exec(xml))  !== null) qtys.push(extractQuantity(m[1]));
+
+    const products = [];
+    const minLen = Math.min(names.length, qtys.length);
+    for (let i = 0; i < minLen; i++) {
+      if (names[i] && qtys[i] > 0) {
+        products.push({ name: names[i], qty: qtys[i] });
+      }
+    }
+    return products;
+  }
+
+  async function runSync() {
+    const port    = parseInt(document.getElementById('port').value)    || 9000;
+    const timeout = parseInt(document.getElementById('timeout').value) * 1000 || 10000;
+    const btn     = document.getElementById('syncBtn');
+    const result  = document.getElementById('result');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Connecting to Tally...';
+    result.style.display = 'none';
+    result.className = '';
+    result.innerHTML = '';
+
+    const url = `http://localhost:${port}`;
+
+    try {
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'text/xml' },
+        body:    TALLY_XML,
+        signal:  AbortSignal.timeout(timeout)
+      });
+
+      const xml = await res.text();
+
+      if (!xml || xml.trim().length < 20) {
+        showResult('warning', 0, [], 'Tally responded but returned empty data. Is Stock Summary available?', url, xml.slice(0, 200));
+        return;
+      }
+
+      const products = parseStockXml(xml);
+
+      if (products.length === 0) {
+        showResult('warning', 0, [], 'Connected to Tally but no products found in Stock Summary. Check if stock data exists in Tally.', url, xml.slice(0, 300));
+      } else {
+        showResult('success', products.length, products, null, url, null);
+      }
+
+    } catch (err) {
+      let msg = err.message || 'Unknown error';
+
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+        msg = `Tally did not respond within ${timeout/1000}s. Make sure Tally is open and the HTTP port (${port}) is enabled.`;
+      } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS')) {
+        msg = `Cannot reach Tally at localhost:${port}.\n\nCheck:\n• Tally is open\n• Port ${port} is set in Tally → F12 → Advanced Config → HTTP Port\n• This page is opened directly on the Tally machine`;
+      }
+
+      showResult('error', null, [], msg, url, null);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '▶ Connect &amp; Sync Stock Summary';
+    }
+  }
+
+  function showResult(type, count, products, message, url, rawSnippet) {
+    const result = document.getElementById('result');
+    result.style.display = 'block';
+    result.className = type;
+
+    if (type === 'success') {
+      result.innerHTML = `
+        <div class="result-big green">${count}</div>
+        <div class="result-label">products detected in Tally Stock Summary</div>
+        <div style="font-size:12px;color:#475569;">Source: <code>${url}</code></div>
+        <div class="product-list">
+          ${products.map(p => `
+            <div class="product-row">
+              <span class="product-name">${escHtml(p.name)}</span>
+              <span class="product-qty">${p.qty}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else if (type === 'warning') {
+      result.innerHTML = `
+        <div class="result-big amber">0</div>
+        <div class="result-label">products found</div>
+        <div style="color:#fbbf24;font-size:13px;margin-bottom:8px;">⚠ ${escHtml(message)}</div>
+        ${rawSnippet ? `<div class="log">Raw response snippet:<br>${escHtml(rawSnippet)}</div>` : ''}
+      `;
+    } else {
+      result.innerHTML = `
+        <div style="font-size:22px;margin-bottom:8px;">❌ Connection Failed</div>
+        <div style="color:#f87171;font-size:13px;white-space:pre-line;">${escHtml(message)}</div>
+      `;
+    }
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Allow Enter key on inputs to trigger sync
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') runSync();
+  });
+</script>
+
+</body>
+</html>
