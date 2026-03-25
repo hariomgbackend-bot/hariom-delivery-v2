@@ -6,86 +6,49 @@
   <title>Tally Sync Test</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
       font-family: 'Segoe UI', sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
+      background: #0f172a; color: #e2e8f0;
+      min-height: 100vh; display: flex;
+      align-items: center; justify-content: center; padding: 24px;
     }
-
     .card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 16px;
-      padding: 36px;
-      width: 100%;
-      max-width: 560px;
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 16px; padding: 36px; width: 100%; max-width: 580px;
     }
+    h1 { font-size: 20px; font-weight: 700; color: #93c5fd; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: #64748b; margin-bottom: 24px; }
 
-    h1 {
-      font-size: 20px;
-      font-weight: 700;
-      color: #93c5fd;
-      margin-bottom: 4px;
+    .info-box {
+      border-radius: 10px; padding: 14px 16px;
+      margin-bottom: 20px; font-size: 13px; line-height: 1.7;
     }
-    .subtitle {
-      font-size: 13px;
-      color: #64748b;
-      margin-bottom: 28px;
-    }
+    .info-box.blue  { background:#1e3a5f; border:1px solid #2563eb; color:#bfdbfe; }
+    .info-box.amber { background:#451a03; border:1px solid #92400e; color:#fde68a; }
 
-    .field-row {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 16px;
-      align-items: flex-end;
-    }
-    .field {
-      flex: 1;
-    }
+    .field-row { display: flex; gap: 10px; margin-bottom: 16px; }
+    .field { flex: 1; }
     label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #64748b;
-      margin-bottom: 6px;
+      display: block; font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: #64748b; margin-bottom: 6px;
     }
-    input {
-      width: 100%;
-      padding: 10px 14px;
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      color: #e2e8f0;
-      font-size: 14px;
-      font-family: 'Segoe UI', sans-serif;
-      outline: none;
-      transition: border-color 0.2s;
+    input, select {
+      width: 100%; padding: 10px 14px;
+      background: #0f172a; border: 1px solid #334155;
+      border-radius: 8px; color: #e2e8f0;
+      font-size: 14px; font-family: 'Segoe UI', sans-serif;
+      outline: none; transition: border-color 0.2s;
     }
-    input:focus { border-color: #3b82f6; }
+    input:focus, select:focus { border-color: #3b82f6; }
+    select option { background: #1e293b; }
 
     .btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      width: 100%;
-      padding: 13px 20px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px; width: 100%; padding: 13px 20px;
+      background: #2563eb; color: white; border: none;
+      border-radius: 10px; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: background 0.2s, transform 0.1s;
       margin-bottom: 20px;
     }
     .btn:hover { background: #1d4ed8; }
@@ -95,256 +58,280 @@
     .spinner {
       width: 16px; height: 16px;
       border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      flex-shrink: 0;
+      border-top-color: white; border-radius: 50%;
+      animation: spin 0.7s linear infinite; flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Result box */
-    #result {
-      display: none;
-      border-radius: 10px;
-      padding: 18px 20px;
-      font-size: 14px;
-      line-height: 1.6;
-    }
-    #result.success {
-      background: rgba(34, 197, 94, 0.1);
-      border: 1px solid rgba(34, 197, 94, 0.3);
-    }
-    #result.error {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-    #result.warning {
-      background: rgba(245, 158, 11, 0.1);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-    }
+    #result { display:none; border-radius:10px; padding:20px; font-size:14px; line-height:1.6; }
+    #result.success { background:rgba(34,197,94,0.1);  border:1px solid rgba(34,197,94,0.3); }
+    #result.error   { background:rgba(239,68,68,0.1);  border:1px solid rgba(239,68,68,0.3); }
+    #result.warning { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); }
 
-    .result-big {
-      font-size: 48px;
-      font-weight: 800;
-      font-family: 'Courier New', monospace;
-      line-height: 1;
-      margin-bottom: 6px;
-    }
-    .result-big.green  { color: #4ade80; }
-    .result-big.red    { color: #f87171; }
-    .result-big.amber  { color: #fbbf24; }
-
-    .result-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: #94a3b8;
-      margin-bottom: 14px;
-    }
+    .result-big { font-size:52px; font-weight:800; font-family:'Courier New',monospace; line-height:1; margin-bottom:4px; }
+    .result-big.green { color:#4ade80; }
+    .result-big.amber { color:#fbbf24; }
+    .result-label { font-size:13px; font-weight:600; color:#94a3b8; margin-bottom:12px; }
 
     .product-list {
-      margin-top: 14px;
-      max-height: 260px;
-      overflow-y: auto;
-      border-top: 1px solid #334155;
-      padding-top: 12px;
+      margin-top:14px; max-height:280px; overflow-y:auto;
+      border-top:1px solid #334155; padding-top:12px;
     }
     .product-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 5px 0;
-      border-bottom: 1px solid #1e293b;
-      font-size: 13px;
+      display:flex; justify-content:space-between; align-items:center;
+      padding:6px 0; border-bottom:1px solid rgba(51,65,85,0.5); font-size:13px;
     }
-    .product-row:last-child { border-bottom: none; }
-    .product-name { color: #cbd5e1; }
-    .product-qty {
-      font-family: 'Courier New', monospace;
-      font-weight: 700;
-      color: #60a5fa;
-      font-size: 13px;
-    }
+    .product-row:last-child { border-bottom:none; }
+    .product-name { color:#cbd5e1; flex:1; padding-right:12px; }
+    .product-qty  { font-family:'Courier New',monospace; font-weight:700; color:#60a5fa; white-space:nowrap; }
 
-    .log {
-      margin-top: 14px;
-      font-size: 12px;
-      font-family: 'Courier New', monospace;
-      color: #475569;
-      border-top: 1px solid #334155;
-      padding-top: 10px;
-      word-break: break-all;
+    .method-tabs { display:flex; gap:8px; margin-bottom:16px; }
+    .tab {
+      flex:1; padding:10px 8px; border:1px solid #334155; border-radius:8px;
+      background:transparent; color:#64748b; font-family:'Segoe UI',sans-serif;
+      font-size:12px; font-weight:600; cursor:pointer; text-align:center; transition:all 0.15s;
+    }
+    .tab.active { background:#1e40af; border-color:#3b82f6; color:#bfdbfe; }
+    .method-panel { display:none; }
+    .method-panel.active { display:block; }
+    .divider { height:1px; background:#334155; margin:4px 0 20px; }
+    code {
+      background:#0f172a; padding:2px 6px; border-radius:4px;
+      font-family:'Courier New',monospace; font-size:12px;
     }
   </style>
 </head>
 <body>
-
 <div class="card">
   <h1>🔗 Tally Sync Test</h1>
-  <p class="subtitle">Connects to Tally on this machine and reads Stock Summary</p>
+  <p class="subtitle">Reads Stock Summary from Tally ERP 9 on this machine</p>
 
-  <div class="field-row">
-    <div class="field">
-      <label>Tally Port</label>
-      <input type="number" id="port" value="9000" placeholder="9000">
+  <label style="margin-bottom:8px;display:block;">Connection Method</label>
+  <div class="method-tabs">
+    <button class="tab active" onclick="setMethod('proxy')">
+      Via Your Server<br><span style="font-weight:400;opacity:0.7;font-size:11px;">avoids CORS</span>
+    </button>
+    <button class="tab" onclick="setMethod('direct')">
+      Direct to Tally<br><span style="font-weight:400;opacity:0.7;font-size:11px;">local only</span>
+    </button>
+  </div>
+
+  <!-- Proxy method -->
+  <div class="method-panel active" id="panel-proxy">
+    <div class="info-box blue">
+      <strong style="color:#93c5fd;">How this works:</strong><br>
+      Browser → your Render server → Tally on this PC.<br>
+      Your server already has a <code>/tally/invoices</code> proxy endpoint — we use that.<br>
+      <strong>Tally port stays 9000</strong> (ODBC port also accepts XML on the same port in ERP9).
     </div>
-    <div class="field">
-      <label>Timeout (seconds)</label>
-      <input type="number" id="timeout" value="10" placeholder="10" min="3" max="60">
+    <div class="field" style="margin-bottom:12px;">
+      <label>Your Server URL</label>
+      <input type="text" id="serverUrl" placeholder="https://hariom-delivery.onrender.com">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Tally Port (on this PC)</label>
+        <input type="number" id="proxyPort" value="9000">
+      </div>
+      <div class="field">
+        <label>Timeout (sec)</label>
+        <input type="number" id="proxyTimeout" value="15" min="5" max="60">
+      </div>
+    </div>
+    <div class="info-box amber" style="margin-bottom:0;">
+      <strong style="color:#fbbf24;">⚠ This needs the accountant to be logged in</strong><br>
+      The <code>/tally/invoices</code> route requires auth. Open <code>accountant.html</code> first and log in, then come back and click Test — the token is shared in the same browser session.
     </div>
   </div>
 
+  <!-- Direct method -->
+  <div class="method-panel" id="panel-direct">
+    <div class="info-box amber">
+      <strong style="color:#fbbf24;">⚠ Only works when served over HTTP, not opened as a file.</strong><br>
+      Run this command in the same folder as this HTML file:<br>
+      <code>npx serve .</code><br>
+      Then open: <code>http://localhost:3000/tally-test.html</code><br><br>
+      If npx isn't available: <code>npm install -g serve</code> first.
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Tally Port</label>
+        <input type="number" id="directPort" value="9000">
+      </div>
+      <div class="field">
+        <label>Timeout (sec)</label>
+        <input type="number" id="directTimeout" value="10" min="3" max="60">
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
   <button class="btn" id="syncBtn" onclick="runSync()">
-    ▶ Connect &amp; Sync Stock Summary
+    ▶ Test Tally Connection
   </button>
 
   <div id="result"></div>
 </div>
 
 <script>
-  // Tally Stock Summary XML request
-  const TALLY_XML = `<ENVELOPE>
-  <HEADER>
-    <TALLYREQUEST>Export Data</TALLYREQUEST>
-  </HEADER>
-  <BODY>
-    <EXPORTDATA>
-      <REQUESTDESC>
-        <REPORTNAME>Stock Summary</REPORTNAME>
-        <STATICVARIABLES>
-          <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        </STATICVARIABLES>
-      </REQUESTDESC>
-    </EXPORTDATA>
-  </BODY>
-</ENVELOPE>`;
+  let currentMethod = 'proxy';
 
-  function extractQuantity(qtyStr) {
-    if (!qtyStr) return 0;
-    const match = String(qtyStr).match(/[\d.]+/);
-    return match ? parseFloat(match[0]) : 0;
+  function setMethod(m) {
+    currentMethod = m;
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', (i===0 && m==='proxy') || (i===1 && m==='direct'));
+    });
+    document.getElementById('panel-proxy').classList.toggle('active', m==='proxy');
+    document.getElementById('panel-direct').classList.toggle('active', m==='direct');
   }
 
+  const TALLY_XML = `<ENVELOPE><HEADER><TALLYREQUEST>Export Data</TALLYREQUEST></HEADER><BODY><EXPORTDATA><REQUESTDESC><REPORTNAME>Stock Summary</REPORTNAME><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES></REQUESTDESC></EXPORTDATA></BODY></ENVELOPE>`;
+
   function parseStockXml(xml) {
-    // Extract name+qty pairs using the same regex as server.js
-    const nameRegex = /<DSPDISPNAME>([^<]+)<\/DSPDISPNAME>/g;
-    const qtyRegex  = /<DSPCLQTY>([^<]+)<\/DSPCLQTY>/g;
-
-    const names = [], qtys = [];
+    const nameRx = /<DSPDISPNAME>([^<]+)<\/DSPDISPNAME>/g;
+    const qtyRx  = /<DSPCLQTY>([^<]+)<\/DSPCLQTY>/g;
+    const names=[], qtys=[];
     let m;
-    while ((m = nameRegex.exec(xml)) !== null) names.push(m[1].trim());
-    while ((m = qtyRegex.exec(xml))  !== null) qtys.push(extractQuantity(m[1]));
-
-    const products = [];
-    const minLen = Math.min(names.length, qtys.length);
-    for (let i = 0; i < minLen; i++) {
-      if (names[i] && qtys[i] > 0) {
-        products.push({ name: names[i], qty: qtys[i] });
-      }
-    }
-    return products;
+    while ((m=nameRx.exec(xml))!==null) names.push(m[1].trim());
+    while ((m=qtyRx.exec(xml))!==null)  qtys.push(parseFloat(String(m[1]).match(/[\d.]+/)?.[0]||0));
+    const out=[];
+    for (let i=0; i<Math.min(names.length,qtys.length); i++)
+      if (names[i] && qtys[i]>0) out.push({name:names[i], qty:qtys[i]});
+    return out;
   }
 
   async function runSync() {
-    const port    = parseInt(document.getElementById('port').value)    || 9000;
-    const timeout = parseInt(document.getElementById('timeout').value) * 1000 || 10000;
-    const btn     = document.getElementById('syncBtn');
-    const result  = document.getElementById('result');
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Connecting to Tally...';
-    result.style.display = 'none';
-    result.className = '';
-    result.innerHTML = '';
-
-    const url = `http://localhost:${port}`;
-
+    const btn=document.getElementById('syncBtn'), result=document.getElementById('result');
+    btn.disabled=true;
+    btn.innerHTML='<span class="spinner"></span> Connecting...';
+    result.style.display='none'; result.innerHTML=''; result.className='';
     try {
-      const res = await fetch(url, {
-        method:  'POST',
-        headers: { 'Content-Type': 'text/xml' },
-        body:    TALLY_XML,
-        signal:  AbortSignal.timeout(timeout)
+      currentMethod==='proxy' ? await runViaProxy() : await runDirect();
+    } finally {
+      btn.disabled=false;
+      btn.innerHTML='▶ Test Tally Connection';
+    }
+  }
+
+  async function runViaProxy() {
+    const serverUrl=(document.getElementById('serverUrl').value||'').trim().replace(/\/$/,'');
+    const port=parseInt(document.getElementById('proxyPort').value)||9000;
+    const timeout=parseInt(document.getElementById('proxyTimeout').value)*1000||15000;
+    if (!serverUrl) { showError('Enter your server URL first.'); return; }
+
+    // Read auth token from localStorage (set by accountant.html login)
+    const token = localStorage.getItem('accountantToken') || localStorage.getItem('token') || '';
+
+    let text;
+    try {
+      const res = await fetch(`${serverUrl}/tally/invoices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ port, xml: TALLY_XML }),
+        signal: AbortSignal.timeout(timeout)
       });
 
-      const xml = await res.text();
+      text = await res.text();
 
-      if (!xml || xml.trim().length < 20) {
-        showResult('warning', 0, [], 'Tally responded but returned empty data. Is Stock Summary available?', url, xml.slice(0, 200));
-        return;
+      // Check for auth error
+      try {
+        const json = JSON.parse(text);
+        if (json.error && (res.status===401||res.status===403)) {
+          showError(`Auth required.\n\nOpen accountant.html in this same browser tab first and log in, then come back and try again.\n\nError: ${json.error}`);
+          return;
+        }
+        if (json.error && json.error.includes('not reachable')) {
+          showError(`Server is running ✓ but cannot reach Tally at localhost:${port}.\n\nMake sure Tally is open on this PC.\n\n${json.hint||''}`);
+          return;
+        }
+        if (json.error) { showError(json.error); return; }
+      } catch(_) { /* XML response, continue */ }
+
+    } catch(err) {
+      let msg = err.message||'Unknown error';
+      if (err.name==='TimeoutError'||err.name==='AbortError') {
+        msg=`Timed out after ${parseInt(document.getElementById('proxyTimeout').value)}s.\nTally may not be responding. Check it is open.`;
+      } else if (msg.includes('Failed to fetch')) {
+        msg=`Cannot reach server at:\n${serverUrl}\n\nCheck the URL is correct and the server is running.`;
       }
+      showError(msg); return;
+    }
+    processXml(text);
+  }
 
-      const products = parseStockXml(xml);
-
-      if (products.length === 0) {
-        showResult('warning', 0, [], 'Connected to Tally but no products found in Stock Summary. Check if stock data exists in Tally.', url, xml.slice(0, 300));
+  async function runDirect() {
+    const port=parseInt(document.getElementById('directPort').value)||9000;
+    const timeout=parseInt(document.getElementById('directTimeout').value)*1000||10000;
+    let text;
+    try {
+      const res = await fetch(`http://localhost:${port}`, {
+        method:'POST', headers:{'Content-Type':'text/xml'},
+        body:TALLY_XML, signal:AbortSignal.timeout(timeout)
+      });
+      text = await res.text();
+    } catch(err) {
+      let msg=err.message||'Unknown error';
+      if (err.name==='TimeoutError'||err.name==='AbortError') {
+        msg=`No response from Tally on port ${port} within ${timeout/1000}s.`;
       } else {
-        showResult('success', products.length, products, null, url, null);
+        msg=`Cannot reach Tally at localhost:${port}.\n\nThis is a CORS block — the browser won't allow a local file to call localhost.\n\nFix:\n1. Open a terminal in this folder\n2. Run: npx serve .\n3. Open: http://localhost:3000/tally-test.html\n4. Try again`;
       }
-
-    } catch (err) {
-      let msg = err.message || 'Unknown error';
-
-      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
-        msg = `Tally did not respond within ${timeout/1000}s. Make sure Tally is open and the HTTP port (${port}) is enabled.`;
-      } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS')) {
-        msg = `Cannot reach Tally at localhost:${port}.\n\nCheck:\n• Tally is open\n• Port ${port} is set in Tally → F12 → Advanced Config → HTTP Port\n• This page is opened directly on the Tally machine`;
-      }
-
-      showResult('error', null, [], msg, url, null);
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '▶ Connect &amp; Sync Stock Summary';
+      showError(msg); return;
     }
+    processXml(text);
   }
 
-  function showResult(type, count, products, message, url, rawSnippet) {
-    const result = document.getElementById('result');
-    result.style.display = 'block';
-    result.className = type;
-
-    if (type === 'success') {
-      result.innerHTML = `
-        <div class="result-big green">${count}</div>
-        <div class="result-label">products detected in Tally Stock Summary</div>
-        <div style="font-size:12px;color:#475569;">Source: <code>${url}</code></div>
-        <div class="product-list">
-          ${products.map(p => `
-            <div class="product-row">
-              <span class="product-name">${escHtml(p.name)}</span>
-              <span class="product-qty">${p.qty}</span>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    } else if (type === 'warning') {
-      result.innerHTML = `
-        <div class="result-big amber">0</div>
-        <div class="result-label">products found</div>
-        <div style="color:#fbbf24;font-size:13px;margin-bottom:8px;">⚠ ${escHtml(message)}</div>
-        ${rawSnippet ? `<div class="log">Raw response snippet:<br>${escHtml(rawSnippet)}</div>` : ''}
-      `;
+  function processXml(xml) {
+    if (!xml||xml.trim().length<20) {
+      showWarning('Tally responded but returned empty data.\nIs Stock Summary available?', xml); return;
+    }
+    const products = parseStockXml(xml);
+    if (products.length===0) {
+      showWarning('Connected ✓ but no products found in Stock Summary.\nCheck stock data exists in Tally.', xml.slice(0,400));
     } else {
-      result.innerHTML = `
-        <div style="font-size:22px;margin-bottom:8px;">❌ Connection Failed</div>
-        <div style="color:#f87171;font-size:13px;white-space:pre-line;">${escHtml(message)}</div>
-      `;
+      const el=document.getElementById('result');
+      el.style.display='block'; el.className='success';
+      el.innerHTML=`
+        <div class="result-big green">${products.length}</div>
+        <div class="result-label">products detected in Tally Stock Summary ✓</div>
+        <div class="product-list">
+          ${products.map(p=>`
+            <div class="product-row">
+              <span class="product-name">${esc(p.name)}</span>
+              <span class="product-qty">Qty: ${p.qty}</span>
+            </div>`).join('')}
+        </div>`;
     }
   }
 
-  function escHtml(s) {
-    if (!s) return '';
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+  function showWarning(msg, raw) {
+    const el=document.getElementById('result');
+    el.style.display='block'; el.className='warning';
+    el.innerHTML=`<div class="result-big amber">0</div>
+      <div class="result-label" style="color:#fbbf24;">⚠ ${esc(msg)}</div>
+      ${raw?`<div style="font-family:'Courier New',monospace;font-size:11px;color:#475569;margin-top:8px;word-break:break-all;">${esc(raw.slice(0,300))}</div>`:''}`;
   }
 
-  // Allow Enter key on inputs to trigger sync
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Enter') runSync();
+  function showError(msg) {
+    const el=document.getElementById('result');
+    el.style.display='block'; el.className='error';
+    el.innerHTML=`<div style="font-size:20px;margin-bottom:10px;">❌ Failed</div>
+      <div style="color:#f87171;font-size:13px;white-space:pre-line;">${esc(msg)}</div>`;
+  }
+
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Auto-fill server URL if opened from the live app
+  window.addEventListener('load', () => {
+    const o = window.location.origin;
+    if (o && !o.startsWith('file')) document.getElementById('serverUrl').value = o;
   });
 </script>
-
 </body>
 </html>
