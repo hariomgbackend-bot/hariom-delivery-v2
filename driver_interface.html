@@ -1429,6 +1429,78 @@ const DELIVERIES_CACHE_KEY = "cachedDeliveries";
 let isSyncing = false;
 let isProcessingAction = false;
 
+/* ═══════════════════════════════════════
+   INDEXEDDB — photo storage for offline actions
+   Photos are stored as Blobs keyed by deliveryId + "_" + actionType
+   so they survive localStorage's 5 MB cap.
+═══════════════════════════════════════ */
+const IDB_NAME    = "hariom_offline";
+const IDB_VERSION = 1;
+const IDB_STORE   = "photos";
+
+function openPhotoDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function savePhotoToIdb(key, blob) {
+  try {
+    const db = await openPhotoDb();
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction(IDB_STORE, "readwrite");
+      const req = tx.objectStore(IDB_STORE).put(blob, key);
+      req.onsuccess = () => resolve(true);
+      req.onerror   = e => { console.warn("[IDB] save failed", e); reject(e); };
+    });
+  } catch (e) {
+    console.warn("[IDB] savePhotoToIdb failed", e);
+    return false;
+  }
+}
+
+async function getPhotoFromIdb(key) {
+  try {
+    const db = await openPhotoDb();
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = e => resolve(e.target.result || null);
+      req.onerror   = e => { console.warn("[IDB] get failed", e); resolve(null); };
+    });
+  } catch (e) {
+    console.warn("[IDB] getPhotoFromIdb failed", e);
+    return null;
+  }
+}
+
+async function deletePhotoFromIdb(key) {
+  try {
+    const db = await openPhotoDb();
+    return new Promise(resolve => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror    = () => resolve(false);
+    });
+  } catch (e) {
+    return false;
+  }
+}
+
+// Generate the IDB key used for a given delivery action
+function photoIdbKey(deliveryId, actionType) {
+  return `${deliveryId}_${actionType}`;
+}
+
 function isOnline() {
   return navigator.onLine;
 }
@@ -1544,49 +1616,78 @@ async function syncPendingActions() {
 
     for (const action of actionsSnapshot) {
       try {
-        const endpoint = action.action === "delivered"
+        let endpoint, fetchOptions;
+
+        if (action.action === "selfpickup") {
+          // Self-pickup: POST to /markSelfPickup with photo + serial
+          endpoint = `/markSelfPickup/${action.id}`;
+          const formData = new FormData();
+          formData.append("confirmed_by", "staff");
+          formData.append("_offline_sync", "true");
+
+          const spBlob = await getPhotoFromIdb(photoIdbKey(action.id, "selfpickup"));
+          if (spBlob) formData.append("photo", spBlob, "selfpickup.jpg");
+          if (action.serial) formData.append("serial", action.serial);
+
+          fetchOptions = { method: "POST", body: formData };
+          if (driverSessionToken) fetchOptions.headers = { "Authorization": "Bearer " + driverSessionToken };
+
+          const res = await fetch(`${BASE_URL}${endpoint}`, fetchOptions);
+          if (res.ok) {
+            successIds.push(action.id);
+            deletePhotoFromIdb(photoIdbKey(action.id, "selfpickup")).catch(() => {});
+          }
+          continue;
+        }
+
+        endpoint = action.action === "delivered"
           ? `/markDelivered/${action.id}`
           : `/markLoaded/${action.id}`;
 
         // Reconstruct a proper FormData payload matching what the online path sends (Bug 2 fix)
-        const formData = new FormData();
-        formData.append("driver_id", currentDriverId);
-        formData.append("pin",       currentDriverPin);
-        formData.append("_offline_sync", "true");
+        const formData2 = new FormData();
+        formData2.append("driver_id", currentDriverId);
+        formData2.append("pin",       currentDriverPin);
+        formData2.append("_offline_sync", "true");
 
-        // Reconstruct photo blob from stored base64 (Bug 3 fix)
-        if (action.photoBase64) {
+        // Load photo blob from IndexedDB (was stored there at action-creation time)
+        const idbKey = photoIdbKey(action.id, action.action);
+        const photoBlob = await getPhotoFromIdb(idbKey);
+        if (photoBlob) {
+          formData2.append("photo", photoBlob, "upload.jpg");
+        } else if (action.photoBase64) {
+          // Fallback: old entries stored as base64 before IDB migration
           try {
             const fetchRes = await fetch(action.photoBase64);
             const blob = await fetchRes.blob();
-            formData.append("photo", blob, "upload.jpg");
+            formData2.append("photo", blob, "upload.jpg");
           } catch (e) {
-            console.warn("[Sync] Photo reconstruction failed for", action.id, e);
+            console.warn("[Sync] Photo fallback (base64) failed for", action.id, e);
           }
         }
 
         // GPS captured at action-creation time
         if (action.gps) {
-          formData.append("lat", action.gps.lat);
-          formData.append("lng", action.gps.lng);
+          formData2.append("lat", action.gps.lat);
+          formData2.append("lng", action.gps.lng);
         }
 
         // Serial (mark-loaded actions)
-        if (action.serial) formData.append("serial", action.serial);
+        if (action.serial) formData2.append("serial", action.serial);
 
         // Freight (mark-delivered actions)
         if (action.freight && parseFloat(action.freight) > 0) {
-          formData.append("driver_freight_amount", action.freight);
+          formData2.append("driver_freight_amount", action.freight);
         }
-        formData.append("freight_acknowledged", "true");
+        formData2.append("freight_acknowledged", "true");
 
-        const fetchOptions = { method: "POST", body: formData };
+        fetchOptions = { method: "POST", body: formData2 };
         if (driverSessionToken) {
           fetchOptions.headers = { "Authorization": "Bearer " + driverSessionToken };
         }
 
-        const res = await fetch(`${BASE_URL}${endpoint}`, fetchOptions);
-        if (res.ok) successIds.push(action.id);
+        const res2 = await fetch(`${BASE_URL}${endpoint}`, fetchOptions);
+        if (res2.ok) successIds.push(action.id);
 
       } catch (e) {
         console.warn("[Sync] Failed for action:", action.id, e);
@@ -1597,6 +1698,10 @@ async function syncPendingActions() {
     // snapshot we synced — a new action queued mid-sync for the same id is preserved (Bug 4 fix)
     if (successIds.length > 0) {
       const syncedEntries = actionsSnapshot.filter(a => successIds.includes(a.id));
+      // Clean up IDB photos for successfully synced actions
+      for (const entry of syncedEntries) {
+        deletePhotoFromIdb(photoIdbKey(entry.id, entry.action)).catch(() => {});
+      }
       const liveActions   = getOfflineActions();
       const remaining     = liveActions.filter(live =>
         !syncedEntries.some(s => s.id === live.id && s.timestamp === live.timestamp)
@@ -2467,26 +2572,22 @@ async function updateDelivery() {
   if (!isOnline()) {
     isProcessingAction = true;
 
-    // Compress photo immediately and serialise to base64 so it survives localStorage (Bug 3 fix)
-    let photoBase64 = null;
+    // Compress photo and store as Blob in IndexedDB — avoids localStorage 5 MB cap
+    let photoStored = false;
     try {
       const blobToStore = precompressedBlob || await compressImage(fileInput.files[0]);
       precompressedBlob = null;
-      photoBase64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload  = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blobToStore);
-      });
+      const idbKey = photoIdbKey(currentDeliveryId, actionType);
+      photoStored = await savePhotoToIdb(idbKey, blobToStore);
     } catch (e) {
-      console.warn("[Offline] Photo compression/serialise failed", e);
+      console.warn("[Offline] Photo IDB save failed", e);
     }
 
     const extraData = {
-      photoBase64,  // base64 data URL — reconstructed into Blob at sync time
+      photoStored,   // true = Blob is in IDB under photoIdbKey(id, action)
       serial: document.getElementById("serialInput")?.value?.trim() || null,
       freight: document.getElementById("freightInput")?.value?.trim() || null,
-      // Capture GPS at action time so sync can submit real coordinates (Bug 3 fix)
+      // Capture GPS at action time so sync can submit real coordinates
       gps: cachedGpsPosition
         ? { lat: cachedGpsPosition.coords.latitude, lng: cachedGpsPosition.coords.longitude }
         : null
@@ -3093,6 +3194,18 @@ function triggerBarcodePhoto() {
   }
 }
 
+/* ── Self-pickup scan — same scanners, different target input ── */
+let selfPickupScanTargetId = null;  // tracks which sp_serial_ input to fill
+
+function triggerSelfPickupScan(deliveryId) {
+  selfPickupScanTargetId = deliveryId;
+  if (IS_IOS) {
+    openIosScanner(true);
+  } else {
+    openScanner(true);
+  }
+}
+
 /* ═══════════════════════════════════════════════
    iOS SCANNER — canvas bridge → /decode-barcode
    Hidden <video> feeds visible <canvas> every frame.
@@ -3225,7 +3338,12 @@ function handleIosScanResult(value) {
 
   setTimeout(() => {
     closeIosScanner();
-    const input = document.getElementById("serialInput");
+    // Fill the right input depending on whether this was a self-pickup scan
+    const targetId = selfPickupScanTargetId;
+    selfPickupScanTargetId = null;
+    const input = targetId
+      ? document.getElementById("sp_serial_" + targetId)
+      : document.getElementById("serialInput");
     if (input) {
       input.value = value;
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -3267,6 +3385,7 @@ async function toggleIosTorch() {
 function closeIosScanner() {
   iosScanning = false;
   iosSending  = false;
+  selfPickupScanTargetId = null;  // reset in case user cancelled
   cancelAnimationFrame(iosAnimFrame);
   // Must turn off torch BEFORE stopping the stream — once tracks stop, constraint calls fail silently
   if (iosTorchOn && iosStream) {
@@ -3524,7 +3643,12 @@ function handleScanResult(value) {
 
   setTimeout(() => {
     closeScanner();
-    const input = document.getElementById("serialInput");
+    // Fill the right input depending on whether this was a self-pickup scan
+    const targetId = selfPickupScanTargetId;
+    selfPickupScanTargetId = null;
+    const input = targetId
+      ? document.getElementById("sp_serial_" + targetId)
+      : document.getElementById("serialInput");
     if (input) {
       input.value = value;
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -3532,12 +3656,13 @@ function handleScanResult(value) {
       input.style.boxShadow   = "0 0 0 3px rgba(22,163,74,0.2)";
       setTimeout(() => { input.style.borderColor = ""; input.style.boxShadow = ""; }, 1800);
     }
-    showToast("✅ Serial number scanned!");
+    showToast("✅ Serial scanned: " + value);
   }, 950);
 }
 
 function closeScanner() {
   scannerActive = false;
+  selfPickupScanTargetId = null;  // reset in case user cancelled
   cancelAnimationFrame(scannerTimer);
   // Must turn off torch BEFORE stopping the stream — track dies with the stream
   if (androidTorchOn && scannerStream) {
@@ -3785,8 +3910,14 @@ function buildDispatcherCard(d) {
           <div id="sp_form_${d.id}">
             ${!d.product_serial_number ? `
               <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Serial Number *</label>
-              <input id="sp_serial_${d.id}" placeholder="Scan or enter serial number"
-                style="width:100%;box-sizing:border-box;padding:9px 12px;margin-top:4px;margin-bottom:8px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--surface);color:var(--text);outline:none;">
+              <div style="display:flex;gap:8px;align-items:center;margin-top:4px;margin-bottom:8px;">
+                <input id="sp_serial_${d.id}" placeholder="Scan or enter serial number"
+                  style="flex:1;min-width:0;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--surface);color:var(--text);outline:none;">
+                <button type="button" onclick="triggerSelfPickupScan('${d.id}')"
+                  style="display:flex;align-items:center;gap:5px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;padding:9px 14px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent;">
+                  <span style="font-size:16px;">&#x1F4F7;</span> Scan
+                </button>
+              </div>
             ` : `
               <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Serial: <strong style="color:var(--text);">${escHtmlDisp(d.product_serial_number)}</strong></div>
             `}
@@ -3900,8 +4031,45 @@ async function confirmSelfPickup(deliveryId) {
     return;
   }
 
-  const btn = document.querySelector(`#sp_form_${deliveryId} button`);
+  const btn = document.querySelector(`#sp_form_${deliveryId} button[onclick]`);
   const origText = btn?.textContent;
+
+  // ── OFFLINE PATH ────────────────────────────────────────────────────────────
+  if (!isOnline()) {
+    if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+    if (msg) { msg.style.color = var_muted(); msg.textContent = "Saving offline…"; }
+
+    try {
+      const compressed = await compressImage(photoInput.files[0]);
+      const idbKey = photoIdbKey(deliveryId, "selfpickup");
+      await savePhotoToIdb(idbKey, compressed);
+    } catch (e) {
+      console.warn("[Offline] Self-pickup photo IDB save failed", e);
+    }
+
+    addOfflineAction(deliveryId, "selfpickup", {
+      serial: serialInput ? serialInput.value.trim() : null,
+      photoStored: true
+    });
+
+    // Optimistically update local delivery status so card disappears
+    const delivery = allDeliveriesData.find(d => String(d.id) === String(deliveryId));
+    if (delivery) delivery.status = "delivered";
+
+    vibrate([100, 50, 200]);
+    showToast("💾 Self-pickup saved offline. Will sync when online.");
+
+    const card = document.getElementById("dcard_" + deliveryId);
+    if (card) {
+      card.style.transition = "opacity 0.4s, transform 0.4s";
+      card.style.opacity = "0";
+      card.style.transform = "translateX(40px)";
+      setTimeout(() => loadDispatcherDeliveries(), 450);
+    }
+    return;
+  }
+  // ── END OFFLINE PATH ────────────────────────────────────────────────────────
+
   if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
   if (msg) { msg.style.color = var_muted(); msg.textContent = "Uploading photo…"; }
 
