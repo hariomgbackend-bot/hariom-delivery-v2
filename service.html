@@ -1990,18 +1990,29 @@ async function registerServicePush() {
       if (perm !== "granted") { console.log("[service push] Permission denied"); return; }
     }
 
-    // Register SW
+    // Register SW — only unregister stale firebase SW, never touch other scoped SWs
     const regs = await navigator.serviceWorker.getRegistrations();
     for (const r of regs) {
-      if (r.active && !r.active.scriptURL.includes("firebase-messaging-sw")) await r.unregister();
+      const url = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || "";
+      // Only unregister a stale firebase SW at root scope — leave driver/other SWs alone
+      if (url.includes("firebase-messaging-sw") && r.scope === `${location.origin}/`) {
+        const isStale = !r.active || r.active.state === "redundant";
+        if (isStale) await r.unregister();
+      }
     }
     const reg = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
+    // Wait for activation with a 5s timeout — never hang the UI if SW stalls or 404s
     await new Promise(resolve => {
       if (reg.active) { resolve(); return; }
       const sw = reg.installing || reg.waiting;
       if (!sw) { resolve(); return; }
+      const timer = setTimeout(resolve, 5000); // safety timeout
       sw.addEventListener("statechange", function h() {
-        if (sw.state === "activated") { sw.removeEventListener("statechange", h); resolve(); }
+        if (sw.state === "activated" || sw.state === "redundant") {
+          clearTimeout(timer);
+          sw.removeEventListener("statechange", h);
+          resolve();
+        }
       });
     });
 
