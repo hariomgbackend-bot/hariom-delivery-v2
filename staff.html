@@ -662,6 +662,9 @@
           <label class="form-label">Customer Name</label>
           <input class="form-input" id="lName" placeholder="Full name">
 
+          <label class="form-label">Address</label>
+          <input class="form-input" id="lAddress" placeholder="House, street, area, city…">
+
           <!-- Multi-product list -->
           <label class="form-label">Products &amp; Quotes *</label>
           <div id="leadProductList"></div>
@@ -1327,7 +1330,8 @@ function checkLeadRepeat(phone) {
 
 function applyLeadRepeat() {
   if (!lrcPending) return;
-  document.getElementById("lName").value = lrcPending.customer_name || "";
+  document.getElementById("lName").value    = lrcPending.customer_name || "";
+  document.getElementById("lAddress").value = lrcPending.address || "";
   dismissLeadRepeat();
 }
 
@@ -1469,6 +1473,7 @@ async function submitLead() {
         phone,
         alternate_phone: document.getElementById("lAltPhone").value.trim(),
         customer_name:   document.getElementById("lName").value.trim(),
+        address:         document.getElementById("lAddress").value.trim(),
         products,
         status:          document.getElementById("lStatus").value,
         remarks:         document.getElementById("lRemarks").value.trim()
@@ -1484,7 +1489,7 @@ async function submitLead() {
     msg.style.color="var(--tertiary)"; msg.textContent="✅ Lead saved!";
     // Reset
     btn.innerHTML = "Save Lead";
-    ["lPhone","lAltPhone","lName","lRemarks"].forEach(id => { const e=document.getElementById(id); if(e)e.value=""; });
+    ["lPhone","lAltPhone","lName","lAddress","lRemarks"].forEach(id => { const e=document.getElementById(id); if(e)e.value=""; });
     document.getElementById("lStatus").value = "open";
     document.getElementById("leadProductList").innerHTML = "";
     leadProductCount = 0;
@@ -1505,42 +1510,141 @@ function openLeadPopup(id) {
   if (!currentLead) return;
   const l = currentLead;
   const expiry = leadExpiryBadge(l);
-  const createdDate = l.created_at?.seconds
-    ? new Date(l.created_at.seconds*1000).toLocaleDateString("en-IN") : "—";
 
-  // Build products section
-  const prodsHtml = l.products?.length
-    ? l.products.map(p =>
-        `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
-          <span>${esc(p.product_name)}</span>
-          <span style="font-weight:700;">₹${p.quoted_price||0}</span>
-        </div>`
-      ).join("")
-    : `<div style="font-size:13px;">
-        ${esc(l.product_interest)||"—"}
-        <span style="font-weight:700;float:right;">₹${l.admin_quoted_price ?? l.quoted_price ?? 0}</span>
-      </div>`;
+  const createdDate = l.created_at?.seconds
+    ? new Date(l.created_at.seconds*1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
+    : "—";
+  const followupDate = (l.followup_date?.seconds || l.followup_at?.seconds)
+    ? new Date(((l.followup_date?.seconds || l.followup_at?.seconds))*1000)
+        .toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
+    : null;
+  const expiresDate = l.expires_at?.seconds
+    ? new Date(l.expires_at.seconds*1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
+    : null;
+
+  // ── Products & Quote block ──
+  const hasMultiProducts = l.products?.length > 0;
+  let totalQuote = 0;
+  let prodsHtml = "";
+
+  if (hasMultiProducts) {
+    prodsHtml = l.products.map((p, i) => {
+      totalQuote += (p.quoted_price || 0);
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          padding:10px 14px;background:var(--surface-container);border-radius:10px;margin-bottom:6px;">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--on-surface);">${esc(p.product_name)}</div>
+            ${p.qty && p.qty > 1 ? `<div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;">Qty: ${p.qty}</div>` : ""}
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+            <div style="font-size:16px;font-weight:800;color:var(--primary);">₹${(p.quoted_price||0).toLocaleString("en-IN")}</div>
+          </div>
+        </div>`;
+    }).join("");
+  } else {
+    totalQuote = l.admin_quoted_price ?? l.quoted_price ?? 0;
+    if (l.product_interest) {
+      prodsHtml = `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          padding:10px 14px;background:var(--surface-container);border-radius:10px;margin-bottom:6px;">
+          <div style="font-size:14px;font-weight:700;color:var(--on-surface);">${esc(l.product_interest)}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--primary);margin-left:12px;">₹${totalQuote.toLocaleString("en-IN")}</div>
+        </div>`;
+    }
+  }
+
+  // Admin revised price row
+  const adminRevised = l.admin_quoted_price != null
+    ? `<div style="display:flex;align-items:center;justify-content:space-between;
+        padding:8px 14px;background:rgba(78,222,163,0.08);border:1px solid rgba(78,222,163,0.2);
+        border-radius:10px;margin-top:4px;">
+        <div style="font-size:12px;font-weight:700;color:var(--tertiary);text-transform:uppercase;letter-spacing:0.5px;">Admin Revised Price</div>
+        <div style="font-size:17px;font-weight:800;color:var(--tertiary);">₹${l.admin_quoted_price.toLocaleString("en-IN")}</div>
+      </div>` : "";
+
+  // Total row (only show if multi-product)
+  const totalRow = hasMultiProducts && l.products.length > 1
+    ? `<div style="display:flex;align-items:center;justify-content:space-between;
+        padding:10px 14px;background:rgba(173,198,255,0.07);border-radius:10px;
+        border:1px solid rgba(173,198,255,0.12);margin-top:2px;">
+        <div style="font-size:12px;font-weight:700;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:0.5px;">Total Quote</div>
+        <div style="font-size:18px;font-weight:900;color:var(--primary);">₹${totalQuote.toLocaleString("en-IN")}</div>
+      </div>` : "";
 
   document.getElementById("leadPopupContent").innerHTML = `
+
+    <!-- ── Header band ── -->
     <div class="popup-band popup-band-lead">
       <div class="popup-status-row">
         <span class="badge badge-${esc(l.status)}">${esc(l.status)}</span>
         ${expiry}
+        ${l.followup_note ? `<span class="badge badge-followup">📝 Follow-up</span>` : ""}
       </div>
       <div class="popup-name">${esc(l.customer_name) || esc(l.phone)}</div>
+      ${l.address ? `<div style="font-size:13px;color:var(--on-surface-variant);margin-top:4px;font-weight:500;">📍 ${esc(l.address)}</div>` : ""}
     </div>
+
+    <!-- ── Contact info ── -->
     <div class="popup-body">
-      <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${esc(l.phone)}">${esc(l.phone)}</a></span></div>
-      ${l.alternate_phone?`<div class="detail-row"><span class="detail-label">Alt Phone</span><span class="detail-value">${esc(l.alternate_phone)}</span></div>`:""}
       <div class="detail-row">
-        <span class="detail-label">Products</span>
-        <span class="detail-value" style="flex:1;">${prodsHtml}
-          ${l.admin_quoted_price != null ? `<div style="font-size:11px;color:var(--tertiary);margin-top:4px;">Admin revised: ₹${l.admin_quoted_price}</div>` : ""}
+        <span class="detail-label">Phone</span>
+        <span class="detail-value">
+          <a class="phone-link" href="tel:${esc(l.phone)}">${esc(l.phone)}</a>
+          ${l.alternate_phone ? `&nbsp;·&nbsp;<a class="phone-link" href="tel:${esc(l.alternate_phone)}">${esc(l.alternate_phone)}</a> <span style="font-size:10px;color:var(--on-surface-variant);">(alt)</span>` : ""}
         </span>
       </div>
-      ${l.remarks?`<div class="detail-row"><span class="detail-label">Remarks</span><span class="detail-value">${esc(l.remarks)}</span></div>`:""}
-      ${l.followup_note?`<div class="detail-row"><span class="detail-label">Follow-up</span><span class="detail-value" style="color:var(--amber)">${esc(l.followup_note)}</span></div>`:""}
-      <div class="detail-row"><span class="detail-label">Added</span><span class="detail-value">${createdDate}</span></div>
+      ${l.address ? `
+      <div class="detail-row">
+        <span class="detail-label">Address</span>
+        <span class="detail-value">${esc(l.address)}</span>
+      </div>` : ""}
+    </div>
+
+    <!-- ── Products & Quote (prominent section) ── -->
+    <div style="padding:14px 22px 6px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;
+        color:var(--on-surface-variant);margin-bottom:10px;">🛒 Products &amp; Quote</div>
+      ${prodsHtml || `<div style="font-size:13px;color:var(--on-surface-variant);padding:10px 0;">No products added</div>`}
+      ${totalRow}
+      ${adminRevised}
+    </div>
+
+    <!-- ── Lead details ── -->
+    <div class="popup-body" style="padding-top:4px;">
+      ${l.remarks ? `
+      <div class="detail-row">
+        <span class="detail-label">Remarks</span>
+        <span class="detail-value">${esc(l.remarks)}</span>
+      </div>` : ""}
+      ${l.followup_note ? `
+      <div class="detail-row">
+        <span class="detail-label">Follow-up Note</span>
+        <span class="detail-value" style="color:var(--amber);font-weight:600;">${esc(l.followup_note)}</span>
+      </div>` : ""}
+      ${followupDate ? `
+      <div class="detail-row">
+        <span class="detail-label">Follow-up Date</span>
+        <span class="detail-value">${followupDate}</span>
+      </div>` : ""}
+      ${expiresDate ? `
+      <div class="detail-row">
+        <span class="detail-label">Expires</span>
+        <span class="detail-value">${expiresDate}</span>
+      </div>` : ""}
+      <div class="detail-row">
+        <span class="detail-label">Added</span>
+        <span class="detail-value">${createdDate}${l.created_by_name ? ` by ${esc(l.created_by_name)}` : ""}</span>
+      </div>
+      ${l.converted_at?.seconds ? `
+      <div class="detail-row">
+        <span class="detail-label">Converted</span>
+        <span class="detail-value" style="color:var(--tertiary);font-weight:600;">
+          ${new Date(l.converted_at.seconds*1000).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}
+        </span>
+      </div>` : ""}
+
+      <!-- Status update -->
       <div class="detail-row">
         <span class="detail-label">Status</span>
         <span class="detail-value">
