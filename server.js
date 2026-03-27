@@ -22,8 +22,8 @@ import cron from "node-cron";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-//const serviceAccount = require("./firebase-service-account.json");
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = require("./firebase-service-account.json");
+//const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -4040,6 +4040,68 @@ app.post("/transfer-by-product", async (req, res) => {
 });
 
 /* ════════════════════════════════════════════════
+   PART 1: HEALTH CHECK ENDPOINT
+   GET /health → Plain text "OK" (lightweight & fast)
+════════════════════════════════════════════════ */
+
+app.get("/health", (req, res) => {
+  res.setHeader("Content-Type", "text/plain");
+  res.status(200).send("OK");
+});
+
+/* ════════════════════════════════════════════════
+   PART 2: OPTIONAL SELF-PING (SAFE)
+   - Every 5 minutes, check current hour
+   - Only ping during active hours (9 AM - 10 PM)
+   - Uses native Node.js fetch (no external libs)
+   - Non-blocking, minimal load
+════════════════════════════════════════════════ */
+
+function startSelfPing() {
+  const externalUrl = process.env.RENDER_EXTERNAL_URL;
+
+  if (!externalUrl) {
+    console.log("[KEEP-ALIVE] RENDER_EXTERNAL_URL not set — self-ping disabled");
+    return;
+  }
+
+  console.log("[KEEP-ALIVE] Self-ping enabled (active hours: 9 AM - 10 PM, interval: 5 min)");
+
+  // Check every 5 minutes (300,000 ms)
+  setInterval(async () => {
+    const now = new Date();
+    const hour = now.getHours();
+
+    // Only ping during active hours: 9 AM (9) to 10 PM (22)
+    if (hour < 9 || hour >= 22) {
+      // Outside active hours, do nothing (silent)
+      return;
+    }
+
+    try {
+      // Use native fetch with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 sec timeout
+
+      const response = await fetch(`${externalUrl}/health`, {
+        method: "GET",
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        console.log(`[KEEP-ALIVE] Ping OK at ${now.toISOString()}`);
+      } else {
+        console.warn(`[KEEP-ALIVE] Ping returned status ${response.status}`);
+      }
+    } catch (err) {
+      console.warn(`[KEEP-ALIVE] Ping failed: ${err.message}`);
+    }
+  }, 5 * 60 * 1000); // 5 minutes in milliseconds
+}
+
+/* ════════════════════════════════════════════════
    START
 ═══════════════════════════════════════════════ */
 
@@ -4047,5 +4109,6 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
   runStartupMigration();
+  startSelfPing(); // Start self-ping after server boots
 });
 
