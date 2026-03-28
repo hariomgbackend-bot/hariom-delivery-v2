@@ -919,13 +919,17 @@ function doLogout() {
   serviceToken = null; serviceName = "";
   localStorage.removeItem("serviceToken"); localStorage.removeItem("serviceName");
   document.getElementById("appShell").style.display = "none";
-  document.getElementById("loginScreen").classList.add("active");
+  const ls = document.getElementById("loginScreen");
+  ls.style.display = "";
+  ls.classList.add("active");
   document.getElementById("loginPassword").value = "";
   document.getElementById("loginError").textContent = "";
 }
 
 function showApp() {
-  document.getElementById("loginScreen").classList.remove("active");
+  const ls = document.getElementById("loginScreen");
+  ls.classList.remove("active");
+  ls.style.display = "none";
   document.getElementById("appShell").style.display = "";
   document.getElementById("headerUser").textContent  = serviceName;
   loadAll();
