@@ -2473,13 +2473,27 @@ async function openDelivery(id) {
   document.getElementById("popup").scrollTop = 0;
 
   // Pre-warm GPS immediately when popup opens so it's ready by the time driver swipes
-  if (currentStatus === "pending" || currentStatus === "loaded") {
-    cachedGpsPosition = null;
-    precompressedBlob = null;   // Reset — new delivery, new photo
+  precompressedBlob = null;   // Reset — new delivery, new photo
+  cachedGpsPosition = null;
+  if (currentStatus === "pending") {
+    // At warehouse — a single fresh fix is fine for marking as loaded
     navigator.geolocation.getCurrentPosition(
       pos => { cachedGpsPosition = pos; },
       () => { cachedGpsPosition = null; },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  } else if (currentStatus === "loaded") {
+    // About to deliver — start watchPosition to keep the GPS engine warm.
+    // The actual fix is taken fresh at swipe time (maximumAge:0), this watch
+    // just ensures the device location engine is active so that fix resolves
+    // in ~1s instead of 5-10s cold-start.
+    if (window._deliveryGpsWatch != null) {
+      navigator.geolocation.clearWatch(window._deliveryGpsWatch);
+    }
+    window._deliveryGpsWatch = navigator.geolocation.watchPosition(
+      () => { /* keep engine warm — actual fix taken at swipe time */ },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 0 }
     );
   }
 
@@ -2695,9 +2709,12 @@ async function updateDelivery() {
       });
   }
 
-  if (cachedGpsPosition) {
+  if (cachedGpsPosition && currentStatus === "pending") {
+    // "pending → loaded" happens at the warehouse — cached position (pre-warmed on popup open) is accurate.
     doSubmit(cachedGpsPosition);
   } else {
+    // "loaded → delivered" must use a fresh fix taken RIGHT NOW at the customer's door.
+    // maximumAge: 0 forces the browser to get a new reading, never a stale cache.
     navigator.geolocation.getCurrentPosition(
       pos => doSubmit(pos),
       () => {
@@ -2705,7 +2722,7 @@ async function updateDelivery() {
         showToast("📍 Location access required. Please enable it and try again.");
         if (widget) widget.style.pointerEvents = "auto";
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }
 }
@@ -2716,6 +2733,11 @@ async function updateDelivery() {
 function closePopup() {
   document.getElementById("popup").style.display = "none";
   if (etaInterval) { clearInterval(etaInterval); etaInterval = null; }
+  // Stop the delivery GPS watch (started on popup open for loaded→delivered)
+  if (window._deliveryGpsWatch != null) {
+    navigator.geolocation.clearWatch(window._deliveryGpsWatch);
+    window._deliveryGpsWatch = null;
+  }
 }
 
 /* ═══════════════════════════════════════
