@@ -1184,21 +1184,32 @@
   <div class="popup-card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
       <h3 style="margin:0;">Create Delivery</h3>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <!-- EXISTING: PDF invoice import — untouched -->
-        <button type="button" onclick="document.getElementById('invoiceFileInput').click()"
-          style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(173,198,255,0.1);color:var(--primary);border:1px solid rgba(173,198,255,0.2);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;">
-          📄 Import Invoice
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <!-- UNIFIED: Import File button (PDF + XML) -->
+        <button type="button" onclick="document.getElementById('unifiedFileInput').click()"
+          style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:linear-gradient(135deg,rgba(77,142,255,0.18),rgba(78,222,163,0.12));color:var(--primary);border:1px solid rgba(173,198,255,0.25);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;" id="importFileBtn">
+          📂 Import File
         </button>
-        <!-- NEW: Tally XML import — separate module -->
-        <button type="button" onclick="openTallyImportModal()"
-          style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(78,222,163,0.1);color:var(--tertiary);border:1px solid rgba(78,222,163,0.25);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;">
-          📊 From Tally
+        <!-- Connect Drive placeholder -->
+        <button type="button" onclick="openCloudInvoices()"
+            id="cloudInvoicesBtn"
+           style="display:flex;align-items:center;gap:5px;padding:7px 12px;background:linear-gradient(135deg,rgba(99,179,237,0.15),rgba(154,117,234,0.12));color:#7ec8f7;border:1px solid rgba(99,179,237,0.25);border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;position:relative;">
+            ☁️ Cloud Invoices
+          <span id="cloudInvoicesBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:16px;text-align:center;line-height:16px;"></span>
         </button>
       </div>
     </div>
+    <!-- Hidden file input for unified import: PDF + XML -->
+    <input type="file" id="unifiedFileInput" accept=".pdf,.xml,application/pdf,application/xml,text/xml" style="display:none" onchange="handleTallyFile(this)">
+    <!-- Legacy hidden input kept for backward compat -->
     <input type="file" id="invoiceFileInput" accept=".pdf" style="display:none" onchange="handleInvoiceImport(this)">
     <div id="formMessage" style="margin-bottom:10px;font-size:14px;font-weight:500;"></div>
+
+    <!-- RECENT INVOICES PANEL -->
+    <div id="recentInvoicesPanel" style="display:none;margin-bottom:14px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);margin-bottom:8px;">🕑 Recent Imports</div>
+      <div id="recentInvoicesList"></div>
+    </div>
 
     <div class="section-title">Customer Name</div>
     <input id="first_name" placeholder="First Name">
@@ -1318,6 +1329,137 @@
       <button class="btn btn-gray" onclick="closePopup()">Cancel</button>
     </div>
   </div>
+</div>
+
+<!-- ══ IMPORT PREVIEW MODAL ══ -->
+<div id="importPreviewOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:1000;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;">
+<div id="importPreviewCard" style="background:var(--surface-container-low);border-radius:24px;padding:26px 28px;width:100%;max-width:500px;max-height:88vh;overflow-y:auto;border:1px solid rgba(173,198,255,0.12);box-shadow:0 48px 80px rgba(0,0,0,0.5);scrollbar-width:thin;scrollbar-color:rgba(173,198,255,0.2) transparent;margin:auto;">
+  <!-- Header -->
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:12px;">
+    <div>
+      <div style="font-size:19px;font-weight:900;color:var(--on-surface);letter-spacing:-0.3px;">📂 Import Preview</div>
+      <div id="ipvSource" style="font-size:11px;color:var(--on-surface-variant);margin-top:3px;font-weight:600;"></div>
+    </div>
+    <button onclick="closeImportPreviewModal()" style="background:var(--surface-container-highest);border:none;color:var(--on-surface-variant);width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+  </div>
+
+  <!-- ══ CLOUD INVOICES MODAL ══ -->
+<div id="cloudInvoicesOverlay"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:2000;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;">
+  <div style="background:var(--surface-container-low);border-radius:24px;padding:26px 24px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border:1px solid rgba(99,179,237,0.18);box-shadow:0 48px 80px rgba(0,0,0,0.55);scrollbar-width:thin;scrollbar-color:rgba(99,179,237,0.2) transparent;margin:auto;">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:12px;">
+      <div>
+        <div style="font-size:19px;font-weight:900;color:var(--on-surface);letter-spacing:-0.3px;">☁️ Cloud Invoices</div>
+        <div id="cloudInvSubtitle" style="font-size:11px;color:var(--on-surface-variant);margin-top:3px;font-weight:600;">PDFs dropped in the watch folder</div>
+      </div>
+      <button onclick="closeCloudInvoices()"
+        style="background:var(--surface-container-highest);border:none;color:var(--on-surface-variant);width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+    </div>
+
+    <!-- Search -->
+    <input id="cloudInvSearch" type="text" placeholder="🔍  Search by customer or invoice no…"
+      oninput="renderCloudInvoicesList()"
+      style="width:100%;padding:10px 14px;background:var(--surface-container);border:1px solid rgba(173,198,255,0.15);border-radius:12px;color:var(--on-surface);font-size:13px;font-family:'Inter',sans-serif;margin-bottom:16px;box-sizing:border-box;outline:none;">
+
+    <!-- List -->
+    <div id="cloudInvList" style="display:flex;flex-direction:column;gap:8px;"></div>
+
+    <!-- Empty state -->
+    <div id="cloudInvEmpty" style="display:none;text-align:center;padding:40px 20px;color:var(--on-surface-variant);">
+      <div style="font-size:36px;margin-bottom:12px;">📭</div>
+      <div style="font-size:14px;font-weight:700;color:var(--on-surface);margin-bottom:6px;">No cloud invoices yet</div>
+      <div style="font-size:12px;line-height:1.6;">Drop a PDF into the watch folder on the shop PC and it will appear here automatically.</div>
+    </div>
+
+    <!-- Loading state -->
+    <div id="cloudInvLoading" style="text-align:center;padding:40px 20px;color:var(--on-surface-variant);">
+      <div style="font-size:28px;margin-bottom:10px;">⏳</div>
+      <div style="font-size:13px;font-weight:600;">Loading invoices…</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Duplicate Warning Modal -->
+<div id="cloudDupOverlay"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:2100;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--surface-container-low);border-radius:20px;padding:28px 24px;width:100%;max-width:400px;border:1px solid rgba(251,191,36,0.3);box-shadow:0 32px 64px rgba(0,0,0,0.5);">
+    <div style="font-size:28px;margin-bottom:12px;">⚠️</div>
+    <div style="font-size:16px;font-weight:800;color:var(--on-surface);margin-bottom:8px;">Duplicate Invoice</div>
+    <div id="cloudDupMsg" style="font-size:13px;color:var(--on-surface-variant);line-height:1.6;margin-bottom:20px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="cloudDupProceed()"
+        style="flex:1;padding:12px;background:linear-gradient(135deg,rgba(251,191,36,0.3),rgba(251,191,36,0.15));color:#fbbf24;border:1px solid rgba(251,191,36,0.3);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
+        Import Anyway
+      </button>
+      <button onclick="document.getElementById('cloudDupOverlay').style.display='none'"
+        style="flex:1;padding:12px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+  <!-- XML notice -->
+  <div id="ipvXmlNotice" style="display:none;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:10px 13px;font-size:12px;color:#fbbf24;margin-bottom:14px;line-height:1.5;font-weight:500;"></div>
+
+  <!-- Fields to select -->
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);margin-bottom:10px;">Select fields to import</div>
+
+  <!-- Name -->
+  <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-container);border-radius:10px;margin-bottom:8px;cursor:pointer;">
+    <input type="checkbox" id="ipvCbName" checked style="width:16px;height:16px;accent-color:var(--primary);flex-shrink:0;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--outline);margin-bottom:2px;">Customer Name</div>
+      <div id="ipvName" style="font-size:14px;font-weight:700;color:var(--on-surface);"></div>
+    </div>
+  </label>
+
+  <!-- Phone -->
+  <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-container);border-radius:10px;margin-bottom:8px;cursor:pointer;">
+    <input type="checkbox" id="ipvCbPhone" style="width:16px;height:16px;accent-color:var(--primary);flex-shrink:0;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--outline);margin-bottom:2px;">Phone</div>
+      <div id="ipvPhone" style="font-size:14px;font-weight:700;color:var(--on-surface);font-family:monospace;"></div>
+    </div>
+  </label>
+
+  <!-- Alt Phone -->
+  <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-container);border-radius:10px;margin-bottom:8px;cursor:pointer;">
+    <input type="checkbox" id="ipvCbAlt" style="width:16px;height:16px;accent-color:var(--primary);flex-shrink:0;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--outline);margin-bottom:2px;">Alternate Phone</div>
+      <div id="ipvAlt" style="font-size:14px;font-weight:700;color:var(--on-surface);font-family:monospace;"></div>
+    </div>
+  </label>
+
+  <!-- Address -->
+  <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--surface-container);border-radius:10px;margin-bottom:8px;cursor:pointer;">
+    <input type="checkbox" id="ipvCbAddr" style="width:16px;height:16px;accent-color:var(--primary);flex-shrink:0;margin-top:3px;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--outline);margin-bottom:2px;">Address</div>
+      <div id="ipvAddr" style="font-size:13px;font-weight:600;color:var(--on-surface);line-height:1.5;word-break:break-word;"></div>
+    </div>
+  </label>
+
+  <!-- Products -->
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);margin:14px 0 8px;">Products</div>
+  <div id="ipvProducts"></div>
+
+  <!-- Actions -->
+  <div style="display:flex;gap:10px;margin-top:20px;">
+    <button onclick="applyImportPreview()"
+      style="flex:1;padding:13px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:0.2px;">
+      ✅ Import Selected
+    </button>
+    <button onclick="retryImportFile()"
+      style="padding:13px 18px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;">
+      🔄 Retry
+    </button>
+  </div>
+</div>
 </div>
 
 <!-- ══ VIEW DELIVERY POPUP ══ -->
@@ -1891,101 +2033,622 @@ function toggleTallyInput(checkbox, idx) {
   }
 }
 
-/* ── IMPORT INVOICE PDF ── */
+/* ── IMPORT INVOICE PDF (legacy button — routes through unified preview modal) ── */
 async function handleInvoiceImport(input) {
   const file = input.files[0];
   if (!file) return;
+  input.value = ""; // allow re-import same file
 
   const btn = document.querySelector('button[onclick*="invoiceFileInput"]');
-  const origText = btn.innerHTML;
-  btn.innerHTML = "⏳ Reading...";
-  btn.disabled  = true;
+  const origText = btn ? btn.innerHTML : "";
+  if (btn) { btn.innerHTML = "⏳ Parsing\u2026"; btn.disabled = true; }
 
   try {
-    const formData = new FormData();
-    formData.append("invoice", file);
-
-    const res  = await authFetch(`${BASE_URL}/parse-invoice`, { method: "POST", body: formData });
-    const data = await res.json();
-
-    if (!res.ok) { alert("Could not read invoice: " + (data.error || "Unknown error")); return; }
-
-    // ── Fill customer name ──
-    if (data.customer_name) {
-      const parts = data.customer_name.trim().split(/\s+/);
-      const fn = document.getElementById("first_name");
-      const mn = document.getElementById("middle_name");
-      const ln = document.getElementById("last_name");
-      if (fn) fn.value = parts[0] || "";
-      if (mn) mn.value = parts.length === 3 ? parts[1] : "";
-      if (ln) ln.value = parts.length >= 2 ? parts[parts.length - 1] : "";
-    }
-
-    // ── Fill phone ──
-    if (data.phone) {
-      const ph = document.getElementById("phone");
-      if (ph) ph.value = data.phone;
-    }
-
-    // ── Fill address ──
-    if (data.address) {
-      const addr1 = document.getElementById("addr1");
-      if (addr1) addr1.value = data.address;
-    }
-
-    // ── Fill products ──
-    if (data.products && data.products.length > 0) {
-      // Reset product list to match invoice product count
-      const list = document.getElementById("productList");
-      list.innerHTML = "";
-      productItemCounter = 0;
-
-      data.products.forEach(p => {
-        productItemCounter++;
-        const idx = productItemCounter;
-        const div = document.createElement("div");
-        div.innerHTML = createProductItemHTML(idx);
-        list.appendChild(div.firstElementChild);
-
-        const item = list.lastElementChild;
-
-        // Check Tally toggle and fill product name
-        const tallyToggle = item.querySelector(`[data-field="tally_toggle"]`);
-        if (tallyToggle) {
-          tallyToggle.checked = true;
-          toggleTallyInput(tallyToggle, idx);
-          const tallyInput  = item.querySelector(`[data-field="tally_input"]`);
-          const tallySearch = item.querySelector(`[data-field="tally_search"]`);
-          const tallyLabel  = item.querySelector(`[data-field="tally_selected_label"]`);
-          const pname = p.product_name || "";
-          if (tallyInput)  tallyInput.value  = pname;
-          if (tallySearch) tallySearch.value  = pname;
-          if (tallyLabel && pname)  tallyLabel.textContent = `✔ Selected: ${pname}`;
-        }
-
-        // Fill serial number
-        const serial = item.querySelector(`[data-field="serial"]`);
-        if (serial) serial.value = p.serial_number || "";
-
-        // Fill invoice number
-        const invoice = item.querySelector(`[data-field="invoice"]`);
-        if (invoice && data.invoice_number) invoice.value = data.invoice_number;
-      });
-
-      updateProductCount();
-    }
-
-    btn.innerHTML = "✅ Imported!";
-    setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000);
-
+    // Delegate entirely to the unified backend parse + preview flow
+    const extractedData = await parseInvoicePDF(file);
+    openImportPreviewModal(extractedData);
   } catch (e) {
-    alert("Error importing invoice: " + e.message);
-    btn.innerHTML = origText;
-    btn.disabled  = false;
+    if (typeof showToast === "function") {
+      showToast("\u26a0 Import failed: " + e.message, "error");
+    } else {
+      alert("Error importing invoice: " + e.message);
+    }
+    console.error("[handleInvoiceImport]", e);
+  } finally {
+    if (btn) { btn.innerHTML = origText; btn.disabled = false; }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   UNIFIED IMPORT SYSTEM — handleTallyFile + preview modal
+   Supports: PDF (server parse) + XML (Tally Day Book, client-side)
+   Flow: Pick file → detect type → parse → preview modal → OK → fill form
+══════════════════════════════════════════════════════════════════ */
+
+/* ── Customer DB for XML fallback enrichment ── */
+const customerDB = {
+  /* Example: "KAMBALE SANTOSH M.": { phone: "9876543210", address: "123 Main St, Bhosari" } */
+};
+
+/* ── Recent invoices memory (last 10) ── */
+let _recentInvoices = [];
+
+/* ── MAIN ENTRY POINT ── */
+async function handleTallyFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = ""; // allow re-select same file
+
+  const ext = file.name.toLowerCase();
+  const isXML = ext.endsWith(".xml") || file.type === "application/xml" || file.type === "text/xml";
+  const isPDF = ext.endsWith(".pdf") || file.type === "application/pdf";
+
+  if (!isXML && !isPDF) {
+    showToast("⚠ Please select a PDF or XML file", "error");
+    return;
   }
 
-  input.value = ""; // allow re-import same file
+  // Show loading state on button
+  const btn = document.getElementById("importFileBtn");
+  const origText = btn.innerHTML;
+  btn.innerHTML = "⏳ Parsing…";
+  btn.disabled = true;
+
+  try {
+    let extracted;
+    if (isXML) {
+      extracted = await _parseXMLForUnifiedImport(file);
+    } else {
+      extracted = await parseInvoicePDF(file);
+    }
+
+    // Enrich XML data from customerDB if phone/address missing
+    if (extracted.source === "xml" && (!extracted.phone || !extracted.address)) {
+      const dbEntry = customerDB[extracted.name] || customerDB[(extracted.name || "").toUpperCase()];
+      if (dbEntry) {
+        if (!extracted.phone && dbEntry.phone) extracted.phone = dbEntry.phone;
+        if (!extracted.address && dbEntry.address) extracted.address = dbEntry.address;
+      }
+    }
+
+    openImportPreviewModal(extracted);
+  } catch (err) {
+    showToast("⚠ Import failed: " + err.message, "error");
+    console.error("[unified-import]", err);
+  } finally {
+    btn.innerHTML = origText;
+    btn.disabled = false;
+  }
 }
+
+/* ── PARSE TALLY XML for unified import (client-side, simple voucher extraction) ── */
+async function _parseXMLForUnifiedImport(file) {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  const isUTF16 = bytes[0] === 0xFF && bytes[1] === 0xFE;
+  const text = isUTF16
+    ? new TextDecoder("utf-16le").decode(buf)
+    : new TextDecoder("utf-8").decode(buf);
+
+  // Use regex — DOMParser chokes on tag names with dots like ALLINVENTORYENTRIES.LIST
+  const tag = (name, t) => {
+    const m = t.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"));
+    return m ? m[1].trim() : null;
+  };
+  const tagAll = (name, t) => {
+    const re = new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "gi");
+    const results = [];
+    let m;
+    while ((m = re.exec(t)) !== null) results.push(m[1].trim());
+    return results;
+  };
+
+  // Customer name
+  const name = tag("PARTYLEDGERNAME", text) || "Unknown Customer";
+
+  // Invoice number + date
+  const invoiceNumber = tag("VOUCHERNUMBER", text) || "";
+  const rawDate = tag("DATE", text) || "";
+
+  // Products — from ALLINVENTORYENTRIES.LIST blocks
+  const products = [];
+  const entryBlocks = tagAll("ALLINVENTORYENTRIES\\.LIST", text);
+  // Fallback: if dots cause regex issues, try without
+  const blocks = entryBlocks.length > 0
+    ? entryBlocks
+    : (() => {
+        const re2 = /<ALLINVENTORYENTRIES\.LIST>([\s\S]*?)<\/ALLINVENTORYENTRIES\.LIST>/gi;
+        const res = []; let m2;
+        while ((m2 = re2.exec(text)) !== null) res.push(m2[1]);
+        return res;
+      })();
+
+  blocks.forEach(block => {
+    const stockName = tag("STOCKITEMNAME", block);
+    if (!stockName) return;
+    // Parse qty: " 1 NOS" → 1
+    const qtyRaw = tag("ACTUALQTY", block) || tag("BILLEDQTY", block) || "1";
+    const qty = parseFloat(qtyRaw.replace(/[^0-9.]/g, "")) || 1;
+    // Parse MRP from INCLVATRATE: "13800.00/NOS"
+    const rateRaw = tag("INCLVATRATE", block) || tag("RATE", block) || "";
+    const rate = parseFloat(rateRaw.replace(/\/.*$/, "").replace(/,/g, "")) || null;
+
+    products.push({ name: stockName, qty, rate });
+  });
+
+  return {
+    name,
+    phone: null,
+    alt_phone: null,
+    address: null,
+    products,
+    source: "xml",
+    invoice_number: invoiceNumber,
+    raw_date: rawDate
+  };
+}
+
+/* ── PARSE INVOICE PDF (server-side via existing endpoint) ── */
+async function parseInvoicePDF(file) {
+  const formData = new FormData();
+  formData.append("invoice", file);
+  const res = await authFetch(`${BASE_URL}/parse-invoice`, { method: "POST", body: formData });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Server parse error");
+
+  const products = (data.products || []).map(p => ({
+    name: p.product_name || "",
+    qty: 1,
+    serial: p.serial_number || "",
+    invoice: data.invoice_number || ""
+  }));
+
+  // Server now returns multi-line address already joined
+  const address = data.address || null;
+
+  return {
+    name: data.customer_name || "",
+    phone: data.phone || null,
+    alt_phone: data.alt_phone || null,   // server now extracts this correctly
+    address: address,
+    products,
+    source: "pdf",
+    invoice_number: data.invoice_number || null,
+    _raw: data
+  };
+}
+
+/* ══ PREVIEW MODAL ══ */
+let _importPreviewData = null;
+
+function openImportPreviewModal(data) {
+  _importPreviewData = data;
+  const overlay = document.getElementById("importPreviewOverlay");
+  if (!overlay) return;
+
+  // Populate fields
+  document.getElementById("ipvName").textContent   = data.name || "—";
+  document.getElementById("ipvPhone").textContent  = data.phone || "—";
+  document.getElementById("ipvAlt").textContent    = data.alt_phone || "—";
+  document.getElementById("ipvAddr").textContent   = data.address || "—";
+  document.getElementById("ipvSource").textContent = data.source === "xml" ? "📊 Tally XML" : "📄 PDF Invoice";
+
+  // Set checkbox states — disable if no data
+  const cbPhone = document.getElementById("ipvCbPhone");
+  const cbAlt   = document.getElementById("ipvCbAlt");
+  const cbAddr  = document.getElementById("ipvCbAddr");
+  cbPhone.checked = !!data.phone;
+  cbPhone.disabled = !data.phone;
+  cbAlt.checked   = !!data.alt_phone;
+  cbAlt.disabled  = !data.alt_phone;
+  cbAddr.checked  = !!data.address;
+  cbAddr.disabled = !data.address;
+
+  // Products list
+  const prodWrap = document.getElementById("ipvProducts");
+  if (data.products && data.products.length > 0) {
+    prodWrap.innerHTML = data.products.map((p, i) => `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface-container);border-radius:9px;margin-bottom:6px;cursor:pointer;">
+        <input type="checkbox" class="ipv-prod-cb" data-idx="${i}" checked
+          style="width:15px;height:15px;accent-color:var(--primary);flex-shrink:0;">
+        <span style="flex:1;font-size:13px;font-weight:600;color:var(--on-surface);">${escHtml(p.name)}</span>
+        <span style="font-size:11px;color:var(--on-surface-variant);font-family:monospace;">qty: ${p.qty || 1}</span>
+      </label>`).join("");
+  } else {
+    prodWrap.innerHTML = `<div style="color:var(--on-surface-variant);font-size:13px;padding:8px 0;">No products found</div>`;
+  }
+
+  // Missing data notice for XML
+  const notice = document.getElementById("ipvXmlNotice");
+  if (data.source === "xml" && (!data.phone || !data.address)) {
+    notice.style.display = "block";
+    notice.innerHTML = `📋 <strong>Tally XML</strong> — ${!data.phone ? "Phone " : ""}${!data.phone && !data.address ? "& " : ""}${!data.address ? "Address " : ""}not in XML file — fill manually below`;
+  } else {
+    notice.style.display = "none";
+  }
+
+  overlay.style.display = "flex";
+}
+
+function closeImportPreviewModal() {
+  const overlay = document.getElementById("importPreviewOverlay");
+  if (overlay) overlay.style.display = "none";
+  _importPreviewData = null;
+}
+
+function retryImportFile() {
+  closeImportPreviewModal();
+  document.getElementById("unifiedFileInput").value = "";
+  document.getElementById("unifiedFileInput").click();
+}
+
+function applyImportPreview() {
+  const data = _importPreviewData;
+  if (!data) return;
+
+  // Name (always applied if present)
+  if (document.getElementById("ipvCbName").checked && data.name) {
+    const parts = data.name.trim().split(/\s+/);
+    const fn = document.getElementById("first_name");
+    const mn = document.getElementById("middle_name");
+    const ln = document.getElementById("last_name");
+    if (fn) fn.value = parts[0] || "";
+    if (mn) mn.value = parts.length === 3 ? parts[1] : "";
+    if (ln) ln.value = parts.length >= 2 ? parts[parts.length - 1] : "";
+  }
+
+  // Phone
+  if (document.getElementById("ipvCbPhone").checked && data.phone) {
+    const ph = document.getElementById("phone");
+    if (ph) ph.value = data.phone;
+  }
+
+  // Alt phone
+  if (document.getElementById("ipvCbAlt").checked && data.alt_phone) {
+    const alt = document.getElementById("alt_phone");
+    if (alt) alt.value = data.alt_phone;
+  }
+
+  // Address
+  if (document.getElementById("ipvCbAddr").checked && data.address) {
+    const addr1 = document.getElementById("addr1");
+    if (addr1) addr1.value = data.address;
+  }
+
+  // Products — only selected ones
+  const selectedProducts = [];
+  document.querySelectorAll(".ipv-prod-cb:checked").forEach(cb => {
+    const idx = parseInt(cb.dataset.idx);
+    if (data.products[idx]) selectedProducts.push(data.products[idx]);
+  });
+
+  if (selectedProducts.length > 0 && document.getElementById("productList")) {
+    const list = document.getElementById("productList");
+    list.innerHTML = "";
+    if (typeof productItemCounter !== "undefined") productItemCounter = 0;
+
+    selectedProducts.forEach(p => {
+      if (typeof productItemCounter !== "undefined") productItemCounter++;
+      const idx = typeof productItemCounter !== "undefined" ? productItemCounter : 1;
+      const div = document.createElement("div");
+      if (typeof createProductItemHTML === "function") {
+        div.innerHTML = createProductItemHTML(idx);
+        list.appendChild(div.firstElementChild);
+        const item = list.lastElementChild;
+
+        const tallyToggle = item.querySelector(`[data-field="tally_toggle"]`);
+        if (tallyToggle && typeof toggleTallyInput === "function") {
+          tallyToggle.checked = true;
+          toggleTallyInput(tallyToggle, idx);
+          const tallyInput = item.querySelector(`[data-field="tally_input"]`);
+          const tallySearch = item.querySelector(`[data-field="tally_search"]`);
+          const tallyLabel = item.querySelector(`[data-field="tally_selected_label"]`);
+          const pname = p.name || "";
+          if (tallyInput) tallyInput.value = pname;
+          if (tallySearch) tallySearch.value = pname;
+          if (tallyLabel && pname) tallyLabel.textContent = `✔ Selected: ${pname}`;
+        }
+
+        if (p.serial) {
+          const serial = item.querySelector(`[data-field="serial"]`);
+          if (serial) serial.value = p.serial;
+        }
+        if (p.invoice) {
+          const inv = item.querySelector(`[data-field="invoice"]`);
+          if (inv) inv.value = p.invoice;
+        }
+      }
+    });
+
+    if (typeof updateProductCount === "function") updateProductCount();
+  }
+
+  // Add to recent invoices
+  _addRecentInvoice(data);
+
+  closeImportPreviewModal();
+  showToast(`✅ Imported from ${data.source === "xml" ? "Tally XML" : "PDF"}`, "success");
+
+  // Show form message
+  const msg = document.getElementById("formMessage");
+  if (msg) {
+    msg.style.color = "var(--tertiary)";
+    msg.style.fontSize = "13px";
+    msg.innerHTML = `📂 <strong>Imported:</strong> ${escHtml(data.name)} <span style="color:var(--on-surface-variant);font-size:11px;">(${data.source === "xml" ? "Tally XML" : "PDF"})</span>`;
+    setTimeout(() => { msg.innerHTML = ""; }, 8000);
+  }
+}
+
+/* ══ RECENT INVOICES ══ */
+function _addRecentInvoice(data) {
+  // Deduplicate by name + source
+  _recentInvoices = _recentInvoices.filter(r => !(r.name === data.name && r.source === data.source));
+  _recentInvoices.unshift({ ...data, _importedAt: Date.now() });
+  if (_recentInvoices.length > 10) _recentInvoices = _recentInvoices.slice(0, 10);
+  renderRecentInvoices();
+}
+
+function renderRecentInvoices() {
+  const panel = document.getElementById("recentInvoicesPanel");
+  const list  = document.getElementById("recentInvoicesList");
+  if (!panel || !list) return;
+
+  if (_recentInvoices.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "block";
+
+  list.innerHTML = _recentInvoices.map((inv, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--surface-container);border-radius:10px;margin-bottom:6px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(inv.name)}</div>
+        <div style="font-size:10px;color:var(--on-surface-variant);margin-top:2px;font-family:monospace;">
+          ${inv.source === "xml" ? "📊 XML" : "📄 PDF"} · ${inv.products ? inv.products.length : 0} product(s)
+        </div>
+      </div>
+      <button onclick="openImportPreviewModal(_recentInvoices[${i}])"
+        style="padding:5px 12px;background:rgba(173,198,255,0.12);color:var(--primary);border:1px solid rgba(173,198,255,0.2);border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;">
+        Import
+      </button>
+    </div>`).join("");
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CLOUD INVOICES — full implementation
+══════════════════════════════════════════════════════════════ */
+
+// Keep connectDrive() as an alias so nothing else breaks
+function connectDrive() { openCloudInvoices(); }
+
+let _cloudInvoices       = [];   // raw list from server
+let _cloudDupPendingId   = null; // invoice id waiting for dup confirmation
+let _cloudDupPendingData = null; // parsed data waiting for dup confirmation
+
+// ── Open modal + fetch list ──────────────────────────────────────
+async function openCloudInvoices() {
+  const overlay = document.getElementById("cloudInvoicesOverlay");
+  overlay.style.display = "flex";
+  document.body.style.overflow = "hidden";
+  document.getElementById("cloudInvList").innerHTML    = "";
+  document.getElementById("cloudInvEmpty").style.display   = "none";
+  document.getElementById("cloudInvLoading").style.display = "block";
+  document.getElementById("cloudInvSearch").value = "";
+
+  try {
+    const res  = await authFetch(`${BASE_URL}/cloud-invoices`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load");
+
+    _cloudInvoices = data.invoices || [];
+    document.getElementById("cloudInvLoading").style.display = "none";
+    document.getElementById("cloudInvSubtitle").textContent =
+      `${_cloudInvoices.length} invoice${_cloudInvoices.length !== 1 ? "s" : ""} available`;
+    renderCloudInvoicesList();
+  } catch (err) {
+    document.getElementById("cloudInvLoading").style.display = "none";
+    document.getElementById("cloudInvList").innerHTML =
+      `<div style="color:#f87171;font-size:13px;text-align:center;padding:20px;">❌ ${escHtml(err.message)}</div>`;
+  }
+}
+
+function closeCloudInvoices() {
+  document.getElementById("cloudInvoicesOverlay").style.display = "none";
+  document.body.style.overflow = "";
+}
+
+// ── Render the invoice list (with search filter) ─────────────────
+function renderCloudInvoicesList() {
+  const query  = (document.getElementById("cloudInvSearch")?.value || "").trim().toLowerCase();
+  const list   = document.getElementById("cloudInvList");
+  const empty  = document.getElementById("cloudInvEmpty");
+
+  let filtered = _cloudInvoices;
+  if (query) {
+    filtered = _cloudInvoices.filter(inv =>
+      (inv.customerName || "").toLowerCase().includes(query) ||
+      (inv.invoiceNo    || "").toLowerCase().includes(query) ||
+      (inv.filename     || "").toLowerCase().includes(query)
+    );
+  }
+
+  if (filtered.length === 0) {
+    list.innerHTML = "";
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+
+  // Group by customerName
+  const groups = {};
+  for (const inv of filtered) {
+    const key = inv.customerName || "Unknown";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(inv);
+  }
+
+  list.innerHTML = Object.entries(groups).map(([customer, invs]) => `
+    <div style="background:var(--surface-container);border-radius:14px;overflow:hidden;border:1px solid rgba(173,198,255,0.1);">
+      <!-- Customer group header -->
+      <div style="padding:10px 14px;background:rgba(99,179,237,0.08);border-bottom:1px solid rgba(173,198,255,0.1);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#7ec8f7;">
+        👤 ${escHtml(customer)}
+      </div>
+      ${invs.map(inv => {
+        const uploadedDate = inv.uploadedAt
+          ? new Date(inv.uploadedAt).toLocaleString("en-IN", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })
+          : "—";
+        return `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid rgba(173,198,255,0.07);cursor:pointer;transition:background 0.15s;"
+          onclick="selectCloudInvoice('${escHtml(inv.id)}','${escHtml(inv.storagePath)}')"
+          onmouseover="this.style.background='rgba(99,179,237,0.07)'"
+          onmouseout="this.style.background=''"
+          title="Click to import">
+          <div style="font-size:20px;flex-shrink:0;">📄</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:700;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(inv.invoiceNo || inv.filename || "—")}</div>
+            <div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;">🕐 ${uploadedDate}</div>
+          </div>
+          <div style="background:rgba(99,179,237,0.15);color:#7ec8f7;border:1px solid rgba(99,179,237,0.25);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;">
+            Import →
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  `).join("");
+}
+
+// ── User clicks "Import →" on an invoice ────────────────────────
+async function selectCloudInvoice(id, storagePath) {
+  // Show loading state on the card
+  showToast("⏳ Fetching & parsing invoice…", "");
+
+  try {
+    // 1. Parse the PDF via backend
+    const parseRes = await authFetch(`${BASE_URL}/cloud-invoices/parse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, storagePath }),
+    });
+    const parsed = await parseRes.json();
+    if (!parseRes.ok) throw new Error(parsed.error || "Parse failed");
+
+    // 2. Check duplicate invoice number in deliveries
+    const invNo = parsed.invoice_number;
+    if (invNo) {
+      const dupRes  = await authFetch(`${BASE_URL}/cloud-invoices/check-duplicate/${encodeURIComponent(invNo)}`);
+      const dupData = await dupRes.json();
+
+      if (dupData.duplicate) {
+        // Show duplicate warning — store pending data and wait for user
+        _cloudDupPendingId   = id;
+        _cloudDupPendingData = parsed;
+
+        document.getElementById("cloudDupMsg").innerHTML =
+          `Invoice <strong>${escHtml(invNo)}</strong> was already imported for ` +
+          `<strong>${escHtml(dupData.customer)}</strong> on ${escHtml(dupData.date)}.<br><br>` +
+          `Do you want to import it again?`;
+        document.getElementById("cloudDupOverlay").style.display = "flex";
+        return;
+      }
+    }
+
+    // 3. No duplicate — proceed to import preview
+    proceedCloudImport(id, parsed);
+
+  } catch (err) {
+    showToast("❌ " + err.message, "error");
+  }
+}
+
+// Called when user clicks "Import Anyway" on duplicate warning
+function cloudDupProceed() {
+  document.getElementById("cloudDupOverlay").style.display = "none";
+  if (_cloudDupPendingId && _cloudDupPendingData) {
+    proceedCloudImport(_cloudDupPendingId, _cloudDupPendingData);
+  }
+  _cloudDupPendingId   = null;
+  _cloudDupPendingData = null;
+}
+
+// ── Open the standard Import Preview modal with cloud data ───────
+function proceedCloudImport(cloudId, parsed) {
+  // Close the cloud invoices modal
+  closeCloudInvoices();
+
+  // Shape the data to match what openImportPreviewModal() expects
+  const previewData = {
+    name:           parsed.customer_name || "",
+    phone:          parsed.phone         || null,
+    alt_phone:      parsed.alt_phone     || null,
+    address:        parsed.address       || null,
+    products:       parsed.products      || [],
+    source:         "cloud",
+    invoice_number: parsed.invoice_number || "",
+    _cloudId:       cloudId,  // stored so we can mark-imported after apply
+  };
+
+  openImportPreviewModal(previewData);
+}
+
+// ── Hook into applyImportPreview to mark cloud invoice imported ──
+// We wrap the existing function to add mark-imported after apply.
+const _originalApplyImportPreview = applyImportPreview;
+applyImportPreview = async function () {
+  _originalApplyImportPreview();
+
+  // If this was a cloud import, mark it imported so cron can clean up
+  const data = _importPreviewData;
+  if (data && data._cloudId) {
+    try {
+      await authFetch(`${BASE_URL}/cloud-invoices/mark-imported`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: data._cloudId }),
+      });
+      // Remove from local list + update badge
+      _cloudInvoices = _cloudInvoices.filter(i => i.id !== data._cloudId);
+      updateCloudInvoicesBadge();
+    } catch (e) {
+      // Non-fatal — cron will handle cleanup anyway
+      console.warn("[cloud-invoices] mark-imported failed:", e.message);
+    }
+  }
+};
+
+// Update the toast text for cloud imports
+const _originalShowToastImport = window._showToastAfterImport;
+
+// ── Badge: show count of available cloud invoices on the button ──
+async function updateCloudInvoicesBadge() {
+  try {
+    const res  = await authFetch(`${BASE_URL}/cloud-invoices`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const count = data.count || 0;
+    const badge = document.getElementById("cloudInvoicesBadge");
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent     = count > 9 ? "9+" : String(count);
+      badge.style.display   = "block";
+    } else {
+      badge.style.display   = "none";
+    }
+  } catch {
+    // Silently ignore — badge is a nice-to-have
+  }
+}
+
+// Poll badge count every 2 minutes while page is open
+updateCloudInvoicesBadge();
+setInterval(updateCloudInvoicesBadge, 2 * 60 * 1000);
+
+// Close cloud invoices overlay on backdrop click
+document.getElementById("cloudInvoicesOverlay")?.addEventListener("click", function(e) {
+  if (e.target === this) closeCloudInvoices();
+});
+/* ══════════════════════════════════════════════════════════════════
+   END UNIFIED IMPORT SYSTEM
+══════════════════════════════════════════════════════════════════ */
 
 function buildSelectOptions(arr, selectedVal) {
   let html = arr.map(name =>
@@ -4519,6 +5182,16 @@ document.addEventListener("keydown", e => {
       document.getElementById("stockSyncOverlay").classList.contains("open")) {
     closeStockSyncModal();
   }
+  // Close import preview modal on Escape
+  if (e.key === "Escape" &&
+      document.getElementById("importPreviewOverlay")?.style.display === "flex") {
+    closeImportPreviewModal();
+  }
+});
+
+// Click-outside to close import preview modal
+document.getElementById("importPreviewOverlay")?.addEventListener("click", function(e) {
+  if (e.target === this) closeImportPreviewModal();
 });
 
 console.log("[stock-sync] Module loaded ✓");
