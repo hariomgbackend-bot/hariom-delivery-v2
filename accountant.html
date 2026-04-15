@@ -1545,6 +1545,15 @@ window.addEventListener("offline", () => {
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
     document.querySelectorAll(".popup-overlay.is-open").forEach(el => el.classList.remove("is-open"));
+    // Close other modals
+    const lightbox = document.getElementById("photoLightbox");
+    if (lightbox && lightbox.style.display !== "none") lightbox.style.display = "none";
+    const stockSync = document.getElementById("stockSyncOverlay");
+    if (stockSync?.classList.contains("open")) { stockSync.classList.remove("open"); }
+    const tallyImport = document.getElementById("tallyImportOverlay");
+    if (tallyImport?.classList.contains("open")) { tallyImport.classList.remove("open"); }
+    const importPreview = document.getElementById("importPreviewOverlay");
+    if (importPreview && importPreview.style.display === "flex") closeImportPreviewModal();
   }
 });
 
@@ -1564,6 +1573,24 @@ let _deliveriesDebounceTimer = null;
 let _deliveriesInflight = false;
 let batchNumberMap = {};
 let phoneCounts    = {};
+
+/* ── CACHED CONSTANTS (computed once, reused everywhere) ── */
+const _isDark = () => document.documentElement.getAttribute("data-theme") !== "light";
+const BATCH_PALETTES = _isDark() ? [
+  { bg: "rgba(124,58,237,0.15)",  border: "#7c3aed", text: "#c4b5fd" },
+  { bg: "rgba(219,39,119,0.15)",  border: "#db2777", text: "#f9a8d4" },
+  { bg: "rgba(234,88,12,0.15)",   border: "#ea580c", text: "#fdba74" },
+  { bg: "rgba(22,163,74,0.15)",   border: "#16a34a", text: "#86efac" },
+  { bg: "rgba(37,99,235,0.15)",   border: "#2563eb", text: "#93c5fd" },
+  { bg: "rgba(202,138,4,0.15)",   border: "#ca8a04", text: "#fde047" },
+] : [
+  { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
+  { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
+  { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
+  { bg: "#f0fdf4", border: "#16a34a", text: "#065f46" },
+  { bg: "#eff6ff", border: "#2563eb", text: "#1e3a8a" },
+  { bg: "#fefce8", border: "#ca8a04", text: "#713f12" },
+];
 
 /* ══════════════════════════════════════════
    AUTH — single source of truth
@@ -1803,9 +1830,13 @@ function startAutoRefresh() {
 }
 
 /* ── FILTERS ── */
+let _searchDebounceTimer = null;
 function applySearch() {
-  searchQuery = document.getElementById("searchInput").value.toLowerCase();
-  loadDeliveries();
+  if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
+  _searchDebounceTimer = setTimeout(() => {
+    searchQuery = document.getElementById("searchInput").value.toLowerCase();
+    loadDeliveries();
+  }, 180);
 }
 
 function setFilter(type) {
@@ -2188,36 +2219,211 @@ async function _parseXMLForUnifiedImport(file) {
   };
 }
 
-/* ── PARSE INVOICE PDF (server-side via existing endpoint) ── */
+/* ── PARSE INVOICE PDF — client-side using pdf.js ── */
+/* Handles Hari Om Electronics GST Tax Invoice format exactly */
+/* ── Perfected PDF Parser (ported from index.html) ── */
 async function parseInvoicePDF(file) {
-  const formData = new FormData();
-  formData.append("invoice", file);
-  const res = await authFetch(`${BASE_URL}/parse-invoice`, { method: "POST", body: formData });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Server parse error");
+  if (!window.pdfjsLib) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
 
-  const products = (data.products || []).map(p => ({
-    name: p.product_name || "",
-    qty: 1,
-    serial: p.serial_number || "",
-    invoice: data.invoice_number || ""
-  }));
+  // ── Perfected text extraction: y-delta line grouping ──
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-  // Server now returns multi-line address already joined
-  const address = data.address || null;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const items = textContent.items;
+    let pageText = '';
+    let lastY = null;
 
-  return {
-    name: data.customer_name || "",
-    phone: data.phone || null,
-    alt_phone: data.alt_phone || null,   // server now extracts this correctly
-    address: address,
-    products,
-    source: "pdf",
-    invoice_number: data.invoice_number || null,
-    _raw: data
-  };
+    items.forEach(item => {
+      const y = Math.round(item.transform[5]);
+      const text = item.str;
+      if (lastY !== null && Math.abs(y - lastY) > 5) {
+        pageText += '\n';
+      }
+      pageText += text + ' ';
+      lastY = y;
+    });
+
+    fullText += pageText + '\n';
+  }
+
+  return _parseHariomInvoiceText(fullText);
 }
 
+/* ── Core parser for Hari Om Electronics invoice text ──
+   Perfected logic ported from index.html
+*/
+function _parseHariomInvoiceText(fullText) {
+  // 1. Extract Invoice Number
+  function _extractInvoiceNumber(text) {
+    let match = text.match(/Invoice\s*No\.?\s*Dated?\s*\n\s*(\S+)\s+\d/);
+    if (match) return match[1];
+    match = text.match(/\n(\d{4}-\d{2}\/\d{3})\s+\d/);
+    if (match) return match[1];
+    match = text.match(/Invoice\s*No\.?\s*:\s*(\S+)/);
+    if (match) return match[1];
+    match = text.match(/(\d{4}-\d{2}\/\d{3})/);
+    if (match) return match[1];
+    return null;
+  }
+
+  // 2. Extract Customer Name & Address
+  function _extractCustomerAndAddress(text) {
+    const lines = text.split('\n');
+
+    // Pattern A: "Buyer Buyer" on same line
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (/^Buyer\s+Buyer/.test(line)) {
+        const nextLineIdx = i + 1;
+        if (nextLineIdx < lines.length) {
+          let nextLine = lines[nextLineIdx].trim();
+          nextLine = nextLine.replace(/\s*Despatch\s+Document.*$/, '');
+          nextLine = nextLine.replace(/\s*Delivery\s+Note.*$/, '');
+
+          const parts = nextLine.split(',');
+          const customerName = parts[0].trim();
+
+          if (customerName) {
+            let addr = '';
+            if (parts.length > 1) {
+              addr = parts.slice(1).join(',').trim();
+            } else {
+              const addrLineIdx = nextLineIdx + 1;
+              if (addrLineIdx < lines.length) {
+                let addrLine = lines[addrLineIdx].trim();
+                addrLine = addrLine.replace(/\s*Despatch\s+Document.*$/, '');
+                addrLine = addrLine.replace(/\s*Delivery\s+Note.*$/, '');
+                addr = addrLine;
+              }
+            }
+            return { name: customerName, address: addr };
+          }
+        }
+      }
+    }
+
+    // Pattern B: "Buyer" on separate line
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line === 'Buyer') {
+        const nameLineIdx = i + 1;
+        if (nameLineIdx < lines.length) {
+          const customerName = lines[nameLineIdx].trim();
+          const addressParts = [];
+
+          for (let j = nameLineIdx + 1; j < Math.min(nameLineIdx + 5, lines.length); j++) {
+            let addrLine = lines[j].trim();
+            if (addrLine.startsWith('State Name')) break;
+            if (addrLine.includes('Contact')) break;
+            addrLine = addrLine.replace(/\s*Despatch\s+Document.*$/, '');
+            addrLine = addrLine.replace(/\s*Delivery\s+Note.*$/, '');
+            if (addrLine) addressParts.push(addrLine);
+          }
+
+          return { name: customerName, address: addressParts.join(', ') };
+        }
+      }
+    }
+
+    return { name: "", address: "" };
+  }
+
+  // 3. Extract Mobile Numbers
+  function _extractMobileNumbers(text) {
+    const match = text.match(/Contact\s*[.:]\s*([\d,\s]+)/);
+    if (match) {
+      const numbers = match[1].trim().split(/[\s,]+/).filter(n => n && n.length >= 10 && /^\d+$/.test(n));
+      if (numbers.length >= 2) return { mobile1: numbers[0], mobile2: numbers[1] };
+      if (numbers.length === 1) return { mobile1: numbers[0], mobile2: null };
+    }
+    return { mobile1: null, mobile2: null };
+  }
+
+  // 4. Extract Products — perfected logic
+  function _extractProducts(text) {
+    const products = [];
+    const productSet = new Set();
+    const lines = text.split('\n');
+    let inProductSection = false;
+
+    const categories = ['AC', 'WM', 'REF', 'COOLER', 'BATTERY', 'TV', 'FAN', 'C-FAN', 'FRIDGE', 'WASHING', 'MICRO', 'OWEN', 'CHIMNEY', 'COOKER', 'COOKTOP', 'GEYSER', 'E-GEYSER', 'G-GEYSER', 'WATER', 'PURIFIER', 'IRON', 'KETTLE', 'MIXER', 'GRINDER', 'BLENDER', 'TOASTER', 'RO', 'DC', 'INVERTOR', 'STABILIZER', 'D FREEZE', 'ATTAMAKER', 'DRYER', 'HEADPHONE', 'EARPHONE', 'CABINET', 'CAMERA', 'CCTV', 'DVR'];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      if (line.includes('Description of Goods') || line.includes('Sl No')) {
+        inProductSection = true;
+        continue;
+      }
+
+      if (line.startsWith('OUTPUT CGST') || line.startsWith('OUTPUT SGST') || line.startsWith('Total Tax') || line.startsWith('Total')) {
+        break;
+      }
+
+      if (inProductSection && line) {
+        const parts = line.split(/\s{3,}/);
+
+        for (let p = 0; p < parts.length; p++) {
+          let part = parts[p].trim();
+          const isCategory = categories.some(cat => part.toUpperCase().startsWith(cat));
+
+          if (isCategory && part === part.toUpperCase() && /[A-Z]/.test(part)) {
+            part = part.replace(/\s+\d{5,}\s*$/, '');
+            part = part.replace(/\s+\d+\s*$/, '');
+            part = part.trim();
+
+            if (part && part.length > 3 && !productSet.has(part)) {
+              let qty = 1;
+              const qtyMatch = line.match(/(\d+)\s+NOS\s+\d/);
+              if (qtyMatch) qty = parseInt(qtyMatch[1]);
+
+              productSet.add(part);
+              products.push({ name: part, qty });
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    return products;
+  }
+
+  // ── Assemble result ──
+  const invoice_number = _extractInvoiceNumber(fullText);
+  const { name: customer_name, address } = _extractCustomerAndAddress(fullText);
+  const { mobile1: phone, mobile2: alt_phone } = _extractMobileNumbers(fullText);
+  const products = _extractProducts(fullText);
+
+  // Extract date
+  const dateMatch = fullText.match(/Dated?\s*\n?\s*(\d{1,2}-[A-Za-z]+-\d{4})/i);
+  const invoice_date = dateMatch ? dateMatch[1].trim() : null;
+
+  return {
+    name: customer_name,
+    phone,
+    alt_phone,
+    address,
+    products,
+    source: "pdf",
+    invoice_number,
+    invoice_date
+  };
+}
 /* ══ PREVIEW MODAL ══ */
 let _importPreviewData = null;
 
@@ -2441,14 +2647,44 @@ async function openCloudInvoices() {
     if (!res.ok) throw new Error(data.error || "Failed to load");
 
     _cloudInvoices = data.invoices || [];
+
+    // For each invoice, try to parse the PDF client-side to get real customer name & invoice no
+    // We do this in background — show list immediately with filenames, update as parsed
     document.getElementById("cloudInvLoading").style.display = "none";
     document.getElementById("cloudInvSubtitle").textContent =
       `${_cloudInvoices.length} invoice${_cloudInvoices.length !== 1 ? "s" : ""} available`;
     renderCloudInvoicesList();
+
+    // Enrich with client-side parsing (non-blocking)
+    _enrichCloudInvoicesClientSide();
+
   } catch (err) {
     document.getElementById("cloudInvLoading").style.display = "none";
     document.getElementById("cloudInvList").innerHTML =
       `<div style="color:#f87171;font-size:13px;text-align:center;padding:20px;">❌ ${escHtml(err.message)}</div>`;
+  }
+}
+
+// Parse PDFs client-side to get real customer names for the list
+async function _enrichCloudInvoicesClientSide() {
+  for (let i = 0; i < _cloudInvoices.length; i++) {
+    const inv = _cloudInvoices[i];
+    if (inv._parsed) continue; // already done
+    try {
+      const fileRes = await authFetch(`${BASE_URL}/cloud-invoices/file/${encodeURIComponent(inv.id)}`);
+      if (!fileRes.ok) continue;
+      const blob = await fileRes.blob();
+      const file = new File([blob], `${inv.id}.pdf`, { type: "application/pdf" });
+      const parsed = await parseInvoicePDF(file);
+      inv.customerName   = parsed.name || inv.customerName;
+      inv.invoiceNo      = parsed.invoice_number || inv.invoiceNo;
+      inv._parsedData    = parsed;
+      inv._parsed        = true;
+      // Re-render to show updated names
+      renderCloudInvoicesList();
+    } catch (e) {
+      console.warn("[cloud-enrich] failed for", inv.id, e.message);
+    }
   }
 }
 
@@ -2519,44 +2755,50 @@ function renderCloudInvoicesList() {
 
 // ── User clicks "Import →" on an invoice ────────────────────────
 async function selectCloudInvoice(id, storagePath) {
-  // Show loading state on the card
-  showToast("⏳ Fetching & parsing invoice…", "");
+  showToast("⏳ Parsing invoice…", "");
 
   try {
-    // 1. Parse the PDF via backend
-    const parseRes = await authFetch(`${BASE_URL}/cloud-invoices/parse`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, storagePath }),
-    });
-    const parsed = await parseRes.json();
-    if (!parseRes.ok) throw new Error(parsed.error || "Parse failed");
+    // Check if already parsed during list enrichment
+    const cached = _cloudInvoices.find(i => i.id === id);
+    let parsed = cached && cached._parsedData ? cached._parsedData : null;
 
-    // 2. Check duplicate invoice number in deliveries
+    if (!parsed) {
+      // Fetch PDF and parse client-side
+      const fileRes = await authFetch(`${BASE_URL}/cloud-invoices/file/${encodeURIComponent(id)}`);
+      if (!fileRes.ok) throw new Error("Could not fetch invoice PDF");
+      const blob = await fileRes.blob();
+      const file = new File([blob], `${id}.pdf`, { type: "application/pdf" });
+      parsed = await parseInvoicePDF(file);
+    }
+
+    parsed.invoice_number = parsed.invoice_number || id;
+
+    // Check duplicate
     const invNo = parsed.invoice_number;
     if (invNo) {
-      const dupRes  = await authFetch(`${BASE_URL}/cloud-invoices/check-duplicate/${encodeURIComponent(invNo)}`);
-      const dupData = await dupRes.json();
-
-      if (dupData.duplicate) {
-        // Show duplicate warning — store pending data and wait for user
-        _cloudDupPendingId   = id;
-        _cloudDupPendingData = parsed;
-
-        document.getElementById("cloudDupMsg").innerHTML =
-          `Invoice <strong>${escHtml(invNo)}</strong> was already imported for ` +
-          `<strong>${escHtml(dupData.customer)}</strong> on ${escHtml(dupData.date)}.<br><br>` +
-          `Do you want to import it again?`;
-        document.getElementById("cloudDupOverlay").style.display = "flex";
-        return;
+      try {
+        const dupRes  = await authFetch(`${BASE_URL}/cloud-invoices/check-duplicate/${encodeURIComponent(invNo)}`);
+        const dupData = await dupRes.json();
+        if (dupData.duplicate) {
+          _cloudDupPendingId   = id;
+          _cloudDupPendingData = parsed;
+          document.getElementById("cloudDupMsg").innerHTML =
+            `Invoice <strong>${escHtml(invNo)}</strong> was already imported for ` +
+            `<strong>${escHtml(dupData.customer)}</strong> on ${escHtml(dupData.date)}.<br><br>` +
+            `Do you want to import it again?`;
+          document.getElementById("cloudDupOverlay").style.display = "flex";
+          return;
+        }
+      } catch (e) {
+        console.warn("[cloud-invoices] dup check failed:", e.message);
       }
     }
 
-    // 3. No duplicate — proceed to import preview
     proceedCloudImport(id, parsed);
 
   } catch (err) {
     showToast("❌ " + err.message, "error");
+    console.error("[selectCloudInvoice]", err);
   }
 }
 
@@ -2572,19 +2814,22 @@ function cloudDupProceed() {
 
 // ── Open the standard Import Preview modal with cloud data ───────
 function proceedCloudImport(cloudId, parsed) {
-  // Close the cloud invoices modal
   closeCloudInvoices();
 
-  // Shape the data to match what openImportPreviewModal() expects
+  // Client-side parser returns: { name, phone, alt_phone, address, products, invoice_number }
+  // openImportPreviewModal expects the same shape
   const previewData = {
-    name:           parsed.customer_name || "",
-    phone:          parsed.phone         || null,
-    alt_phone:      parsed.alt_phone     || null,
-    address:        parsed.address       || null,
-    products:       parsed.products      || [],
+    name:           parsed.name           || parsed.customer_name || "",
+    phone:          parsed.phone          || null,
+    alt_phone:      parsed.alt_phone      || null,
+    address:        parsed.address        || null,
+    products:       (parsed.products || []).map(p => ({
+                      name: p.name || p.product_name || "",
+                      qty: 1
+                    })),
     source:         "cloud",
     invoice_number: parsed.invoice_number || "",
-    _cloudId:       cloudId,  // stored so we can mark-imported after apply
+    _cloudId:       cloudId,
   };
 
   openImportPreviewModal(previewData);
@@ -3755,23 +4000,6 @@ async function _doLoadDeliveries() {
     }
   });
 
-  const _isDark = document.documentElement.getAttribute("data-theme") !== "light";
-  const BATCH_PALETTES = _isDark ? [
-    { bg: "rgba(124,58,237,0.15)",  border: "#7c3aed", text: "#c4b5fd" },
-    { bg: "rgba(219,39,119,0.15)",  border: "#db2777", text: "#f9a8d4" },
-    { bg: "rgba(234,88,12,0.15)",   border: "#ea580c", text: "#fdba74" },
-    { bg: "rgba(22,163,74,0.15)",   border: "#16a34a", text: "#86efac" },
-    { bg: "rgba(37,99,235,0.15)",   border: "#2563eb", text: "#93c5fd" },
-    { bg: "rgba(202,138,4,0.15)",   border: "#ca8a04", text: "#fde047" },
-  ] : [
-    { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
-    { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
-    { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
-    { bg: "#f0fdf4", border: "#16a34a", text: "#065f46" },
-    { bg: "#eff6ff", border: "#2563eb", text: "#1e3a8a" },
-    { bg: "#fefce8", border: "#ca8a04", text: "#713f12" },
-  ];
-
   function getDeliveryRating(d) {
     if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "";
     const deliveredMs = new Date(d.delivered_timestamp.seconds * 1000).getTime();
@@ -3828,8 +4056,8 @@ async function _doLoadDeliveries() {
       batchTag = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bNum}</span>`;
     }
 
-    if (d.status === "booked") tr.style.background = _isDark ? "rgba(99,102,241,0.08)" : "#eef2ff";
-    if (d.status === "failed") tr.style.background = _isDark ? "rgba(255,180,171,0.06)" : "#fff1f2";
+    if (d.status === "booked") tr.style.background = _isDark() ? "rgba(99,102,241,0.08)" : "#eef2ff";
+    if (d.status === "failed") tr.style.background = _isDark() ? "rgba(255,180,171,0.06)" : "#fff1f2";
 
     tr.innerHTML = `
       <td>${escHtml(d.customer_name)}${batchTag}${d.previous_failures > 0 ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>` : ""}</td>
@@ -3939,23 +4167,7 @@ function openViewPopup(id) {
 
   const content = document.getElementById("viewContent");
 
-  // Batch info using module-scope vars
-  const _isDark = document.documentElement.getAttribute("data-theme") !== "light";
-  const BATCH_PALETTES = _isDark ? [
-    { bg: "rgba(124,58,237,0.15)",  border: "#7c3aed", text: "#c4b5fd" },
-    { bg: "rgba(219,39,119,0.15)",  border: "#db2777", text: "#f9a8d4" },
-    { bg: "rgba(234,88,12,0.15)",   border: "#ea580c", text: "#fdba74" },
-    { bg: "rgba(22,163,74,0.15)",   border: "#16a34a", text: "#86efac" },
-    { bg: "rgba(37,99,235,0.15)",   border: "#2563eb", text: "#93c5fd" },
-    { bg: "rgba(202,138,4,0.15)",   border: "#ca8a04", text: "#fde047" },
-  ] : [
-    { bg: "#f5f3ff", border: "#7c3aed", text: "#5b21b6" },
-    { bg: "#fdf2f8", border: "#db2777", text: "#9d174d" },
-    { bg: "#fff7ed", border: "#ea580c", text: "#9a3412" },
-    { bg: "#f0fdf4", border: "#16a34a", text: "#065f46" },
-    { bg: "#eff6ff", border: "#2563eb", text: "#1e3a8a" },
-    { bg: "#fefce8", border: "#ca8a04", text: "#713f12" },
-  ];
+  // Use cached palettes (computed at load, works since theme doesn't change during view)
   let popupBatchRow = "";
   if (delivery.phone && batchPhones.includes(delivery.phone)) {
     const bNum    = batchNumberMap[delivery.phone];
@@ -4795,7 +5007,6 @@ function closePhotoLightbox() {
   document.getElementById("photoLightbox").style.display = "none";
   document.getElementById("lightboxImg").src = "";
 }
-document.addEventListener("keydown", e => { if (e.key === "Escape") closePhotoLightbox(); });
 </script>
 
 <style>
@@ -5174,19 +5385,6 @@ function _ssMsgSuccess(text) {
 // Close on overlay click
 document.getElementById("stockSyncOverlay").addEventListener("click", function(e) {
   if (e.target === this) closeStockSyncModal();
-});
-
-// Close on Escape (only if stock sync is open)
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape" &&
-      document.getElementById("stockSyncOverlay").classList.contains("open")) {
-    closeStockSyncModal();
-  }
-  // Close import preview modal on Escape
-  if (e.key === "Escape" &&
-      document.getElementById("importPreviewOverlay")?.style.display === "flex") {
-    closeImportPreviewModal();
-  }
 });
 
 // Click-outside to close import preview modal
