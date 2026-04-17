@@ -376,6 +376,14 @@
       padding: 14px; font-size: 15px; font-weight: 600; width: 100%;
       border-radius: 12px; border: none; font-family: 'Inter', sans-serif; cursor: pointer;
     }
+    .popup-action-btn {
+      padding: 14px; font-size: 15px; font-weight: 600; width: 100%;
+      border-radius: 12px; border: none; font-family: 'Inter', sans-serif; cursor: pointer;
+    }
+    .popup-action-teal {
+      background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary));
+      color: #002113;
+    }
 
     /* Lead edit inline */
     .lead-edit-select {
@@ -550,6 +558,95 @@
       border: none; border-radius: 7px; padding: 6px 9px;
       font-size: 16px; cursor: pointer; flex-shrink: 0; line-height: 1;
     }
+
+    /* ── INCENTIVES TAB ── */
+    .sale-card {
+      background: var(--surface-container-low); border-radius: 16px;
+      padding: 14px 16px; margin-bottom: 10px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .sale-card:active { background: var(--surface-container); }
+    .sale-info { flex: 1; }
+    .sale-product { font-size: 15px; font-weight: 700; color: var(--on-surface); }
+    .sale-meta { font-size: 12px; color: var(--on-surface-variant); margin-top: 3px; }
+    .sale-price { font-size: 18px; font-weight: 800; color: var(--tertiary); }
+    .date-separator {
+      display: flex; align-items: center; gap: 10px; margin: 16px 0 10px;
+    }
+    .date-separator-line { flex: 1; height: 1px; background: var(--border); }
+    .date-separator-text { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.8px; }
+    .sale-form-row { display: flex; gap: 10px; margin-bottom: 12px; }
+    .sale-form-row .form-input,
+    .sale-form-row .form-select { flex: 1; margin-bottom: 0; }
+    .sale-total-card {
+      background: linear-gradient(135deg, rgba(78,222,163,0.9), rgba(39,174,96,0.9));
+      border-radius: 18px; padding: 16px 18px; margin-bottom: 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 4px 16px rgba(39,174,96,0.25);
+    }
+    .sale-total-left { display: flex; flex-direction: column; gap: 2px; }
+    .sale-total-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.7); }
+    .sale-total-date { font-size: 12px; color: rgba(255,255,255,0.6); }
+    .sale-total-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    .sale-total-amount { font-size: 24px; font-weight: 900; color: #fff; }
+    .sale-wa-btn {
+      background: rgba(255,255,255,0.15); border: none; border-radius: 8px;
+      padding: 6px 12px; font-size: 12px; font-weight: 600; color: #fff;
+      cursor: pointer; display: flex; align-items: center; gap: 4px;
+      font-family:'Inter',sans-serif; -webkit-tap-highlight-color:transparent;
+    }
+    .sale-wa-btn:active { background: rgba(255,255,255,0.25); }
+
+    .sale-card-wrap { position: relative; overflow: hidden; border-radius: 16px; margin-bottom: 10px; }
+    .sale-card {
+      position: relative; z-index: 2; overflow: hidden;
+      background: var(--surface-container-low); border-radius: 16px;
+      padding: 14px 16px; display: flex; align-items: center;
+      justify-content: space-between; gap: 12px;
+      transition: transform 0.15s ease-out;
+    }
+    .sale-card:active { background: var(--surface-container); }
+    .sale-info { flex: 1; }
+    .sale-product { font-size: 15px; font-weight: 700; color: var(--on-surface); }
+    .sale-meta { font-size: 12px; color: var(--on-surface-variant); margin-top: 3px; }
+    .sale-price { font-size: 18px; font-weight: 800; color: var(--tertiary); }
+
+    .sale-swipe-bg {
+      position: absolute; top: 0; bottom: 0; left: 0; right: 0;
+      display: flex; align-items: center;
+      font-weight: 700; color: #fff; font-size: 14px;
+      opacity: 0; transition: opacity 0.15s ease;
+    }
+    .sale-swipe-left { background: #e74c3c; padding-left: 20px; }
+    .sale-swipe-right { background: var(--primary); justify-content: flex-end; padding-right: 20px; }
+
+    .sale-edit-form {
+      background: var(--surface-container-low); border-radius: 16px;
+      padding: 16px; margin-bottom: 12px; border: 2px solid var(--primary);
+    }
+    .sale-edit-form .form-label { font-size: 12px; margin-bottom: 4px; }
+    .sale-edit-form .form-input, .sale-edit-form .form-select { margin-bottom: 10px; }
+    .sale-edit-actions { display: flex; gap: 8px; }
+    .sale-edit-actions button { flex: 1; padding: 10px; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-family:'Inter',sans-serif; }
+    .sale-edit-save { background: var(--primary); color: #fff; }
+    .sale-edit-cancel { background: var(--surface-container-highest); color: var(--on-surface-variant); }
+
+    .sale-prod-wrap { position: relative; margin-bottom: 12px; }
+    .sale-prod-dropdown {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
+      background: var(--surface-container-highest);
+      border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+      max-height: 220px; overflow-y: auto;
+    }
+    .sale-prod-dropdown-item {
+      padding: 12px 16px; cursor: pointer; font-size: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sale-prod-dropdown-item:last-child { border-bottom: none; }
+    .sale-prod-dropdown-item:hover { background: var(--surface-container); }
+    .sale-prod-dropdown-item.new-item { color: var(--primary); font-weight: 700; }
+    .sale-prod-dropdown-item.new-item::before { content: "+ Add: "; }
   </style>
 </head>
 <body>
@@ -722,6 +819,75 @@
       <div id="leadsList"></div>
     </div>
 
+    <!-- TAB: INCENTIVES -->
+    <div id="tabIncentives" style="display:none;">
+      <div class="section-header">
+        <div class="section-title-text">My Sales</div>
+        <span class="count-badge" id="salesBadge">—</span>
+      </div>
+
+      <!-- Add New Sale toggle -->
+      <button onclick="toggleSaleForm()" id="addSaleToggleBtn"
+        style="width:100%;display:flex;align-items:center;justify-content:space-between;
+          padding:14px 18px;background:var(--surface-container-low);border:none;
+          border-radius:16px;cursor:pointer;margin-bottom:12px;
+          font-family:'Inter',sans-serif;-webkit-tap-highlight-color:transparent;">
+        <span style="font-size:15px;font-weight:800;color:var(--on-surface);letter-spacing:-0.3px;">💰 Add New Sale</span>
+        <span id="addSaleChevron" style="font-size:20px;color:var(--primary);transition:transform 0.25s;font-weight:300;">＋</span>
+      </button>
+
+      <!-- Collapsible sale form -->
+      <div id="saleFormBody" style="display:none;">
+        <div class="form-card" style="border-radius:0 0 16px 16px;padding-top:14px;margin-top:-12px;">
+          <label class="form-label">Sale Date & Time</label>
+          <input type="datetime-local" class="form-input" id="sDateTime">
+
+          <label class="form-label">Product *</label>
+          <div class="sale-prod-wrap">
+            <input type="text" class="form-input" id="sProduct" placeholder="Type or search product…"
+              autocomplete="off" oninput="onSaleProdSearch(this)" onfocus="onSaleProdSearch(this)">
+            <div class="sale-prod-dropdown" id="saleProdDrop" style="display:none;"></div>
+          </div>
+
+          <label class="form-label">Sale Price (₹) *</label>
+          <input type="number" class="form-input" id="sPrice" placeholder="Enter amount" min="0">
+
+          <label class="form-label">Customer Name</label>
+          <input type="text" class="form-input" id="sCustomer" placeholder="Optional">
+
+          <label class="form-label">Remarks</label>
+          <input type="text" class="form-input" id="sRemarks" placeholder="Optional">
+
+          <div id="saleFormMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:10px;text-align:center;"></div>
+          <div style="display:flex;gap:10px;">
+            <button class="btn-full btn-full-teal" id="submitSaleBtn" style="flex:1;" onclick="submitSale()">Save Sale</button>
+            <button type="button" onclick="toggleSaleForm()"
+              style="padding:0 18px;background:var(--surface-container-highest);border:none;border-radius:12px;
+                font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily total -->
+      <div class="sale-total-card" id="saleTotalCard" style="display:none;">
+        <div class="sale-total-left">
+          <div class="sale-total-label">Today's Total</div>
+          <div class="sale-total-date" id="saleTotalDate"></div>
+        </div>
+        <div class="sale-total-right">
+          <div class="sale-total-amount" id="saleTotalAmount">₹0</div>
+          <button class="sale-wa-btn" onclick="exportTodaySalesWA()">
+            <span>📤</span> Share WhatsApp
+          </button>
+        </div>
+      </div>
+
+      <!-- Sales list -->
+      <div id="salesList"></div>
+    </div>
+
   </div><!-- /mainPanel -->
 </div><!-- /container -->
 
@@ -759,6 +925,10 @@
       <span class="material-symbols-outlined">contacts</span>
       <span class="nav-label">Leads</span>
     </button>
+    <button class="kinetic-nav-btn" id="nav-incentives" onclick="switchTab('incentives')">
+      <span class="material-symbols-outlined">workspace_premium</span>
+      <span class="nav-label">Incentives</span>
+    </button>
     <button class="kinetic-nav-btn" id="nav-logout" onclick="doLogout()" style="width:56px;">
       <span class="material-symbols-outlined" style="font-size:20px;">logout</span>
     </button>
@@ -794,6 +964,9 @@ let tallyNames       = [];
 let leadProductCount = 0;
 let currentLead      = null;
 let staffPerms       = {};
+let allSales         = [];
+let saleSubmitting   = false;
+let saleFormOpen     = false;
 
 /* ── OFFLINE DETECTION ── */
 window.addEventListener("online", () => {
@@ -937,6 +1110,7 @@ function showMainPanel() {
   loadDeliveries();
   loadLeads();
   loadTallyProducts();
+  loadSales();
   // Don't pre-fill product row — form is collapsed until user opens it
   // Phone listeners
   const lPhoneEl = document.getElementById("lPhone");
@@ -971,7 +1145,8 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById("tabDeliveries").style.display = tab === "deliveries" ? "" : "none";
   document.getElementById("tabLeads").style.display      = tab === "leads"      ? "" : "none";
-  ["deliveries", "leads"].forEach(t => {
+  document.getElementById("tabIncentives").style.display = tab === "incentives" ? "" : "none";
+  ["deliveries", "leads", "incentives"].forEach(t => {
     document.getElementById("nav-" + t)?.classList.toggle("active", t === tab);
   });
 }
@@ -1307,9 +1482,20 @@ document.addEventListener("click", e => {
     if (action === "addnew")  addNewProd(idx, name);
     return;
   }
+  const saleItem = e.target.closest(".sale-prod-dropdown-item");
+  if (saleItem) {
+    const action = saleItem.dataset.action;
+    const name   = saleItem.dataset.name;
+    if (action === "select")  selectSaleProd(name);
+    if (action === "addnew") addNewSaleProd(name);
+    return;
+  }
   // Close dropdowns on outside click
   if (!e.target.closest(".prod-search-wrap")) {
     document.querySelectorAll(".prod-dropdown").forEach(d => d.style.display = "none");
+  }
+  if (!e.target.closest(".sale-prod-wrap")) {
+    document.getElementById("saleProdDrop").style.display = "none";
   }
 });
 
@@ -1658,8 +1844,11 @@ function openLeadPopup(id) {
       </div>
     </div>`;
 
+  const soldBtn = l.status === "converted" ? 
+    `<button class="popup-action-btn popup-action-teal" onclick="convertLeadToSale('${esc(l.id)}')">💰 Sold</button>` : '';
+  
   document.getElementById("leadPopupActions").innerHTML =
-    `<button class="popup-close-btn" onclick="closeLeadPopup()">Close</button>`;
+    `${soldBtn}<button class="popup-close-btn" onclick="closeLeadPopup()">Close</button>`;
   document.getElementById("leadPopup").classList.add("open");
 }
 
@@ -1670,6 +1859,12 @@ async function updateLeadStatus(id, status) {
       body: JSON.stringify({ status })
     });
     showToast("✅ Status updated");
+    
+    const soldBtn = status === "converted" ? 
+      `<button class="popup-action-btn popup-action-teal" onclick="convertLeadToSale('${id}')">💰 Sold</button>` : '';
+    document.getElementById("leadPopupActions").innerHTML =
+      `${soldBtn}<button class="popup-close-btn" onclick="closeLeadPopup()">Close</button>`;
+    
     await loadLeads();
     currentLead = allLeads.find(l => l.id === id);
   } catch(e) { showToast("❌ Failed to update"); }
@@ -1678,6 +1873,34 @@ async function updateLeadStatus(id, status) {
 function closeLeadPopup() {
   document.getElementById("leadPopup").classList.remove("open");
   currentLead = null;
+}
+
+async function convertLeadToSale(leadId) {
+  const lead = allLeads.find(l => l.id === leadId);
+  if (!lead) { showToast("Lead not found"); return; }
+  
+  closeLeadPopup();
+  
+  switchTab("incentives");
+  
+  const saleFormBody = document.getElementById("saleFormBody");
+  
+  if (saleFormBody.style.display === "none") {
+    expandSaleForm();
+  }
+  
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  
+  document.getElementById("sDateTime").value = now.toISOString().slice(0, 16);
+  document.getElementById("sProduct").value = lead.product_interest || "";
+  document.getElementById("sPrice").value = lead.quoted_price || "";
+  document.getElementById("sCustomer").value = lead.customer_name || "";
+  document.getElementById("sRemarks").value = `From lead: ${lead.phone}`;
+  
+  document.getElementById("sProduct").focus();
+  
+  showToast("✅ Lead data loaded - fill price and save");
 }
 
 /* ── SKELETONS ── */
@@ -1764,6 +1987,438 @@ function collapseLeadForm() {
   const chevron = document.getElementById("addLeadChevron");
   const btn     = document.getElementById("addLeadToggleBtn");
   body.style.display = "none";
+  if (chevron) { chevron.textContent = "\uff0b"; chevron.style.transform = ""; }
+  if (btn) btn.style.borderRadius = "16px";
+}
+
+/* ════════════════════════════════════════════════
+   TAB 3 — INCENTIVES / SALES
+═════════════════════════════════════════════ */
+
+/* ── Helper: convert date to IST ── */
+function toIST(date) {
+  return new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+}
+function todayIST() {
+  return toIST(new Date()).toDateString();
+}
+
+/* ── Product search for sale form ── */
+function onSaleProdSearch(input) {
+  const q    = input.value.trim().toLowerCase();
+  const drop = document.getElementById("saleProdDrop");
+  if (!q) { drop.style.display = "none"; return; }
+
+  const filtered = tallyNames.filter(n => n.toLowerCase().includes(q)).slice(0, 10);
+  const exactMatch = tallyNames.some(n => n.toLowerCase() === q);
+
+  let html = filtered.map(n =>
+    `<div class="sale-prod-dropdown-item" data-action="select" data-name="${n.replace(/"/g,'&quot;')}">${esc(n)}</div>`
+  ).join("");
+
+  if (!exactMatch && q.length >= 2) {
+    html += `<div class="sale-prod-dropdown-item new-item" data-action="addnew" data-name="${esc(q).replace(/"/g,'&quot;')}">${esc(q)}</div>`;
+  }
+
+  if (html) { drop.innerHTML = html; drop.style.display = "block"; }
+  else       { drop.style.display = "none"; }
+}
+
+function selectSaleProd(name) {
+  document.getElementById("sProduct").value = name;
+  document.getElementById("saleProdDrop").style.display = "none";
+}
+
+async function addNewSaleProd(name) {
+  selectSaleProd(name);
+  try {
+    await authFetch(`${BASE_URL}/tally/products/add`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ name })
+    });
+    tallyNames.push(name);
+  } catch(e) { console.warn("Failed to add new product:", e.message); }
+}
+
+/* ── Load & render sales ── */
+async function loadSales() {
+  const list = document.getElementById("salesList");
+  list.innerHTML = skeletons(3);
+  try {
+    const res  = await authFetch(`${BASE_URL}/incentives/sales`);
+    const data = await res.json();
+    allSales   = data;
+    renderSales(data);
+  } catch(e) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load sales</p></div>`;
+  }
+}
+
+function renderSales(data) {
+  const list    = document.getElementById("salesList");
+  const badge   = document.getElementById("salesBadge");
+  const totalCard = document.getElementById("saleTotalCard");
+  const totalAmt  = document.getElementById("saleTotalAmount");
+  const totalDate = document.getElementById("saleTotalDate");
+
+  if (!data.length) {
+    badge.textContent = "0";
+    totalCard.style.display = "none";
+    list.innerHTML = `<div class="empty-state"><div class="icon">💰</div><p>No sales recorded</p><small>Add your first sale above</small></div>`;
+    return;
+  }
+
+  badge.textContent = data.length;
+
+  const today = todayIST();
+  const todaySales = data.filter(s => toIST(new Date(s.sale_timestamp?.seconds * 1000)).toDateString() === today);
+  const todayTotal = todaySales.reduce((sum, s) => sum + (s.sale_price || 0), 0);
+
+  if (todayTotal > 0) {
+    totalCard.style.display = "flex";
+    totalAmt.textContent = `₹${todayTotal.toLocaleString("en-IN")}`;
+    totalDate.textContent = toIST(new Date()).toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+  } else {
+    totalCard.style.display = "none";
+  }
+
+  const grouped = {};
+  data.forEach(s => {
+    const dateKey = toIST(new Date(s.sale_timestamp?.seconds * 1000)).toDateString();
+    if (!grouped[dateKey]) grouped[dateKey] = [];
+    grouped[dateKey].push(s);
+  });
+
+  const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
+
+  list.innerHTML = sortedDates.map(dateStr => {
+    const sales = grouped[dateStr];
+    const yesterday = toIST(new Date(Date.now() - 86400000)).toDateString();
+    const dateLabel = dateStr === today ? "Today"
+      : dateStr === yesterday ? "Yesterday"
+      : new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+    return `
+      <div class="date-separator">
+        <div class="date-separator-line"></div>
+        <span class="date-separator-text">${dateLabel}</span>
+        <div class="date-separator-line"></div>
+      </div>
+      ${sales.map(s => `
+        <div class="sale-card-wrap" id="saleWrap_${esc(s.id)}">
+          <div class="sale-swipe-bg sale-swipe-left" id="swipeDel_${esc(s.id)}" style="opacity:0">🗑 Delete</div>
+          <div class="sale-swipe-bg sale-swipe-right" id="swipeEdit_${esc(s.id)}" style="opacity:0">✏️ Edit</div>
+          <div class="sale-card" id="saleCard_${esc(s.id)}" data-saleid="${esc(s.id)}">
+            <div class="sale-info">
+              <div class="sale-product">${esc(s.product_name)}</div>
+              <div class="sale-meta">${s.customer_name ? esc(s.customer_name) + " · " : ""}${new Date(s.sale_timestamp?.seconds * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}</div>
+            </div>
+            <div class="sale-price">₹${(s.sale_price || 0).toLocaleString("en-IN")}</div>
+          </div>
+        </div>
+      `).join("")}`;
+  }).join("");
+}
+
+/* ── Swipe handlers for sale cards ── */
+let swipeData = {};
+
+document.addEventListener("touchstart", function(e) {
+  const card = e.target.closest(".sale-card");
+  if (!card) return;
+  
+  const id = card.dataset.saleid;
+  swipeData[id] = {
+    startX: e.touches[0].clientX,
+    currentX: e.touches[0].clientX,
+    active: true
+  };
+}, { passive: true });
+
+document.addEventListener("touchmove", function(e) {
+  const card = e.target.closest(".sale-card");
+  if (!card) return;
+  
+  const id = card.dataset.saleid;
+  if (!swipeData[id] || !swipeData[id].active) return;
+  
+  swipeData[id].currentX = e.touches[0].clientX;
+  const diff = swipeData[id].currentX - swipeData[id].startX;
+  
+  // Move card
+  const clamped = Math.max(-100, Math.min(100, diff));
+  card.style.transform = `translateX(${clamped}px)`;
+  
+  // Show action hints
+  const delBg = document.getElementById("swipeDel_" + id);
+  const editBg = document.getElementById("swipeEdit_" + id);
+  
+  if (diff < -50) {
+    if (delBg) delBg.style.opacity = "1";
+    if (editBg) editBg.style.opacity = "0";
+  } else if (diff > 50) {
+    if (delBg) delBg.style.opacity = "0";
+    if (editBg) editBg.style.opacity = "1";
+  } else {
+    if (delBg) delBg.style.opacity = "0";
+    if (editBg) editBg.style.opacity = "0";
+  }
+}, { passive: true });
+
+document.addEventListener("touchend", function(e) {
+  const card = e.target.closest(".sale-card");
+  if (!card) return;
+  
+  const id = card.dataset.saleid;
+  if (!swipeData[id]) return;
+  
+  const diff = swipeData[id].currentX - swipeData[id].startX;
+  swipeData[id].active = false;
+  
+  // Reset card position
+  card.style.transform = "";
+  
+  // Reset hints
+  const delBg = document.getElementById("swipeDel_" + id);
+  const editBg = document.getElementById("swipeEdit_" + id);
+  if (delBg) delBg.style.opacity = "0";
+  if (editBg) editBg.style.opacity = "0";
+  
+  // Trigger action based on swipe distance
+  if (diff < -80) {
+    // Swipe left - delete
+    if (confirm("Delete this sale?")) {
+      deleteSale(id);
+    }
+  } else if (diff > 80) {
+    // Swipe right - edit
+    openEditSale(id);
+  }
+  
+  delete swipeData[id];
+});
+
+/* ── Export today sales to WhatsApp ── */
+function exportTodaySalesWA() {
+  const today = todayIST();
+  const todaySales = allSales.filter(s => toIST(new Date(s.sale_timestamp?.seconds * 1000)).toDateString() === today);
+  
+  if (!todaySales.length) {
+    showToast("No sales today to export");
+    return;
+  }
+
+  const dateStr = toIST(new Date()).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const reportTitle = staffName ? `${staffName}'s Sales Report` : "Sales Report";
+  let msg = `📊 *${reportTitle}*\n📅 ${dateStr}\n━━━━━━━━━━━━━\n`;
+  
+  todaySales.forEach((s, i) => {
+    msg += `\n${i+1}. *${esc(s.product_name)}*\n   ₹${(s.sale_price || 0).toLocaleString("en-IN")}${s.customer_name ? `\n   Customer: ${esc(s.customer_name)}` : ""}\n`;
+  });
+  
+  const total = todaySales.reduce((sum, s) => sum + (s.sale_price || 0), 0);
+  msg += `\n━━━━━━━━━━━━━\n💰 *Total: ₹${total.toLocaleString("en-IN")}*\n━━━━━━━━━━━━━`;
+  
+  const encoded = encodeURIComponent(msg);
+  window.open(`https://wa.me/?text=${encoded}`, "_blank");
+}
+
+/* ── Edit sale popup ── */
+let editingSaleId = null;
+
+function openEditSale(id) {
+  const sale = allSales.find(s => s.id === id);
+  if (!sale) return;
+  editingSaleId = id;
+  
+  const wrap = document.getElementById("saleWrap_" + id);
+  const editHtml = `
+    <div class="sale-edit-form" id="editForm_${id}">
+      <label class="form-label">Product *</label>
+      <input type="text" class="form-input" id="editProduct" value="${esc(sale.product_name)}">
+      <label class="form-label">Sale Price (₹) *</label>
+      <input type="number" class="form-input" id="editPrice" value="${sale.sale_price}" min="0">
+      <label class="form-label">Customer Name</label>
+      <input type="text" class="form-input" id="editCustomer" value="${esc(sale.customer_name || "")}">
+      <label class="form-label">Remarks</label>
+      <input type="text" class="form-input" id="editRemarks" value="${esc(sale.remarks || "")}">
+      <div class="sale-edit-actions">
+        <button class="sale-edit-save" onclick="saveEditSale()">Save</button>
+        <button class="sale-edit-cancel" onclick="closeEditSale()">Cancel</button>
+      </div>
+    </div>
+  `;
+  if (wrap) wrap.insertAdjacentHTML("afterend", editHtml);
+  if (wrap) wrap.style.display = "none";
+}
+
+function closeEditSale() {
+  if (editingSaleId) {
+    const wrap = document.getElementById("saleWrap_" + editingSaleId);
+    if (wrap) wrap.style.display = "";
+    const form = document.getElementById("editForm_" + editingSaleId);
+    if (form) form.remove();
+    editingSaleId = null;
+  }
+}
+
+async function saveEditSale() {
+  if (!editingSaleId) return;
+  
+  const product = document.getElementById("editProduct").value.trim();
+  const price = parseFloat(document.getElementById("editPrice").value) || 0;
+  const customer = document.getElementById("editCustomer").value.trim();
+  const remarks = document.getElementById("editRemarks").value.trim();
+  
+  if (!product) { showToast("Product name required"); return; }
+  if (!price || price <= 0) { showToast("Valid price required"); return; }
+  
+  try {
+    const res = await authFetch(`${BASE_URL}/incentives/sales/${editingSaleId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product_name: product,
+        sale_price: price,
+        customer_name: customer,
+        remarks: remarks
+      })
+    });
+    
+    if (!res.ok) {
+      const data = await res.json();
+      showToast(data.error || "Failed to update");
+      return;
+    }
+    
+    showToast("Sale updated!");
+    editingSaleId = null;
+    await loadSales();
+  } catch(e) {
+    showToast("Network error");
+  }
+}
+
+async function deleteSale(id) {
+  try {
+    const res = await authFetch(`${BASE_URL}/incentives/sales/${id}`, {
+      method: "DELETE"
+    });
+    
+    if (!res.ok) {
+      const data = await res.json();
+      showToast(data.error || "Failed to delete");
+      return;
+    }
+    
+    showToast("Sale deleted");
+    await loadSales();
+  } catch(e) {
+    showToast("Network error");
+  }
+}
+
+/* ── Submit sale ── */
+async function submitSale() {
+  console.log("[submitSale] clicked, btn disabled:", document.getElementById("submitSaleBtn")?.disabled);
+  const productName = document.getElementById("sProduct").value.trim();
+  const price       = parseFloat(document.getElementById("sPrice").value) || 0;
+  const dateTime    = document.getElementById("sDateTime").value;
+  const customer    = document.getElementById("sCustomer").value.trim();
+  const remarks     = document.getElementById("sRemarks").value.trim();
+  const msg         = document.getElementById("saleFormMsg");
+  const btn         = document.getElementById("submitSaleBtn");
+  const formBody    = document.getElementById("saleFormBody");
+
+  console.log("[submitSale] formBody display:", formBody?.style.display, "btn:", btn ? "found" : "null", "btn.disabled:", btn?.disabled);
+
+  if (saleSubmitting) { console.log("[submitSale] already submitting, ignoring"); return; }
+  saleSubmitting = true;
+
+  if (!productName) { msg.style.color = "var(--error)"; msg.textContent = "Enter a product name."; return; }
+  if (!price || price <= 0) { msg.style.color = "var(--error)"; msg.textContent = "Enter valid sale price."; return; }
+
+  const saleTimestamp = dateTime ? Math.floor(new Date(dateTime).getTime() / 1000) : Math.floor(Date.now() / 1000);
+
+  msg.style.color = "var(--primary)"; msg.textContent = "Saving…";
+  btn.disabled = true;
+  btn.style.opacity = "0.7";
+  btn.innerHTML = "Saving…";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  try {
+    const res = await authFetch(`${BASE_URL}/incentives/sales`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product_name:   productName,
+        sale_price:     price,
+        sale_timestamp: { seconds: saleTimestamp },
+        customer_name:  customer,
+        remarks:       remarks,
+        staff_id:      staffId,
+        staff_name:    staffName
+      })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      msg.style.color = "var(--error)"; msg.textContent = data.error || "Failed.";
+      btn.disabled = false; btn.innerHTML = "Save Sale";
+      return;
+    }
+
+    msg.style.color = "var(--tertiary)"; msg.textContent = "✅ Sale recorded!";
+    btn.innerHTML = "Save Sale";
+
+    document.getElementById("sProduct").value = "";
+    document.getElementById("sPrice").value = "";
+    document.getElementById("sCustomer").value = "";
+    document.getElementById("sRemarks").value = "";
+    setDateTimeToNow();
+
+    await loadSales();
+    setTimeout(() => { msg.textContent = ""; collapseSaleForm(); saleSubmitting = false; }, 1200);
+    saleSubmitting = false;
+  } catch(e) {
+    msg.style.color = "var(--error)"; msg.textContent = "Error: " + (e.message || "Unknown error");
+    btn.disabled = false; btn.style.opacity = "1"; btn.innerHTML = "Save Sale";
+    showToast("Sale error: " + (e.message || e), 4000);
+    saleSubmitting = false;
+  }
+}
+
+function setDateTimeToNow() {
+  const now = toIST(new Date());
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const el = document.getElementById("sDateTime");
+  if (el) el.value = `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
+/* ── Sale form toggle ── */
+function toggleSaleForm() {
+  saleFormOpen ? collapseSaleForm() : expandSaleForm();
+}
+
+function expandSaleForm() {
+  saleFormOpen = true;
+  document.getElementById("saleFormBody").style.display = "";
+  const chevron = document.getElementById("addSaleChevron");
+  const btn     = document.getElementById("addSaleToggleBtn");
+  if (chevron) { chevron.textContent = "\u00d7"; chevron.style.transform = "rotate(0deg)"; }
+  if (btn) btn.style.borderRadius = "16px 16px 0 0";
+  setDateTimeToNow();
+  setTimeout(() => document.getElementById("sProduct")?.focus(), 80);
+}
+
+function collapseSaleForm() {
+  saleFormOpen = false;
+  document.getElementById("saleFormBody").style.display = "none";
+  const chevron = document.getElementById("addSaleChevron");
+  const btn     = document.getElementById("addSaleToggleBtn");
   if (chevron) { chevron.textContent = "\uff0b"; chevron.style.transform = ""; }
   if (btn) btn.style.borderRadius = "16px";
 }
