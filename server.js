@@ -1,4 +1,6 @@
 import express from "express";
+
+
 import cors from "cors";
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import db from "./firestore.js";
@@ -22,8 +24,8 @@ import cron from "node-cron";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-//const serviceAccount = require("./firebase-service-account.json");
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = require("./firebase-service-account.json");
+//const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -916,6 +918,25 @@ app.post("/createDeliveries", writeLimiter, async (req, res) => {
 
       const docRef = await addDoc(collection(db, "deliveries"), docData);
       createdIds.push(docRef.id);
+
+      // Create incentive sales record if sold_by data is provided
+      if (shared.sold_by_id && shared.sale_price > 0) {
+        try {
+          await addDoc(collection(db, "incentive_sales"), {
+            product_name:   item.product_name || "",
+            sale_price:     shared.sale_price,
+            sale_timestamp: Timestamp.now(),
+            customer_name:  shared.customer_name || "",
+            remarks:       shared.is_self_pickup ? "Self Pickup" : "DO Created",
+            staff_id:      shared.sold_by_id,
+            staff_name:    shared.sold_by_name || "Others",
+            delivery_id:   docRef.id,
+            created_at:    Timestamp.now()
+          });
+        } catch(saleErr) {
+          console.warn("[createDeliveries] Failed to create incentive sale:", saleErr.message);
+        }
+      }
     }
 
     // ✅ Respond immediately — notifications run in background (non-blocking)
@@ -4202,9 +4223,286 @@ app.post("/transfer-by-product", async (req, res) => {
 });
 
 /* ════════════════════════════════════════════════
+   CLOUD INVOICES
+   Fetch and serve invoices uploaded via watcher.js
+   GET  /cloud-invoices → List all cloud invoices
+   GET  /cloud-invoices/file/:id → Download PDF by Firestore doc ID
+═══════════════════════════════════════════════ */
+
+app.get('/cloud-invoices', authenticate, authorize(['accountant', 'admin']), async (req, res) => {
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'cloud_invoices'),
+      where('imported', '==', false)
+    ));
+    
+    let invoices = snap.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        invoiceNo: data.invoiceNo || '',
+        customerName: data.customerName || data.filename?.replace(/\.pdf$/i, '') || 'Unknown',
+        filename: data.filename || '',
+        storagePath: data.storagePath || '',
+        uploadedAt: data.uploadedAt?.toDate?.()?.toISOString() || null
+      };
+    });
+    
+    // Sort by uploadedAt descending (newest first)
+    invoices.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+    
+    res.json({ invoices, count: invoices.length });
+  } catch (err) {
+    console.error('/cloud-invoices error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Check if invoice number was already imported
+app.get('/cloud-invoices/check-duplicate/:invoiceNo', authenticate, authorize(['accountant', 'admin']), async (req, res) => {
+  try {
+    const invoiceNo = decodeURIComponent(req.params.invoiceNo);
+    const snap = await getDocs(query(
+      collection(db, 'deliveries'),
+      where('invoice_number', '==', invoiceNo),
+      where('status', 'in', ['pending', 'booked', 'loaded'])
+    ));
+
+    if (snap.empty) {
+      return res.json({ duplicate: false });
+    }
+
+    const d = snap.docs[0].data();
+    const importedAt = d.created_timestamp?.toDate?.()?.toLocaleDateString('en-IN') || 'Unknown';
+    res.json({
+      duplicate: true,
+      customer: d.customer_name || 'Unknown',
+      date: importedAt
+    });
+  } catch (err) {
+    console.error('/cloud-invoices/check-duplicate error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Download PDF from Firebase Storage, parse server-side, return data
+app.post('/cloud-invoices/parse', authenticate, authorize(['accountant', 'admin']), async (req, res) => {
+  const { id, storagePath } = req.body || {};
+  if (!id || !storagePath) {
+    return res.status(400).json({ error: 'id and storagePath required' });
+  }
+
+  try {
+    const docSnap = await getDoc(doc(db, 'cloud_invoices', id));
+    if (!docSnap.exists()) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const fileRef = adminBucket.file(storagePath);
+    const [buffer] = await fileRef.download();
+    const pdfData  = await pdfParse(buffer);
+    const parsed   = parseInvoiceText(pdfData.text);
+
+    const products = (parsed.products || []).map(p => ({
+      name:    p.product_name    || '',
+      qty:     1,
+      serial:  p.serial_number   || '',
+      invoice: parsed.invoice_number || docSnap.data().invoiceNo || '',
+    }));
+
+    res.json({
+      customer_name:  parsed.name || docSnap.data().customerName || '',
+      phone:          parsed.phone || null,
+      alt_phone:      parsed.alt_phone || null,
+      address:        parsed.address || null,
+      invoice_number: parsed.invoice_number || docSnap.data().invoiceNo || '',
+      products,
+      _cloudId:       id,
+    });
+  } catch (err) {
+    console.error('/cloud-invoices/parse error:', err.message);
+    res.status(500).json({ error: 'Failed to parse invoice: ' + err.message });
+  }
+});
+
+// Mark invoice as imported after successful DO creation
+app.post('/cloud-invoices/mark-imported', authenticate, authorize(['accountant', 'admin']), async (req, res) => {
+  const { id } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'id required' });
+
+  try {
+    await updateDoc(doc(db, 'cloud_invoices', id), {
+      imported:   true,
+      importedAt: Timestamp.now(),
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('/cloud-invoices/mark-imported error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/cloud-invoices/file/:id', authenticate, authorize(['accountant', 'admin']), async (req, res) => {
+  try {
+    const docSnap = await getDoc(doc(db, 'cloud_invoices', req.params.id));
+    if (!docSnap.exists()) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const { storagePath, filename } = docSnap.data();
+    if (!storagePath) {
+      return res.status(404).json({ error: 'Storage path not found' });
+    }
+
+    const file = adminBucket.file(storagePath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      return res.status(404).json({ error: 'File not found in storage' });
+    }
+
+    // Download file and stream to client (avoids CORS issues from direct Firebase Storage access)
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename || 'invoice.pdf'}"`);
+    file.createReadStream().pipe(res);
+  } catch (err) {
+    console.error('/cloud-invoices/file error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+/* ════════════════════════════════════════════════
+   INCENTIVES / SALES
+   GET  /incentives/sales  — staff sees own sales, admin/accountant sees all
+   POST /incentives/sales  — create new sale record
+═══════════════════════════════════════════════ */
+app.get("/incentives/sales", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "incentive_sales"));
+    let sales = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Staff can only see their own sales
+    if (req.user.role === "staff") {
+      sales = sales.filter(s => s.staff_id === req.user.staff_id);
+    }
+
+    // Sort by sale_timestamp descending (newest first)
+    sales.sort((a, b) =>
+      (b.sale_timestamp?.seconds ?? 0) - (a.sale_timestamp?.seconds ?? 0)
+    );
+
+    res.json(sales);
+  } catch (err) {
+    console.error("/incentives/sales GET error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/incentives/sales", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
+  try {
+    const { product_name, sale_price, sale_timestamp, customer_name, remarks } = req.body;
+
+    if (!product_name || !product_name.trim()) {
+      return res.status(400).json({ error: "Product name required" });
+    }
+    if (!sale_price || isNaN(parseFloat(sale_price)) || parseFloat(sale_price) <= 0) {
+      return res.status(400).json({ error: "Valid sale price required" });
+    }
+
+    const price = parseFloat(sale_price);
+
+    // sale_timestamp can be a Firestore Timestamp object or Unix seconds
+    let timestampData = sale_timestamp;
+    if (!sale_timestamp) {
+      timestampData = Timestamp.now();
+    } else if (typeof sale_timestamp === "object" && sale_timestamp.seconds) {
+      // Already a Firestore Timestamp-like object
+      timestampData = sale_timestamp;
+    } else if (typeof sale_timestamp === "number") {
+      // Unix seconds
+      timestampData = Timestamp.fromSeconds(sale_timestamp);
+    }
+
+    const docRef = await addDoc(collection(db, "incentive_sales"), {
+      product_name:   product_name.trim(),
+      sale_price:     price,
+      sale_timestamp: timestampData,
+      customer_name:  customer_name?.trim() || "",
+      remarks:        remarks?.trim() || "",
+      staff_id:       req.user.staff_id || null,
+      staff_name:     req.user.name || req.user.role,
+      created_at:     Timestamp.now()
+    });
+
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    console.error("/incentives/sales POST error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/incentives/sales/:id", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { product_name, sale_price, customer_name, remarks } = req.body;
+
+    if (!product_name || !product_name.trim()) {
+      return res.status(400).json({ error: "Product name required" });
+    }
+    if (!sale_price || isNaN(parseFloat(sale_price)) || parseFloat(sale_price) <= 0) {
+      return res.status(400).json({ error: "Valid sale price required" });
+    }
+
+    const refDoc = doc(db, "incentive_sales", id);
+    const snap = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Sale not found" });
+
+    const sale = snap.data();
+    // Staff can only edit their own sales
+    if (req.user.role === "staff" && sale.staff_id !== req.user.staff_id) {
+      return res.status(403).json({ error: "You can only edit your own sales" });
+    }
+
+    await updateDoc(refDoc, {
+      product_name:  product_name.trim(),
+      sale_price:    parseFloat(sale_price),
+      customer_name: customer_name?.trim() || "",
+      remarks:       remarks?.trim() || "",
+      updated_at:    Timestamp.now()
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/incentives/sales/:id PUT error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/incentives/sales/:id", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const refDoc = doc(db, "incentive_sales", id);
+    const snap = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Sale not found" });
+
+    const sale = snap.data();
+    // Staff can only delete their own sales
+    if (req.user.role === "staff" && sale.staff_id !== req.user.staff_id) {
+      return res.status(403).json({ error: "You can only delete your own sales" });
+    }
+
+    await deleteDoc(refDoc);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/incentives/sales/:id DELETE error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
    PART 1: HEALTH CHECK ENDPOINT
    GET /health → Plain text "OK" (lightweight & fast)
-════════════════════════════════════════════════ */
+══════════════════════════════════════════════ */
 
 app.get("/health", (req, res) => {
   res.setHeader("Content-Type", "text/plain");
@@ -4217,7 +4515,7 @@ app.get("/health", (req, res) => {
    - Only ping during active hours (9 AM - 10 PM)
    - Uses native Node.js fetch (no external libs)
    - Non-blocking, minimal load
-════════════════════════════════════════════════ */
+══════════════════════════════════════════════ */
 
 function startSelfPing() {
   const externalUrl = process.env.RENDER_EXTERNAL_URL;
@@ -4229,21 +4527,17 @@ function startSelfPing() {
 
   console.log("[KEEP-ALIVE] Self-ping enabled (active hours: 9 AM - 10 PM, interval: 5 min)");
 
-  // Check every 5 minutes (300,000 ms)
   setInterval(async () => {
     const now = new Date();
     const hour = now.getHours();
 
-    // Only ping during active hours: 9 AM (9) to 10 PM (22)
     if (hour < 9 || hour >= 22) {
-      // Outside active hours, do nothing (silent)
       return;
     }
 
     try {
-      // Use native fetch with timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 sec timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
 
       const response = await fetch(`${externalUrl}/health`, {
         method: "GET",
@@ -4260,17 +4554,17 @@ function startSelfPing() {
     } catch (err) {
       console.warn(`[KEEP-ALIVE] Ping failed: ${err.message}`);
     }
-  }, 5 * 60 * 1000); // 5 minutes in milliseconds
+  }, 5 * 60 * 1000);
 }
 
 /* ════════════════════════════════════════════════
    START
-═══════════════════════════════════════════════ */
+══════════════════════════════════════════════ */
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
   runStartupMigration();
-  startSelfPing(); // Start self-ping after server boots
+  startSelfPing();
 });
 
