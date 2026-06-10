@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -1177,10 +1177,14 @@
       <div class="header-subtitle">Driver Panel</div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px;">
-    <div id="pushDot" class="push-dot" title="Push notification status"></div>
-    <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">☀️</button>
+<div style="display:flex;align-items:center;gap:10px;">
+  <div id="pushDot" class="push-dot" title="Push notification status"></div>
+  <div id="weatherWidget" title="Weather" style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface-container-high);border-radius:12px;font-size:13px;cursor:default;user-select:none;">
+    <span id="weatherIcon">☀️</span>
+    <span id="weatherTemp">--°</span>
   </div>
+  <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">☀️</button>
+</div>
 </div>
 
 <!-- OFFLINE MODE INDICATOR -->
@@ -1288,6 +1292,12 @@
     </button>
   </div>
 
+  <!-- Selection mode toggle button -->
+  <button id="dispSelectBtn" onclick="toggleSelectionMode()"
+    style="display:block;height:42px;padding:0 16px;background:var(--surface-container-highest);border:1px solid var(--border);border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--accent);cursor:pointer;-webkit-tap-highlight-color:transparent;letter-spacing:0.3px;">
+    ☐ Select
+  </button>
+
   <!-- Filter tabs -->
   <div style="display:flex;gap:4px;margin-bottom:16px;background:var(--surface-container-lowest);border-radius:16px;padding:4px;">
     <button type="button" id="dispTab_pending" onclick="setDispTab('pending')"
@@ -1302,6 +1312,31 @@
 
   <div id="dispatcherCards" style="display:flex;flex-direction:column;gap:12px;">
     <div style="text-align:center;color:var(--on-surface-variant);padding:20px;font-size:14px;">Loading…</div>
+  </div>
+
+  <!-- Bulk selection footer -->
+  <div id="dispBulkFooter" style="display:none;position:fixed;bottom:20px;left:16px;right:16px;background:var(--surface-container-high);border:1px solid var(--border);border-radius:16px;padding:12px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.2);z-index:1000;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);"><span id="dispSelectedCount">0</span> selected</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px;">Pick a driver on any card to assign all</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button type="button" onclick="selectAllDispatchCards()"
+          style="padding:8px 12px;background:transparent;border:1px solid var(--border);border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--accent);cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;">
+          All
+        </button>
+        <select id="dispBulkDriverSelect"
+          onchange="mirrorBulkDriverToCards()"
+          style="padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;outline:none;background:var(--surface);color:var(--text);-webkit-appearance:none;max-width:140px;">
+          <option value="">— Driver —</option>
+        </select>
+        <button type="button" onclick="bulkAssignDispatch()"
+          style="padding:10px 18px;background:var(--accent);color:white;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;">
+          Assign All
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1418,6 +1453,22 @@ function toggleDarkMode() {
 document.addEventListener("DOMContentLoaded", function() {
   const btn = document.getElementById("darkToggleBtn");
   if (btn) btn.textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
+  
+  // Start weather updates if API key is configured
+  startWeatherUpdates();
+});
+
+// Cleanup when page is hidden/unloaded
+document.addEventListener("visibilitychange", function() {
+  if (document.hidden) {
+    stopWeatherUpdates();
+  } else {
+    startWeatherUpdates();
+  }
+});
+
+window.addEventListener("beforeunload", function() {
+  stopWeatherUpdates();
 });
 /* ── END DARK MODE ───────────────────────────────────── */
 
@@ -2083,6 +2134,7 @@ async function unlockDriver() {
     const driverName = driverSelect.options[driverSelect.selectedIndex]?.text || "";
     if (driverName.trim().toLowerCase() === "unassigned") {
       document.getElementById("dispatcherPanel").style.display = "block";
+      document.getElementById("dispSelectBtn").style.display = "block";
       document.getElementById("deliveryCards").style.display   = "none";
       const secHdr = document.querySelector(".section-header");
       if (secHdr) secHdr.style.display = "none";
@@ -2484,14 +2536,13 @@ async function openDelivery(id) {
     );
   } else if (currentStatus === "loaded") {
     // About to deliver — start watchPosition to keep the GPS engine warm.
-    // The actual fix is taken fresh at swipe time (maximumAge:0), this watch
-    // just ensures the device location engine is active so that fix resolves
-    // in ~1s instead of 5-10s cold-start.
+    // On iOS this may be ignored outside a user gesture, but the gpsPromise
+    // started inside updateDelivery() is the reliable path for iOS.
     if (window._deliveryGpsWatch != null) {
       navigator.geolocation.clearWatch(window._deliveryGpsWatch);
     }
     window._deliveryGpsWatch = navigator.geolocation.watchPosition(
-      () => { /* keep engine warm — actual fix taken at swipe time */ },
+      pos => { cachedGpsPosition = pos; /* cache latest fix */ },
       () => {},
       { enableHighAccuracy: true, maximumAge: 0 }
     );
@@ -2575,11 +2626,28 @@ async function compressImage(file) {
 ═══════════════════════════════════════ */
 async function updateDelivery() {
   if (isProcessingAction) return;
-  
+
   const fileInput = document.getElementById("photo");
   if (!fileInput?.files?.length) { showToast("📷 Please upload a photo first"); return; }
   const file = fileInput.files[0];
   if (!file.type.startsWith("image/")) { showToast("Only image files allowed"); return; }
+
+  // ── iOS FIX: Kick off GPS request NOW, synchronously within the user-gesture
+  // context, before any async/await suspends execution. iOS Safari blocks
+  // geolocation calls made outside a direct gesture (e.g. inside a .then() or
+  // after an await), so we must start the Promise here and await it later.
+  // maximumAge:30000 allows a recent cached fix so iOS doesn't cold-start.
+  const needsFreshGps = currentStatus !== "pending" || !cachedGpsPosition;
+  let gpsPromise = null;
+  if (needsFreshGps) {
+    gpsPromise = new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 30000   // accept a fix up to 30 s old — fast on iOS
+      });
+    });
+  }
 
   const actionType = currentStatus === "pending" ? "loaded" : "delivered";
 
@@ -2710,20 +2778,19 @@ async function updateDelivery() {
   }
 
   if (cachedGpsPosition && currentStatus === "pending") {
-    // "pending → loaded" happens at the warehouse — cached position (pre-warmed on popup open) is accurate.
+    // "pending → loaded" at the warehouse — cached position is accurate.
     doSubmit(cachedGpsPosition);
   } else {
-    // "loaded → delivered" must use a fresh fix taken RIGHT NOW at the customer's door.
-    // maximumAge: 0 forces the browser to get a new reading, never a stale cache.
-    navigator.geolocation.getCurrentPosition(
-      pos => doSubmit(pos),
-      () => {
-        isProcessingAction = false;
-        showToast("📍 Location access required. Please enable it and try again.");
-        if (widget) widget.style.pointerEvents = "auto";
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+    // "loaded → delivered" — use the GPS Promise we started at the top of this
+    // function (while still inside the user-gesture context on iOS).
+    try {
+      const pos = await gpsPromise;
+      doSubmit(pos);
+    } catch (e) {
+      isProcessingAction = false;
+      showToast("📍 Location access required. Please enable it in Settings → Safari → Location and try again.");
+      if (widget) widget.style.pointerEvents = "auto";
+    }
   }
 }
 
@@ -2938,6 +3005,9 @@ function logoutDriver() {
   // Reset dispatcher panel
   document.getElementById("dispatcherPanel").style.display = "none";
   document.getElementById("dispatcherCards").innerHTML     = "";
+  document.getElementById("dispSelectBtn").style.display = "none";
+  document.getElementById("dispBulkFooter").style.display = "none";
+  clearSelection();
   const secHdr = document.querySelector(".section-header");
   if (secHdr) secHdr.style.display = "";
   const searchWrap = document.getElementById("deliverySearch")?.closest("div");
@@ -3741,6 +3811,8 @@ if (isOnline()) {
 ═══════════════════════════════════════════════════ */
 
 let dispatcherTab = "pending"; // "pending" | "all"
+let selectedDeliveries = new Set(); // bulk selection IDs
+let selectionMode = false; // long-press activates this
 
 function setDispTab(tab) {
   dispatcherTab = tab;
@@ -3774,6 +3846,16 @@ async function loadDispatcherDeliveries() {
 
     // Cache driver list (exclude the "Unassigned" driver itself)
     dispatcherDriverList = allDrivers.filter(d => d.driver_name.trim().toLowerCase() !== "unassigned");
+
+    // Populate bulk select dropdown
+    const bulkDriverSel = document.getElementById("dispBulkDriverSelect");
+    if (bulkDriverSel) {
+      let opts = '<option value="">— Driver —</option>';
+      dispatcherDriverList.forEach(function(dr) {
+        opts += '<option value="' + dr.id + '">' + escHtmlDisp(dr.driver_name) + '</option>';
+      });
+      bulkDriverSel.innerHTML = opts;
+    }
 
     // Filter: assigned to "Unassigned" driver (case-insensitive)
     const unassignedDriverId = allDrivers.find(d => d.driver_name.trim().toLowerCase() === "unassigned")?.id;
@@ -3850,6 +3932,13 @@ function buildDispatcherCard(d) {
   const card = document.createElement("div");
   card.id = "dcard_" + d.id;
 
+  // Self-pickup cards are NEVER selectable
+  const canSelect = !d.is_self_pickup;
+  const isSelected = canSelect && selectedDeliveries.has(d.id);
+
+  card.setAttribute("data-can-select", canSelect ? "true" : "false");
+  card.setAttribute("data-delivery-id", d.id);
+
   const _dark = document.documentElement.getAttribute("data-theme") !== "light";
   const statusColors = _dark ? {
     pending:   { bg: "rgba(245,158,11,0.15)",  text: "#fbbf24", border: "rgba(245,158,11,0.4)" },
@@ -3866,8 +3955,8 @@ function buildDispatcherCard(d) {
     ? { bg: "rgba(194,198,214,0.1)", text: "#c2c6d6", border: "rgba(194,198,214,0.2)" }
     : { bg: "#f1f5f9", text: "#475569", border: "#e2e8f0" });
 
-  const selectId   = "assignSel_" + d.id;
-  const detailId   = "ddetail_" + d.id;
+  const selectId  = "assignSel_" + d.id;
+  const detailId  = "ddetail_" + d.id;
   const driverOptions = dispatcherDriverList.map(dr =>
     `<option value="${dr.id}" data-name="${escHtmlDisp(dr.driver_name)}">${escHtmlDisp(dr.driver_name)}</option>`
   ).join("");
@@ -3882,51 +3971,70 @@ function buildDispatcherCard(d) {
     ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);margin-left:4px;">🔥 Urgent</span>`
     : "";
 
+  // Selected state styling
+  const selectedBorder  = isSelected ? "var(--accent)" : sc.border;
+  const selectedOutline = isSelected ? "2px solid var(--accent)" : "none";
+  const selectedBg      = isSelected ? (canSelect ? "rgba(173,198,255,0.07)" : "") : "";
+
   card.innerHTML = `
-    <div style="background:var(--surface);border:1.5px solid ${sc.border};border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+    <div id="dcard_inner_${d.id}" style="background:${selectedBg || "var(--surface)"};border:1.5px solid ${selectedBorder};border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);outline:${selectedOutline};transition:border-color 0.15s,outline 0.15s,background 0.15s;">
 
       <!-- ── Card header ── -->
-      <div style="padding:14px 16px 10px;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;font-size:15px;line-height:1.3;">${escHtmlDisp(d.customer_name)}${urgentBadge}${prevFail}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtmlDisp(d.product_name)}</div>
+      <div style="padding:14px 16px 10px;display:flex;align-items:flex-start;gap:10px;">
+
+        <!-- Checkbox — only shown in selection mode for selectable cards -->
+        ${canSelect ? `
+        <div id="dchk_${d.id}"
+          style="width:22px;height:22px;border-radius:6px;border:2px solid ${isSelected ? "var(--accent)" : "var(--outline-variant)"};background:${isSelected ? "var(--accent)" : "transparent"};display:${selectionMode ? "flex" : "none"};align-items:center;justify-content:center;flex-shrink:0;margin-top:3px;transition:background 0.15s,border-color 0.15s;cursor:pointer;">
+          ${isSelected ? '<span style="color:white;font-size:13px;font-weight:800;line-height:1;">✓</span>' : ""}
+        </div>` : `
+        <!-- Self-pickup: non-selectable placeholder keeps layout stable -->
+        <div style="display:${selectionMode ? "flex" : "none"};width:22px;height:22px;flex-shrink:0;margin-top:3px;align-items:center;justify-content:center;">
+          <span style="font-size:14px;" title="Self-pickup cannot be bulk-assigned">🏪</span>
+        </div>`}
+
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:15px;line-height:1.3;">${escHtmlDisp(d.customer_name)}${urgentBadge}${prevFail}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtmlDisp(d.product_name)}</div>
+            </div>
+            <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${sc.bg};color:${sc.text};white-space:nowrap;flex-shrink:0;">${d.status}</span>
           </div>
-          <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${sc.bg};color:${sc.text};white-space:nowrap;flex-shrink:0;">${d.status}</span>
-        </div>
 
-        <!-- Key info row -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:12px;color:var(--muted);margin-bottom:10px;">
-          <div>📞 <a href="tel:${d.phone}" onclick="event.stopPropagation()" style="color:var(--accent);font-weight:600;">${d.phone}</a></div>
-          <div>⏱ ${etaStr}</div>
-          <div style="grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍 ${escHtmlDisp(d.address || "—")}</div>
-        </div>
-
-        <!-- View details toggle -->
-        <button type="button" onclick="toggleDispatchDetail('${d.id}')"
-          style="width:100%;padding:6px;background:var(--surface-container-high);border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;text-align:center;margin-bottom:10px;transition:background 0.15s;">
-          <span id="ddetail_toggle_${d.id}">▼ View Details</span>
-        </button>
-
-        <!-- Expandable detail section -->
-        <div id="${detailId}" style="display:none;background:var(--surface-container-high);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;font-size:13px;color:var(--on-surface);">
-          ${d.driver_instructions && d.driver_instructions !== "none" ? `
-            <div style="margin-bottom:8px;padding:8px 10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:8px;">
-              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#fbbf24;margin-bottom:2px;">📋 Instructions</div>
-              <div style="color:var(--on-surface);font-weight:500;">${escHtmlDisp(d.driver_instructions)}</div>
-            </div>` : ""}
-          <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;color:var(--on-surface);">
-            <span style="color:var(--on-surface-variant);font-size:12px;">Serial</span><span style="font-weight:500;">${escHtmlDisp(d.product_serial_number || "—")}</span>
-            <span style="color:var(--muted);font-size:12px;">Invoice</span><span style="font-weight:500;">${escHtmlDisp(d.invoice_number || "—")}</span>
-            <span style="color:var(--muted);font-size:12px;">Alt Phone</span><span>${d.alternate_phone ? `<a href="tel:${d.alternate_phone}" style="color:var(--accent);font-weight:600;">${d.alternate_phone}</a>` : "—"}</span>
-            <span style="color:var(--muted);font-size:12px;">Freight</span><span style="font-weight:500;">${d.freight_charged ? "₹" + (d.freight_amount || "?") + " (customer pays)" : "None"}</span>
-            ${d.previous_failures > 0 ? `<span style="color:var(--muted);font-size:12px;">Prev. Fail</span><span style="color:#dc2626;font-weight:500;">${escHtmlDisp(d.failure_reason || "—")}</span>` : ""}
+          <!-- Key info row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:12px;color:var(--muted);margin-top:8px;margin-bottom:10px;">
+            <div>📞 <a href="tel:${d.phone}" onclick="event.stopPropagation()" style="color:var(--accent);font-weight:600;">${d.phone}</a></div>
+            <div>⏱ ${etaStr}</div>
+            <div style="grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍 ${escHtmlDisp(d.address || "—")}</div>
           </div>
+
+          <!-- View details toggle — hidden in selection mode to avoid accidental expand -->
+          <button type="button" id="ddetail_btn_${d.id}" onclick="event.stopPropagation();toggleDispatchDetail('${d.id}')"
+            style="display:${selectionMode ? "none" : "block"};width:100%;padding:6px;background:var(--surface-container-high);border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;text-align:center;margin-bottom:10px;transition:background 0.15s;">
+            <span id="ddetail_toggle_${d.id}">▼ View Details</span>
+          </button>
         </div>
       </div>
 
-      <!-- ── Footer: self-pickup = Mark Collected, normal = Assign to Driver ── -->
-      <div style="padding:0 16px 14px;">
+      <!-- Expandable detail section -->
+      <div id="${detailId}" style="display:none;margin:0 16px 10px;background:var(--surface-container-high);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;color:var(--on-surface);">
+        ${d.driver_instructions && d.driver_instructions !== "none" ? `
+          <div style="margin-bottom:8px;padding:8px 10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:8px;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#fbbf24;margin-bottom:2px;">📋 Instructions</div>
+            <div style="color:var(--on-surface);font-weight:500;">${escHtmlDisp(d.driver_instructions)}</div>
+          </div>` : ""}
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;">
+          <span style="color:var(--on-surface-variant);font-size:12px;">Serial</span><span style="font-weight:500;">${escHtmlDisp(d.product_serial_number || "—")}</span>
+          <span style="color:var(--muted);font-size:12px;">Invoice</span><span style="font-weight:500;">${escHtmlDisp(d.invoice_number || "—")}</span>
+          <span style="color:var(--muted);font-size:12px;">Alt Phone</span><span>${d.alternate_phone ? `<a href="tel:${d.alternate_phone}" style="color:var(--accent);font-weight:600;">${d.alternate_phone}</a>` : "—"}</span>
+          <span style="color:var(--muted);font-size:12px;">Freight</span><span style="font-weight:500;">${d.freight_charged ? "₹" + (d.freight_amount || "?") + " (customer pays)" : "None"}</span>
+          ${d.previous_failures > 0 ? `<span style="color:var(--muted);font-size:12px;">Prev. Fail</span><span style="color:#dc2626;font-weight:500;">${escHtmlDisp(d.failure_reason || "—")}</span>` : ""}
+        </div>
+      </div>
+
+      <!-- ── Footer ── -->
+      <div id="dcard_footer_${d.id}" style="padding:0 16px 14px;display:${selectionMode && canSelect ? "none" : "block"};">
         ${d.is_self_pickup ? `
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#f59e0b;margin-bottom:8px;">🏪 Self Pickup — Customer Collects at Shop</div>
           <div id="sp_form_${d.id}">
@@ -3955,6 +4063,7 @@ function buildDispatcherCard(d) {
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:6px;">Assign to Driver</div>
           <div style="display:flex;gap:8px;align-items:center;">
             <select id="${selectId}"
+              onchange="onDispatchSelectChange('${d.id}','${selectId}')"
               style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--surface);color:var(--text);-webkit-appearance:none;">
               <option value="">— Select Driver —</option>
               ${driverOptions}
@@ -3968,8 +4077,55 @@ function buildDispatcherCard(d) {
         <div id="dcard_msg_${d.id}" style="font-size:12px;margin-top:6px;min-height:16px;font-weight:600;"></div>
       </div>
 
+      <!-- Selection mode hint (shown instead of footer when card is selectable & mode active) -->
+      ${canSelect ? `
+      <div id="dcard_selhint_${d.id}" style="display:${selectionMode ? "block" : "none"};padding:8px 16px 12px;font-size:12px;color:var(--on-surface-variant);font-weight:500;">
+        ${isSelected ? "✓ Selected — will assign with group" : "Tap to select"}
+      </div>` : ""}
+
     </div>
   `;
+
+  // ── Long-press + tap handlers (gallery-style) ──
+  if (canSelect) {
+    let pressTimer = null;
+    let didLongPress = false;
+
+    const onPressStart = () => {
+      didLongPress = false;
+      pressTimer = setTimeout(() => {
+        didLongPress = true;
+        if (!selectionMode) {
+          enterSelectionMode();
+          // Auto-select the long-pressed card
+          toggleDispatchSelection(String(d.id));
+        }
+        vibrate && vibrate([10, 40, 20]);
+      }, 420);
+    };
+
+    const onPressEnd = () => {
+      clearTimeout(pressTimer);
+    };
+
+    const onTap = (e) => {
+      // If target is a link, button, select or input, don't intercept
+      if (e.target.closest("a,button,select,input,label")) return;
+      if (selectionMode) {
+        toggleDispatchSelection(String(d.id));
+      }
+      // In normal mode single tap does nothing (long press only)
+    };
+
+    card.addEventListener("touchstart",  onPressStart, { passive: true });
+    card.addEventListener("touchend",    onPressEnd,   { passive: true });
+    card.addEventListener("touchcancel", onPressEnd,   { passive: true });
+    card.addEventListener("mousedown",   onPressStart);
+    card.addEventListener("mouseup",     onPressEnd);
+    card.addEventListener("mouseleave",  onPressEnd);
+    card.addEventListener("click",       onTap);
+    card.addEventListener("contextmenu", (e) => { e.preventDefault(); });
+  }
 
   return card;
 }
@@ -3983,8 +4139,250 @@ function toggleDispatchDetail(deliveryId) {
   if (toggle) toggle.textContent = isOpen ? "▼ View Details" : "▲ Hide Details";
 }
 
+function enterSelectionMode() {
+  if (selectionMode) return;
+  selectionMode = true;
+  selectedDeliveries.clear();
+
+  const btn    = document.getElementById("dispSelectBtn");
+  const footer = document.getElementById("dispBulkFooter");
+  const count  = document.getElementById("dispSelectedCount");
+  if (btn)    { btn.textContent = "✕ Cancel"; btn.style.color = "var(--error)"; }
+  if (footer) footer.style.display = "block";
+  if (count)  count.textContent = "0";
+
+  // Show checkboxes / hints; hide footers on all cards — no reload
+  document.querySelectorAll("#dispatcherCards [data-delivery-id]").forEach(cardEl => {
+    const id = cardEl.getAttribute("data-delivery-id");
+    const canSel = cardEl.getAttribute("data-can-select") === "true";
+    const chk    = document.getElementById("dchk_" + id);
+    const footer = document.getElementById("dcard_footer_" + id);
+    const hint   = document.getElementById("dcard_selhint_" + id);
+    const detBtn = document.getElementById("ddetail_btn_" + id);
+    if (chk)    chk.style.display    = "flex";
+    if (footer && canSel) footer.style.display = "none";
+    if (hint)   hint.style.display   = "block";
+    if (detBtn) detBtn.style.display = "none";
+  });
+}
+
+function toggleSelectionMode() {
+  if (selectionMode) clearSelection();
+  else enterSelectionMode();
+}
+
+function toggleDispatchSelection(deliveryId) {
+  if (!selectionMode) return;
+  const id = String(deliveryId);
+  const wasSelected = selectedDeliveries.has(id);
+  if (wasSelected) selectedDeliveries.delete(id);
+  else             selectedDeliveries.add(id);
+  const isNow = !wasSelected;
+
+  // Update checkbox in-place
+  const chk = document.getElementById("dchk_" + id);
+  if (chk) {
+    chk.style.background  = isNow ? "var(--accent)" : "transparent";
+    chk.style.borderColor = isNow ? "var(--accent)" : "var(--outline-variant)";
+    chk.innerHTML         = isNow ? '<span style="color:white;font-size:13px;font-weight:800;line-height:1;">✓</span>' : "";
+  }
+
+  // Update card border / bg
+  const inner = document.getElementById("dcard_inner_" + id);
+  if (inner) {
+    inner.style.borderColor = isNow ? "var(--accent)" : "";
+    inner.style.outline     = isNow ? "2px solid var(--accent)" : "none";
+    inner.style.background  = isNow ? "rgba(173,198,255,0.07)" : "var(--surface)";
+  }
+
+  // Update hint text
+  const hint = document.getElementById("dcard_selhint_" + id);
+  if (hint) hint.textContent = isNow ? "✓ Selected — will assign with group" : "Tap to select";
+
+  // Update count badge
+  const countEl = document.getElementById("dispSelectedCount");
+  if (countEl) countEl.textContent = selectedDeliveries.size;
+}
+
+function clearSelection() {
+  selectionMode = false;
+  selectedDeliveries.clear();
+
+  const btn    = document.getElementById("dispSelectBtn");
+  const footer = document.getElementById("dispBulkFooter");
+  if (btn)    { btn.textContent = "☐ Select"; btn.style.color = "var(--accent)"; }
+  if (footer) footer.style.display = "none";
+
+  // Restore all cards
+  document.querySelectorAll("#dispatcherCards [data-delivery-id]").forEach(cardEl => {
+    const id     = cardEl.getAttribute("data-delivery-id");
+    const canSel = cardEl.getAttribute("data-can-select") === "true";
+    const chk    = document.getElementById("dchk_" + id);
+    const footer = document.getElementById("dcard_footer_" + id);
+    const hint   = document.getElementById("dcard_selhint_" + id);
+    const inner  = document.getElementById("dcard_inner_" + id);
+    const detBtn = document.getElementById("ddetail_btn_" + id);
+    if (chk)    chk.style.display    = "none";
+    if (footer) footer.style.display = "block";
+    if (hint)   hint.style.display   = "none";
+    if (detBtn) detBtn.style.display = "block";
+    if (inner)  { inner.style.borderColor = ""; inner.style.outline = "none"; inner.style.background = "var(--surface)"; }
+  });
+}
+
+function mirrorBulkDriverToCards() {
+  const bulkSel = document.getElementById("dispBulkDriverSelect");
+  if (!bulkSel || !bulkSel.value) return;
+  selectedDeliveries.forEach(id => {
+    const cardSel = document.getElementById("assignSel_" + id);
+    if (cardSel) cardSel.value = bulkSel.value;
+  });
+}
+
+function selectAllDispatchCards() {
+  document.querySelectorAll("#dispatcherCards [data-can-select='true']").forEach(cardEl => {
+    const id = cardEl.getAttribute("data-delivery-id");
+    if (!selectedDeliveries.has(id)) {
+      selectedDeliveries.add(id);
+      const chk = document.getElementById("dchk_" + id);
+      if (chk) {
+        chk.style.background  = "var(--accent)";
+        chk.style.borderColor = "var(--accent)";
+        chk.innerHTML         = '<span style="color:white;font-size:13px;font-weight:800;line-height:1;">✓</span>';
+      }
+      const inner = document.getElementById("dcard_inner_" + id);
+      if (inner) { inner.style.borderColor = "var(--accent)"; inner.style.outline = "2px solid var(--accent)"; inner.style.background = "rgba(173,198,255,0.07)"; }
+      const hint = document.getElementById("dcard_selhint_" + id);
+      if (hint) hint.textContent = "✓ Selected — will assign with group";
+    }
+  });
+  const countEl = document.getElementById("dispSelectedCount");
+  if (countEl) countEl.textContent = selectedDeliveries.size;
+}
+
+async function bulkAssignDispatch() {
+  const driverSelect = document.getElementById("dispBulkDriverSelect");
+  if (!driverSelect || !driverSelect.value) {
+    showToast("⚠ Please select a driver first");
+    return;
+  }
+  const driverId   = driverSelect.value;
+  const driverName = driverSelect.options[driverSelect.selectedIndex]?.textContent || "";
+  const count = selectedDeliveries.size;
+  if (count === 0) { showToast("⚠ No deliveries selected"); return; }
+  if (!confirm(`Assign ${count} deliver${count !== 1 ? "ies" : "y"} to ${driverName}?`)) return;
+
+  const btn = document.querySelector('#dispBulkFooter button[onclick="bulkAssignDispatch()"]');
+  if (btn) { btn.disabled = true; btn.textContent = "Assigning…"; }
+
+  let success = 0, fail = 0;
+  for (const id of selectedDeliveries) {
+    try {
+      const res = await fetch(`${BASE_URL}/assignDelivery/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driver_id: driverId, driver_name: driverName })
+      });
+      if (res.ok) success++; else fail++;
+    } catch (e) { fail++; }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = "Assign All"; }
+  vibrate && vibrate([50, 30, 80]);
+  showToast(fail === 0
+    ? `✅ ${success} deliver${success !== 1 ? "ies" : "y"} assigned to ${driverName}`
+    : `⚠ ${success} assigned, ${fail} failed`);
+  clearSelection();
+  loadDispatcherDeliveries();
+}
+
 function escHtmlDisp(s) {
   return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// Weather widget update
+async function updateWeatherWidget() {
+  const widget = document.getElementById('weatherWidget');
+  const iconEl = document.getElementById('weatherIcon');
+  const tempEl = document.getElementById('weatherTemp');
+  if (!widget || !iconEl || !tempEl) return;
+
+  try {
+    const response = await fetch(`${BASE_URL}/weather`);
+
+    // 503 = API key not configured; 404 = route not added yet — hide widget silently
+    if (response.status === 503 || response.status === 404) {
+      widget.style.display = 'none';
+      return;
+    }
+    if (!response.ok) throw new Error('Weather fetch failed: ' + response.status);
+
+    const data = await response.json();
+    const iconMap = {
+      'clear':        '☀️',
+      'clouds':       '☁️',
+      'rain':         '🌧️',
+      'drizzle':      '🌦️',
+      'thunderstorm': '⛈️',
+      'snow':         '❄️',
+      'mist':         '🌫️',
+      'fog':          '🌫️',
+      'haze':         '🌫️',
+      'smoke':        '🌫️',
+      'dust':         '🌫️',
+      'sand':         '🌫️',
+      'ash':          '🌋',
+      'squall':       '💨',
+      'tornado':      '🌪️'
+    };
+
+    const icon = iconMap[data.condition?.toLowerCase()] || '🌡️';
+    iconEl.textContent       = icon;
+    tempEl.textContent       = `${data.temp}°`;
+    widget.title             = `${data.description || data.condition}, ${data.temp}°C`;
+    widget.style.display     = 'flex';
+  } catch (error) {
+    console.warn('[Weather] Could not update widget:', error);
+    // Hide instead of showing ❓ so the header stays clean
+    widget.style.display = 'none';
+  }
+}
+
+// Periodic weather update (every 10 minutes)
+let weatherInterval = null;
+function startWeatherUpdates() {
+  if (weatherInterval) clearInterval(weatherInterval);
+  updateWeatherWidget(); // Initial load
+  weatherInterval = setInterval(updateWeatherWidget, 10 * 60 * 1000); // 10 minutes
+}
+
+function stopWeatherUpdates() {
+  if (weatherInterval) {
+    clearInterval(weatherInterval);
+    weatherInterval = null;
+  }
+}
+
+// When dispatcher changes a driver dropdown, mirror it to all selected cards
+function onDispatchSelectChange(deliveryId, selectId) {
+  if (!selectionMode || selectedDeliveries.size === 0) return;
+  const src = document.getElementById(selectId);
+  if (!src || !src.value) return;
+  const driverId   = src.value;
+  const driverName = src.options[src.selectedIndex]?.textContent || "";
+
+  // Mirror selection to every other selected card's dropdown
+  selectedDeliveries.forEach(id => {
+    if (String(id) === String(deliveryId)) return; // skip source card
+    const otherSel = document.getElementById("assignSel_" + id);
+    if (otherSel) otherSel.value = driverId;
+  });
+
+  // Update bulk footer dropdown too
+  const bulkSel = document.getElementById("dispBulkDriverSelect");
+  if (bulkSel) bulkSel.value = driverId;
+
+  showToast(`Driver set to ${driverName} for all ${selectedDeliveries.size} selected`);
 }
 
 async function confirmDispatchAssign(deliveryId, selectId) {
@@ -3997,8 +4395,46 @@ async function confirmDispatchAssign(deliveryId, selectId) {
   }
 
   const driverId   = sel.value;
-  const driverName = sel.options[sel.selectedIndex].dataset.name || sel.options[sel.selectedIndex].textContent;
+  const driverName = sel.options[sel.selectedIndex]?.dataset.name || sel.options[sel.selectedIndex]?.textContent || "";
 
+  // ── If cards are selected, assign ALL of them ──
+  if (selectionMode && selectedDeliveries.size > 0) {
+    // Make sure this card's ID is in the set
+    const ids = new Set(selectedDeliveries);
+    ids.add(String(deliveryId));
+
+    const btn = sel.nextElementSibling;
+    if (btn) { btn.disabled = true; btn.textContent = `Assigning ${ids.size}…`; }
+    if (msg) { msg.style.color = var_muted(); msg.textContent = `Assigning ${ids.size} deliveries…`; }
+
+    let success = 0, fail = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch(`${BASE_URL}/assignDelivery/${id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ driver_id: driverId, driver_name: driverName })
+        });
+        if (res.ok) success++; else fail++;
+      } catch (e) { fail++; }
+    }
+
+    if (btn) { btn.disabled = false; btn.textContent = "Assign →"; }
+    vibrate && vibrate([50, 30, 80]);
+
+    if (fail === 0) {
+      showToast(`✅ ${success} deliver${success !== 1 ? "ies" : "y"} assigned to ${driverName}`);
+      clearSelection();
+      loadDispatcherDeliveries();
+    } else {
+      showToast(`⚠ ${success} assigned, ${fail} failed`);
+      clearSelection();
+      loadDispatcherDeliveries();
+    }
+    return;
+  }
+
+  // ── Single assign (no selection mode) ──
   const btn = sel.nextElementSibling;
   const origText = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = "…"; }
@@ -4018,9 +4454,8 @@ async function confirmDispatchAssign(deliveryId, selectId) {
       return;
     }
 
-    // Success — animate card out then reload
     if (msg) { msg.style.color = "#16a34a"; msg.textContent = `✅ Assigned to ${driverName}`; }
-    vibrate([50, 30, 80]);
+    vibrate && vibrate([50, 30, 80]);
     setTimeout(() => {
       const card = document.getElementById("dcard_" + deliveryId);
       if (card) {
@@ -4144,15 +4579,8 @@ function var_muted() {
   return getComputedStyle(document.documentElement).getPropertyValue("--muted").trim() || "#64748b";
 }</script>
 
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/service-worker.js', {
-    scope: '/driver_interface.html'
-  })
-  .then(() => console.log('Driver SW registered'))
-  .catch(err => console.error('SW failed:', err));
-}
-</script>
+<!-- NOTE: Service Worker is registered via initServiceWorker() above (firebase-messaging-sw.js).
+     A second SW registration was removed from here to prevent push notification conflicts. -->
 
 </body>
 </html>
