@@ -26,8 +26,8 @@ import cron from "node-cron";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-//const serviceAccount = require("./firebase-service-account.json");
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = require("./firebase-service-account.json");
+//const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -232,6 +232,63 @@ app.delete("/tally/pending/:invoice_number", authenticate, authorize(["accountan
   res.json({ ok: true, existed });
 });
 
+/* ════════════════════════════════════════════════
+   TALLY DEBUG STORE
+   Captures the last 20 raw payloads received by
+   POST /tally/voucher BEFORE any parsing.
+   Completely isolated — zero impact on business logic.
+════════════════════════════════════════════════ */
+const TALLY_DEBUG_MAX = 20;
+const _tallyDebugRing = []; // ring buffer, newest at index 0
+
+function _tallyDebugCapture(rawBody) {
+  const bodyStr = JSON.stringify(rawBody);
+  const entry = {
+    received_at:    new Date().toISOString(),
+    payload_bytes:  Buffer.byteLength(bodyStr, "utf8"),
+    // Quick field sniffs — purely informational, no parsing side-effects
+    invoice_number: (
+      rawBody?.tallymessage?.[0]?.vouchernumber  ||
+      rawBody?.tallymessage?.[0]?.VOUCHERNUMBER  ||
+      rawBody?.vouchernumber || rawBody?.VOUCHERNUMBER || null
+    ),
+    customer_name: (
+      rawBody?.tallymessage?.[0]?.partymailingname ||
+      rawBody?.tallymessage?.[0]?.partyledgername  ||
+      rawBody?.tallymessage?.[0]?.partyname        ||
+      rawBody?.partymailingname || rawBody?.partyledgername ||
+      rawBody?.partyname || null
+    ),
+    item_count: (
+      rawBody?.tallymessage?.[0]?.allinventoryentries?.length ??
+      rawBody?.allinventoryentries?.length ?? null
+    ),
+    payload: rawBody   // raw object as-received
+  };
+  _tallyDebugRing.unshift(entry);
+  if (_tallyDebugRing.length > TALLY_DEBUG_MAX) _tallyDebugRing.pop();
+  console.log(`[tally/debug] captured payload — invoice=${entry.invoice_number ?? "?"} bytes=${entry.payload_bytes}`);
+}
+
+// GET /tally/debug → latest single payload
+app.get("/tally/debug", (req, res) => {
+  if (_tallyDebugRing.length === 0) {
+    return res.json({ ok: true, message: "No payloads received yet", payload: null });
+  }
+  res.json({ ok: true, ...(_tallyDebugRing[0]) });
+});
+
+// GET /tally/debug/history → last 20 payloads (newest first)
+app.get("/tally/debug/history", (req, res) => {
+  res.json({ ok: true, count: _tallyDebugRing.length, history: _tallyDebugRing });
+});
+
+// DELETE /tally/debug/history → clear the ring buffer
+app.delete("/tally/debug/history", (req, res) => {
+  _tallyDebugRing.length = 0;
+  res.json({ ok: true, message: "Debug history cleared" });
+});
+
 // ── Tally TDL push: accept raw Tally voucher JSON ──
 // Called directly by Tally TDL button (no browser auth possible).
 // Auth: optional static key in x-tally-key header or body.api_key
@@ -245,6 +302,9 @@ app.post("/tally/voucher", async (req, res) => {
         return res.status(401).json({ error: "Invalid API key" });
       }
     }
+
+    // ── DEBUG CAPTURE (raw, before any transformation) ──
+    _tallyDebugCapture(req.body);
 
     // Accept full Tally envelope { tallymessage: [...] } or bare voucher object
     const raw     = req.body;

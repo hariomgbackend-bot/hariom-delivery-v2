@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tally Debug · Payload Inspector</title>
+  <style>
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #c9d1d9;
+      --muted:     #6e7681;
+      --accent:    #58a6ff;
+      --green:     #3fb950;
+      --yellow:    #d29922;
+      --red:       #f85149;
+      --purple:    #bc8cff;
+      --orange:    #e3b341;
+      --radius:    8px;
+      --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Top bar ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 12px; }
+
+    .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #58a6ff, #bc8cff);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+
+    header h1 { font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+    header h1 span { color: var(--muted); font-weight: 400; }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    .badge {
+      font-size: 11px; font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background: rgba(88,166,255,.12);
+      color: var(--accent);
+      border: 1px solid rgba(88,166,255,.25);
+    }
+
+    .badge.green  { background: rgba(63,185,80,.12); color: var(--green);  border-color: rgba(63,185,80,.25);  }
+    .badge.yellow { background: rgba(210,153,34,.12); color: var(--yellow); border-color: rgba(210,153,34,.25); }
+    .badge.red    { background: rgba(248,81,73,.12);  color: var(--red);    border-color: rgba(248,81,73,.25);  }
+
+    .btn {
+      font-size: 12px; font-weight: 500;
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .btn:hover { border-color: var(--accent); background: rgba(88,166,255,.08); }
+    .btn.danger:hover { border-color: var(--red); background: rgba(248,81,73,.08); color: var(--red); }
+
+    #refresh-indicator {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: .3; }
+    }
+    #refresh-indicator.paused { background: var(--muted); animation: none; }
+
+    /* ── Main layout ── */
+    main { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      flex: 1; min-width: 140px;
+    }
+    .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+    .stat-card .value { font-size: 22px; font-weight: 700; }
+    .stat-card .sub   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    .tab {
+      padding: 9px 16px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      transition: color .15s;
+    }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab:hover:not(.active) { color: var(--text); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Latest payload panel ── */
+    .payload-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .payload-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .payload-meta { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+
+    .meta-chip {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--muted);
+    }
+    .meta-chip .icon { font-size: 14px; }
+    .meta-chip strong { color: var(--text); }
+
+    .payload-actions { display: flex; gap: 8px; }
+
+    pre.json-view {
+      padding: 18px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.65;
+      tab-size: 2;
+      background: var(--bg);
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    /* JSON syntax highlight */
+    .json-key     { color: #79c0ff; }
+    .json-str     { color: #a5d6ff; }
+    .json-num     { color: #e3b341; }
+    .json-bool    { color: #ff7b72; }
+    .json-null    { color: var(--muted); }
+
+    /* ── History list ── */
+    .history-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color .15s;
+    }
+    .history-item:hover { border-color: rgba(88,166,255,.4); }
+    .history-item.expanded .history-body { display: block; }
+
+    .history-item-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .seq-badge {
+      font-size: 11px; font-weight: 700;
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: rgba(88,166,255,.15);
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .seq-badge.latest { background: rgba(63,185,80,.15); color: var(--green); }
+
+    .history-item-meta { flex: 1; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+
+    .hi-field { font-size: 12px; color: var(--muted); }
+    .hi-field strong { color: var(--text); }
+
+    .chevron { color: var(--muted); font-size: 12px; transition: transform .2s; }
+    .history-item.expanded .chevron { transform: rotate(90deg); }
+
+    .history-body {
+      display: none;
+      border-top: 1px solid var(--border);
+      padding: 0;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state h3 { font-size: 16px; color: var(--text); margin-bottom: 8px; }
+    .empty-state p { font-size: 13px; line-height: 1.6; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .2s, transform .2s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: none; }
+
+    /* ── Countdown ring ── */
+    .countdown {
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    scrollbar-color: var(--border) var(--bg);
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo">🔍</div>
+    <h1>Tally Debug <span>/ Payload Inspector</span></h1>
+  </div>
+  <div class="header-right">
+    <span id="refresh-indicator" title="Auto-refresh active"></span>
+    <span class="countdown" id="countdown">Refresh in 5s</span>
+    <button class="btn" id="btn-pause">⏸ Pause</button>
+    <button class="btn" id="btn-refresh">↻ Refresh Now</button>
+    <button class="btn danger" id="btn-clear">🗑 Clear History</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div class="stat-card">
+      <div class="label">Payloads Captured</div>
+      <div class="value" id="stat-count">—</div>
+      <div class="sub">Last 20 kept in memory</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Latest Invoice</div>
+      <div class="value" style="font-size:15px;padding-top:4px;" id="stat-invoice">—</div>
+      <div class="sub" id="stat-time">Waiting for first payload…</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Latest Customer</div>
+      <div class="value" style="font-size:15px;padding-top:4px;" id="stat-customer">—</div>
+      <div class="sub" id="stat-items">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Payload Size</div>
+      <div class="value" id="stat-size">—</div>
+      <div class="sub">bytes (latest)</div>
+    </div>
+    <div class="stat-card" style="flex:0 0 auto;min-width:120px;text-align:center;">
+      <div class="label">Server Status</div>
+      <div style="margin-top:8px;"><span class="badge green" id="stat-status">● Online</span></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="latest">Latest Payload</div>
+    <div class="tab" data-tab="history">History <span id="history-count-badge"></span></div>
+  </div>
+
+  <!-- Latest payload tab -->
+  <div class="tab-panel active" id="tab-latest">
+    <div id="latest-empty" class="empty-state">
+      <div class="icon">📭</div>
+      <h3>No payloads yet</h3>
+      <p>Waiting for TallyPrime to POST to <code>/tally/voucher</code>.<br>
+         Once received, the raw payload will appear here automatically.</p>
+    </div>
+    <div id="latest-card" class="payload-card" style="display:none;">
+      <div class="payload-header">
+        <div class="payload-meta" id="latest-meta"></div>
+        <div class="payload-actions">
+          <button class="btn" id="btn-copy-latest">📋 Copy JSON</button>
+        </div>
+      </div>
+      <pre class="json-view" id="latest-json"></pre>
+    </div>
+  </div>
+
+  <!-- History tab -->
+  <div class="tab-panel" id="tab-history">
+    <div id="history-empty" class="empty-state">
+      <div class="icon">📂</div>
+      <h3>No history yet</h3>
+      <p>Captured payloads will be listed here (last 20, newest first).</p>
+    </div>
+    <div class="history-list" id="history-list"></div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+  /* ═══════════════════════════════════════════
+     State
+  ═══════════════════════════════════════════ */
+  let autoRefresh = true;
+  let countdown   = 5;
+  let timer       = null;
+
+  /* ═══════════════════════════════════════════
+     Helpers
+  ═══════════════════════════════════════════ */
+  function toast(msg, duration = 2500) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), duration);
+  }
+
+  function formatISO(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleString("en-IN", {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit", second: "2-digit"
+    });
+  }
+
+  function formatBytes(n) {
+    if (n == null) return "—";
+    if (n < 1024) return n + " B";
+    return (n / 1024).toFixed(1) + " KB";
+  }
+
+  /* JSON pretty printer with syntax highlighting */
+  function highlight(json) {
+    return JSON.stringify(json, null, 2)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        match => {
+          if (/^"/.test(match)) {
+            if (/:$/.test(match)) return `<span class="json-key">${match}</span>`;
+            return `<span class="json-str">${match}</span>`;
+          }
+          if (/true|false/.test(match)) return `<span class="json-bool">${match}</span>`;
+          if (/null/.test(match))       return `<span class="json-null">${match}</span>`;
+          return `<span class="json-num">${match}</span>`;
+        }
+      );
+  }
+
+  function metaChip(icon, label, value) {
+    if (!value && value !== 0) return "";
+    return `<div class="meta-chip"><span class="icon">${icon}</span>${label}: <strong>${value}</strong></div>`;
+  }
+
+  /* ═══════════════════════════════════════════
+     Render latest
+  ═══════════════════════════════════════════ */
+  function renderLatest(data) {
+    const emptyEl = document.getElementById("latest-empty");
+    const cardEl  = document.getElementById("latest-card");
+    const metaEl  = document.getElementById("latest-meta");
+    const jsonEl  = document.getElementById("latest-json");
+
+    // Stats
+    document.getElementById("stat-invoice").textContent  = data.invoice_number || "—";
+    document.getElementById("stat-customer").textContent = data.customer_name   || "—";
+    document.getElementById("stat-size").textContent     = formatBytes(data.payload_bytes);
+    document.getElementById("stat-time").textContent     = formatISO(data.received_at);
+    document.getElementById("stat-items").textContent    =
+      data.item_count != null ? `${data.item_count} line item(s)` : "Item count unknown";
+
+    if (!data.payload) { emptyEl.style.display = ""; cardEl.style.display = "none"; return; }
+
+    emptyEl.style.display = "none";
+    cardEl.style.display  = "";
+
+    metaEl.innerHTML = [
+      metaChip("🕐", "Received",  formatISO(data.received_at)),
+      metaChip("⚡", "Invoice",   data.invoice_number),
+      metaChip("👤", "Customer",  data.customer_name),
+      metaChip("📦", "Items",     data.item_count),
+      metaChip("📏", "Size",      formatBytes(data.payload_bytes)),
+    ].join("");
+
+    jsonEl.innerHTML = highlight(data.payload);
+  }
+
+  /* ═══════════════════════════════════════════
+     Render history
+  ═══════════════════════════════════════════ */
+  function renderHistory(history) {
+    const listEl  = document.getElementById("history-list");
+    const emptyEl = document.getElementById("history-empty");
+    const badge   = document.getElementById("history-count-badge");
+
+    badge.textContent = history.length ? `(${history.length})` : "";
+
+    if (!history.length) {
+      listEl.innerHTML = "";
+      emptyEl.style.display = "";
+      return;
+    }
+    emptyEl.style.display = "none";
+
+    // Preserve expanded state
+    const expanded = new Set(
+      [...listEl.querySelectorAll(".history-item.expanded")].map(el => el.dataset.idx)
+    );
+
+    listEl.innerHTML = history.map((entry, i) => {
+      const isLatest = i === 0;
+      const isExp    = expanded.has(String(i));
+      return `
+        <div class="history-item${isExp ? " expanded" : ""}" data-idx="${i}">
+          <div class="history-item-header">
+            <div class="seq-badge${isLatest ? " latest" : ""}">${history.length - i}</div>
+            <div class="history-item-meta">
+              <div class="hi-field">🕐 <strong>${formatISO(entry.received_at)}</strong></div>
+              ${entry.invoice_number ? `<div class="hi-field">⚡ Invoice: <strong>${entry.invoice_number}</strong></div>` : ""}
+              ${entry.customer_name  ? `<div class="hi-field">👤 <strong>${entry.customer_name}</strong></div>` : ""}
+              ${entry.item_count != null ? `<div class="hi-field">📦 <strong>${entry.item_count}</strong> item(s)</div>` : ""}
+              <div class="hi-field">📏 <strong>${formatBytes(entry.payload_bytes)}</strong></div>
+              ${isLatest ? `<span class="badge green">Latest</span>` : ""}
+            </div>
+            <button class="btn" onclick="copyEntry(${i})" style="font-size:11px;padding:4px 8px;" title="Copy JSON">📋</button>
+            <span class="chevron">▶</span>
+          </div>
+          <div class="history-body">
+            <pre class="json-view">${highlight(entry.payload)}</pre>
+          </div>
+        </div>`;
+    }).join("");
+
+    // Expand / collapse
+    listEl.querySelectorAll(".history-item-header").forEach(h => {
+      h.addEventListener("click", e => {
+        if (e.target.closest("button")) return;
+        h.parentElement.classList.toggle("expanded");
+      });
+    });
+  }
+
+  window.copyEntry = function(i) {
+    fetch("/tally/debug/history")
+      .then(r => r.json())
+      .then(d => {
+        const entry = d.history?.[i];
+        if (!entry) return;
+        navigator.clipboard.writeText(JSON.stringify(entry.payload, null, 2))
+          .then(() => toast("✅ JSON copied to clipboard!"));
+      });
+  };
+
+  /* ═══════════════════════════════════════════
+     Fetch & refresh
+  ═══════════════════════════════════════════ */
+  async function fetchAll() {
+    try {
+      const [latestRes, histRes] = await Promise.all([
+        fetch("/tally/debug"),
+        fetch("/tally/debug/history")
+      ]);
+
+      if (latestRes.ok) {
+        const data = await latestRes.json();
+        renderLatest(data);
+        document.getElementById("stat-count").textContent =
+          (await fetch("/tally/debug/history").then(r => r.json())).count ?? "—";
+      }
+
+      if (histRes.ok) {
+        const hData = await histRes.json();
+        renderHistory(hData.history || []);
+        document.getElementById("stat-count").textContent = hData.count ?? "—";
+      }
+
+      document.getElementById("stat-status").textContent = "● Online";
+      document.getElementById("stat-status").className   = "badge green";
+    } catch (err) {
+      document.getElementById("stat-status").textContent = "● Offline";
+      document.getElementById("stat-status").className   = "badge red";
+    }
+  }
+
+  /* ═══════════════════════════════════════════
+     Auto-refresh loop (5s)
+  ═══════════════════════════════════════════ */
+  function startCountdown() {
+    clearInterval(timer);
+    countdown = 5;
+    const cdEl = document.getElementById("countdown");
+    timer = setInterval(() => {
+      countdown--;
+      cdEl.textContent = `Refresh in ${countdown}s`;
+      if (countdown <= 0) {
+        countdown = 5;
+        if (autoRefresh) fetchAll();
+      }
+    }, 1000);
+  }
+
+  /* ═══════════════════════════════════════════
+     Controls
+  ═══════════════════════════════════════════ */
+  document.getElementById("btn-pause").addEventListener("click", function () {
+    autoRefresh = !autoRefresh;
+    this.textContent = autoRefresh ? "⏸ Pause" : "▶ Resume";
+    document.getElementById("refresh-indicator").classList.toggle("paused", !autoRefresh);
+    document.getElementById("countdown").style.opacity = autoRefresh ? "1" : ".4";
+    toast(autoRefresh ? "Auto-refresh resumed" : "Auto-refresh paused");
+  });
+
+  document.getElementById("btn-refresh").addEventListener("click", () => {
+    fetchAll();
+    countdown = 5;
+    toast("↻ Refreshed");
+  });
+
+  document.getElementById("btn-copy-latest").addEventListener("click", () => {
+    fetch("/tally/debug")
+      .then(r => r.json())
+      .then(d => {
+        if (!d.payload) { toast("No payload to copy"); return; }
+        navigator.clipboard.writeText(JSON.stringify(d.payload, null, 2))
+          .then(() => toast("✅ JSON copied to clipboard!"));
+      });
+  });
+
+  document.getElementById("btn-clear").addEventListener("click", async () => {
+    if (!confirm("Clear all captured payloads from memory?")) return;
+    const r = await fetch("/tally/debug/history", { method: "DELETE" });
+    if (r.ok) {
+      toast("🗑 History cleared");
+      fetchAll();
+    }
+  });
+
+  /* ═══════════════════════════════════════════
+     Tab switching
+  ═══════════════════════════════════════════ */
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+    });
+  });
+
+  /* ═══════════════════════════════════════════
+     Boot
+  ═══════════════════════════════════════════ */
+  fetchAll();
+  startCountdown();
+</script>
+</body>
+</html>
