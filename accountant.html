@@ -1197,6 +1197,13 @@
             ☁️ Cloud Invoices
           <span id="cloudInvoicesBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:16px;text-align:center;line-height:16px;"></span>
         </button>
+        <!-- Tally TDL Push button -->
+        <button type="button" onclick="openTallyPush()"
+            id="tallyPushBtn"
+           style="display:flex;align-items:center;gap:5px;padding:7px 12px;background:linear-gradient(135deg,rgba(78,222,163,0.15),rgba(77,142,255,0.12));color:#4edea3;border:1px solid rgba(78,222,163,0.3);border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;position:relative;">
+            🟢 Tally Push
+          <span id="tallyPushBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#22c55e;color:#fff;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:16px;text-align:center;line-height:16px;"></span>
+        </button>
       </div>
     </div>
     <!-- Hidden file input for unified import: PDF + XML -->
@@ -2894,6 +2901,148 @@ setInterval(updateCloudInvoicesBadge, 2 * 60 * 1000);
 // Close cloud invoices overlay on backdrop click
 document.getElementById("cloudInvoicesOverlay")?.addEventListener("click", function(e) {
   if (e.target === this) closeCloudInvoices();
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   TALLY PUSH PANEL — shows vouchers pushed from Tally TDL button
+   Polls GET /tally/pending (same store as XML bridge)
+══════════════════════════════════════════════════════════════════ */
+let _tallyPushInvoices = [];
+
+function openTallyPush() {
+  const overlay = document.getElementById("tallyPushOverlay");
+  overlay.style.display = "flex";
+  document.body.style.overflow = "hidden";
+  document.getElementById("tallyPushList").innerHTML = "";
+  document.getElementById("tallyPushEmpty").style.display    = "none";
+  document.getElementById("tallyPushLoading").style.display  = "block";
+  document.getElementById("tallyPushSearch").value = "";
+  _fetchTallyPush();
+}
+
+function closeTallyPush() {
+  document.getElementById("tallyPushOverlay").style.display = "none";
+  document.body.style.overflow = "";
+}
+
+async function _fetchTallyPush() {
+  try {
+    const res  = await authFetch(`${BASE_URL}/tally/pending`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load");
+    _tallyPushInvoices = (data.invoices || []).filter(i => i.source === "tally_tdl");
+    document.getElementById("tallyPushLoading").style.display = "none";
+    renderTallyPushList();
+    updateTallyPushBadge(_tallyPushInvoices.length);
+  } catch (err) {
+    document.getElementById("tallyPushLoading").style.display = "none";
+    document.getElementById("tallyPushList").innerHTML =
+      `<div style="color:#f87171;font-size:13px;text-align:center;padding:20px;">❌ ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderTallyPushList() {
+  const q      = (document.getElementById("tallyPushSearch")?.value || "").trim().toLowerCase();
+  const list   = document.getElementById("tallyPushList");
+  const empty  = document.getElementById("tallyPushEmpty");
+  let shown    = _tallyPushInvoices;
+  if (q) shown = shown.filter(i =>
+    (i.name || "").toLowerCase().includes(q) ||
+    (i.invoice_number || "").toLowerCase().includes(q)
+  );
+  if (shown.length === 0) { list.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  list.innerHTML = shown.map(inv => {
+    const items = (inv.products || []).map(p => `${p.qty}× ${escHtml(p.name)}`).join(", ");
+    const amt   = inv.totalAmount ? `₹${Number(inv.totalAmount).toLocaleString("en-IN")}` : "";
+    const dt    = inv.pushed_at
+      ? new Date(inv.pushed_at).toLocaleString("en-IN", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })
+      : "";
+    return `
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:var(--surface-container);border-radius:12px;border:1px solid rgba(78,222,163,0.15);margin-bottom:8px;cursor:pointer;transition:background 0.15s;"
+      onclick="selectTallyPushInvoice('${escHtml(inv.invoice_number)}')"
+      onmouseover="this.style.background='rgba(78,222,163,0.07)'"
+      onmouseout="this.style.background='var(--surface-container)'"
+      title="Click to import">
+      <div style="font-size:18px;flex-shrink:0;margin-top:1px;">🧾</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(inv.name || "Unknown")}</div>
+        <div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;">${escHtml(inv.invoice_number)} · ${dt}${amt ? " · " + amt : ""}</div>
+        <div style="font-size:11px;color:var(--on-surface-variant);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(items)}</div>
+      </div>
+      <div style="background:rgba(78,222,163,0.15);color:#4edea3;border:1px solid rgba(78,222,163,0.3);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;">
+        Import →
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function selectTallyPushInvoice(invoiceNumber) {
+  const inv = _tallyPushInvoices.find(i => i.invoice_number === invoiceNumber);
+  if (!inv) return;
+  closeTallyPush();
+
+  // Map to openImportPreviewModal shape
+  const previewData = {
+    name:           inv.name || "",
+    phone:          inv.phone || null,
+    alt_phone:      inv.alt_phone || null,
+    address:        inv.address || null,
+    products:       (inv.products || []).map(p => ({ name: p.name, qty: p.qty || 1, rate: p.rate || null })),
+    source:         "tally_tdl",
+    invoice_number: inv.invoice_number || "",
+    invoice_date:   inv.invoice_date || null,
+    totalAmount:    inv.totalAmount || null,
+    _tallyInvNo:    inv.invoice_number   // for cleanup after import
+  };
+
+  openImportPreviewModal(previewData);
+}
+
+// After apply — remove from pending store
+const _origApplyForTallyPush = typeof applyImportPreview === "function" ? applyImportPreview : null;
+if (_origApplyForTallyPush) {
+  // Wrap only once, check we haven't already wrapped for cloud
+  const _prevApply = applyImportPreview;
+  applyImportPreview = async function() {
+    _prevApply.apply(this, arguments);
+    const data = _importPreviewData;
+    if (data && data._tallyInvNo) {
+      try {
+        await authFetch(`${BASE_URL}/tally/pending/${encodeURIComponent(data._tallyInvNo)}`, { method: "DELETE" });
+        _tallyPushInvoices = _tallyPushInvoices.filter(i => i.invoice_number !== data._tallyInvNo);
+        updateTallyPushBadge(_tallyPushInvoices.length);
+      } catch (e) { console.warn("[tally-push] cleanup failed:", e.message); }
+    }
+  };
+}
+
+function updateTallyPushBadge(count) {
+  const badge = document.getElementById("tallyPushBadge");
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent   = count > 9 ? "9+" : String(count);
+    badge.style.display = "block";
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+// Poll badge every 30 seconds (Tally pushes are real-time, so short interval)
+async function _pollTallyPushBadge() {
+  try {
+    const res  = await authFetch(`${BASE_URL}/tally/pending`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const tdlInvoices = (data.invoices || []).filter(i => i.source === "tally_tdl");
+    updateTallyPushBadge(tdlInvoices.length);
+  } catch { /* silently ignore */ }
+}
+_pollTallyPushBadge();
+setInterval(_pollTallyPushBadge, 30 * 1000);
+
+document.getElementById("tallyPushOverlay")?.addEventListener("click", function(e) {
+  if (e.target === this) closeTallyPush();
 });
 /* ══════════════════════════════════════════════════════════════════
    END UNIFIED IMPORT SYSTEM
@@ -5426,6 +5575,28 @@ document.getElementById("importPreviewOverlay")?.addEventListener("click", funct
 
 console.log("[stock-sync] Module loaded ✓");
 </script>
+<!-- Tally Push Overlay -->
+<div id="tallyPushOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:3000;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;">
+  <div style="background:var(--surface-container-low);border-radius:24px;padding:26px 28px;width:100%;max-width:500px;max-height:88vh;overflow-y:auto;border:1px solid rgba(78,222,163,0.15);box-shadow:0 48px 80px rgba(0,0,0,0.5);scrollbar-width:thin;scrollbar-color:rgba(78,222,163,0.2) transparent;margin:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--on-surface);">🟢 Tally Push</div>
+        <div id="tallyPushSubtitle" style="font-size:11px;color:var(--on-surface-variant);margin-top:3px;font-weight:600;">Vouchers pushed from Tally TDL</div>
+      </div>
+      <button onclick="closeTallyPush()" style="background:none;border:none;color:var(--on-surface-variant);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:8px;line-height:1;">✕</button>
+    </div>
+    <input id="tallyPushSearch" type="text" placeholder="🔍 Search by customer or invoice no…" oninput="renderTallyPushList()" style="width:100%;padding:10px 14px;background:var(--surface-container);border:1px solid rgba(78,222,163,0.2);border-radius:12px;color:var(--on-surface);font-size:13px;font-family:'Inter',sans-serif;margin-bottom:16px;box-sizing:border-box;outline:none;">
+    <div id="tallyPushList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div id="tallyPushEmpty" style="display:none;text-align:center;padding:40px 20px;color:var(--on-surface-variant);">
+      <div style="font-size:28px;margin-bottom:12px;">📭</div>
+      <div style="font-size:14px;font-weight:700;color:var(--on-surface);margin-bottom:6px;">No Tally vouchers yet</div>
+      <div style="font-size:12px;">Press the TDL button in Tally to push a voucher here</div>
+    </div>
+    <div id="tallyPushLoading" style="text-align:center;padding:40px 20px;color:var(--on-surface-variant);">
+      <div style="font-size:13px;font-weight:600;">Loading…</div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
 <!-- ════════════════════════════════════════════════════════════

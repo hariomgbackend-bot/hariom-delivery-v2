@@ -1,5 +1,7 @@
 import express from "express";
-
+import helmet from "helmet";
+import compression from "compression";
+import { sanitizeRequest } from "./middleware/sanitize.js";
 
 import cors from "cors";
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
@@ -24,8 +26,8 @@ import cron from "node-cron";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-//const serviceAccount = require("./firebase-service-account.json");
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = require("./firebase-service-account.json");
+//const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -36,6 +38,7 @@ const JWT_EXPIRY       = "8h";
 const WHATSAPP_TOKEN   = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID  = process.env.PHONE_NUMBER_ID;
 const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
+const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || "";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -61,7 +64,10 @@ app.use(cors({
   },
   credentials: true
 }));
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(compression());
 app.use(express.json({ limit: "10mb" })); // XML imports can be large
+app.use(sanitizeRequest);
 app.use(express.static("."));
 
 app.get("/", (req, res) => {
@@ -224,6 +230,103 @@ app.delete("/tally/pending/:invoice_number", authenticate, authorize(["accountan
   const existed = _tallyPendingStore.has(key);
   _tallyPendingStore.delete(key);
   res.json({ ok: true, existed });
+});
+
+// ── Tally TDL push: accept raw Tally voucher JSON ──
+// Called directly by Tally TDL button (no browser auth possible).
+// Auth: optional static key in x-tally-key header or body.api_key
+// Set TALLY_PUSH_KEY in .env — if unset, endpoint is open (LAN use only).
+app.post("/tally/voucher", async (req, res) => {
+  try {
+    const TALLY_PUSH_KEY = process.env.TALLY_PUSH_KEY;
+    if (TALLY_PUSH_KEY) {
+      const provided = req.headers["x-tally-key"] || req.body?.api_key;
+      if (provided !== TALLY_PUSH_KEY) {
+        return res.status(401).json({ error: "Invalid API key" });
+      }
+    }
+
+    // Accept full Tally envelope { tallymessage: [...] } or bare voucher object
+    const raw     = req.body;
+    const voucher = raw?.tallymessage?.[0] ?? raw;
+    if (!voucher || typeof voucher !== "object") {
+      return res.status(400).json({ error: "No voucher data found" });
+    }
+
+    // Invoice number
+    const invoice_number =
+      voucher.vouchernumber || voucher.VOUCHERNUMBER || "";
+
+    // Customer name
+    const name =
+      voucher.partymailingname ||
+      voucher.partyledgername  ||
+      voucher.partyname        ||
+      voucher.basicbuyername   ||
+      "Unknown";
+
+    // Address array: strings only, last phone-pattern string extracted as phone
+    const addrArr = (
+      Array.isArray(voucher.address)            ? voucher.address :
+      Array.isArray(voucher.basicbuyeraddress)  ? voucher.basicbuyeraddress : []
+    ).filter(x => typeof x === "string");
+
+    let phone = null, alt_phone = null;
+    const addrStrings = [];
+    for (const s of addrArr) {
+      if (/^[6-9]\d{9}$/.test(s.trim())) {
+        if (!phone) phone = s.trim();
+        else if (!alt_phone) alt_phone = s.trim();
+      } else {
+        addrStrings.push(s);
+      }
+    }
+    const address = addrStrings.join(", ").trim();
+
+    // Date: "20260601" -> "2026-06-01"
+    const rawDate = voucher.date || voucher.effectivedate || "";
+    const invoice_date = rawDate.length === 8
+      ? rawDate.slice(0,4) + "-" + rawDate.slice(4,6) + "-" + rawDate.slice(6,8)
+      : rawDate;
+
+    // Products from allinventoryentries
+    const products = (voucher.allinventoryentries || []).map(item => {
+      const qtyRaw = item.actualqty || item.billedqty || "1";
+      const qty    = parseFloat(qtyRaw.replace(/[^0-9.]/g, "")) || 1;
+      const rateRaw = item.inclvatrate || item.rate || "";
+      const rate   = parseFloat(rateRaw.replace(/\/.*$/, "").replace(/,/g, "")) || null;
+      return {
+        name: item.stockitemname || item.STOCKITEMNAME || "Unknown item",
+        qty,
+        rate
+      };
+    });
+
+    // Total: absolute value of the negative party ledger entry
+    let totalAmount = null;
+    const partyEntry = (voucher.ledgerentries || []).find(e => e.ispartyledger);
+    if (partyEntry?.amount) totalAmount = Math.abs(parseFloat(partyEntry.amount));
+
+    if (!invoice_number) {
+      return res.status(400).json({ error: "Could not extract invoice number" });
+    }
+
+    const mapped = {
+      invoice_number, name, phone, alt_phone,
+      address, products, totalAmount,
+      narration:    voucher.narration || "",
+      invoice_date, source: "tally_tdl",
+      pushed_at:    new Date().toISOString()
+    };
+
+    _tallyPendingStore.set(invoice_number, { data: mapped, ts: Date.now() });
+    console.log("[tally/voucher] stored:", invoice_number, "|", name, "|", products.length, "item(s)");
+    res.json({ ok: true, invoice_number, customer: name, items: products.length });
+
+  } catch (err) {
+    console.error("[tally/voucher]", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 
@@ -4509,7 +4612,72 @@ app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-/* ════════════════════════════════════════════════
+app.get("/test-fetch", async (req, res) => {
+  try {
+    const response = await fetch("https://httpbin.org/get");
+    const data = await response.json();
+    res.json({ success: true, data: data.origin });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.get("/weather", async (req, res) => {
+  try {
+    // Check if we have a valid API key (not the placeholder)
+    if (!OPENWEATHER_API_KEY || OPENWEATHER_API_KEY.includes("your_openweathermap_api_key_here")) {
+      // Return mock data for development/testing
+      console.log("[Weather] Using mock data (no valid API key)");
+      return res.json({
+        temp: 25,
+        condition: "clear",
+        description: "clear sky",
+        icon: "01d",
+        humidity: 60,
+        pressure: 1013
+      });
+    }
+    
+    // Default to a central location (you can make this configurable)
+    const lat = "28.6139";  // Delhi latitude
+    const lon = "77.2090";  // Delhi longitude
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`;
+    console.log("[Weather] Fetching from:", url.replace(OPENWEATHER_API_KEY, "KEY_HIDDEN"));
+    
+    const response = await fetch(url);
+    console.log("[Weather] Response status:", response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[Weather] API error:", response.status, errorText);
+      throw new Error(`Weather API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log("[Weather] Data received:", data);
+    
+    res.json({
+      temp: Math.round(data.main.temp),
+      condition: data.weather[0].main.toLowerCase(),
+      description: data.weather[0].description,
+      icon: data.weather[0].icon,
+      humidity: data.main.humidity,
+      pressure: data.main.pressure
+    });
+  } catch (error) {
+    console.error("[Weather] Error:", error);
+    // Return mock data on any failure (network, API key, etc.)
+    return res.json({
+      temp: 28,
+      condition: "clear",
+      description: "clear sky",
+      humidity: 55,
+      pressure: 1013
+    });
+  }
+});
+
+/* ══════════════════════════════════════════════════
    PART 2: OPTIONAL SELF-PING (SAFE)
    - Every 5 minutes, check current hour
    - Only ping during active hours (9 AM - 10 PM)
