@@ -404,7 +404,15 @@ app.post(
       const amts  = tagAll("HARIOMFAMT");
 
       if (!voucher_number) {
-        return res.status(400).json({ error: "Could not extract voucher number from Tally XML" });
+        res.status(400);
+res.set("Content-Type", "text/xml");
+
+return res.send(`
+<RESPONSE>
+    <STATUS>0</STATUS>
+    <MESSAGE>Voucher Number Missing</MESSAGE>
+</RESPONSE>
+`);
       }
       if (items.length === 0) {
         return res.status(400).json({ error: "No items found in voucher XML — nothing to create" });
@@ -418,12 +426,17 @@ app.post(
       ));
       const existingTallyDocs = dupeSnap.docs.filter(d => d.data().source === "tally_tdl");
       if (existingTallyDocs.length > 0) {
-        console.log("[tally/voucher TDL XML] duplicate push ignored:", voucher_number);
-        return res.json({
-          ok: true, invoice_number: voucher_number, customer: customer_name,
-          ids: existingTallyDocs.map(d => d.id), duplicate: true
-        });
-      }
+          console.log("[tally/voucher TDL XML] duplicate push ignored:", voucher_number);
+
+          res.set("Content-Type", "text/xml");
+
+          return res.send(`
+          <RESPONSE>
+          <STATUS>1</STATUS>
+          <MESSAGE>Duplicate Voucher</MESSAGE>
+          </RESPONSE>
+        `);
+}
 
       // ── Default ETA: now + 3h, or next-day 11:30 AM if it's 7 PM+ IST ──
       const estimated_delivery_time = tallyAutoETA();
@@ -492,15 +505,14 @@ app.post(
         }
       })();
 
-      return res.json({
-        ok: true,
-        invoice_number: voucher_number,
-        customer: customer_name,
-        items: items.length,
-        created: createdIds.length,
-        ids: createdIds,
-        estimated_delivery_time
-      });
+      res.set("Content-Type", "text/xml");
+
+      return res.send(`
+        <RESPONSE>
+        <STATUS>1</STATUS>
+        <MESSAGE>Delivery Order Created</MESSAGE>
+        </RESPONSE>
+        `);
     }
 
     // ── HANDLE NEW TDL JSON PUSH (HTTP Request with Plain JSON / JSONTag fields) ──
