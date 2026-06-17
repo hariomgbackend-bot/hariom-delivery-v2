@@ -26,8 +26,8 @@ import cron from "node-cron";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-//const serviceAccount = require("./firebase-service-account.json");
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = require("./firebase-service-account.json");
+//const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -289,11 +289,44 @@ app.delete("/tally/debug/history", (req, res) => {
   res.json({ ok: true, message: "Debug history cleared" });
 });
 
-// ── Tally TDL push: accept raw Tally voucher JSON ──
+// ── Tally TDL push: accept raw Tally voucher JSON, or XML from the
+//    classic "HTTP Post" TDL action ──
 // Called directly by Tally TDL button (no browser auth possible).
 // Auth: optional static key in x-tally-key header or body.api_key
 // Set TALLY_PUSH_KEY in .env — if unset, endpoint is open (LAN use only).
-app.post("/tally/voucher", async (req, res) => {
+//
+// NOTE: the global express.json() middleware above only parses
+// bodies whose Content-Type is application/json. For any other
+// Content-Type (e.g. the XML that TallyPrime's classic "HTTP Post"
+// action sends), express.json() leaves req.body as {} WITHOUT
+// consuming the request stream — so a second, route-specific parser
+// below can still read the raw bytes. This lets this one endpoint
+// accept either JSON (from HTTPRequest/JSONEx) or raw XML/text
+// (from HTTP Post) without changing global middleware or any other
+// route.
+app.post(
+  "/tally/voucher",
+  express.text({ type: () => true, limit: "10mb" }),
+  (req, res, next) => {
+    // If express.json() already populated a real object (truthy,
+    // non-empty), keep it as-is. Otherwise req.body here is the
+    // raw text express.text() just read off the stream.
+    const alreadyParsedJson =
+      req.body && typeof req.body === "object" && Object.keys(req.body).length > 0;
+
+    if (!alreadyParsedJson && typeof req.body === "string" && req.body.length) {
+      const rawText = req.body;
+      try {
+        req.body = JSON.parse(rawText);
+      } catch {
+        // Not JSON (e.g. Tally's XML) — keep the raw text so the
+        // debug capture below can still show exactly what arrived.
+        req.body = { _raw_xml_or_text_body: rawText };
+      }
+    }
+    next();
+  },
+  async (req, res) => {
   try {
     const TALLY_PUSH_KEY = process.env.TALLY_PUSH_KEY;
     if (TALLY_PUSH_KEY) {
@@ -512,6 +545,31 @@ async function runStartupMigration() {
     }
     if (ticketsMigrated > 0) {
       console.log(`[MIGRATION] Migrated ${ticketsMigrated} service tickets to new status system`);
+    }
+
+    // ── Part 3: Seed price_guide collection if empty ──
+    const pgSnap = await getDocs(collection(db, "price_guide"));
+    if (pgSnap.empty) {
+      const SEED_DATA = [
+        { productName: "LED SONY Bravia 43X74", mrp: 38990, mop: 35990, msp: 31000, slabId: "", mspEnabled: true },
+        { productName: "LED SONY Bravia 55X80L", mrp: 58990, mop: 54990, msp: 46000, slabId: "", mspEnabled: true },
+        { productName: "LED SONY Bravia 65X90L", mrp: 89990, mop: 84990, msp: 72000, slabId: "", mspEnabled: true },
+        { productName: "LED LG 43UR7500", mrp: 34990, mop: 31990, msp: 28000, slabId: "", mspEnabled: true },
+        { productName: "LED Samsung 43CU7700", mrp: 36990, mop: 33990, msp: 29000, slabId: "", mspEnabled: true },
+        { productName: "REF HAIER HRF-618SS", mrp: 25990, mop: 23990, msp: 20000, slabId: "", mspEnabled: true },
+        { productName: "REF Samsung 253L", mrp: 22990, mop: 20990, msp: 18000, slabId: "", mspEnabled: true },
+        { productName: "REF LG 260L GL-I292RPZL", mrp: 27990, mop: 25990, msp: 21500, slabId: "", mspEnabled: true },
+        { productName: "WM SAMSUNG WW80TA046AB1", mrp: 31990, mop: 29990, msp: 25000, slabId: "", mspEnabled: true },
+        { productName: "WM LG FHM1207ZDL", mrp: 29990, mop: 27990, msp: 23000, slabId: "", mspEnabled: true },
+        { productName: "AC SAMSUNG 1.5T AR18CYHYAWKN", mrp: 39990, mop: 37990, msp: 32000, slabId: "", mspEnabled: true },
+        { productName: "AC LG 1.5T RS-Q19YNZE", mrp: 37990, mop: 35990, msp: 30000, slabId: "", mspEnabled: true },
+      ];
+      for (const item of SEED_DATA) {
+        await addDoc(collection(db, "price_guide"), {
+          ...item, updatedAt: Timestamp.now(), updatedBy: "system"
+        });
+      }
+      console.log(`[SEED] Added ${SEED_DATA.length} price guide items`);
     }
   } catch (err) {
     console.error("[MIGRATION] error:", err.message);
@@ -1082,24 +1140,7 @@ app.post("/createDeliveries", writeLimiter, async (req, res) => {
       const docRef = await addDoc(collection(db, "deliveries"), docData);
       createdIds.push(docRef.id);
 
-      // Create incentive sales record if sold_by data is provided
-      if (shared.sold_by_id && shared.sale_price > 0) {
-        try {
-          await addDoc(collection(db, "incentive_sales"), {
-            product_name:   item.product_name || "",
-            sale_price:     shared.sale_price,
-            sale_timestamp: Timestamp.now(),
-            customer_name:  shared.customer_name || "",
-            remarks:       shared.is_self_pickup ? "Self Pickup" : "DO Created",
-            staff_id:      shared.sold_by_id,
-            staff_name:    shared.sold_by_name || "Others",
-            delivery_id:   docRef.id,
-            created_at:    Timestamp.now()
-          });
-        } catch(saleErr) {
-          console.warn("[createDeliveries] Failed to create incentive sale:", saleErr.message);
-        }
-      }
+
     }
 
     // ✅ Respond immediately — notifications run in background (non-blocking)
@@ -2537,9 +2578,19 @@ app.get("/staff-list-public", async (req, res) => {
   try {
     const snap = await getDocs(collection(db, "staff_users"));
     res.json(snap.docs
-      .map(d => ({ id: d.id, name: d.data().name, role: d.data().role }))
+      .map(d => ({ id: d.id, name: d.data().name, role: d.data().role, weekly_off: d.data().weekly_off || "", color: d.data().color || "" }))
       .filter(s => s.role === "staff")
     );
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/staff-weekly-off", authenticate, async (req, res) => {
+  try {
+    const snap = await getDocs(query(collection(db, "staff_users"), where("role", "==", "staff")));
+    const list = snap.docs.map(d => ({ id: d.id, name: d.data().name, weekly_off: d.data().weekly_off || "", color: d.data().color || "" }));
+    res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2598,7 +2649,11 @@ app.post("/staff/login", pinLimiter, async (req, res) => {
       JWT_SECRET,
       { expiresIn: "12h" }
     );
-    res.json({ success: true, token, name: staffData.name });
+    res.json({
+      success: true, token, name: staffData.name,
+      weekly_off: staffData.weekly_off || "",
+      color: staffData.color || ""
+    });
   } catch (err) {
     console.error("/staff/login error:", err.message);
     res.status(500).json({ error: err.message });
@@ -2649,7 +2704,7 @@ app.post("/service/login", adminLoginLimiter, async (req, res) => {
 ════════════════════════════════════════════════ */
 app.post("/addStaff", authenticate, authorize(["admin"]), async (req, res) => {
   try {
-    const { name, role, pin, email, password, phone } = req.body;
+    const { name, role, pin, email, password, phone, weekly_off, color } = req.body;
     if (!name)   return res.status(400).json({ error: "Name required" });
     if (!role || !["staff", "service"].includes(role))
                  return res.status(400).json({ error: "Role must be 'staff' or 'service'" });
@@ -2659,6 +2714,8 @@ app.post("/addStaff", authenticate, authorize(["admin"]), async (req, res) => {
       role,
       phone:      phone || "",
       active:     true,
+      weekly_off: weekly_off || "",
+      color:      color || "",
       created_at: Timestamp.now()
     };
 
@@ -4534,133 +4591,32 @@ app.get('/cloud-invoices/file/:id', authenticate, authorize(['accountant', 'admi
 });
 
 
-/* ════════════════════════════════════════════════
-   INCENTIVES / SALES
-   GET  /incentives/sales  — staff sees own sales, admin/accountant sees all
-   POST /incentives/sales  — create new sale record
-═══════════════════════════════════════════════ */
-app.get("/incentives/sales", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
+
+/* ── Incentive module removed ── */
+
+app.post("/price-guide/bulk", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
   try {
-    const snap = await getDocs(collection(db, "incentive_sales"));
-    let sales = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    // Staff can only see their own sales
-    if (req.user.role === "staff") {
-      sales = sales.filter(s => s.staff_id === req.user.staff_id);
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "items array required" });
+    const results = [];
+    for (const item of items) {
+      const docRef = await addDoc(collection(db, "price_guide"), {
+        productName: item.productName || item.product_name || "",
+        mrp: Number(item.mrp) || 0,
+        mop: Number(item.mop) || 0,
+        msp: Number(item.msp) || 0,
+        slabId: item.slabId || "",
+        mspEnabled: item.mspEnabled !== undefined ? item.mspEnabled : true,
+        updatedAt: Timestamp.now(), updatedBy: req.user.name || "admin"
+      });
+      results.push({ id: docRef.id, productName: item.productName });
     }
-
-    // Sort by sale_timestamp descending (newest first)
-    sales.sort((a, b) =>
-      (b.sale_timestamp?.seconds ?? 0) - (a.sale_timestamp?.seconds ?? 0)
-    );
-
-    res.json(sales);
+    res.json({ success: true, count: results.length, items: results });
   } catch (err) {
-    console.error("/incentives/sales GET error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/incentives/sales", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
-  try {
-    const { product_name, sale_price, sale_timestamp, customer_name, remarks } = req.body;
-
-    if (!product_name || !product_name.trim()) {
-      return res.status(400).json({ error: "Product name required" });
-    }
-    if (!sale_price || isNaN(parseFloat(sale_price)) || parseFloat(sale_price) <= 0) {
-      return res.status(400).json({ error: "Valid sale price required" });
-    }
-
-    const price = parseFloat(sale_price);
-
-    // sale_timestamp can be a Firestore Timestamp object or Unix seconds
-    let timestampData = sale_timestamp;
-    if (!sale_timestamp) {
-      timestampData = Timestamp.now();
-    } else if (typeof sale_timestamp === "object" && sale_timestamp.seconds) {
-      // Already a Firestore Timestamp-like object
-      timestampData = sale_timestamp;
-    } else if (typeof sale_timestamp === "number") {
-      // Unix seconds
-      timestampData = Timestamp.fromSeconds(sale_timestamp);
-    }
-
-    const docRef = await addDoc(collection(db, "incentive_sales"), {
-      product_name:   product_name.trim(),
-      sale_price:     price,
-      sale_timestamp: timestampData,
-      customer_name:  customer_name?.trim() || "",
-      remarks:        remarks?.trim() || "",
-      staff_id:       req.user.staff_id || null,
-      staff_name:     req.user.name || req.user.role,
-      created_at:     Timestamp.now()
-    });
-
-    res.json({ success: true, id: docRef.id });
-  } catch (err) {
-    console.error("/incentives/sales POST error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.put("/incentives/sales/:id", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { product_name, sale_price, customer_name, remarks } = req.body;
-
-    if (!product_name || !product_name.trim()) {
-      return res.status(400).json({ error: "Product name required" });
-    }
-    if (!sale_price || isNaN(parseFloat(sale_price)) || parseFloat(sale_price) <= 0) {
-      return res.status(400).json({ error: "Valid sale price required" });
-    }
-
-    const refDoc = doc(db, "incentive_sales", id);
-    const snap = await getDoc(refDoc);
-    if (!snap.exists()) return res.status(404).json({ error: "Sale not found" });
-
-    const sale = snap.data();
-    // Staff can only edit their own sales
-    if (req.user.role === "staff" && sale.staff_id !== req.user.staff_id) {
-      return res.status(403).json({ error: "You can only edit your own sales" });
-    }
-
-    await updateDoc(refDoc, {
-      product_name:  product_name.trim(),
-      sale_price:    parseFloat(sale_price),
-      customer_name: customer_name?.trim() || "",
-      remarks:       remarks?.trim() || "",
-      updated_at:    Timestamp.now()
-    });
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("/incentives/sales/:id PUT error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.delete("/incentives/sales/:id", authenticate, authorize(["admin", "accountant", "staff"]), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const refDoc = doc(db, "incentive_sales", id);
-    const snap = await getDoc(refDoc);
-    if (!snap.exists()) return res.status(404).json({ error: "Sale not found" });
-
-    const sale = snap.data();
-    // Staff can only delete their own sales
-    if (req.user.role === "staff" && sale.staff_id !== req.user.staff_id) {
-      return res.status(403).json({ error: "You can only delete your own sales" });
-    }
-
-    await deleteDoc(refDoc);
-    res.json({ success: true });
-  } catch (err) {
-    console.error("/incentives/sales/:id DELETE error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 /* ════════════════════════════════════════════════
    PART 1: HEALTH CHECK ENDPOINT
@@ -4737,13 +4693,272 @@ app.get("/weather", async (req, res) => {
   }
 });
 
+/* ════════════════════════════════════════════════
+   PRICE GUIDE & CALENDAR EVENTS
+════════════════════════════════════════════════ */
+
+app.get("/price-guide", authenticate, async (req, res) => {
+  try {
+    const pgSnap = await getDocs(collection(db, "price_guide"));
+    const items = pgSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/price-guide", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const { productName, mrp, mop, msp, slabId, mspEnabled } = req.body;
+    if (!productName) return res.status(400).json({ error: "Product name required" });
+    const docRef = await addDoc(collection(db, "price_guide"), {
+      productName,
+      mrp: Number(mrp) || 0, mop: Number(mop) || 0, msp: Number(msp) || 0,
+      slabId: slabId || "", mspEnabled: mspEnabled !== undefined ? mspEnabled : true,
+      updatedAt: Timestamp.now(), updatedBy: req.user.name || "admin"
+    });
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   MSP GLOBAL SETTING (must be before /:id routes)
+════════════════════════════════════════════════ */
+
+app.get("/price-guide/msp-global", authenticate, async (req, res) => {
+  try {
+    const snap = await getDoc(doc(db, "settings", "msp-global"));
+    res.json({ mspGlobalEnabled: snap.exists() ? snap.data().mspGlobalEnabled : true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/price-guide/msp-global", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const { mspGlobalEnabled } = req.body;
+    if (typeof mspGlobalEnabled !== "boolean") return res.status(400).json({ error: "mspGlobalEnabled boolean required" });
+    await setDoc(doc(db, "settings", "msp-global"), { mspGlobalEnabled }, { merge: true });
+    res.json({ success: true, mspGlobalEnabled });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/price-guide/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const ref = doc(db, "price_guide", req.params.id);
+    if (!(await getDoc(ref)).exists()) return res.status(404).json({ error: "Not found" });
+    const clean = { ...req.body };
+    delete clean.id;
+    await updateDoc(ref, { ...clean, updatedAt: Timestamp.now(), updatedBy: req.user.name || "admin" });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/price-guide/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    await deleteDoc(doc(db, "price_guide", req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   SLABS — incentive slabs for salesmen
+════════════════════════════════════════════════ */
+
+app.get("/slabs", authenticate, async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "slabs"));
+    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    items.sort((a, b) => (a.slabName || "").localeCompare(b.slabName || ""));
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/slabs", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const { slabName, description } = req.body;
+    if (!slabName || !slabName.trim()) return res.status(400).json({ error: "Slab name required" });
+    const docRef = await addDoc(collection(db, "slabs"), {
+      slabName: slabName.trim(), description: description || "",
+      createdAt: Timestamp.now(), updatedAt: Timestamp.now()
+    });
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/slabs/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const ref = doc(db, "slabs", req.params.id);
+    if (!(await getDoc(ref)).exists()) return res.status(404).json({ error: "Not found" });
+    const clean = { ...req.body };
+    delete clean.id;
+    clean.updatedAt = Timestamp.now();
+    await updateDoc(ref, clean);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/slabs/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    await deleteDoc(doc(db, "slabs", req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Categories ──
+app.get("/categories", authenticate, async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "categories"));
+    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    items.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/categories", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Category name required" });
+    const docRef = await addDoc(collection(db, "categories"), { name: name.trim().toUpperCase() });
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/categories/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const ref = doc(db, "categories", req.params.id);
+    if (!(await getDoc(ref)).exists()) return res.status(404).json({ error: "Not found" });
+    const { name } = req.body;
+    await updateDoc(ref, { name: name.trim().toUpperCase() });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/categories/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    await deleteDoc(doc(db, "categories", req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Calendar Events ──
+
+app.get("/calendar-events", authenticate, async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "calendar_events"));
+    let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    items.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const role = req.user.role;
+    const userId = req.user.staff_id || req.user.id || "";
+    if (role !== "admin" && role !== "accountant") {
+      items = items.filter(e => {
+        if (e.visibility === "public") return true;
+        if (e.visibility === "staff_only" && e.targetStaffId === userId) return true;
+        if (e.visibility === "admin_only" && e.createdById === userId) return true;
+        return false;
+      });
+    }
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/calendar-events", authenticate, async (req, res) => {
+  try {
+    const { date, type, title, description, visibility, targetStaffId } = req.body;
+    if (!date || !type || !title) return res.status(400).json({ error: "date, type, title required" });
+    if (!["leave", "note", "agenda"].includes(type)) return res.status(400).json({ error: "Invalid type" });
+    if (date < new Date().toISOString().slice(0,10)) return res.status(400).json({ error: "Cannot create events in the past" });
+    const isAdmin = req.user.role === "admin" || req.user.role === "accountant";
+    if (isAdmin) {
+      if (!["note", "agenda"].includes(type)) return res.status(403).json({ error: "Admin can only create note or agenda events" });
+      if (type === "agenda" && visibility === "staff_only") return res.status(400).json({ error: "Agenda must be public" });
+    } else {
+      if (!["leave", "note"].includes(type)) return res.status(403).json({ error: "Staff can only create leave or note events" });
+    }
+    const userId = req.user.staff_id || req.user.id || "";
+    const finalVisibility = type === "leave" ? "public" : (visibility || "public");
+    if (finalVisibility === "staff_only" && !targetStaffId) return res.status(400).json({ error: "targetStaffId required for staff_only visibility" });
+    const docRef = await addDoc(collection(db, "calendar_events"), {
+      date, type, title, description: description || "",
+      createdBy: req.user.name || "Admin", createdById: userId,
+      createdByRole: req.user.role,
+      visibility: finalVisibility,
+      targetStaffId: finalVisibility === "staff_only" ? targetStaffId : null,
+      createdAt: Timestamp.now(), updatedAt: Timestamp.now()
+    });
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/calendar-events/:id", authenticate, async (req, res) => {
+  try {
+    const ref = doc(db, "calendar_events", req.params.id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return res.status(404).json({ error: "Not found" });
+    const event = snap.data();
+    const isAdmin = req.user.role === "admin" || req.user.role === "accountant";
+    const userId = req.user.staff_id || req.user.id || "";
+    if (!isAdmin && event.createdById !== userId) return res.status(403).json({ error: "Forbidden" });
+    const clean = { ...req.body };
+    delete clean.id;
+    await updateDoc(ref, { ...clean, updatedAt: Timestamp.now() });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/calendar-events/:id", authenticate, async (req, res) => {
+  try {
+    const ref = doc(db, "calendar_events", req.params.id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return res.status(404).json({ error: "Not found" });
+    const event = snap.data();
+    const isAdmin = req.user.role === "admin" || req.user.role === "accountant";
+    const userId = req.user.staff_id || req.user.id || "";
+    if (!isAdmin && event.createdById !== userId) return res.status(403).json({ error: "Forbidden" });
+    await deleteDoc(ref);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ══════════════════════════════════════════════════
    PART 2: OPTIONAL SELF-PING (SAFE)
    - Every 5 minutes, check current hour
    - Only ping during active hours (9 AM - 10 PM)
    - Uses native Node.js fetch (no external libs)
    - Non-blocking, minimal load
-══════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 
 function startSelfPing() {
   const externalUrl = process.env.RENDER_EXTERNAL_URL;
