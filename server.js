@@ -384,13 +384,19 @@ app.post(
       const voucher_number = tag("HARIOMFVOUCHERNO");
       const customer_name  = tag("HARIOMFPARTY");
       const raw_address    = tag("HARIOMFADDRESS");
-      const mobile         = tag("HARIOMFMOBILE");
+      const mobile         = tag("HARIOMFMOBILE"); // ledger's mobile — always the primary phone
 
-      // Phone is often embedded inside the address string
+      // The address line often has a second number written in manually
+      // (e.g. a delivery contact) — that one becomes the alternate.
       const phonesInAddr  = raw_address.match(/\b[6-9]\d{9}\b/g) || [];
       const clean_address = raw_address.replace(/,?\s*[6-9]\d{9}/g, "").trim();
-      const phone         = tag("HARIOMFPHONE") || phonesInAddr[0] || "";
-      const alt_phone     = (mobile && mobile !== phone) ? mobile : (phonesInAddr[1] || "");
+      const addrPhone     = phonesInAddr[0] || "";
+
+      // PRIMARY: ledger mobile wins. Falls back to an explicit HARIOMFPHONE
+      // tag, then to whatever number was found in the address, if neither exists.
+      const phone     = mobile || tag("HARIOMFPHONE") || addrPhone || "";
+      // ALTERNATE: the address-line number, as long as it isn't the same as primary.
+      const alt_phone = (addrPhone && addrPhone !== phone) ? addrPhone : (phonesInAddr[1] || "");
 
       // Items repeat per row — zip the arrays
       const items = tagAll("HARIOMFITEM");
