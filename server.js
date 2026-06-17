@@ -503,6 +503,89 @@ app.post(
       });
     }
 
+    // ── HANDLE NEW TDL JSON PUSH (HTTP Request with Plain JSON / JSONTag fields) ──
+    // New TDL sends: { invoice_no, customer_name, bill_date, secret_key }
+    // This is a header-only push (no line items) — creates a single DO
+    if (req.body?.invoice_no) {
+      const b              = req.body;
+      const voucher_number = b.invoice_no || "";
+      const customer_name  = b.customer_name || "Unknown";
+      const bill_date      = b.bill_date || "";
+
+      if (!voucher_number) {
+        return res.status(400).json({ error: "Could not extract voucher number from TDL JSON" });
+      }
+
+      // Idempotency check
+      const dupeSnap = await getDocs(query(
+        collection(db, "deliveries"),
+        where("invoice_number", "==", voucher_number)
+      ));
+      const existingTallyDocs = dupeSnap.docs.filter(d => d.data().source === "tally_tdl");
+      if (existingTallyDocs.length > 0) {
+        console.log("[tally/voucher TDL JSON-new] duplicate push ignored:", voucher_number);
+        return res.json({
+          ok: true, invoice_number: voucher_number, customer: customer_name,
+          ids: existingTallyDocs.map(d => d.id), duplicate: true
+        });
+      }
+
+      const estimated_delivery_time = tallyAutoETA();
+      const driversSnap   = await getDocs(collection(db, "drivers"));
+      const unassignedDoc = driversSnap.docs.find(d =>
+        (d.data().driver_name || "").trim().toLowerCase() === "unassigned"
+      );
+      const assigned_driver_id   = unassignedDoc ? unassignedDoc.id : "unassigned";
+      const assigned_driver_name = "Unassigned";
+
+      const docRef = await addDoc(collection(db, "deliveries"), {
+        customer_name,
+        phone:                   "",
+        alternate_phone:         "",
+        address:                 "",
+        product_name:            "",
+        product_serial_number:   "",
+        invoice_number:          voucher_number,
+        batch_id:                null,
+        priority:                "normal",
+        estimated_delivery_time,
+        assigned_driver_id,
+        assigned_driver_name,
+        driver_instructions:     "none",
+        freight_charged:         false,
+        freight_amount:          "",
+        freight_set_by:          "",
+        is_self_pickup:          false,
+        sold_by_id:              "",
+        sold_by_name:            "Others",
+        sale_price:              0,
+        source:                  "tally_tdl",
+        created_timestamp:       Timestamp.now(),
+        status:                  statusForETA(estimated_delivery_time)
+      });
+
+      console.log("[tally/voucher TDL JSON-new] DO created:", voucher_number, "|", customer_name);
+
+      (async () => {
+        try {
+          await sendAccountantPush(
+            "🧾 New DO from Tally",
+            `${customer_name} — confirm driver, ETA & freight`
+          );
+        } catch (bgErr) {
+          console.warn("[tally/voucher TDL JSON-new] notification error:", bgErr.message);
+        }
+      })();
+
+      return res.json({
+        ok: true,
+        invoice_number: voucher_number,
+        customer: customer_name,
+        ids: [docRef.id],
+        estimated_delivery_time
+      });
+    }
+
     // ── HANDLE JSON PUSH (Postman / bridge script) ──
     // Accept full Tally envelope { tallymessage: [...] } or bare voucher object
     const raw     = req.body;
