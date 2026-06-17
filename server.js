@@ -87,6 +87,29 @@ function statusForETA(etaString) {
 }
 
 /* ════════════════════════════════════════════════
+   TALLY AUTO-ETA
+   Tally has no delivery-date field, so when a DO is
+   auto-created from the TDL push we need a sensible
+   default the accountant can adjust afterwards:
+     - now + 3 hours, normally
+     - if it's already 7 PM (19:00) IST or later,
+       push it to next day 11:30 AM instead
+════════════════════════════════════════════════ */
+function tallyAutoETA() {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(Date.now() + IST_OFFSET_MS); // UTC getters read as IST wall-clock
+  let target;
+  if (istNow.getUTCHours() >= 19) {
+    target = new Date(istNow.getTime());
+    target.setUTCDate(target.getUTCDate() + 1);
+    target.setUTCHours(11, 30, 0, 0);
+  } else {
+    target = new Date(istNow.getTime() + 3 * 60 * 60 * 1000);
+  }
+  return target.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm" IST wall-clock string
+}
+
+/* ════════════════════════════════════════════════
    CRON — 6:00 AM IST daily
    Flips booked → pending when delivery date arrives
 ════════════════════════════════════════════════ */
@@ -340,6 +363,12 @@ app.post(
     _tallyDebugCapture(req.body);
 
     // ── HANDLE TDL XML PUSH (Tally button sends raw XML) ──
+    // DIRECT-CREATE: the moment Tally pushes this, the DO(s) are created
+    // straight in Firestore — no accountant import step required.
+    // ETA and driver aren't in the TDL payload, so sensible defaults are
+    // used (see tallyAutoETA + "Unassigned" driver); the accountant fixes
+    // these up — along with delivery instructions / freight — afterwards
+    // from Edit Delivery.
     if (req.body?._raw_xml_or_text_body) {
       const xml = req.body._raw_xml_or_text_body;
 
@@ -371,29 +400,101 @@ app.post(
       if (!voucher_number) {
         return res.status(400).json({ error: "Could not extract voucher number from Tally XML" });
       }
+      if (items.length === 0) {
+        return res.status(400).json({ error: "No items found in voucher XML — nothing to create" });
+      }
 
-      // Store in the exact shape accountant.html selectTallyPushInvoice() expects
-      const mapped = {
+      // ── Idempotency: if Tally retries the HTTP Post (flaky LAN/connection),
+      //    don't create duplicate DOs for the same voucher ──
+      const dupeSnap = await getDocs(query(
+        collection(db, "deliveries"),
+        where("invoice_number", "==", voucher_number)
+      ));
+      const existingTallyDocs = dupeSnap.docs.filter(d => d.data().source === "tally_tdl");
+      if (existingTallyDocs.length > 0) {
+        console.log("[tally/voucher TDL XML] duplicate push ignored:", voucher_number);
+        return res.json({
+          ok: true, invoice_number: voucher_number, customer: customer_name,
+          ids: existingTallyDocs.map(d => d.id), duplicate: true
+        });
+      }
+
+      // ── Default ETA: now + 3h, or next-day 11:30 AM if it's 7 PM+ IST ──
+      const estimated_delivery_time = tallyAutoETA();
+
+      // ── Driver: Tally has no driver info — park on "Unassigned" for dispatch ──
+      const driversSnap   = await getDocs(collection(db, "drivers"));
+      const unassignedDoc = driversSnap.docs.find(d =>
+        (d.data().driver_name || "").trim().toLowerCase() === "unassigned"
+      );
+      const assigned_driver_id   = unassignedDoc ? unassignedDoc.id : "unassigned";
+      const assigned_driver_name = "Unassigned";
+
+      const batchId = items.length > 1
+        ? `batch_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
+        : null;
+
+      const createdIds = [];
+      for (let i = 0; i < items.length; i++) {
+        const rate = parseFloat((amts[i] || "0").replace(/,/g, "")) || 0;
+        const docRef = await addDoc(collection(db, "deliveries"), {
+          customer_name:           customer_name || "Unknown",
+          phone:                   phone || "",
+          alternate_phone:         alt_phone || "",
+          address:                 clean_address || "",
+          product_name:            (items[i] || "").toUpperCase(),
+          product_serial_number:   "",
+          invoice_number:          voucher_number,
+          batch_id:                batchId,
+          priority:                "normal",
+          estimated_delivery_time,
+          assigned_driver_id,
+          assigned_driver_name,
+          driver_instructions:     "none",
+          freight_charged:         false,
+          freight_amount:          "",
+          freight_set_by:          "",
+          is_self_pickup:          false,
+          sold_by_id:              "",
+          sold_by_name:            "Others",
+          sale_price:              rate,
+          source:                  "tally_tdl",
+          created_timestamp:       Timestamp.now(),
+          status:                  statusForETA(estimated_delivery_time)
+        });
+        createdIds.push(docRef.id);
+      }
+
+      console.log(
+        "[tally/voucher TDL XML] DO auto-created:", voucher_number, "|",
+        customer_name, "|", items.length, "item(s) |", createdIds.length, "DO(s) | ETA:", estimated_delivery_time
+      );
+
+      // Background notifications — don't block the response back to Tally
+      (async () => {
+        try {
+          if (phone) {
+            await sendWhatsapp(phone, `Hello ${customer_name}, your delivery is scheduled at ${estimated_delivery_time}`);
+            await sendSMS(phone, `Hariom Delivery: Your delivery is scheduled at ${estimated_delivery_time}`);
+          }
+          await sendAccountantPush(
+            "🧾 New DO from Tally",
+            `${customer_name} — ${items.length} item(s) — confirm driver, ETA & freight`
+          );
+        } catch (bgErr) {
+          console.warn("[tally/voucher TDL XML] notification error:", bgErr.message);
+        }
+      })();
+
+      return res.json({
+        ok: true,
         invoice_number: voucher_number,
-        name:           customer_name,
-        phone:          phone,
-        alt_phone:      alt_phone,
-        address:        clean_address,
-        source:         "tally_tdl",
-        invoice_date:   tag("HARIOMFDATE"),
-        products:       items.map((item, i) => ({
-          name:    item,
-          serial:  "",
-          invoice: voucher_number,
-          qty:     parseInt((qtys[i] || "1").replace(/[^0-9]/g, "")) || 1,
-          rate:    parseFloat((amts[i] || "0").replace(/,/g, "")) || null
-        })),
-        pushed_at: new Date().toISOString()
-      };
-
-      _tallyPendingStore.set(voucher_number, { data: mapped, ts: Date.now() });
-      console.log("[tally/voucher TDL XML] stored:", voucher_number, "|", customer_name, "|", items.length, "item(s)");
-      return res.json({ ok: true, invoice_number: voucher_number, customer: customer_name, items: items.length });
+        customer: customer_name,
+        items: items.length,
+        created: createdIds.length,
+        ids: createdIds,
+        estimated_delivery_time
+      });
     }
 
     // ── HANDLE JSON PUSH (Postman / bridge script) ──
