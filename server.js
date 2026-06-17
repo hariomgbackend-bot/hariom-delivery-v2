@@ -339,6 +339,64 @@ app.post(
     // ── DEBUG CAPTURE (raw, before any transformation) ──
     _tallyDebugCapture(req.body);
 
+    // ── HANDLE TDL XML PUSH (Tally button sends raw XML) ──
+    if (req.body?._raw_xml_or_text_body) {
+      const xml = req.body._raw_xml_or_text_body;
+
+      // Extract all values for a repeating tag (Tally repeats all fields per item row)
+      const tagAll = (t) => {
+        const re = new RegExp(`<${t}>([^<]*)</${t}>`, "gi");
+        const out = []; let m;
+        while ((m = re.exec(xml)) !== null) out.push(m[1].trim());
+        return out;
+      };
+      const tag = (t) => tagAll(t)[0] || "";
+
+      const voucher_number = tag("HARIOMFVOUCHERNO");
+      const customer_name  = tag("HARIOMFPARTY");
+      const raw_address    = tag("HARIOMFADDRESS");
+      const mobile         = tag("HARIOMFMOBILE");
+
+      // Phone is often embedded inside the address string
+      const phonesInAddr  = raw_address.match(/\b[6-9]\d{9}\b/g) || [];
+      const clean_address = raw_address.replace(/,?\s*[6-9]\d{9}/g, "").trim();
+      const phone         = tag("HARIOMFPHONE") || phonesInAddr[0] || "";
+      const alt_phone     = (mobile && mobile !== phone) ? mobile : (phonesInAddr[1] || "");
+
+      // Items repeat per row — zip the arrays
+      const items = tagAll("HARIOMFITEM");
+      const qtys  = tagAll("HARIOMFQTY");
+      const amts  = tagAll("HARIOMFAMT");
+
+      if (!voucher_number) {
+        return res.status(400).json({ error: "Could not extract voucher number from Tally XML" });
+      }
+
+      // Store in the exact shape accountant.html selectTallyPushInvoice() expects
+      const mapped = {
+        invoice_number: voucher_number,
+        name:           customer_name,
+        phone:          phone,
+        alt_phone:      alt_phone,
+        address:        clean_address,
+        source:         "tally_tdl",
+        invoice_date:   tag("HARIOMFDATE"),
+        products:       items.map((item, i) => ({
+          name:    item,
+          serial:  "",
+          invoice: voucher_number,
+          qty:     parseInt((qtys[i] || "1").replace(/[^0-9]/g, "")) || 1,
+          rate:    parseFloat((amts[i] || "0").replace(/,/g, "")) || null
+        })),
+        pushed_at: new Date().toISOString()
+      };
+
+      _tallyPendingStore.set(voucher_number, { data: mapped, ts: Date.now() });
+      console.log("[tally/voucher TDL XML] stored:", voucher_number, "|", customer_name, "|", items.length, "item(s)");
+      return res.json({ ok: true, invoice_number: voucher_number, customer: customer_name, items: items.length });
+    }
+
+    // ── HANDLE JSON PUSH (Postman / bridge script) ──
     // Accept full Tally envelope { tallymessage: [...] } or bare voucher object
     const raw     = req.body;
     const voucher = raw?.tallymessage?.[0] ?? raw;
@@ -413,7 +471,7 @@ app.post(
     };
 
     _tallyPendingStore.set(invoice_number, { data: mapped, ts: Date.now() });
-    console.log("[tally/voucher] stored:", invoice_number, "|", name, "|", products.length, "item(s)");
+    console.log("[tally/voucher JSON] stored:", invoice_number, "|", name, "|", products.length, "item(s)");
     res.json({ ok: true, invoice_number, customer: name, items: products.length });
 
   } catch (err) {
