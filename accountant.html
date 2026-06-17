@@ -1129,6 +1129,7 @@
       <button class="filter-btn" data-filter="delivered" onclick="setFilter('delivered')">Delivered <span class="filter-count" id="fc-delivered"></span></button>
       <button class="filter-btn" data-filter="failed"    onclick="setFilter('failed')" style="color:var(--error);border-color:rgba(255,180,171,0.3);">❌ Failed <span class="filter-count" id="fc-failed"></span></button>
       <button class="filter-btn" data-filter="urgent"    onclick="setFilter('urgent')">🔥 Urgent <span class="filter-count" id="fc-urgent"></span></button>
+      <button class="filter-btn" data-filter="self_pickup" onclick="setFilter('self_pickup')" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);">🏪 Self Pickup <span class="filter-count" id="fc-self_pickup"></span></button>
       <button class="filter-btn" data-filter="today"     onclick="setFilter('today')">Today <span class="filter-count" id="fc-today"></span></button>
       <button class="filter-btn" data-filter="yesterday" onclick="setFilter('yesterday')">Yesterday</button>
       <button class="filter-btn" data-filter="custom"    onclick="showCustomDate()">📅 Custom</button>
@@ -3663,6 +3664,7 @@ async function _doLoadDeliveries() {
     else if (currentFilter === "failed")    finalData = failedArr;
     else if (currentFilter === "delivered") finalData = deliveredTodayArr;
     else if (currentFilter === "urgent")    finalData = finalData.filter(d => d.priority === "urgent");
+    else if (currentFilter === "self_pickup") finalData = finalData.filter(d => d.is_self_pickup === true);
     else if (currentFilter === "today")     finalData = finalData.filter(d =>
       d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === todayStr
     );
@@ -3688,7 +3690,7 @@ async function _doLoadDeliveries() {
   currentAccountantData = finalData;
 
   // Update filter count badges (based on all unfiltered data)
-  const counts = { all: data.length, booked: 0, pending: 0, loaded: 0, delivered: 0, failed: 0, urgent: 0, today: 0 };
+  const counts = { all: data.length, booked: 0, pending: 0, loaded: 0, delivered: 0, failed: 0, urgent: 0, self_pickup: 0, today: 0 };
   const srcCounts = { manual: 0, tally_tdl: 0, import_file: 0 };
   data.forEach(d => {
     if (d.status === "booked")    counts.booked++;
@@ -3697,6 +3699,7 @@ async function _doLoadDeliveries() {
     if (d.status === "delivered") counts.delivered++;
     if (d.status === "failed")    counts.failed++;
     if (d.priority === "urgent")  counts.urgent++;
+    if (d.is_self_pickup)         counts.self_pickup++;
     const isToday = d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === todayStr;
     if (isToday) {
       counts.today++;
@@ -3704,7 +3707,7 @@ async function _doLoadDeliveries() {
       srcCounts[src]++;
     }
   });
-  ["all","booked","pending","loaded","delivered","failed","urgent","today"].forEach(k => {
+  ["all","booked","pending","loaded","delivered","failed","urgent","self_pickup","today"].forEach(k => {
     const el = document.getElementById("fc-" + k);
     if (el) el.innerText = counts[k] || "";
   });
@@ -3728,6 +3731,7 @@ async function _doLoadDeliveries() {
     else if (currentFilter === "loaded")    base = data.filter(d => d.status === "loaded");
     else if (currentFilter === "failed")    base = data.filter(d => d.status === "failed");
     else if (currentFilter === "urgent")    base = data.filter(d => d.priority === "urgent");
+    else if (currentFilter === "self_pickup") base = data.filter(d => d.is_self_pickup === true);
     return base;
   })();
 
@@ -4569,10 +4573,26 @@ async function editDelivery(id) {
     <input id="edit_product" value="${escHtml(delivery.product_name)}" oninput="this.value=this.value.toUpperCase()" style="${inputStyle}">
     <div class="section-title">Serial Number</div>
     <input id="edit_serial" value="${escHtml(delivery.product_serial_number) || ""}" style="${inputStyle}">
-    <div class="section-title">Estimated Delivery Time</div>
-    <input type="datetime-local" id="edit_eta" value="${delivery.estimated_delivery_time ? new Date(delivery.estimated_delivery_time).toISOString().slice(0,16) : ""}" style="${inputStyle}">
-    <div class="section-title">Assign Driver</div>
-    <select id="edit_driver" style="${inputStyle}"></select>
+    <!-- SELF-PICKUP TOGGLE -->
+    <div class="checkbox-row" style="margin-top:10px;">
+      <input type="checkbox" id="edit_is_self_pickup" onchange="toggleEditSelfPickup()" ${delivery.is_self_pickup ? "checked" : ""}>
+      <label for="edit_is_self_pickup">🏪 Self Pickup (customer collects from shop)</label>
+    </div>
+
+    <div id="editNormalDeliveryWrap" style="display:${delivery.is_self_pickup ? "none" : "block"};">
+      <div class="section-title">Estimated Delivery Time</div>
+      <input type="datetime-local" id="edit_eta" value="${delivery.estimated_delivery_time ? new Date(delivery.estimated_delivery_time).toISOString().slice(0,16) : ""}" style="${inputStyle}">
+      <div class="section-title">Assign Driver</div>
+      <select id="edit_driver" style="${inputStyle}"></select>
+    </div>
+
+    <div id="editSelfPickupWrap" style="display:${delivery.is_self_pickup ? "block" : "none"};margin-bottom:8px;">
+      <div class="section-title">Expected Pickup Date &amp; Time</div>
+      <input type="datetime-local" id="edit_pickup_date" value="${delivery.estimated_delivery_time ? new Date(delivery.estimated_delivery_time).toISOString().slice(0,16) : ""}" style="${inputStyle}">
+      <div style="font-size:11px;color:var(--text-muted,#888);margin-top:4px;">
+        Customer will collect from shop — no driver assigned. Staff at shop will mark as delivered.
+      </div>
+    </div>
 
     <div class="checkbox-row">
       <input type="checkbox" id="edit_has_instruction" onchange="toggleEditInstruction()" ${hasInstruction ? "checked" : ""}>
@@ -4623,10 +4643,17 @@ function toggleEditFreight() {
   if (!checked) document.getElementById("edit_freight_amount").value = "";
 }
 
+function toggleEditSelfPickup() {
+  const checked = document.getElementById("edit_is_self_pickup").checked;
+  document.getElementById("editNormalDeliveryWrap").style.display = checked ? "none" : "block";
+  document.getElementById("editSelfPickupWrap").style.display = checked ? "block" : "none";
+}
+
 async function saveDelivery(id) {
   const driverSelect      = document.getElementById("edit_driver");
   const hasInstruction    = document.getElementById("edit_has_instruction").checked;
   const freightCharged    = document.getElementById("edit_freight_charged").checked;
+  const isSelfPickup      = document.getElementById("edit_is_self_pickup").checked;
   const updated = {
     customer_name:           document.getElementById("edit_name").value,
     phone:                   document.getElementById("edit_phone").value,
@@ -4634,13 +4661,16 @@ async function saveDelivery(id) {
     address:                 document.getElementById("edit_address").value,
     product_name:            document.getElementById("edit_product").value.trim().toUpperCase(),
     product_serial_number:   document.getElementById("edit_serial").value,
-    estimated_delivery_time: document.getElementById("edit_eta").value,
-    assigned_driver_id:      driverSelect.value,
-    assigned_driver_name:    driverSelect.options[driverSelect.selectedIndex].text,
+    estimated_delivery_time: isSelfPickup
+      ? document.getElementById("edit_pickup_date").value
+      : document.getElementById("edit_eta").value,
+    assigned_driver_id:      isSelfPickup ? "" : driverSelect.value,
+    assigned_driver_name:    isSelfPickup ? "" : driverSelect.options[driverSelect.selectedIndex].text,
     driver_instructions:     hasInstruction ? document.getElementById("edit_instruction").value.trim() : "none",
     freight_charged:         freightCharged,
     freight_amount:          freightCharged ? document.getElementById("edit_freight_amount").value : "",
-    freight_set_by:          freightCharged ? "accountant" : ""
+    freight_set_by:          freightCharged ? "accountant" : "",
+    is_self_pickup:          isSelfPickup
   };
 
   try {
