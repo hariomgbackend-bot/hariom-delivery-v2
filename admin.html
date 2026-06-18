@@ -16,6 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <style>
     /* ════════════════════════════════════════════════
@@ -1268,6 +1269,142 @@
     .inc-table tr:hover td { background: var(--surface-container-low); }
     .inc-table .num { text-align: right; font-weight: 600; }
     .inc-search { width: 100%; padding: 10px 14px; background: var(--surface-container-high); border: none; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 13px; color: var(--on-surface); outline: none; }
+
+    /* ── PRICE GUIDE ── */
+    .pg-save-bar { position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface-container);border-radius:14px;margin-bottom:12px;border:1px solid var(--outline-variant); }
+    .pg-save-bar .count { font-size:12px;font-weight:700;color:var(--amber);flex:1; }
+    .pg-toolbar { display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px; }
+    .pg-toolbar .search-wrap { position:relative;flex:1;min-width:180px;max-width:300px; }
+    .pg-toolbar .search-wrap .search-icon { position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--on-surface-variant);pointer-events:none; }
+    .pg-toolbar .search-wrap input { width:100%;padding:8px 10px 8px 34px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none; }
+    .pg-toolbar .search-wrap input:focus { outline:2px solid var(--primary); }
+    .pg-chip-row { display:flex;gap:6px;flex-wrap:wrap; }
+    .pg-chip { padding:5px 14px;border:1px solid var(--outline-variant);border-radius:20px;background:transparent;color:var(--on-surface-variant);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;white-space:nowrap; }
+    .pg-chip:hover { border-color:var(--primary);color:var(--primary); }
+    .pg-chip.active { background:linear-gradient(135deg,var(--primary-container),var(--primary));border-color:transparent;color:var(--on-primary-container); }
+    .pg-toggle-wrap { display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--on-surface-variant); }
+    .pg-toggle { position:relative;width:38px;height:20px;background:var(--surface-container-high);border-radius:10px;cursor:pointer;transition:background 0.2s;border:none;padding:0; }
+    .pg-toggle.on { background:var(--primary); }
+    .pg-toggle::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform 0.2s; }
+    .pg-toggle.on::after { transform:translateX(18px); }
+    .pg-btn { padding:8px 16px;border:none;border-radius:9px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap; }
+    .pg-btn-primary { background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container); }
+    .pg-btn-outline { background:transparent;border:1px solid var(--outline-variant);color:var(--on-surface-variant); }
+    .pg-btn-outline.active { border-color:var(--primary);color:var(--primary);background:rgba(173,198,255,0.08); }
+    .pg-spreadsheet { overflow-x:auto;border-radius:14px;border:1px solid var(--outline-variant);margin-bottom:16px; }
+    .pg-spreadsheet table { width:100%;border-collapse:collapse;font-size:13px; }
+    .pg-spreadsheet th { padding:9px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);background:var(--surface-container-high);border-bottom:1px solid var(--outline-variant);white-space:nowrap;position:sticky;top:0;z-index:5; }
+    .pg-spreadsheet td { padding:5px 8px;border-bottom:1px solid var(--border);vertical-align:middle; }
+    .pg-spreadsheet tr:last-child td { border-bottom:none; }
+    .pg-spreadsheet tr:hover td { background:var(--surface-container-low); }
+    .pg-cell-readonly { font-weight:700;color:var(--on-surface);padding:4px 6px;white-space:nowrap; }
+    .pg-cell-editable { width:100%;padding:5px 7px;background:var(--surface-container-high);border:1px solid transparent;border-radius:6px;font-family:'Inter',sans-serif;font-size:12px;color:var(--on-surface);outline:none;transition:border-color 0.15s;min-width:50px;box-sizing:border-box; }
+    .pg-cell-editable:focus { border-color:var(--primary);background:var(--surface-container);outline:none; }
+    .pg-cell-editable.num { text-align:right;font-weight:600; }
+    .pg-cell-select { width:100%;padding:5px 4px;background:var(--surface-container-high);border:1px solid transparent;border-radius:6px;font-family:'Inter',sans-serif;font-size:11px;color:var(--on-surface);outline:none;cursor:pointer;min-width:80px; }
+    .pg-cell-select:focus { border-color:var(--primary); }
+    .pg-row-dirty { background:rgba(245,158,11,0.08) !important;border-left:3px solid var(--amber); }
+    .pg-row-dirty td:first-child { padding-left:5px; }
+    .pg-badge { display:inline-block;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(173,198,255,0.1);color:var(--primary); }
+    .pg-toggle-cell { width:36px;height:18px;border-radius:9px;border:none;padding:0;cursor:pointer;background:var(--surface-container-high);transition:background 0.15s;position:relative; }
+    .pg-toggle-cell.on { background:var(--primary); }
+    .pg-toggle-cell::after { content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform 0.15s; }
+    .pg-toggle-cell.on::after { transform:translateX(18px); }
+    .pg-add-modal { position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:300; }
+    .pg-add-card { background:var(--surface-container);border-radius:20px;padding:24px;width:90%;max-width:480px;max-height:90vh;overflow-y:auto; }
+    .pg-add-card h3 { font-size:16px;font-weight:800;color:var(--on-surface);margin:0 0 16px; }
+    .pg-add-grid { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px; }
+    .pg-add-field { width:100%;padding:10px 12px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;box-sizing:border-box; }
+    .pg-add-field:focus { outline:2px solid var(--primary); }
+    .pg-add-full { grid-column:1/-1; }
+    .pg-excel-card { background:var(--surface-container-low);border:1px solid var(--outline-variant);border-radius:16px;padding:16px;margin-bottom:14px; }
+    .pg-excel-card .title { font-size:12px;font-weight:700;color:var(--on-surface);margin-bottom:8px; }
+    .pg-excel-card .row { display:flex;gap:10px;align-items:center;flex-wrap:wrap; }
+    .pg-excel-preview { margin-top:12px;display:none; }
+    .pg-excel-preview .diff-item { display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px; }
+    .pg-excel-preview .diff-matched { color:var(--primary); }
+    .pg-excel-preview .diff-new { color:var(--tertiary); }
+    .pg-excel-preview .diff-unchanged { color:var(--outline); }
+    .pg-msg { font-size:12px;font-weight:600;min-height:16px; }
+    .pg-checkbox { width:18px;height:18px;cursor:pointer;accent-color:var(--primary); }
+    .pg-mass-bar { position:fixed;bottom:0;left:0;right:0;z-index:100;background:var(--surface-container);border-top:1px solid var(--outline-variant);padding:12px 20px;display:none;align-items:center;gap:12px;flex-wrap:wrap; }
+    .pg-mass-bar .selected-count { font-size:13px;font-weight:700;color:var(--on-surface); }
+    .pg-mass-bar select { padding:7px 10px;background:var(--surface-container-high);border:1px solid var(--outline-variant);border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;color:var(--on-surface);outline:none; }
+    .pg-mass-bar .pg-btn { padding:7px 18px; }
+
+    /* ── SLABS ── */
+    .sl-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:20px; }
+    .sl-card { background:var(--surface-container-low);border-radius:16px;padding:20px;border:1px solid var(--outline-variant); }
+    .sl-card .name { font-size:18px;font-weight:800;color:var(--primary);margin:0 0 6px; }
+    .sl-card .desc { font-size:13px;color:var(--on-surface-variant);margin:0 0 12px;line-height:1.4; }
+    .sl-card .footer { display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border); }
+    .sl-card .prod-count { font-size:11px;font-weight:600;color:var(--on-surface-variant); }
+    .sl-card .actions { display:flex;gap:6px; }
+    .sl-card .actions button { padding:5px 12px;border:none;border-radius:7px;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;cursor:pointer;background:var(--surface-container-high);color:var(--on-surface-variant); }
+    .sl-card .actions .delete-btn { color:var(--error); }
+    .sl-inline-form { background:var(--surface-container-low);border:1px solid var(--outline-variant);border-radius:16px;padding:20px;margin-bottom:16px;display:none; }
+    .sl-inline-form .row { display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px; }
+    .sl-inline-form input,.sl-inline-form textarea { flex:1;min-width:160px;padding:9px 12px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none; }
+    .sl-inline-form textarea { resize:vertical;min-height:50px; }
+    .sl-inline-form input:focus,.sl-inline-form textarea:focus { outline:2px solid var(--primary); }
+    .sl-inline-form .actions { display:flex;gap:8px; }
+    .cat-inline-form { background:var(--surface-container-low);border:1px solid var(--outline-variant);border-radius:16px;padding:20px;margin-bottom:16px;display:none; }
+    .cat-inline-form .row { display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px; }
+    .cat-inline-form input { flex:1;min-width:160px;padding:9px 12px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none; }
+    .cat-inline-form input:focus { outline:2px solid var(--primary); }
+    .cat-inline-form .actions { display:flex;gap:8px; }
+    .cat-chip { display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--outline-variant);border-radius:20px;font-size:12px;background:var(--surface-container-high);color:var(--on-surface); }
+    .cat-chip .cat-name { font-weight:600; }
+    .cat-chip .cat-actions { display:inline-flex;gap:4px;margin-left:4px; }
+    .cat-chip .cat-actions button { background:none;border:none;cursor:pointer;font-size:14px;padding:2px;color:var(--on-surface-variant);line-height:1; }
+    .cat-chip .cat-actions button:hover { color:var(--primary); }
+    .color-swatch { width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;position:relative; }
+    .color-swatch:hover { transform:scale(1.15); }
+    .color-swatch.active { border-color:var(--on-surface);box-shadow:0 0 0 2px var(--surface-container-low); }
+    .color-swatch.active::after { content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.5); }
+    .cal-nav { display:flex;align-items:center;justify-content:space-between;margin-bottom:14px; }
+    .cal-nav-title { font-size:18px;font-weight:800;color:var(--on-surface);letter-spacing:-0.3px; }
+    .cal-nav-btn { background:var(--surface-container-high);border:none;border-radius:10px;padding:8px 12px;font-size:16px;cursor:pointer;color:var(--on-surface);font-family:'Inter',sans-serif;font-weight:600;transition:background 0.12s; }
+    .cal-nav-btn:active { background:var(--surface-container-highest); }
+    .cal-layout { display:flex;gap:16px;align-items:flex-start; }
+    .cal-layout .cal-grid { flex:1 1 0;min-width:0; }
+    .cal-grid { display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:var(--surface-container);border-radius:16px;overflow:hidden;margin-bottom:0; }
+    .cal-weekday { padding:6px 0;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--outline);background:var(--surface-container-low); }
+    .cal-day { display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--on-surface);background:transparent;cursor:pointer;border:none;font-family:'Inter',sans-serif;position:relative;transition:background 0.1s;border-radius:4px;height:36px;min-height:36px; }
+    .cal-day:hover { background:var(--surface-container-high); }
+    .cal-day.other-month { color:var(--outline);opacity:0.4; }
+    .cal-day.today { font-weight:900;color:var(--primary);background:rgba(173,198,255,0.08); }
+    .cal-day.weekly-off { opacity:0.5; }
+    .cal-pins { display:flex;align-items:center;justify-content:center;height:16px;margin-top:1px; }
+    .pin-dot { width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#fff;line-height:1;flex-shrink:0;border:2px solid var(--surface-container);margin-left:-5px; }
+    .pin-dot:first-child, .pin-star:first-child { margin-left:0; }
+    .pin-star { display:inline-flex;align-items:center;justify-content:center;position:relative;width:22px;height:22px;flex-shrink:0;margin-left:-5px;color:#f59e0b;font-size:20px;line-height:1; }
+    .pin-star .label { position:absolute;font-size:9px;font-weight:800;color:#fff;top:50%;left:50%;transform:translate(-50%,-40%);line-height:1;z-index:1; }
+    .cal-event { margin-bottom:10px; }
+    .cal-event-card { background:var(--surface-container-low);border-radius:14px;padding:12px 14px;display:flex;gap:11px;align-items:flex-start;border-left:4px solid var(--border); }
+    .cal-event-body { flex:1;min-width:0; }
+    .cal-event-meta { font-size:11px;font-weight:600;color:var(--on-surface-variant);margin-bottom:2px; }
+    .cal-event-title { font-size:14px;font-weight:700;color:var(--on-surface); }
+    .cal-event-desc { font-size:12px;color:var(--on-surface-variant);margin-top:3px; }
+    .cal-event-vis-badge { display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.08);margin-left:6px; }
+    #adCalDayPanel { flex:0 0 300px;max-height:calc(100vh - 200px);overflow-y:auto;position:sticky;top:0; }
+    .cal-day-header { font-size:18px;font-weight:800;color:var(--on-surface);margin-bottom:4px; }
+    .cal-day-sub { font-size:12px;color:var(--on-surface-variant);margin-bottom:14px; }
+    .cal-empty { text-align:center;padding:30px 20px;color:var(--outline); }
+    .cal-empty p { font-size:14px;font-weight:600; }
+    .cal-day-btns { display:flex;gap:8px;margin-bottom:14px; }
+    .cal-day-btn { flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0;border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:transform 0.1s,opacity 0.1s; }
+    .cal-day-btn:active { transform:scale(0.97); }
+    .cal-day-btn-aga { background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container); }
+    .cal-day-btn-note { background:var(--surface-container-high);color:var(--on-surface); }
+    .cal-day-btn .material-symbols-outlined { font-size:18px; }
+    .cal-event-del { background:none;border:none;cursor:pointer;color:var(--error);font-size:18px;padding:2px;opacity:0.4;transition:opacity 0.12s; }
+    .cal-event-del:hover { opacity:1; }
+    .cal-weekoff-list { margin-top:14px;padding:14px;background:var(--surface-container-low);border-radius:12px; }
+    .cal-weekoff-list .title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--outline);margin-bottom:8px; }
+    .cal-weekoff-item { display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--on-surface);padding:3px 0; }
+    .cal-weekoff-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0; }
+    .cal-target-select { width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none; }
   </style>
 </head>
 <body>
@@ -1322,9 +1459,24 @@
       Staff
     </button>
 
+    <button class="sidebar-item" id="nav-calendar" onclick="showView('calendar')">
+      <span class="material-symbols-outlined">calendar_month</span>
+      Calendar
+    </button>
+
     <button class="sidebar-item" id="nav-brands" onclick="showView('brands')">
       <span class="material-symbols-outlined">store</span>
       Brands
+    </button>
+
+    <button class="sidebar-item" id="nav-price-guide" onclick="showView('price-guide')">
+      <span class="material-symbols-outlined">sell</span>
+      Price Guide
+    </button>
+
+    <button class="sidebar-item" id="nav-slabs" onclick="showView('slabs')">
+      <span class="material-symbols-outlined">layers</span>
+      Slabs
     </button>
 
     <a class="sidebar-item" href="drivers.html">
@@ -1794,6 +1946,26 @@
           <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Phone Number</label>
           <input id="sPhone" placeholder="10-digit mobile" maxlength="10" inputmode="numeric" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div>
+            <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Weekly Off</label>
+            <select id="sWeeklyOff" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;">
+              <option value="">None</option>
+              <option value="Sun">Sunday</option>
+              <option value="Mon">Monday</option>
+              <option value="Tue">Tuesday</option>
+              <option value="Wed">Wednesday</option>
+              <option value="Thu">Thursday</option>
+              <option value="Fri">Friday</option>
+              <option value="Sat">Saturday</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Color</label>
+            <div id="sColorSwatches" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+            <input type="hidden" id="sColor" value="">
+          </div>
+        </div>
         <div id="staffPinFields">
           <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">6-Digit PIN *</label>
           <input id="sPin" placeholder="6 digits" maxlength="6" inputmode="numeric" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:12px;">
@@ -1812,8 +1984,8 @@
         </div>
         <div id="staffFormMsg" style="font-size:12px;font-weight:600;min-height:16px;margin-bottom:10px;"></div>
         <div style="display:flex;gap:10px;">
-          <button onclick="submitAddStaff()" style="padding:9px 20px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Save</button>
-          <button onclick="document.getElementById('addStaffForm').style.display='none'" style="padding:9px 16px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+          <button id="staffFormSaveBtn" onclick="submitAddStaff()" style="padding:9px 20px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Save</button>
+          <button onclick="editingStaffId=null;document.getElementById('addStaffForm').style.display='none'" style="padding:9px 16px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
         </div>
       </div>
 
@@ -1824,6 +1996,82 @@
         </table>
       </div>
     </section>
+
+    <!-- ════ VIEW: CALENDAR ════ -->
+    <section id="view-calendar" style="display:none;">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="adCalPrevMonth()">‹</button>
+        <span class="cal-nav-title" id="adCalTitle">June 2026</span>
+        <button class="cal-nav-btn" onclick="adCalNextMonth()">›</button>
+      </div>
+      <div class="cal-layout">
+        <div class="cal-grid" id="adCalGrid"></div>
+        <div id="adCalDayPanel" style="display:none;">
+          <div class="cal-day-header" id="adCalDayHeader"></div>
+          <div class="cal-day-sub" id="adCalDaySub"></div>
+          <div class="cal-day-btns">
+            <button class="cal-day-btn cal-day-btn-aga" onclick="adCalOpenAgenda()">
+              <span class="material-symbols-outlined">event</span> Add Agenda
+            </button>
+            <button class="cal-day-btn cal-day-btn-note" onclick="adCalOpenNote()">
+              <span class="material-symbols-outlined">note_add</span> Add Note
+            </button>
+          </div>
+          <div id="adCalEventList"></div>
+          <div id="adCalWeekOffList" class="cal-weekoff-list" style="display:none;"></div>
+        </div>
+      </div>
+      <div id="adCalNoDay" class="cal-empty">
+        <p>Select a date to view events</p>
+      </div>
+    </section>
+
+    <!-- ══ ADD AGENDA POPUP ══ -->
+    <div class="popup-overlay" id="adCalAgendaPopup" onclick="if(event.target===this)this.classList.remove('is-open')">
+      <div class="popup-card" style="max-width:380px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+          <h3 style="font-size:20px;font-weight:900;color:var(--on-surface);margin:0;">Add Agenda</h3>
+          <button onclick="adCalCloseAgenda()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-surface-variant);padding:0;line-height:1;">&times;</button>
+        </div>
+        <input type="date" id="adCalAgaDate" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:14px;">
+        <input id="adCalAgaTitle" placeholder="Title *" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:12px;">
+        <input id="adCalAgaDesc" placeholder="Description (optional)" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:14px;">
+        <div id="adCalAgaMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:12px;text-align:center;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="cal-day-btn cal-day-btn-aga" style="flex:1;padding:10px 0;" onclick="adCalSubmitAgenda()">Save Agenda</button>
+          <button class="cal-day-btn cal-day-btn-note" style="flex:1;padding:10px 0;" onclick="adCalCloseAgenda()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ ADD NOTE POPUP ══ -->
+    <div class="popup-overlay" id="adCalNotePopup" onclick="if(event.target===this)this.classList.remove('is-open')">
+      <div class="popup-card" style="max-width:380px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+          <h3 style="font-size:20px;font-weight:900;color:var(--on-surface);margin:0;">Add Note</h3>
+          <button onclick="adCalCloseNote()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-surface-variant);padding:0;line-height:1;">&times;</button>
+        </div>
+        <input type="date" id="adCalNoteDate" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:14px;">
+        <input id="adCalNoteTitle" placeholder="Title *" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:12px;">
+        <input id="adCalNoteDesc" placeholder="Description (optional)" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:14px;">
+        <div style="display:flex;gap:10px;margin-bottom:14px;">
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface-container-low);border-radius:10px;cursor:pointer;border:2px solid var(--primary);font-size:13px;font-weight:600;color:var(--on-surface);" id="adCalNoteVisPub">
+            <input type="radio" name="adCalNoteVis" value="public" checked onchange="adCalNoteVisChange()" style="accent-color:var(--primary);"> Public
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface-container-low);border-radius:10px;cursor:pointer;border:2px solid transparent;font-size:13px;font-weight:600;color:var(--on-surface);" id="adCalNoteVisStaff">
+            <input type="radio" name="adCalNoteVis" value="staff_only" onchange="adCalNoteVisChange()" style="accent-color:var(--primary);"> Specific Staff
+          </label>
+        </div>
+        <div id="adCalNoteStaffWrap" style="display:none;margin-bottom:14px;">
+          <select class="cal-target-select" id="adCalNoteStaff" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;"><option value="">Select staff...</option></select>
+        </div>
+        <div id="adCalNoteMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:12px;text-align:center;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="cal-day-btn cal-day-btn-aga" style="flex:1;padding:10px 0;" onclick="adCalSubmitNote()">Save Note</button>
+          <button class="cal-day-btn cal-day-btn-note" style="flex:1;padding:10px 0;" onclick="adCalCloseNote()">Cancel</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ════ VIEW: BRANDS ════ -->
     <section id="view-brands" style="display:none;">
@@ -2124,6 +2372,131 @@
       </div>
     </section>
 
+    <!-- ════ VIEW: PRICE GUIDE ════ -->
+    <section id="view-price-guide" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Price Guide</div>
+          <div class="section-subtitle">Manage product MRP, MOP, MSP &amp; slab assignment</div>
+        </div>
+        <button onclick="pgLoadData()" class="pg-btn pg-btn-outline">↻ Refresh</button>
+      </div>
+
+      <div class="pg-save-bar" id="pgSaveBar">
+        <span class="count" id="pgDirtyCount">0 unsaved changes</span>
+        <button onclick="pgSaveChanges()" id="pgSaveBtn" class="pg-btn pg-btn-primary" style="display:none;">Save Changes</button>
+        <div class="pg-msg" id="pgMsg"></div>
+      </div>
+
+      <div class="pg-toolbar">
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input type="text" id="pgSearch" placeholder="Search product…" oninput="pgFilter()">
+        </div>
+        <div class="pg-chip-row" id="pgChipRow"></div>
+        <div class="pg-toggle-wrap">
+          <button class="pg-toggle" id="pgMspToggle" onclick="pgToggleMsp()"></button>
+          <span>MSP Visible to Staff</span>
+        </div>
+        <button class="pg-btn pg-btn-primary" onclick="pgOpenAddModal()">+ Add Product</button>
+        <button class="pg-btn pg-btn-outline" id="pgMassEditBtn" onclick="pgToggleMassEdit()">Mass Edit</button>
+      </div>
+
+      <div class="pg-spreadsheet" id="pgSpreadsheet"></div>
+
+      <div class="pg-excel-card">
+        <div class="title">Sync from Excel</div>
+        <div class="row">
+          <input type="file" accept=".xlsx,.xls" id="pgExcelInput" style="flex:1;font-size:12px;">
+          <button onclick="pgHandleExcel()" id="pgExcelBtn" class="pg-btn pg-btn-primary">Parse &amp; Preview</button>
+        </div>
+        <div class="pg-excel-preview" id="pgExcelPreview"></div>
+      </div>
+
+      <div class="pg-excel-card">
+        <div class="title">Manage Categories</div>
+        <p style="font-size:11px;color:var(--outline);margin:0 0 10px;">Define categories for staff filtering. Category is auto-detected from the first word of the product name.</p>
+        <button class="pg-btn pg-btn-outline" onclick="catShowForm()" style="margin-bottom:10px;">+ Add Category</button>
+        <div class="cat-inline-form" id="catForm">
+          <div class="row">
+            <input id="catFormName" placeholder="Category name *" autocomplete="off">
+          </div>
+          <div class="actions">
+            <button class="pg-btn pg-btn-primary" onclick="catSave()">Save</button>
+            <button class="pg-btn pg-btn-outline" onclick="catHideForm()">Cancel</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;" id="catGrid"></div>
+      </div>
+
+      <!-- add product modal -->
+      <div class="pg-add-modal" id="pgAddModal" style="display:none;" onclick="if(event.target===this)pgCloseAddModal()">
+        <div class="pg-add-card">
+          <h3>Add Product</h3>
+          <div class="pg-add-grid">
+            <input class="pg-add-field pg-add-full" id="pgAddName" placeholder="Product name *" autocomplete="off">
+            <select class="pg-add-field pg-add-full" id="pgAddSlab"><option value="">No slab</option></select>
+            <input class="pg-add-field" id="pgAddMrp" type="number" step="0.01" placeholder="MRP *">
+            <input class="pg-add-field" id="pgAddMop" type="number" step="0.01" placeholder="MOP">
+            <input class="pg-add-field pg-add-full" id="pgAddMsp" type="number" step="0.01" placeholder="MSP">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            <span style="font-size:13px;font-weight:600;color:var(--on-surface-variant);">MSP Enabled</span>
+            <button class="pg-toggle on" id="pgAddMspEnabled" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button onclick="pgCloseAddModal()" class="pg-btn pg-btn-outline">Cancel</button>
+            <button onclick="pgSubmitAdd()" class="pg-btn pg-btn-primary">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- mass edit action bar (fixed bottom) -->
+      <div class="pg-mass-bar" id="pgMassBar">
+        <span class="selected-count" id="pgMassCount">0 selected</span>
+        <select id="pgMassAction" onchange="pgMassActionChange()">
+          <option value="slab">Change Slab</option>
+          <option value="category">Change Category</option>
+          <option value="toggleMsp">Toggle MSP On/Off</option>
+          <option value="delete">Delete Selected</option>
+        </select>
+        <span id="pgMassSlabWrap">
+          <select id="pgMassSlab"><option value="">No slab</option></select>
+        </span>
+        <span id="pgMassCatWrap" style="display:none;">
+          <select id="pgMassCat"><option value="">Auto</option></select>
+        </span>
+        <button class="pg-btn pg-btn-primary" onclick="pgApplyMassAction()">Apply</button>
+        <button class="pg-btn pg-btn-outline" onclick="pgToggleMassEdit()">Cancel</button>
+      </div>
+    </section>
+
+    <!-- ════ VIEW: SLABS ════ -->
+    <section id="view-slabs" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Slabs</div>
+          <div class="section-subtitle">Manage incentive slabs for salesmen</div>
+        </div>
+        <button class="pg-btn pg-btn-outline" onclick="slLoadData()">↻ Refresh</button>
+      </div>
+
+      <button class="pg-btn pg-btn-primary" onclick="slShowForm()" style="margin-bottom:14px;">+ Add Slab</button>
+
+      <div class="sl-inline-form" id="slForm">
+        <div class="row">
+          <input id="slFormName" placeholder="Slab name *" autocomplete="off">
+          <textarea id="slFormDesc" placeholder="Description"></textarea>
+        </div>
+        <div class="actions">
+          <button class="pg-btn pg-btn-primary" id="slFormSaveBtn" onclick="slSave()">Save</button>
+          <button class="pg-btn pg-btn-outline" onclick="slHideForm()">Cancel</button>
+        </div>
+      </div>
+
+      <div class="sl-grid" id="slGrid"></div>
+    </section>
+
     <!-- ════ VIEW: PANEL LINKS ════ -->
     <section id="view-links" style="display:none;">
       <div class="section-heading">
@@ -2396,7 +2769,10 @@ const VIEW_LABELS = {
   'service-count': 'Service Tickets',
   map:             'Driver Map View',
   staff:           'Manage Staff',
+  calendar:        'Calendar',
   brands:          'Brand Management',
+  'price-guide':   'Price Guide',
+  slabs:           'Slabs',
   permissions:     'Staff Permissions',
   'leads-admin':   'Leads Pipeline',
   'product-normalizer': 'Product Name Cleanup',
@@ -2406,7 +2782,7 @@ const VIEW_LABELS = {
 };
 
 function showView(view) {
-  ['deliveries','payout','storage','service-count','map','staff','brands','permissions','leads-admin','product-normalizer','incentive','sales-analytics','links'].forEach(v => {
+  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','permissions','leads-admin','product-normalizer','incentive','sales-analytics','links'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.style.display = v === view ? '' : 'none';
     const nav = document.getElementById('nav-' + v);
@@ -2420,7 +2796,10 @@ function showView(view) {
   if (view === 'service-count')   { loadServiceCount(); }
   if (view === 'map')             { initMapView(); }
   if (view === 'staff')           { loadStaff(); }
+  if (view === 'calendar')        { adCalLoadData(); }
   if (view === 'brands')          { loadBrands(); }
+  if (view === 'price-guide')     { pgLoadData(); catLoadData(); }
+  if (view === 'slabs')           { slLoadData(); }
   if (view === 'permissions')     { loadPermissions(); }
   if (view === 'leads-admin')     { loadLeadsAdmin(); }
   if (view === 'product-normalizer') { loadProductNormalizer(); }
@@ -2884,11 +3263,58 @@ function closePNBulkBar() {
 
 
 /* STAFF MANAGEMENT */
+let editingStaffId = null;
+let staffList = [];
+const STAFF_COLORS = ['#f59e0b','#3b82f6','#10b981','#f43f5e','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+
+function renderColorSwatches(containerId, selected) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = STAFF_COLORS.map(c => `
+    <div class="color-swatch${c === selected ? ' active' : ''}" style="background:${c};" data-color="${c}" onclick="selectColor(this)"></div>
+  `).join('');
+  document.getElementById('sColor').value = selected || '';
+}
+
+function selectColor(el) {
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('sColor').value = el.dataset.color;
+}
+
 function openAddStaffModal(){
-  ['sName','sPin','sEmail','sPassword'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  editingStaffId=null;
+  ['sName','sPin','sEmail','sPassword','sPhone'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   document.getElementById('sRole').value='staff';
+  document.getElementById('sRole').disabled=false;
+  document.getElementById('sWeeklyOff').value='';
+  renderColorSwatches('sColorSwatches','');
+  document.querySelector('#addStaffForm > div:first-child').textContent='New Staff Member';
+  document.getElementById('staffFormSaveBtn').textContent='Save';
   document.getElementById('staffFormMsg').textContent='';
+  document.getElementById('staffFormMsg').style.color='';
   onStaffRoleChange();
+  document.getElementById('addStaffForm').style.display='';
+  document.getElementById('sName').focus();
+}
+function openEditStaff(id){
+  const s = staffList.find(x => x.id === id);
+  if (!s) return;
+  editingStaffId = id;
+  document.getElementById('sName').value = s.name || '';
+  document.getElementById('sPhone').value = s.phone || '';
+  document.getElementById('sRole').value = s.role || 'staff';
+  document.getElementById('sRole').disabled = true;
+  document.getElementById('sWeeklyOff').value = s.weekly_off || '';
+  renderColorSwatches('sColorSwatches', s.color || '');
+  document.getElementById('sPin').value = '';
+  document.getElementById('sEmail').value = s.email || '';
+  document.getElementById('sPassword').value = '';
+  onStaffRoleChange();
+  document.querySelector('#addStaffForm > div:first-child').textContent='Edit Staff Member';
+  document.getElementById('staffFormSaveBtn').textContent='Update';
+  document.getElementById('staffFormMsg').textContent='';
+  document.getElementById('staffFormMsg').style.color='';
   document.getElementById('addStaffForm').style.display='';
   document.getElementById('sName').focus();
 }
@@ -2902,8 +3328,39 @@ async function submitAddStaff(){
   const name=document.getElementById('sName').value.trim();
   const role=document.getElementById('sRole').value;
   const phone=document.getElementById('sPhone')?.value.trim()||'';
+  const weeklyOff=document.getElementById('sWeeklyOff')?.value||'';
+  const color=document.getElementById('sColor')?.value||'';
   if(!name){msg.style.color='var(--error)';msg.textContent='Name required.';return;}
-  const p={name,role,phone};
+
+  if (editingStaffId) {
+    const p={name,phone,weekly_off:weeklyOff,color};
+    if (role==='staff') {
+      const pin=document.getElementById('sPin').value.trim();
+      if (pin) {
+        if (!/^\d{6}$/.test(pin)){msg.style.color='var(--error)';msg.textContent='PIN must be 6 digits.';return;}
+        p.pin=pin;
+      }
+    } else {
+      const email=document.getElementById('sEmail').value.trim();
+      const pass=document.getElementById('sPassword').value;
+      if (email) p.email=email;
+      if (pass) {
+        if(pass.length<6){msg.style.color='var(--error)';msg.textContent='Password min 6 chars.';return;}
+        p.password=pass;
+      }
+    }
+    msg.style.color='var(--primary)';msg.textContent='Updating...';
+    try{
+      const res=await authFetch(`${BASE_URL}/staff/${editingStaffId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+      if(!res.ok){const d=await res.json();msg.style.color='var(--error)';msg.textContent=d.error||'Failed.';return;}
+      msg.style.color='var(--tertiary)';msg.textContent='Updated!';
+      editingStaffId=null;
+      setTimeout(()=>{document.getElementById('addStaffForm').style.display='none';loadStaff();},800);
+    }catch(e){msg.style.color='var(--error)';msg.textContent='Network error.';}
+    return;
+  }
+
+  const p={name,role,phone,weekly_off:weeklyOff,color};
   if(role==='staff'){
     const pin=document.getElementById('sPin').value.trim();
     if(!/^\d{6}$/.test(pin)){msg.style.color='var(--error)';msg.textContent='PIN must be 6 digits.';return;}
@@ -2938,7 +3395,8 @@ async function loadStaff(){
     const leads   = await leadsRes.json();
     const tickets = await ticketsRes.json();
 
-    if(!staff.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No staff members yet</td></tr>';return;}
+    if(!staff.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No staff members yet</td></tr>';staffList=[];return;}
+    staffList = staff;
 
     // Build lookup maps: staff_id → counts
     const leadsCount   = {};
@@ -2987,6 +3445,7 @@ async function loadStaff(){
         <td style="text-align:center;">${statCell(cRaised, 'var(--amber)')}</td>
         <td style="text-align:center;">${s.role==='service' ? statCell(cLogged, 'var(--tertiary)') : '<span style="color:var(--on-surface-variant);font-size:11px;">N/A</span>'}</td>
         <td style="white-space:nowrap;">
+          <button onclick="openEditStaff('${escHtml(s.id)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:4px;background:rgba(78,222,163,0.12);color:var(--tertiary);">Edit</button>
           <button onclick="toggleStaffActive('${escHtml(s.id)}',${s.active!==false})" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:4px;background:${s.active===false?'rgba(78,222,163,0.12)':'rgba(255,180,171,0.1)'};color:${s.active===false?'var(--tertiary)':'var(--error)'};">${s.active===false?'Activate':'Deactivate'}</button>
           <button onclick="resetStaffCredential('${escHtml(s.id)}','${escHtml(s.role)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:4px;background:rgba(173,198,255,0.1);color:var(--primary);">Reset</button>
           <button onclick="staffDeleteBtn(this)" data-sid="${escHtml(s.id)}" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(147,0,10,0.5);color:var(--error);">Delete</button>
@@ -3245,6 +3704,17 @@ let allDeliveryData = [];
 let currentPage = 1;
 const PAGE_SIZE = 10;
 
+async function loadDeliveryCounts() {
+  try {
+    const res = await authFetch(`${BASE_URL}/delivery-counts`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.warn("[delivery-counts] Falling back to local counts:", e.message);
+    return null;
+  }
+}
+
 function setFilter(f) {
   currentFilter = f;
   currentPage = 1;
@@ -3283,8 +3753,10 @@ async function loadAdmin() {
     }).catch(() => {});
   }
 
+  const countsPromise = loadDeliveryCounts();
   const res = await authFetch(`${BASE_URL}/deliveries`);
   let data = await res.json();
+  const serverCounts = await countsPromise;
   const now = new Date();
 
   if (currentFilter === "today") {
@@ -3308,8 +3780,8 @@ async function loadAdmin() {
 
   currentDisplayedData = data;
   allDeliveryData = data;
-  updateSummaryCards(data);
-  updateFilterCounts(data);
+  updateSummaryCards(data, serverCounts);
+  updateFilterCounts(data, serverCounts);
 
   // Search filter (applied after status/date filter)
   const searchTerm = (document.getElementById("adminSearch")?.value || "").trim().toLowerCase();
@@ -3617,7 +4089,7 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
   });
 }
 
-function updateSummaryCards(data) {
+function updateSummaryCards(data, serverCounts = null) {
   let pending = 0, loaded = 0, delivered = 0, urgent = 0, overdue = 0, booked = 0;
   const now = new Date();
 
@@ -3629,6 +4101,14 @@ function updateSummaryCards(data) {
     if (d.priority === "urgent")  urgent++;
     if (d.status !== "delivered" && d.status !== "booked" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) overdue++;
   });
+
+  if (serverCounts) {
+    booked    = serverCounts.booked    ?? booked;
+    pending   = serverCounts.pending   ?? pending;
+    loaded    = serverCounts.loaded    ?? loaded;
+    delivered = serverCounts.delivered ?? delivered;
+    urgent    = serverCounts.urgent    ?? urgent;
+  }
 
   document.getElementById("summaryCards").innerHTML = `
     <div class="stat-card stat-booked">
@@ -4048,14 +4528,14 @@ function downloadCSV() {
 
 
 // ── FILTER COUNT BADGES ──────────────────────────────────────────
-function updateFilterCounts(allData) {
+function updateFilterCounts(allData, serverCounts = null) {
   // These counts are always computed from ALL deliveries (ignores current filter)
   // so the badges always show totals, not just filtered subset
   const full = allDeliveryData.length ? allDeliveryData : allData;
   const now = new Date();
 
   const todayStr = now.toDateString();
-  const counts = {
+  const localCounts = {
     all:       full.length,
     today:     full.filter(d => d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === todayStr).length,
     booked:    full.filter(d => d.status === "booked").length,
@@ -4065,6 +4545,9 @@ function updateFilterCounts(allData) {
     failed:    full.filter(d => d.status === "failed").length,
     urgent:    full.filter(d => d.priority === "urgent").length,
   };
+  const counts = serverCounts
+    ? { ...localCounts, ...serverCounts, all: serverCounts.total ?? serverCounts.all ?? localCounts.all }
+    : localCounts;
 
   Object.entries(counts).forEach(([key, val]) => {
     const el = document.getElementById("cnt-" + key);
@@ -5780,6 +6263,802 @@ async function loadSalesAnalytics() {
       if (el) el.textContent = '!';
     });
   }
+}
+
+/* ════ PRICE GUIDE ════ */
+const pgState = { items: [], originals: {}, dirty: new Set(), filterSlab: null, search: '', slabs: [], categories: [], massMode: false, selected: new Set(), mspGlobal: true };
+
+async function pgLoadData() {
+  try {
+    const [pgRes, slabsRes, mspRes, catRes] = await Promise.all([
+      authFetch(`${BASE_URL}/price-guide`),
+      authFetch(`${BASE_URL}/slabs`),
+      authFetch(`${BASE_URL}/price-guide/msp-global`),
+      authFetch(`${BASE_URL}/categories`)
+    ]);
+    if (!pgRes.ok) throw new Error('Fetch failed');
+    pgState.items = await pgRes.json();
+    pgState.slabs = slabsRes.ok ? await slabsRes.json() : [];
+    pgState.categories = catRes.ok ? await catRes.json() : [];
+    pgState.mspGlobal = mspRes.ok ? (await mspRes.json()).mspGlobalEnabled : true;
+    const toggle = document.getElementById('pgMspToggle');
+    if (toggle) toggle.classList.toggle('on', pgState.mspGlobal);
+    pgState.originals = {}; pgState.dirty.clear(); pgState.selected.clear();
+    pgState.massMode = false; document.getElementById('pgMassBar').style.display = 'none';
+    document.getElementById('pgMassEditBtn').classList.remove('active');
+    document.getElementById('pgMsg').textContent = '';
+    document.getElementById('pgSaveBtn').style.display = 'none';
+    document.getElementById('pgDirtyCount').textContent = '0 unsaved changes';
+    pgBuildChips(); pgFilter();
+  } catch(e) {
+    document.getElementById('pgSpreadsheet').innerHTML = `<div style="padding:30px;text-align:center;color:var(--error);">Error loading price guide: ${e.message}</div>`;
+  }
+}
+
+function pgBuildChips() {
+  const row = document.getElementById('pgChipRow');
+  const slabIds = [...new Set(pgState.items.map(i => i.slabId).filter(Boolean))];
+  const slabMap = {};
+  pgState.slabs.forEach(s => slabMap[s.id] = s.slabName);
+  row.innerHTML = `<button class="pg-chip${!pgState.filterSlab ? ' active' : ''}" onclick="pgState.filterSlab=null;pgFilter();">All</button>` +
+    slabIds.map(sid => `<button class="pg-chip${pgState.filterSlab === sid ? ' active' : ''}" onclick="pgState.filterSlab='${sid}';pgFilter();">${escHtml(slabMap[sid] || sid)}</button>`).join('');
+}
+
+function pgFilter() {
+  pgState.search = (document.getElementById('pgSearch').value || '').toLowerCase();
+  const filtered = pgState.items.filter(i => {
+    if (pgState.filterSlab && i.slabId !== pgState.filterSlab) return false;
+    if (pgState.search && !(i.productName || '').toLowerCase().includes(pgState.search)) return false;
+    return true;
+  });
+  pgRender(filtered);
+}
+
+function pgRender(items) {
+  const el = document.getElementById('pgSpreadsheet');
+  const slabMap = {}; pgState.slabs.forEach(s => slabMap[s.id] = s.slabName);
+  if (!items.length) { el.innerHTML = '<div style="padding:30px;text-align:center;color:var(--outline);">No products found</div>'; return; }
+  let html = `<table><thead><tr>
+    ${pgState.massMode ? '<th style="width:36px;"><input type="checkbox" class="pg-checkbox" id="pgSelectAll" onchange="pgToggleSelectAll(this)"></th>' : ''}
+    <th style="min-width:36px;">#</th>
+    <th style="min-width:160px;">Product</th>
+    <th style="min-width:90px;">Category</th>
+    <th style="min-width:100px;">Slab</th>
+    <th style="min-width:90px;">MRP</th>
+    <th style="min-width:90px;">MOP</th>
+    <th style="min-width:90px;">MSP</th>
+    <th style="min-width:70px;">MSP On</th>
+    <th style="width:44px;"></th>
+  </tr></thead><tbody>`;
+  items.forEach((item, idx) => {
+    const oid = item.id || item._id;
+    const isDirty = pgState.dirty.has(oid);
+    const isSelected = pgState.selected.has(oid);
+    html += `<tr class="${isDirty ? 'pg-row-dirty' : ''}" data-id="${oid}">
+      ${pgState.massMode ? `<td><input type="checkbox" class="pg-checkbox" ${isSelected ? 'checked' : ''} onchange="pgToggleSelect('${oid}',this.checked)"></td>` : ''}
+      <td style="color:var(--outline);font-family:var(--font-mono);font-weight:700;font-size:11px;">${idx + 1}</td>
+      <td><span class="pg-cell-readonly">${escHtml(item.productName || '')}</span></td>
+      <td>${pgCategorySelect(oid, item.category || '')}</td>
+      <td>${pgSlabSelect(oid, item.slabId || '')}</td>
+      <td>${pgMakeCell(oid, 'mrp', item.mrp, 'num')}</td>
+      <td>${pgMakeCell(oid, 'mop', item.mop, 'num')}</td>
+      <td>${pgMakeCell(oid, 'msp', item.msp, 'num')}</td>
+      <td style="text-align:center;"><button class="pg-toggle-cell ${(item.mspEnabled !== false) ? 'on' : ''}" onclick="pgToggleMspCell('${oid}',this)"></button></td>
+      <td><span class="material-symbols-outlined" style="font-size:18px;color:var(--error);cursor:pointer;opacity:0.4;transition:opacity 0.15s;" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0.4" onclick="pgDelete('${oid}','${escHtml(item.productName || '').replace(/'/g,"\\'")}')">delete</span></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+  el.querySelector('table')?.focus();
+}
+
+function pgSlabSelect(oid, current) {
+  const opts = pgState.slabs.map(s => `<option value="${s.id}"${s.id === current ? ' selected' : ''}>${escHtml(s.slabName)}</option>`).join('');
+  return `<select class="pg-cell-select" data-oid="${oid}" data-field="slabId" onchange="pgMarkDirty('${oid}')"><option value="">—</option>${opts}</select>`;
+}
+
+function pgCategorySelect(oid, current) {
+  const opts = pgState.categories.map(c => `<option value="${escHtml(c.name)}"${c.name === current ? ' selected' : ''}>${escHtml(c.name)}</option>`).join('');
+  return `<select class="pg-cell-select" data-oid="${oid}" data-field="category" onchange="pgMarkDirty('${oid}')"><option value="">Auto</option>${opts}</select>`;
+}
+
+function pgMakeCell(oid, field, val, cls) {
+  const v = val ?? '';
+  return `<input class="pg-cell-editable ${cls}" type="text" inputmode="decimal" value="${escHtml(String(v))}" data-oid="${oid}" data-field="${field}" onfocus="this.select()" oninput="pgMarkDirty('${oid}')">`;
+}
+
+function pgMarkDirty(oid) {
+  const item = pgState.items.find(i => (i.id || i._id) === oid);
+  if (!item) return;
+  if (!pgState.originals[oid]) pgState.originals[oid] = { ...item };
+  pgState.dirty.add(oid);
+  const row = document.querySelector(`tr[data-id="${oid}"]`);
+  if (row) row.classList.add('pg-row-dirty');
+  document.getElementById('pgDirtyCount').textContent = `${pgState.dirty.size} unsaved change${pgState.dirty.size > 1 ? 's' : ''}`;
+  document.getElementById('pgSaveBtn').style.display = pgState.dirty.size ? '' : 'none';
+  document.getElementById('pgMsg').textContent = '';
+}
+
+function pgToggleMspCell(oid, btn) {
+  btn.classList.toggle('on');
+  pgMarkDirty(oid);
+  // Store the toggle state in originals so save can read it
+  const newVal = btn.classList.contains('on');
+  const inp = document.createElement('input');
+  inp.type = 'hidden'; inp.dataset.field = 'mspEnabled'; inp.value = newVal ? 'true' : 'false';
+  btn.dataset.mspEnabled = newVal ? '1' : '0';
+}
+
+async function pgSaveChanges() {
+  if (!pgState.dirty.size) return;
+  const btn = document.getElementById('pgSaveBtn');
+  const msg = document.getElementById('pgMsg');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const promises = [];
+  for (const oid of pgState.dirty) {
+    const row = document.querySelector(`tr[data-id="${oid}"]`);
+    if (!row) continue;
+    const payload = { updatedAt: new Date().toISOString(), updatedBy: 'admin' };
+    // Read regular inputs
+    row.querySelectorAll('.pg-cell-editable, .pg-cell-select').forEach(inp => {
+      const f = inp.dataset.field;
+      const raw = inp.value.trim();
+      if (f === 'slabId') payload[f] = raw;
+      else if (raw === '') payload[f] = null;
+      else payload[f] = isNaN(Number(raw)) ? raw : Number(raw);
+    });
+    // Read MSP toggle
+    const toggleCell = row.querySelector('.pg-toggle-cell');
+    if (toggleCell) payload.mspEnabled = toggleCell.classList.contains('on');
+    promises.push(
+      authFetch(`${BASE_URL}/price-guide/${oid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        .then(r => r.ok ? 'ok' : 'fail').catch(() => 'fail')
+    );
+  }
+  const results = await Promise.all(promises);
+  const ok = results.filter(r => r === 'ok').length;
+  const fail = results.length - ok;
+  msg.textContent = fail ? `${ok} saved, ${fail} failed` : `${ok} saved successfully`;
+  msg.style.color = fail ? 'var(--error)' : 'var(--tertiary)';
+  btn.disabled = false; btn.textContent = 'Save Changes';
+  await pgLoadData();
+}
+
+function pgDelete(oid, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+  authFetch(`${BASE_URL}/price-guide/${oid}`, { method: 'DELETE' }).then(r => { if (r.ok) pgLoadData(); else alert('Delete failed'); }).catch(e => alert('Delete failed: ' + e.message));
+}
+
+async function pgToggleMsp() {
+  const toggle = document.getElementById('pgMspToggle');
+  const newVal = !toggle.classList.contains('on');
+  toggle.classList.toggle('on', newVal);
+  try {
+    const res = await authFetch(`${BASE_URL}/price-guide/msp-global`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mspGlobalEnabled: newVal }) });
+    if (!res.ok) { toggle.classList.toggle('on', !newVal); alert('Failed to update'); }
+    else pgState.mspGlobal = newVal;
+  } catch(e) { toggle.classList.toggle('on', !newVal); alert('Error: ' + e.message); }
+}
+
+function pgToggleMassEdit() {
+  pgState.massMode = !pgState.massMode;
+  document.getElementById('pgMassEditBtn').classList.toggle('active', pgState.massMode);
+  document.getElementById('pgMassBar').style.display = pgState.massMode ? 'flex' : 'none';
+  if (!pgState.massMode) pgState.selected.clear();
+  const slabSel = document.getElementById('pgMassSlab');
+  slabSel.innerHTML = '<option value="">No slab</option>' + pgState.slabs.map(s => `<option value="${s.id}">${escHtml(s.slabName)}</option>`).join('');
+  const catSel = document.getElementById('pgMassCat');
+  catSel.innerHTML = '<option value="">Auto</option>' + pgState.categories.map(c => `<option value="${escHtml(c.name)}">${escHtml(c.name)}</option>`).join('');
+  pgMassActionChange();
+  pgFilter();
+}
+
+function pgMassActionChange() {
+  const action = document.getElementById('pgMassAction').value;
+  document.getElementById('pgMassSlabWrap').style.display = action === 'slab' ? '' : 'none';
+  document.getElementById('pgMassCatWrap').style.display = action === 'category' ? '' : 'none';
+}
+
+function pgToggleSelectAll(cb) {
+  const items = pgState.items.filter(i => {
+    if (pgState.filterSlab && i.slabId !== pgState.filterSlab) return false;
+    if (pgState.search && !(i.productName || '').toLowerCase().includes(pgState.search)) return false;
+    return true;
+  });
+  items.forEach(i => { const id = i.id || i._id; if (cb.checked) pgState.selected.add(id); else pgState.selected.delete(id); });
+  document.getElementById('pgMassCount').textContent = `${pgState.selected.size} selected`;
+  pgFilter();
+}
+
+function pgToggleSelect(oid, checked) {
+  if (checked) pgState.selected.add(oid); else pgState.selected.delete(oid);
+  document.getElementById('pgMassCount').textContent = `${pgState.selected.size} selected`;
+}
+
+async function pgApplyMassAction() {
+  const action = document.getElementById('pgMassAction').value;
+  const ids = [...pgState.selected];
+  if (!ids.length) return;
+  const results = await Promise.allSettled(ids.map(async id => {
+    if (action === 'delete') {
+      const res = await authFetch(`${BASE_URL}/price-guide/${id}`, { method: 'DELETE' });
+      return res.ok;
+    }
+    const payload = {};
+    if (action === 'slab') payload.slabId = document.getElementById('pgMassSlab').value;
+    else if (action === 'category') payload.category = document.getElementById('pgMassCat').value;
+    else if (action === 'toggleMsp') {
+      const item = pgState.items.find(i => (i.id || i._id) === id);
+      payload.mspEnabled = !(item ? item.mspEnabled !== false : true);
+    } else return false;
+    const res = await authFetch(`${BASE_URL}/price-guide/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    return res.ok;
+  }));
+  const ok = results.filter(r => r.status === 'fulfilled' && r.value).length;
+  const fail = results.length - ok;
+  document.getElementById('pgMsg').textContent = fail ? `${ok} updated, ${fail} failed` : `${ok} updated successfully`;
+  document.getElementById('pgMsg').style.color = fail ? 'var(--error)' : 'var(--tertiary)';
+  pgToggleMassEdit(); pgLoadData();
+}
+
+function pgOpenAddModal() {
+  const sel = document.getElementById('pgAddSlab');
+  sel.innerHTML = '<option value="">No slab</option>' + pgState.slabs.map(s => `<option value="${s.id}">${escHtml(s.slabName)}</option>`).join('');
+  document.getElementById('pgAddModal').style.display = 'flex';
+  document.getElementById('pgAddName').focus();
+}
+
+function pgCloseAddModal() {
+  document.getElementById('pgAddModal').style.display = 'none';
+  ['pgAddName','pgAddMrp','pgAddMop','pgAddMsp'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pgAddSlab').value = '';
+  const mspToggle = document.getElementById('pgAddMspEnabled');
+  if (mspToggle) mspToggle.classList.add('on');
+}
+
+async function pgSubmitAdd() {
+  const name = document.getElementById('pgAddName').value.trim();
+  const mrp = parseFloat(document.getElementById('pgAddMrp').value);
+  if (!name || !mrp) { alert('Product name and MRP are required'); return; }
+  const payload = {
+    productName: name, mrp,
+    mop: parseFloat(document.getElementById('pgAddMop').value) || 0,
+    msp: parseFloat(document.getElementById('pgAddMsp').value) || 0,
+    slabId: document.getElementById('pgAddSlab').value || '',
+    mspEnabled: document.getElementById('pgAddMspEnabled').classList.contains('on')
+  };
+  try {
+    const res = await authFetch(`${BASE_URL}/price-guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
+    pgCloseAddModal(); pgLoadData();
+  } catch(e) { alert('Add failed: ' + e.message); }
+}
+
+async function pgHandleExcel() {
+  const fileInput = document.getElementById('pgExcelInput');
+  const file = fileInput.files?.[0];
+  if (!file) { alert('Select an Excel file first'); return; }
+  const btn = document.getElementById('pgExcelBtn');
+  btn.disabled = true; btn.textContent = 'Parsing…';
+  const preview = document.getElementById('pgExcelPreview');
+  preview.style.display = 'none';
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (!rows.length) { alert('No rows found in sheet'); btn.disabled = false; btn.textContent = 'Parse & Preview'; return; }
+    const headers = Object.keys(rows[0]);
+    const map = h => {
+      const l = h.toLowerCase().replace(/[\s_-]+/g,'');
+      if (l.includes('product')||l.includes('name')||l.includes('item')) return 'productName';
+      if (l.includes('mrp')) return 'mrp';
+      if (l.includes('mop')) return 'mop';
+      if (l.includes('msp')) return 'msp';
+      return null;
+    };
+    const colMap = {};
+    headers.forEach(h => { const m = map(h); if (m) colMap[m] = h; });
+    if (!colMap.productName) { alert('Could not find a product name column'); btn.disabled = false; btn.textContent = 'Parse & Preview'; return; }
+    const existing = pgState.items;
+    let matched = 0, newItems = 0, unchanged = 0;
+    let html = '<div class="diff-item" style="font-weight:700;border-bottom:2px solid var(--outline-variant);color:var(--on-surface);">Excel rows: ' + rows.length + '</div>';
+    for (const row of rows) {
+      const pn = String(row[colMap.productName]).trim();
+      const found = existing.find(e => (e.productName || '').toLowerCase() === pn.toLowerCase());
+      if (found) {
+        const hasChanges = Object.keys(colMap).some(k => {
+          if (k === 'productName') return false;
+          const excelVal = String(row[colMap[k]]).trim();
+          const curVal = String(found[k] ?? '').trim();
+          return excelVal !== curVal;
+        });
+        if (hasChanges) { matched++; html += `<div class="diff-item"><span class="diff-matched">\u270E ${escHtml(pn)}</span><span style="color:var(--amber);">will update</span></div>`; }
+        else { unchanged++; }
+      } else { newItems++; html += `<div class="diff-item"><span class="diff-new">+ ${escHtml(pn)}</span><span style="color:var(--tertiary);">new</span></div>`; }
+    }
+    if (unchanged > 0) html += `<div class="diff-item"><span class="diff-unchanged">${unchanged} unchanged</span></div>`;
+    pgState._excelData = { rows, colMap };
+    html += `<div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="document.getElementById('pgExcelPreview').style.display='none';pgState._excelData=null;" class="pg-btn pg-btn-outline">Cancel</button>
+      <button onclick="pgConfirmSync()" class="pg-btn pg-btn-primary">Sync ${matched + newItems} changes</button>
+    </div>`;
+    preview.innerHTML = html; preview.style.display = '';
+  } catch(e) { alert('Parse error: ' + e.message); }
+  btn.disabled = false; btn.textContent = 'Parse & Preview';
+}
+
+async function pgConfirmSync() {
+  const { rows, colMap } = pgState._excelData || {};
+  if (!rows) return;
+  let ok = 0, fail = 0;
+  for (const row of rows) {
+    const pn = String(row[colMap.productName]).trim();
+    const found = pgState.items.find(e => (e.productName || '').toLowerCase() === pn.toLowerCase());
+    const payload = { updatedAt: new Date().toISOString(), updatedBy: 'admin', mspEnabled: true };
+    Object.keys(colMap).forEach(k => {
+      if (k === 'productName') return;
+      const v = String(row[colMap[k]]).trim();
+      payload[k] = v === '' ? null : (isNaN(Number(v)) ? v : Number(v));
+    });
+    try {
+      if (found) {
+        const res = await authFetch(`${BASE_URL}/price-guide/${found.id || found._id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) ok++; else fail++;
+      } else {
+        payload.productName = pn; payload.mrp = payload.mrp || 0;
+        const res = await authFetch(`${BASE_URL}/price-guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) ok++; else fail++;
+      }
+    } catch(e) { fail++; }
+  }
+  pgState._excelData = null;
+  document.getElementById('pgExcelPreview').style.display = 'none';
+  document.getElementById('pgExcelInput').value = '';
+  if (fail) alert(`Synced ${ok} rows, ${fail} failed`); else alert(`All ${ok} rows synced successfully`);
+  pgLoadData();
+}
+
+/* ════ SLABS ════ */
+let slEditId = null;
+
+async function slLoadData() {
+  try {
+    const [slabsRes, pgRes] = await Promise.all([
+      authFetch(`${BASE_URL}/slabs`),
+      authFetch(`${BASE_URL}/price-guide`)
+    ]);
+    const slabs = slabsRes.ok ? await slabsRes.json() : [];
+    const pgItems = pgRes.ok ? await pgRes.json() : [];
+    const grid = document.getElementById('slGrid');
+    const prodCount = {};
+    pgItems.forEach(p => { const sid = p.slabId; if (sid) prodCount[sid] = (prodCount[sid] || 0) + 1; });
+    if (!slabs.length) { grid.innerHTML = '<div style="padding:30px;text-align:center;color:var(--outline);">No slabs created yet. Click "+ Add Slab" to create one.</div>'; return; }
+    grid.innerHTML = slabs.map(s => `
+      <div class="sl-card" data-id="${s.id}">
+        <div class="name" id="slName_${s.id}">${escHtml(s.slabName)}</div>
+        <div class="desc" id="slDesc_${s.id}">${escHtml(s.description || '')}</div>
+        <div class="footer">
+          <span class="prod-count">${prodCount[s.id] || 0} products</span>
+          <div class="actions">
+            <button onclick="slEdit('${s.id}')">Edit</button>
+            <button class="delete-btn" onclick="slDelete('${s.id}','${escHtml(s.slabName).replace(/'/g,"\\'")}')">Delete</button>
+          </div>
+        </div>
+        <!-- inline edit area (hidden by default) -->
+        <div id="slEdit_${s.id}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <input id="slEditName_${s.id}" value="${escHtml(s.slabName)}" style="flex:1;min-width:120px;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
+            <textarea id="slEditDesc_${s.id}" style="flex:2;min-width:160px;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;color:var(--on-surface);outline:none;resize:vertical;min-height:36px;">${escHtml(s.description || '')}</textarea>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="pg-btn pg-btn-primary" onclick="slSaveEdit('${s.id}')">Save</button>
+            <button class="pg-btn pg-btn-outline" onclick="slCancelEdit('${s.id}')">Cancel</button>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('slGrid').innerHTML = `<div style="padding:30px;text-align:center;color:var(--error);">Error loading slabs: ${e.message}</div>`;
+  }
+}
+
+function slShowForm() {
+  document.getElementById('slForm').style.display = 'flex';
+  document.getElementById('slFormName').focus();
+  document.getElementById('slFormName').value = '';
+  document.getElementById('slFormDesc').value = '';
+  slEditId = null;
+  document.getElementById('slFormSaveBtn').textContent = 'Save';
+}
+
+function slHideForm() {
+  document.getElementById('slForm').style.display = 'none';
+}
+
+async function slSave() {
+  const name = document.getElementById('slFormName').value.trim();
+  if (!name) { alert('Slab name required'); return; }
+  const desc = document.getElementById('slFormDesc').value.trim();
+  try {
+    const res = await authFetch(`${BASE_URL}/slabs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slabName: name, description: desc }) });
+    if (!res.ok) throw new Error(await res.text());
+    slHideForm(); slLoadData();
+  } catch(e) { alert('Save failed: ' + e.message); }
+}
+
+function slEdit(id) {
+  const editArea = document.getElementById('slEdit_' + id);
+  const nameEl = document.getElementById('slName_' + id);
+  const descEl = document.getElementById('slDesc_' + id);
+  if (editArea.style.display !== 'none') { editArea.style.display = 'none'; return; }
+  editArea.style.display = '';
+}
+
+function slCancelEdit(id) {
+  document.getElementById('slEdit_' + id).style.display = 'none';
+}
+
+async function slSaveEdit(id) {
+  const name = document.getElementById('slEditName_' + id).value.trim();
+  if (!name) { alert('Slab name required'); return; }
+  const desc = document.getElementById('slEditDesc_' + id).value.trim();
+  try {
+    const res = await authFetch(`${BASE_URL}/slabs/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slabName: name, description: desc }) });
+    if (!res.ok) throw new Error(await res.text());
+    slLoadData();
+  } catch(e) { alert('Edit failed: ' + e.message); }
+}
+
+function slDelete(id, name) {
+  if (!confirm(`Delete slab "${name}"? This will not remove the slab reference from products.`)) return;
+  authFetch(`${BASE_URL}/slabs/${id}`, { method: 'DELETE' }).then(r => { if (r.ok) slLoadData(); else alert('Delete failed'); }).catch(e => alert('Delete failed: ' + e.message));
+}
+
+/* keyboard navigation for price guide spreadsheet */
+document.addEventListener('keydown', function(e) {
+  const active = document.activeElement;
+  if (!active || !active.closest('#view-price-guide')) return;
+  if (active.tagName !== 'INPUT' && active.tagName !== 'SELECT') return;
+  if (e.key === 'Escape') {
+    const oid = active.dataset.oid;
+    if (oid && active.classList.contains('pg-cell-editable')) {
+      const orig = pgState.originals[oid];
+      if (orig) {
+        const field = active.dataset.field;
+        active.value = orig[field] ?? '';
+        pgState.dirty.delete(oid);
+        const row = document.querySelector(`tr[data-id="${oid}"]`);
+        if (row && !row.querySelector('.pg-cell-editable').value !== (orig[active.dataset.field] ?? '')) {
+          // recheck all fields in row
+          let stillDirty = false;
+          row.querySelectorAll('.pg-cell-editable').forEach(inp => { if (inp.value !== String(pgState.originals[oid][inp.dataset.field] ?? '')) stillDirty = true; });
+          if (!stillDirty) { row.classList.remove('pg-row-dirty'); pgState.dirty.delete(oid); }
+        }
+        document.getElementById('pgDirtyCount').textContent = pgState.dirty.size + ' unsaved change' + (pgState.dirty.size !== 1 ? 's' : '');
+        document.getElementById('pgSaveBtn').style.display = pgState.dirty.size ? '' : 'none';
+      }
+    }
+    e.preventDefault();
+    return;
+  }
+  if (e.key !== 'Tab' && e.key !== 'Enter') return;
+  const editable = [...active.closest('table')?.querySelectorAll('.pg-cell-editable, .pg-cell-select')] || [];
+  const idx = editable.indexOf(active);
+  if (idx === -1) return;
+  let next;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    next = editable[idx + colSpan()];
+  } else if (e.shiftKey) {
+    e.preventDefault();
+    next = editable[idx - 1];
+  } else {
+    e.preventDefault();
+    next = editable[idx + 1];
+  }
+  if (next) next.focus();
+  function colSpan() {
+    const cols = document.querySelectorAll('#pgSpreadsheet thead th').length;
+    return cols;
+  }
+});
+
+// ── Categories ──
+let catEditId = null;
+
+async function catLoadData() {
+  try {
+    const res = await authFetch(`${BASE_URL}/categories`);
+    const cats = res.ok ? await res.json() : [];
+    pgState.categories = cats;
+    const grid = document.getElementById('catGrid');
+    if (!cats.length) { grid.innerHTML = '<span style="font-size:12px;color:var(--outline);">No categories defined yet</span>'; return; }
+    grid.innerHTML = cats.map(c => `
+      <span class="cat-chip">
+        <span class="cat-name">${escHtml(c.name)}</span>
+        <span class="cat-actions">
+          <button title="Edit" onclick="catEdit('${c.id}','${escHtml(c.name)}')">&#9998;</button>
+          <button title="Delete" onclick="catDelete('${c.id}','${escHtml(c.name)}')">&#128465;</button>
+        </span>
+      </span>
+    `).join('');
+  } catch(e) {
+    document.getElementById('catGrid').innerHTML = `<span style="font-size:12px;color:var(--error);">Error: ${e.message}</span>`;
+  }
+}
+
+function catShowForm() {
+  document.getElementById('catForm').style.display = 'flex';
+  document.getElementById('catFormName').focus();
+  document.getElementById('catFormName').value = '';
+  catEditId = null;
+  document.querySelector('#catForm .pg-btn-primary').textContent = 'Save';
+}
+
+function catHideForm() {
+  document.getElementById('catForm').style.display = 'none';
+}
+
+async function catSave() {
+  const name = document.getElementById('catFormName').value.trim().toUpperCase();
+  if (!name) { alert('Category name required'); return; }
+  try {
+    if (catEditId) {
+      await authFetch(`${BASE_URL}/categories/${catEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    } else {
+      await authFetch(`${BASE_URL}/categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    }
+    catHideForm(); catLoadData();
+  } catch(e) { alert('Save failed: ' + e.message); }
+}
+
+function catEdit(id, name) {
+  catShowForm();
+  document.getElementById('catFormName').value = name;
+  catEditId = id;
+  document.querySelector('#catForm .pg-btn-primary').textContent = 'Update';
+}
+
+async function catDelete(id, name) {
+  if (!confirm(`Delete category "${name}"?`)) return;
+  try {
+    const res = await authFetch(`${BASE_URL}/categories/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    catLoadData();
+  } catch(e) { alert('Delete failed: ' + e.message); }
+}
+
+// ── Admin Calendar ──
+let adCalEvents = [];
+let adCalViewDate = new Date();
+let adCalStaffList = [];
+let adCalSelectedDate = null;
+const AD_CAL_DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+async function adCalLoadData() {
+  try {
+    const [evtRes, staffRes] = await Promise.all([
+      authFetch(`${BASE_URL}/calendar-events`),
+      authFetch(`${BASE_URL}/staff-weekly-off`)
+    ]);
+    adCalEvents = evtRes.ok ? await evtRes.json() : [];
+    adCalStaffList = staffRes.ok ? await staffRes.json() : [];
+    const sel = document.getElementById('adCalNoteStaff');
+    if (sel) sel.innerHTML = '<option value="">Select staff...</option>' + adCalStaffList.map(s => `<option value="${s.id}">${escHtml(s.name || s.id)}</option>`).join('');
+    adCalRender();
+  } catch(e) { console.warn('Admin calendar load failed'); }
+}
+
+function adCalGetEvents(dateStr) {
+  return adCalEvents.filter(e => e.date === dateStr);
+}
+
+function adCalIsWeeklyOff(dateStr) {
+  const dayName = AD_CAL_DAYS[new Date(dateStr + 'T00:00:00').getDay()];
+  return adCalStaffList.some(s => s.weekly_off === dayName);
+}
+
+function adCalGetColor(id) {
+  const s = adCalStaffList.find(x => x.id === id);
+  if (s && s.color) return s.color;
+  const adminIds = ["admin","accountant","hariom_admin"];
+  if (adminIds.includes(id)) return "#f59e0b";
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  return `hsl(${Math.abs(hash) % 360}, 50%, 48%)`;
+}
+
+function adCalIsAdminEv(type, role) {
+  return type === "agenda" || ((role === "admin" || role === "accountant") && type === "note");
+}
+
+function adCalGetPinLabel(type) {
+  if (type === "agenda") return "A";
+  return "N";
+}
+
+function adCalRender() {
+  const year = adCalViewDate.getFullYear();
+  const month = adCalViewDate.getMonth();
+  const grid = document.getElementById('adCalGrid');
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById('adCalTitle').textContent = months[month] + ' ' + year;
+  let html = '<div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div><div class="cal-weekday">Sun</div>';
+  const firstDay = new Date(year, month, 1);
+  const startDow = firstDay.getDay();
+  const startOff = startDow === 0 ? 6 : startDow - 1;
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const prevLast = new Date(year, month, 0).getDate();
+  for (let i = startOff - 1; i >= 0; i--) html += '<div class="cal-day other-month">' + (prevLast - i) + '</div>';
+  for (let d = 1; d <= lastDate; d++) {
+    const ds = year + '-' + String(month + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const evs = adCalGetEvents(ds);
+    const isToday = ds === todayStr;
+    const isOff = adCalIsWeeklyOff(ds);
+    let cls = 'cal-day';
+    if (isToday) cls += ' today';
+    if (isOff) cls += ' weekly-off';
+    let pins = '';
+    if (isOff) {
+      const offStaff = adCalStaffList.find(s => s.weekly_off === AD_CAL_DAYS[new Date(ds + 'T00:00:00').getDay()]);
+      const col = offStaff ? adCalGetColor(offStaff.id) : 'var(--outline)';
+      pins += '<span class="pin-dot" style="background:' + col + '">W</span>';
+    }
+    if (evs.length) {
+      pins += evs.slice(0, 4).map(function(e) {
+        const col = adCalGetColor(e.createdById);
+        if (adCalIsAdminEv(e.type, e.createdByRole)) return '<span class="pin-star"><span class="label">' + adCalGetPinLabel(e.type) + '</span>&#9733;</span>';
+        return '<span class="pin-dot" style="background:' + col + '">' + adCalGetPinLabel(e.type) + '</span>';
+      }).join('');
+    }
+    if (pins) pins = '<div class="cal-pins">' + pins + '</div>';
+    html += '<div class="' + cls + '" onclick="adCalSelectDay(\'' + ds + '\')">' + d + pins + '</div>';
+  }
+  const total = startOff + lastDate;
+  const rem = (7 - total % 7) % 7;
+  for (let i = 1; i <= rem; i++) html += '<div class="cal-day other-month">' + i + '</div>';
+  grid.innerHTML = html;
+  document.getElementById('adCalDayPanel').style.display = 'none';
+  document.getElementById('adCalNoDay').style.display = '';
+}
+
+function adCalSelectDay(dateStr) {
+  adCalSelectedDate = dateStr;
+  const evs = adCalGetEvents(dateStr);
+  const d = new Date(dateStr + 'T00:00:00');
+  document.getElementById('adCalDayHeader').textContent = d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  document.getElementById('adCalDaySub').textContent = evs.length + ' event' + (evs.length !== 1 ? 's' : '');
+  document.getElementById('adCalDayPanel').style.display = '';
+  document.getElementById('adCalNoDay').style.display = 'none';
+  const list = document.getElementById('adCalEventList');
+  if (!evs.length) {
+    list.innerHTML = '<div class="cal-empty"><p>No events on this day</p></div>';
+  } else {
+    list.innerHTML = evs.map(function(e) {
+      const col = adCalGetColor(e.createdById);
+      const label = adCalGetPinLabel(e.type);
+      const isAdminEv = adCalIsAdminEv(e.type, e.createdByRole);
+      let visTag = '';
+      if (e.visibility === 'staff_only') visTag = '<span class="cal-event-vis-badge">Staff Only</span>';
+      else if (e.visibility === 'admin_only') visTag = '<span class="cal-event-vis-badge">Admin</span>';
+      return '<div class="cal-event">' +
+        '<div class="cal-event-card" style="border-left-color:' + col + ';">' +
+        (isAdminEv
+          ? '<span class="pin-star" style="flex-shrink:0;"><span class="label">' + label + '</span>&#9733;</span>'
+          : '<span class="pin-dot" style="background:' + col + ';flex-shrink:0;">' + label + '</span>') +
+        '<div class="cal-event-body">' +
+        '<div class="cal-event-meta">' + (e.createdBy === "Unknown" ? "Admin" : escHtml(e.createdBy || "Admin")) + visTag + '</div>' +
+        '<div class="cal-event-title">' + escHtml(e.title) + '</div>' +
+        (e.description ? '<div class="cal-event-desc">' + escHtml(e.description) + '</div>' : '') +
+        '</div>' +
+        '<button class="cal-event-del" onclick="adCalDeleteEvent(\'' + e.id + '\')" title="Delete">&#128465;</button>' +
+        '</div></div>';
+    }).join('');
+  }
+  // Weekly off staff for this date
+  const dayName = AD_CAL_DAYS[d.getDay()];
+  const offStaff = adCalStaffList.filter(function(s) { return s.weekly_off === dayName; });
+  const woEl = document.getElementById('adCalWeekOffList');
+  if (offStaff.length) {
+    woEl.style.display = '';
+    woEl.innerHTML = '<div class="title">Weekly Off</div>' +
+      offStaff.map(function(s) {
+        return '<div class="cal-weekoff-item"><span class="cal-weekoff-dot" style="background:' + adCalGetColor(s.id) + '"></span>' + escHtml(s.name || s.id) + '</div>';
+      }).join('');
+  } else {
+    woEl.style.display = 'none';
+  }
+}
+
+function adCalPrevMonth() { adCalViewDate.setMonth(adCalViewDate.getMonth() - 1); adCalRender(); }
+function adCalNextMonth() { adCalViewDate.setMonth(adCalViewDate.getMonth() + 1); adCalRender(); }
+
+function adCalOpenAgenda() {
+  if (!adCalSelectedDate) { alert('Select a date first'); return; }
+  document.getElementById('adCalAgaDate').value = adCalSelectedDate;
+  document.getElementById('adCalAgaDate').min = new Date().toISOString().slice(0,10);
+  document.getElementById('adCalAgaTitle').value = '';
+  document.getElementById('adCalAgaDesc').value = '';
+  document.getElementById('adCalAgaMsg').textContent = '';
+  document.getElementById('adCalAgendaPopup').classList.add('is-open');
+}
+function adCalCloseAgenda() { document.getElementById('adCalAgendaPopup').classList.remove('is-open'); }
+
+async function adCalSubmitAgenda() {
+  const date = document.getElementById('adCalAgaDate').value;
+  const title = document.getElementById('adCalAgaTitle').value.trim();
+  const desc = document.getElementById('adCalAgaDesc').value.trim();
+  const msg = document.getElementById('adCalAgaMsg');
+  if (!title) { msg.style.color = 'var(--error)'; msg.textContent = 'Enter a title.'; return; }
+  if (date < new Date().toISOString().slice(0,10)) { msg.style.color = 'var(--error)'; msg.textContent = 'Cannot create events in the past.'; return; }
+  msg.style.color = 'var(--primary)'; msg.textContent = 'Saving…';
+  try {
+    const res = await authFetch(BASE_URL + '/calendar-events', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: date, type: 'agenda', title: title, description: desc, visibility: 'public' })
+    });
+    const data = res.ok ? null : await res.json();
+    if (!res.ok) { msg.style.color = 'var(--error)'; msg.textContent = (data && data.error) || 'Failed.'; return; }
+    alert('Agenda saved!');
+    adCalCloseAgenda();
+    await adCalLoadData();
+  } catch(e) { msg.style.color = 'var(--error)'; msg.textContent = 'Network error.'; }
+}
+
+function adCalOpenNote() {
+  if (!adCalSelectedDate) { alert('Select a date first'); return; }
+  document.getElementById('adCalNoteDate').value = adCalSelectedDate;
+  document.getElementById('adCalNoteDate').min = new Date().toISOString().slice(0,10);
+  document.getElementById('adCalNoteTitle').value = '';
+  document.getElementById('adCalNoteDesc').value = '';
+  document.querySelector('input[name="adCalNoteVis"][value="public"]').checked = true;
+  adCalNoteVisChange();
+  document.getElementById('adCalNoteMsg').textContent = '';
+  document.getElementById('adCalNotePopup').classList.add('is-open');
+}
+function adCalCloseNote() { document.getElementById('adCalNotePopup').classList.remove('is-open'); }
+
+function adCalNoteVisChange() {
+  const val = document.querySelector('input[name="adCalNoteVis"]:checked').value;
+  document.getElementById('adCalNoteVisPub').style.borderColor = val === 'public' ? 'var(--primary)' : 'transparent';
+  document.getElementById('adCalNoteVisStaff').style.borderColor = val === 'staff_only' ? 'var(--primary)' : 'transparent';
+  document.getElementById('adCalNoteStaffWrap').style.display = val === 'staff_only' ? '' : 'none';
+}
+
+async function adCalSubmitNote() {
+  const date = document.getElementById('adCalNoteDate').value;
+  const title = document.getElementById('adCalNoteTitle').value.trim();
+  const desc = document.getElementById('adCalNoteDesc').value.trim();
+  const visibility = document.querySelector('input[name="adCalNoteVis"]:checked').value;
+  const targetStaffId = document.getElementById('adCalNoteStaff').value;
+  const msg = document.getElementById('adCalNoteMsg');
+  if (!title) { msg.style.color = 'var(--error)'; msg.textContent = 'Enter a title.'; return; }
+  if (date < new Date().toISOString().slice(0,10)) { msg.style.color = 'var(--error)'; msg.textContent = 'Cannot create events in the past.'; return; }
+  if (visibility === 'staff_only' && !targetStaffId) { msg.style.color = 'var(--error)'; msg.textContent = 'Select a staff member.'; return; }
+  msg.style.color = 'var(--primary)'; msg.textContent = 'Saving…';
+  try {
+    const body = { date: date, type: 'note', title: title, description: desc, visibility: visibility };
+    if (visibility === 'staff_only') body.targetStaffId = targetStaffId;
+    const res = await authFetch(BASE_URL + '/calendar-events', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = res.ok ? null : await res.json();
+    if (!res.ok) { msg.style.color = 'var(--error)'; msg.textContent = (data && data.error) || 'Failed.'; return; }
+    alert('Note saved!');
+    adCalCloseNote();
+    await adCalLoadData();
+  } catch(e) { msg.style.color = 'var(--error)'; msg.textContent = 'Network error.'; }
+}
+
+async function adCalDeleteEvent(id) {
+  if (!confirm('Delete this event?')) return;
+  try {
+    const res = await authFetch(BASE_URL + '/calendar-events/' + id, { method: 'DELETE' });
+    if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed'); return; }
+    await adCalLoadData();
+  } catch(e) { alert('Error: ' + e.message); }
 }
 </script>
 </body>

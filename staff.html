@@ -161,10 +161,15 @@
       color: var(--on-primary-container); font-size: 15px; font-weight: 800;
       letter-spacing: 0.5px; border-radius: 12px;
     }
-    .btn-primary-sm {
+    .btn-primary, .btn-primary-sm {
       background: linear-gradient(135deg, var(--primary-container), var(--primary));
       color: var(--on-primary-container); padding: 10px 18px;
       font-size: 13px; font-weight: 700; border-radius: 10px;
+    }
+    .btn-gray {
+      background: var(--surface-container-high); color: var(--on-surface-variant);
+      padding: 10px 16px; font-size: 13px; font-weight: 600; border-radius: 10px;
+      border: 1px solid var(--outline-variant);
     }
     .btn-ghost {
       background: var(--surface-container-high); color: var(--on-surface-variant);
@@ -193,7 +198,7 @@
     }
     .btn-full:active { transform: scale(0.98); }
     .btn-full-primary { background: linear-gradient(135deg, var(--primary-container), var(--primary)); color: var(--on-primary-container); }
-    .btn-full-teal    { background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary)); color: #002113; }
+
 
     /* ── SECTION HEADER ── */
     .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -380,10 +385,7 @@
       padding: 14px; font-size: 15px; font-weight: 600; width: 100%;
       border-radius: 12px; border: none; font-family: 'Inter', sans-serif; cursor: pointer;
     }
-    .popup-action-teal {
-      background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary));
-      color: #002113;
-    }
+
 
     /* Lead edit inline */
     .lead-edit-select {
@@ -559,94 +561,137 @@
       font-size: 16px; cursor: pointer; flex-shrink: 0; line-height: 1;
     }
 
-    /* ── INCENTIVES TAB ── */
-    .sale-card {
-      background: var(--surface-container-low); border-radius: 16px;
-      padding: 14px 16px; margin-bottom: 10px;
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    /* ── PRICE GUIDE CARDS ── */
+    .pg-card {
+      background: var(--surface-container-low); border-radius: 18px;
+      padding: 16px; margin-bottom: 12px;
+      border: 1px solid var(--border);
     }
-    .sale-card:active { background: var(--surface-container); }
-    .sale-info { flex: 1; }
-    .sale-product { font-size: 15px; font-weight: 700; color: var(--on-surface); }
-    .sale-meta { font-size: 12px; color: var(--on-surface-variant); margin-top: 3px; }
-    .sale-price { font-size: 18px; font-weight: 800; color: var(--tertiary); }
-    .date-separator {
-      display: flex; align-items: center; gap: 10px; margin: 16px 0 10px;
+    .pg-card-header { display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px; }
+    .pg-name { font-size:15px;font-weight:700;color:var(--on-surface);line-height:1.3;flex:1; }
+    .pg-slab-badge {
+      font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+      padding:3px 10px;border-radius:20px;background:rgba(245,158,11,0.15);color:var(--amber);
+      white-space:nowrap;flex-shrink:0;
     }
-    .date-separator-line { flex: 1; height: 1px; background: var(--border); }
-    .date-separator-text { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.8px; }
-    .sale-form-row { display: flex; gap: 10px; margin-bottom: 12px; }
-    .sale-form-row .form-input,
-    .sale-form-row .form-select { flex: 1; margin-bottom: 0; }
-    .sale-total-card {
-      background: linear-gradient(135deg, rgba(78,222,163,0.9), rgba(39,174,96,0.9));
-      border-radius: 18px; padding: 16px 18px; margin-bottom: 14px;
-      display: flex; align-items: center; justify-content: space-between;
-      box-shadow: 0 4px 16px rgba(39,174,96,0.25);
+    .pg-quote-row { display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px; }
+    .pg-quote-row.two-col { grid-template-columns:1fr 1fr; }
+    .pg-quote-btn {
+      padding:10px 8px;border:none;border-radius:14px;font-family:'Inter',sans-serif;
+      font-size:14px;font-weight:800;cursor:pointer;transition:all 0.12s;text-align:center;
+      background:var(--surface-container-high);color:var(--on-surface);min-height:56px;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
     }
-    .sale-total-left { display: flex; flex-direction: column; gap: 2px; }
-    .sale-total-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.7); }
-    .sale-total-date { font-size: 12px; color: rgba(255,255,255,0.6); }
-    .sale-total-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-    .sale-total-amount { font-size: 24px; font-weight: 900; color: #fff; }
-    .sale-wa-btn {
-      background: rgba(255,255,255,0.15); border: none; border-radius: 8px;
-      padding: 6px 12px; font-size: 12px; font-weight: 600; color: #fff;
-      cursor: pointer; display: flex; align-items: center; gap: 4px;
-      font-family:'Inter',sans-serif; -webkit-tap-highlight-color:transparent;
+    .pg-quote-btn:active { transform:scale(0.96); }
+    .pg-quote-btn .label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--on-surface-variant); }
+    .pg-quote-btn .price { font-size:18px;font-weight:900; }
+    .pg-quote-btn.mop-btn { background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.2); }
+    .pg-quote-btn.msp-btn { background:rgba(78,222,163,0.06);border:1px solid rgba(78,222,163,0.2); }
+    .pg-quote-btn.active { outline:2.5px solid var(--primary);outline-offset:-2.5px;background:rgba(173,198,255,0.12); }
+    .pg-quote-strip {
+      display:none;margin-top:8px;padding:12px 16px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(77,142,255,0.12),rgba(78,222,163,0.06));
     }
-    .sale-wa-btn:active { background: rgba(255,255,255,0.25); }
+    .pg-quote-strip .qlabel { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-bottom:2px; }
+    .pg-quote-strip .qprice { font-size:26px;font-weight:900;color:var(--primary);letter-spacing:-1px; }
+    .pg-quote-strip .qsaving { font-size:11px;font-weight:600;color:var(--tertiary);margin-top:2px; }
+    .pg-quote-strip .qmrp { font-size:11px;font-weight:600;color:var(--on-surface-variant);margin-top:1px; }
 
-    .sale-card-wrap { position: relative; overflow: hidden; border-radius: 16px; margin-bottom: 10px; }
-    .sale-card {
-      position: relative; z-index: 2; overflow: hidden;
-      background: var(--surface-container-low); border-radius: 16px;
-      padding: 14px 16px; display: flex; align-items: center;
-      justify-content: space-between; gap: 12px;
-      transition: transform 0.15s ease-out;
-    }
-    .sale-card:active { background: var(--surface-container); }
-    .sale-info { flex: 1; }
-    .sale-product { font-size: 15px; font-weight: 700; color: var(--on-surface); }
-    .sale-meta { font-size: 12px; color: var(--on-surface-variant); margin-top: 3px; }
-    .sale-price { font-size: 18px; font-weight: 800; color: var(--tertiary); }
+    .pg-chip-row { display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;margin-bottom:12px;padding-bottom:4px; }
+    .pg-chip-row .pg-chip { flex-shrink:0; }
+    .pg-chip { padding:5px 14px;border:1px solid var(--outline-variant);border-radius:20px;background:transparent;color:var(--on-surface-variant);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;white-space:nowrap; }
+    .pg-chip:hover { border-color:var(--primary);color:var(--primary); }
+    .pg-chip.active { background:linear-gradient(135deg,var(--primary-container),var(--primary));border-color:transparent;color:var(--on-primary-container); }
 
-    .sale-swipe-bg {
-      position: absolute; top: 0; bottom: 0; left: 0; right: 0;
-      display: flex; align-items: center;
-      font-weight: 700; color: #fff; font-size: 14px;
-      opacity: 0; transition: opacity 0.15s ease;
+    /* ── CALENDAR ── */
+    .cal-nav {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
     }
-    .sale-swipe-left { background: #e74c3c; padding-left: 20px; }
-    .sale-swipe-right { background: var(--primary); justify-content: flex-end; padding-right: 20px; }
-
-    .sale-edit-form {
-      background: var(--surface-container-low); border-radius: 16px;
-      padding: 16px; margin-bottom: 12px; border: 2px solid var(--primary);
+    .cal-nav-title { font-size: 18px; font-weight: 800; color: var(--on-surface); letter-spacing: -0.3px; }
+    .cal-nav-btn {
+      background: var(--surface-container-high); border: none; border-radius: 10px;
+      padding: 8px 12px; font-size: 16px; cursor: pointer; color: var(--on-surface);
+      font-family: 'Inter',sans-serif; font-weight: 600; transition: background 0.12s;
     }
-    .sale-edit-form .form-label { font-size: 12px; margin-bottom: 4px; }
-    .sale-edit-form .form-input, .sale-edit-form .form-select { margin-bottom: 10px; }
-    .sale-edit-actions { display: flex; gap: 8px; }
-    .sale-edit-actions button { flex: 1; padding: 10px; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-family:'Inter',sans-serif; }
-    .sale-edit-save { background: var(--primary); color: #fff; }
-    .sale-edit-cancel { background: var(--surface-container-highest); color: var(--on-surface-variant); }
-
-    .sale-prod-wrap { position: relative; margin-bottom: 12px; }
-    .sale-prod-dropdown {
-      position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
-      background: var(--surface-container-highest);
-      border: 1px solid var(--border); border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.18);
-      max-height: 220px; overflow-y: auto;
+    .cal-nav-btn:active { background: var(--surface-container-highest); }
+    .cal-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+      background: var(--surface-container); border-radius: 16px; overflow: hidden;
+      margin-bottom: 14px;
     }
-    .sale-prod-dropdown-item {
-      padding: 12px 16px; cursor: pointer; font-size: 14px;
-      border-bottom: 1px solid var(--border);
+    .cal-weekday {
+      padding: 8px 0; text-align: center; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.8px; color: var(--outline);
+      background: var(--surface-container-low);
     }
-    .sale-prod-dropdown-item:last-child { border-bottom: none; }
-    .sale-prod-dropdown-item:hover { background: var(--surface-container); }
-    .sale-prod-dropdown-item.new-item { color: var(--primary); font-weight: 700; }
-    .sale-prod-dropdown-item.new-item::before { content: "+ Add: "; }
+    .cal-day {
+      aspect-ratio: 1; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; font-size: 13px; font-weight: 600; color: var(--on-surface);
+      background: transparent; cursor: pointer; border: none; font-family: 'Inter',sans-serif;
+      position: relative; transition: background 0.1s; border-radius: 4px; min-height: 42px;
+    }
+    .cal-day:hover { background: var(--surface-container-high); }
+    .cal-day.other-month { color: var(--outline); opacity: 0.4; }
+    .cal-day.today { font-weight: 900; color: var(--primary); background: rgba(173,198,255,0.08); }
+    .cal-day.weekly-off { opacity: 0.5; }
+    .cal-pins {
+      display: flex; align-items: center; justify-content: center;
+      height: 16px; margin-top: 1px;
+    }
+    .pin-dot {
+      width: 16px; height: 16px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 8px; font-weight: 800; color: #fff;
+      line-height: 1; flex-shrink: 0;
+      border: 2px solid var(--surface-container);
+      margin-left: -5px;
+    }
+    .pin-dot:first-child, .pin-star:first-child { margin-left: 0; }
+    .pin-star {
+      display: inline-flex; align-items: center; justify-content: center;
+      position: relative; width: 22px; height: 22px;
+      flex-shrink: 0; margin-left: -5px;
+      color: #f59e0b; font-size: 20px; line-height: 1;
+    }
+    .pin-star .label {
+      position: absolute; font-size: 9px; font-weight: 800; color: #fff;
+      top: 50%; left: 50%; transform: translate(-50%, -40%);
+      line-height: 1; z-index: 1;
+    }
+    .cal-event { margin-bottom: 10px; }
+    .cal-event-card {
+      background: var(--surface-container-low); border-radius: 14px;
+      padding: 12px 14px; display: flex; gap: 11px; align-items: flex-start;
+      border-left: 4px solid var(--border);
+    }
+    .cal-event-body { flex: 1; min-width: 0; }
+    .cal-event-meta { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); margin-bottom: 2px; }
+    .cal-event-title { font-size: 14px; font-weight: 700; color: var(--on-surface); }
+    .cal-event-desc { font-size: 12px; color: var(--on-surface-variant); margin-top: 3px; }
+    .cal-event-vis-badge {
+      display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.3px; padding: 1px 6px; border-radius: 3px;
+      background: rgba(255,255,255,0.08); margin-left: 6px;
+    }
+    .cal-day-header { font-size: 18px; font-weight: 800; color: var(--on-surface); margin-bottom: 4px; }
+    .cal-day-sub { font-size: 12px; color: var(--on-surface-variant); margin-bottom: 14px; }
+    .cal-empty { text-align: center; padding: 30px 20px; color: var(--outline); }
+    .cal-empty p { font-size: 14px; font-weight: 600; }
+    .cal-weekoff-list { margin-top:14px;padding:14px;background:var(--surface-container-low);border-radius:12px; }
+    .cal-weekoff-list .title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--outline);margin-bottom:8px; }
+    .cal-weekoff-item { display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--on-surface);padding:3px 0; }
+    .cal-weekoff-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0; }
+    .day-btns { display: flex; gap: 8px; margin-bottom: 14px; }
+    .day-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 0; border: none; border-radius: 12px;
+      font-family: 'Inter',sans-serif; font-size: 13px; font-weight: 700; cursor: pointer;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .day-btn:active { transform: scale(0.97); }
+    .day-btn-leave { background: var(--primary-container); color: var(--on-primary-container); }
+    .day-btn-note { background: var(--surface-container-high); color: var(--on-surface); }
+    .day-btn .material-symbols-outlined { font-size: 18px; }
   </style>
 </head>
 <body>
@@ -819,73 +864,55 @@
       <div id="leadsList"></div>
     </div>
 
-    <!-- TAB: INCENTIVES -->
-    <div id="tabIncentives" style="display:none;">
+    <!-- TAB: PRICE GUIDE -->
+    <div id="tabPriceGuide" style="display:none;">
       <div class="section-header">
-        <div class="section-title-text">My Sales</div>
-        <span class="count-badge" id="salesBadge">—</span>
+        <div class="section-title-text">Price Guide</div>
+        <span class="count-badge" id="pgBadge">—</span>
       </div>
-
-      <!-- Add New Sale toggle -->
-      <button onclick="toggleSaleForm()" id="addSaleToggleBtn"
-        style="width:100%;display:flex;align-items:center;justify-content:space-between;
-          padding:14px 18px;background:var(--surface-container-low);border:none;
-          border-radius:16px;cursor:pointer;margin-bottom:12px;
-          font-family:'Inter',sans-serif;-webkit-tap-highlight-color:transparent;">
-        <span style="font-size:15px;font-weight:800;color:var(--on-surface);letter-spacing:-0.3px;">💰 Add New Sale</span>
-        <span id="addSaleChevron" style="font-size:20px;color:var(--primary);transition:transform 0.25s;font-weight:300;">＋</span>
-      </button>
-
-      <!-- Collapsible sale form -->
-      <div id="saleFormBody" style="display:none;">
-        <div class="form-card" style="border-radius:0 0 16px 16px;padding-top:14px;margin-top:-12px;">
-          <label class="form-label">Sale Date & Time</label>
-          <input type="datetime-local" class="form-input" id="sDateTime">
-
-          <label class="form-label">Product *</label>
-          <div class="sale-prod-wrap">
-            <input type="text" class="form-input" id="sProduct" placeholder="Type or search product…"
-              autocomplete="off" oninput="onSaleProdSearch(this)" onfocus="onSaleProdSearch(this)">
-            <div class="sale-prod-dropdown" id="saleProdDrop" style="display:none;"></div>
-          </div>
-
-          <label class="form-label">Sale Price (₹) *</label>
-          <input type="number" class="form-input" id="sPrice" placeholder="Enter amount" min="0">
-
-          <label class="form-label">Customer Name</label>
-          <input type="text" class="form-input" id="sCustomer" placeholder="Optional">
-
-          <label class="form-label">Remarks</label>
-          <input type="text" class="form-input" id="sRemarks" placeholder="Optional">
-
-          <div id="saleFormMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:10px;text-align:center;"></div>
-          <div style="display:flex;gap:10px;">
-            <button class="btn-full btn-full-teal" id="submitSaleBtn" style="flex:1;" onclick="submitSale()">Save Sale</button>
-            <button type="button" onclick="toggleSaleForm()"
-              style="padding:0 18px;background:var(--surface-container-highest);border:none;border-radius:12px;
-                font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;">
-              Cancel
-            </button>
-          </div>
-        </div>
+      <div class="search-wrap">
+        <span class="material-symbols-outlined search-icon">search</span>
+        <input class="search-input" id="pgSearch" placeholder="Search product…" oninput="stPgFilter()">
       </div>
+      <div class="pg-chip-row" id="stPgCatRow"></div>
+      <div class="pg-chip-row" id="stPgChipRow"></div>
+      <div id="pgList"></div>
+    </div>
 
-      <!-- Daily total -->
-      <div class="sale-total-card" id="saleTotalCard" style="display:none;">
-        <div class="sale-total-left">
-          <div class="sale-total-label">Today's Total</div>
-          <div class="sale-total-date" id="saleTotalDate"></div>
-        </div>
-        <div class="sale-total-right">
-          <div class="sale-total-amount" id="saleTotalAmount">₹0</div>
-          <button class="sale-wa-btn" onclick="exportTodaySalesWA()">
-            <span>📤</span> Share WhatsApp
+    <!-- TAB: SLABS INFO -->
+    <div id="tabSlabs" style="display:none;">
+      <div class="section-header">
+        <div class="section-title-text">Incentive Slabs</div>
+        <span class="count-badge" id="stSlBadge">—</span>
+      </div>
+      <div id="stSlList"></div>
+    </div>
+
+    <!-- TAB: CALENDAR -->
+    <div id="tabCalendar" style="display:none;">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="calendarPrevMonth()">‹</button>
+        <span class="cal-nav-title" id="calTitle">June 2026</span>
+        <button class="cal-nav-btn" onclick="calendarNextMonth()">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div id="calDayPanel" style="display:none;">
+        <div class="cal-day-header" id="calDayHeader"></div>
+        <div class="cal-day-sub" id="calDaySub"></div>
+        <div class="day-btns">
+          <button class="day-btn day-btn-leave" onclick="openAddLeavePopup()">
+            <span class="material-symbols-outlined">event_busy</span> Add Leave
+          </button>
+          <button class="day-btn day-btn-note" onclick="openAddNotePopup()">
+            <span class="material-symbols-outlined">note_add</span> Add Note
           </button>
         </div>
+        <div id="calEventList"></div>
+        <div id="calWeekOffList" class="cal-weekoff-list" style="display:none;"></div>
       </div>
-
-      <!-- Sales list -->
-      <div id="salesList"></div>
+      <div id="calNoDay" class="cal-empty">
+        <p>Select a date to view events</p>
+      </div>
     </div>
 
   </div><!-- /mainPanel -->
@@ -914,6 +941,54 @@
   </div>
 </div>
 
+<!-- ══ CALENDAR ADD LEAVE POPUP ══ -->
+<div class="popup" id="calLeavePopup">
+  <div class="popup-box" style="max-width:380px;">
+    <div style="padding:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+        <h3 style="font-size:20px;font-weight:900;color:var(--on-surface);margin:0;">Add Leave</h3>
+        <button onclick="closeCalLeavePopup()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-surface-variant);padding:0;line-height:1;">&times;</button>
+      </div>
+      <input type="date" class="form-input" id="calLeaveDate" style="margin-bottom:14px;">
+      <input class="form-input" id="calLeaveTitle" placeholder="Title" style="margin-bottom:12px;">
+      <input class="form-input" id="calLeaveDesc" placeholder="Description (optional)" style="margin-bottom:14px;">
+      <div id="calLeaveMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:12px;text-align:center;"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="submitCalendarLeave()">Save Leave</button>
+        <button class="btn btn-gray" onclick="closeCalLeavePopup()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CALENDAR ADD NOTE POPUP ══ -->
+<div class="popup" id="calNotePopup">
+  <div class="popup-box" style="max-width:380px;">
+    <div style="padding:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+        <h3 style="font-size:20px;font-weight:900;color:var(--on-surface);margin:0;">Add Note</h3>
+        <button onclick="closeCalNotePopup()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-surface-variant);padding:0;line-height:1;">&times;</button>
+      </div>
+      <input type="date" class="form-input" id="calNoteDate" style="margin-bottom:14px;">
+      <input class="form-input" id="calNoteTitle" placeholder="Title" style="margin-bottom:12px;">
+      <input class="form-input" id="calNoteDesc" placeholder="Description (optional)" style="margin-bottom:14px;">
+      <div style="display:flex;gap:10px;margin-bottom:14px;">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface-container-low);border-radius:10px;cursor:pointer;border:2px solid transparent;font-size:13px;font-weight:600;color:var(--on-surface);" id="calNoteVisPublicLabel">
+          <input type="radio" name="calNoteVis" value="public" checked onchange="onCalNoteVisChange()" style="accent-color:var(--primary);"> Everyone
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface-container-low);border-radius:10px;cursor:pointer;border:2px solid transparent;font-size:13px;font-weight:600;color:var(--on-surface);" id="calNoteVisAdminLabel">
+          <input type="radio" name="calNoteVis" value="admin_only" onchange="onCalNoteVisChange()" style="accent-color:var(--primary);"> Only Admin
+        </label>
+      </div>
+      <div id="calNoteMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:12px;text-align:center;"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="submitCalendarNote()">Save Note</button>
+        <button class="btn btn-gray" onclick="closeCalNotePopup()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ BOTTOM NAV ══ -->
 <nav class="kinetic-bottom-nav" id="bottomNav" style="display:none;">
   <div class="kinetic-bottom-nav-inner">
@@ -925,9 +1000,17 @@
       <span class="material-symbols-outlined">contacts</span>
       <span class="nav-label">Leads</span>
     </button>
-    <button class="kinetic-nav-btn" id="nav-incentives" onclick="switchTab('incentives')">
-      <span class="material-symbols-outlined">workspace_premium</span>
-      <span class="nav-label">Incentives</span>
+    <button class="kinetic-nav-btn" id="nav-prices" onclick="switchTab('prices')">
+      <span class="material-symbols-outlined">sell</span>
+      <span class="nav-label">Prices</span>
+    </button>
+    <button class="kinetic-nav-btn" id="nav-calendar" onclick="switchTab('calendar')">
+      <span class="material-symbols-outlined">calendar_month</span>
+      <span class="nav-label">Calendar</span>
+    </button>
+    <button class="kinetic-nav-btn" id="nav-slabs" onclick="switchTab('slabs')">
+      <span class="material-symbols-outlined">layers</span>
+      <span class="nav-label">Slabs</span>
     </button>
     <button class="kinetic-nav-btn" id="nav-logout" onclick="doLogout()" style="width:56px;">
       <span class="material-symbols-outlined" style="font-size:20px;">logout</span>
@@ -940,7 +1023,10 @@
    STAFF PANEL — JS
 ════════════════════════════════════════════════ */
 
-const BASE_URL = window.location.origin;
+const BASE_URL = window.location.origin && window.location.origin !== 'null'
+  ? window.location.origin
+  : 'http://localhost:5000';
+const EXPIRING_SOON_DAYS = 2;
 
 /* ── HTML ESCAPE (prevents XSS in innerHTML rendering) ── */
 function esc(s) {
@@ -964,9 +1050,43 @@ let tallyNames       = [];
 let leadProductCount = 0;
 let currentLead      = null;
 let staffPerms       = {};
-let allSales         = [];
-let saleSubmitting   = false;
-let saleFormOpen     = false;
+let staffWeeklyOff   = "";
+let priceGuideData   = [];
+let stPgSlabMap     = {};
+let stPmMspGlobal   = true;
+let stPgActiveCard  = null;
+let stPgFilterSlab  = null;
+let stPgFilterCat   = null;
+let stPgCatList     = [];
+let calendarEvents   = [];
+let calViewDate      = new Date();
+let calStaffList     = [];
+let selectedCalendarDate = null;
+
+/* ── STAFF COLOR (deterministic from id, overridable by stored color) ── */
+let staffColor = "";
+function getStaffColor(id) {
+  if (id === staffId && staffColor) return staffColor;
+  const s = calStaffList.find(x => x.id === id);
+  if (s && s.color) return s.color;
+  const adminIds = ["admin", "accountant", "hariom_admin"];
+  if (adminIds.includes(id)) return "#f59e0b";
+  let hash = 0;
+  for (let i = 0; i < id.length; i++)
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  return `hsl(${Math.abs(hash) % 360}, 50%, 48%)`;
+}
+
+function getStaffPinLabel(type) {
+  if (type === "leave") return "L";
+  if (type === "agenda") return "A";
+  return "N";
+}
+
+function isAdminEvent(type, role) {
+  return type === "agenda" || (role === "admin" || role === "accountant") && type === "note";
+}
+
 
 /* ── OFFLINE DETECTION ── */
 window.addEventListener("online", () => {
@@ -982,6 +1102,8 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
     closeDelivPopup();
     closeLeadPopup();
+    closeCalLeavePopup();
+    closeCalNotePopup();
   }
 });
 
@@ -1078,9 +1200,12 @@ async function doLogin() {
     staffToken = data.token;
     staffId    = id;
     staffName  = data.name;
+    staffWeeklyOff = data.weekly_off || "";
+    staffColor = data.color || "";
     localStorage.setItem("staffToken", data.token);
     localStorage.setItem("staffId",    id);
     localStorage.setItem("staffName",  data.name);
+    localStorage.setItem("staffColor", staffColor);
 
     msg.style.color = "var(--tertiary)"; msg.textContent = "Welcome " + data.name + "!";
     setTimeout(showMainPanel, 400);
@@ -1096,6 +1221,7 @@ async function doLogin() {
   const name  = localStorage.getItem("staffName");
   if (token && id && name && !isTokenExpired(token)) {
     staffToken = token; staffId = id; staffName = name;
+    staffColor = localStorage.getItem("staffColor") || "";
     showMainPanel();
   } else {
     loadStaffList();
@@ -1110,7 +1236,9 @@ function showMainPanel() {
   loadDeliveries();
   loadLeads();
   loadTallyProducts();
-  loadSales();
+  stPgLoadData();
+  loadCalendarEvents();
+  loadCalStaff();
   // Don't pre-fill product row — form is collapsed until user opens it
   // Phone listeners
   const lPhoneEl = document.getElementById("lPhone");
@@ -1125,12 +1253,17 @@ function showMainPanel() {
   if (lAltEl) lAltEl.addEventListener("input", function() { this.value = this.value.replace(/\D/g, ""); });
 }
 
+// Auto-refresh calendar data every 60s so admin color/event edits show up
+setInterval(() => { loadCalendarEvents(); loadCalStaff(); }, 60_000);
+
 function doLogout() {
-  staffToken = null; staffId = null; staffName = "";
+  staffToken = null; staffId = null; staffName = ""; staffWeeklyOff = ""; staffColor = "";
   allDeliveries = []; allLeads = []; staffPerms = {};
+  priceGuideData = []; stPgSlabMap = {}; calendarEvents = [];
   localStorage.removeItem("staffToken");
   localStorage.removeItem("staffId");
   localStorage.removeItem("staffName");
+  localStorage.removeItem("staffColor");
   document.getElementById("loginSection").style.display  = "";
   document.getElementById("mainPanel").style.display     = "none";
   document.getElementById("bottomNav").style.display     = "none";
@@ -1143,12 +1276,17 @@ function doLogout() {
 /* ── TAB SWITCH ── */
 function switchTab(tab) {
   currentTab = tab;
-  document.getElementById("tabDeliveries").style.display = tab === "deliveries" ? "" : "none";
-  document.getElementById("tabLeads").style.display      = tab === "leads"      ? "" : "none";
-  document.getElementById("tabIncentives").style.display = tab === "incentives" ? "" : "none";
-  ["deliveries", "leads", "incentives"].forEach(t => {
+  document.getElementById("tabDeliveries").style.display  = tab === "deliveries" ? "" : "none";
+  document.getElementById("tabLeads").style.display       = tab === "leads"      ? "" : "none";
+  document.getElementById("tabPriceGuide").style.display  = tab === "prices"    ? "" : "none";
+  document.getElementById("tabCalendar").style.display    = tab === "calendar"  ? "" : "none";
+  document.getElementById("tabSlabs").style.display       = tab === "slabs"     ? "" : "none";
+  ["deliveries", "leads", "prices", "calendar", "slabs"].forEach(t => {
     document.getElementById("nav-" + t)?.classList.toggle("active", t === tab);
   });
+  if (tab === "calendar") renderCalendar();
+  if (tab === "prices") stPgRender(priceGuideData);
+  if (tab === "slabs") stSlLoadData();
 }
 
 /* ════════════════════════════════════════════════
@@ -1164,7 +1302,7 @@ async function loadDeliveries() {
     allDeliveries = data;
     renderDeliveries(getRecentDeliveries(data)); // show recent only on load
   } catch (e) {
-    list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load</p><small>${e.message}</small></div>`;
+    list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load</p><small>${e.message}</small><button onclick="loadDeliveries()" style="margin-top:12px;padding:10px 24px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Retry</button></div>`;
   }
 }
 
@@ -1482,20 +1620,9 @@ document.addEventListener("click", e => {
     if (action === "addnew")  addNewProd(idx, name);
     return;
   }
-  const saleItem = e.target.closest(".sale-prod-dropdown-item");
-  if (saleItem) {
-    const action = saleItem.dataset.action;
-    const name   = saleItem.dataset.name;
-    if (action === "select")  selectSaleProd(name);
-    if (action === "addnew") addNewSaleProd(name);
-    return;
-  }
   // Close dropdowns on outside click
   if (!e.target.closest(".prod-search-wrap")) {
     document.querySelectorAll(".prod-dropdown").forEach(d => d.style.display = "none");
-  }
-  if (!e.target.closest(".sale-prod-wrap")) {
-    document.getElementById("saleProdDrop").style.display = "none";
   }
 });
 
@@ -1534,7 +1661,7 @@ async function loadLeads() {
     filterAndRenderLeads();
   } catch(e) {
     document.getElementById("leadsList").innerHTML =
-      `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load leads</p></div>`;
+      `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load leads</p><button onclick="loadLeads()" style="margin-top:12px;padding:10px 24px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Retry</button></div>`;
   }
 }
 
@@ -1573,7 +1700,7 @@ function filterAndRenderLeads() {
     }
     if (leadSortMode === "expiring") {
       const days = l.expires_at?.seconds ? Math.ceil((l.expires_at.seconds*1000 - now)/(24*3600*1000)) : 99;
-      return days <= 2 && days >= 0;
+      return days <= EXPIRING_SOON_DAYS && days >= 0;
     }
     return true;
   });
@@ -1585,7 +1712,7 @@ function leadExpiryBadge(lead) {
   if (!lead.expires_at?.seconds) return "";
   const d = Math.ceil((lead.expires_at.seconds * 1000 - Date.now()) / (24 * 3600 * 1000));
   if (d < 0)  return `<span class="badge badge-lost">Expired</span>`;
-  if (d <= 2) return `<span class="badge badge-warranty-expiring">⚠ ${d}d left</span>`;
+  if (d <= EXPIRING_SOON_DAYS) return `<span class="badge badge-warranty-expiring">⚠ ${d}d left</span>`;
   if (d <= 5) return `<span class="badge badge-followup">${d}d left</span>`;
   return "";
 }
@@ -1844,11 +1971,9 @@ function openLeadPopup(id) {
       </div>
     </div>`;
 
-  const soldBtn = l.status === "converted" ? 
-    `<button class="popup-action-btn popup-action-teal" onclick="convertLeadToSale('${esc(l.id)}')">💰 Sold</button>` : '';
-  
   document.getElementById("leadPopupActions").innerHTML =
-    `${soldBtn}<button class="popup-close-btn" onclick="closeLeadPopup()">Close</button>`;
+    `<button class="popup-action-btn" style="background:rgba(255,180,171,0.15);color:var(--error);width:100%;border:none;border-radius:12px;padding:14px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px;" onclick="deleteLead('${esc(l.id)}')">🗑 Delete Lead</button>
+    <button class="popup-close-btn" onclick="closeLeadPopup()">Close</button>`;
   document.getElementById("leadPopup").classList.add("open");
 }
 
@@ -1860,11 +1985,6 @@ async function updateLeadStatus(id, status) {
     });
     showToast("✅ Status updated");
     
-    const soldBtn = status === "converted" ? 
-      `<button class="popup-action-btn popup-action-teal" onclick="convertLeadToSale('${id}')">💰 Sold</button>` : '';
-    document.getElementById("leadPopupActions").innerHTML =
-      `${soldBtn}<button class="popup-close-btn" onclick="closeLeadPopup()">Close</button>`;
-    
     await loadLeads();
     currentLead = allLeads.find(l => l.id === id);
   } catch(e) { showToast("❌ Failed to update"); }
@@ -1875,33 +1995,7 @@ function closeLeadPopup() {
   currentLead = null;
 }
 
-async function convertLeadToSale(leadId) {
-  const lead = allLeads.find(l => l.id === leadId);
-  if (!lead) { showToast("Lead not found"); return; }
-  
-  closeLeadPopup();
-  
-  switchTab("incentives");
-  
-  const saleFormBody = document.getElementById("saleFormBody");
-  
-  if (saleFormBody.style.display === "none") {
-    expandSaleForm();
-  }
-  
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  
-  document.getElementById("sDateTime").value = now.toISOString().slice(0, 16);
-  document.getElementById("sProduct").value = lead.product_interest || "";
-  document.getElementById("sPrice").value = lead.quoted_price || "";
-  document.getElementById("sCustomer").value = lead.customer_name || "";
-  document.getElementById("sRemarks").value = `From lead: ${lead.phone}`;
-  
-  document.getElementById("sProduct").focus();
-  
-  showToast("✅ Lead data loaded - fill price and save");
-}
+
 
 /* ── SKELETONS ── */
 function skeletons(n) {
@@ -1926,6 +2020,12 @@ document.getElementById("delivPopup").addEventListener("click", function(e) {
 });
 document.getElementById("leadPopup").addEventListener("click", function(e) {
   if (e.target === this) closeLeadPopup();
+});
+document.getElementById("calLeavePopup").addEventListener("click", function(e) {
+  if (e.target === this) closeCalLeavePopup();
+});
+document.getElementById("calNotePopup").addEventListener("click", function(e) {
+  if (e.target === this) closeCalNotePopup();
 });
 
 /* ═══════════════════════════════════════
@@ -1992,435 +2092,399 @@ function collapseLeadForm() {
 }
 
 /* ════════════════════════════════════════════════
-   TAB 3 — INCENTIVES / SALES
-═════════════════════════════════════════════ */
+   PRICE GUIDE
+════════════════════════════════════════════════ */
 
-/* ── Helper: convert date to IST ── */
-function toIST(date) {
-  return new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-}
-function todayIST() {
-  return toIST(new Date()).toDateString();
-}
-
-/* ── Product search for sale form ── */
-function onSaleProdSearch(input) {
-  const q    = input.value.trim().toLowerCase();
-  const drop = document.getElementById("saleProdDrop");
-  if (!q) { drop.style.display = "none"; return; }
-
-  const filtered = tallyNames.filter(n => n.toLowerCase().includes(q)).slice(0, 10);
-  const exactMatch = tallyNames.some(n => n.toLowerCase() === q);
-
-  let html = filtered.map(n =>
-    `<div class="sale-prod-dropdown-item" data-action="select" data-name="${n.replace(/"/g,'&quot;')}">${esc(n)}</div>`
-  ).join("");
-
-  if (!exactMatch && q.length >= 2) {
-    html += `<div class="sale-prod-dropdown-item new-item" data-action="addnew" data-name="${esc(q).replace(/"/g,'&quot;')}">${esc(q)}</div>`;
-  }
-
-  if (html) { drop.innerHTML = html; drop.style.display = "block"; }
-  else       { drop.style.display = "none"; }
-}
-
-function selectSaleProd(name) {
-  document.getElementById("sProduct").value = name;
-  document.getElementById("saleProdDrop").style.display = "none";
-}
-
-async function addNewSaleProd(name) {
-  selectSaleProd(name);
-  try {
-    await authFetch(`${BASE_URL}/tally/products/add`, {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ name })
-    });
-    tallyNames.push(name);
-  } catch(e) { console.warn("Failed to add new product:", e.message); }
-}
-
-/* ── Load & render sales ── */
-async function loadSales() {
-  const list = document.getElementById("salesList");
+async function stPgLoadData() {
+  const list = document.getElementById("pgList");
   list.innerHTML = skeletons(3);
   try {
-    const res  = await authFetch(`${BASE_URL}/incentives/sales`);
-    const data = await res.json();
-    allSales   = data;
-    renderSales(data);
+    const [pgRes, slabsRes, mspRes, catRes] = await Promise.all([
+      authFetch(`${BASE_URL}/price-guide`),
+      authFetch(`${BASE_URL}/slabs`),
+      authFetch(`${BASE_URL}/price-guide/msp-global`),
+      authFetch(`${BASE_URL}/categories`)
+    ]);
+    priceGuideData = pgRes.ok ? await pgRes.json() : [];
+    const slabs = slabsRes.ok ? await slabsRes.json() : [];
+    stPgSlabMap = {};
+    slabs.forEach(s => stPgSlabMap[s.id] = s.slabName);
+    stPmMspGlobal = mspRes.ok ? (await mspRes.json()).mspGlobalEnabled : true;
+    stPgCatList = catRes.ok ? await catRes.json() : [];
+    stPgRender(priceGuideData);
   } catch(e) {
-    list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load sales</p></div>`;
+    list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load prices</p><button onclick="stPgLoadData()" style="margin-top:12px;padding:10px 24px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Retry</button></div>`;
   }
 }
 
-function renderSales(data) {
-  const list    = document.getElementById("salesList");
-  const badge   = document.getElementById("salesBadge");
-  const totalCard = document.getElementById("saleTotalCard");
-  const totalAmt  = document.getElementById("saleTotalAmount");
-  const totalDate = document.getElementById("saleTotalDate");
-
+function stPgRender(data) {
+  const list = document.getElementById("pgList");
+  document.getElementById("pgBadge").textContent = data.length;
   if (!data.length) {
-    badge.textContent = "0";
-    totalCard.style.display = "none";
-    list.innerHTML = `<div class="empty-state"><div class="icon">💰</div><p>No sales recorded</p><small>Add your first sale above</small></div>`;
+    list.innerHTML = `<div class="empty-state"><div class="icon">🏷️</div><p>No prices found</p></div>`;
     return;
   }
-
-  badge.textContent = data.length;
-
-  const today = todayIST();
-  const todaySales = data.filter(s => toIST(new Date(s.sale_timestamp?.seconds * 1000)).toDateString() === today);
-  const todayTotal = todaySales.reduce((sum, s) => sum + (s.sale_price || 0), 0);
-
-  if (todayTotal > 0) {
-    totalCard.style.display = "flex";
-    totalAmt.textContent = `₹${todayTotal.toLocaleString("en-IN")}`;
-    totalDate.textContent = toIST(new Date()).toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
-  } else {
-    totalCard.style.display = "none";
-  }
-
-  const grouped = {};
-  data.forEach(s => {
-    const dateKey = toIST(new Date(s.sale_timestamp?.seconds * 1000)).toDateString();
-    if (!grouped[dateKey]) grouped[dateKey] = [];
-    grouped[dateKey].push(s);
-  });
-
-  const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
-
-  list.innerHTML = sortedDates.map(dateStr => {
-    const sales = grouped[dateStr];
-    const yesterday = toIST(new Date(Date.now() - 86400000)).toDateString();
-    const dateLabel = dateStr === today ? "Today"
-      : dateStr === yesterday ? "Yesterday"
-      : new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
+  // rebuild chips to reflect current filtered data set
+  stPgBuildChips();
+  stPgBuildCatTabs();
+  list.innerHTML = data.map(p => {
+    const slabName = stPgSlabMap[p.slabId] || '';
+    const mrp = p.mrp || 0;
+    const mop = p.mop || 0;
+    const msp = p.msp || 0;
+    const mspVisible = stPmMspGlobal && p.mspEnabled !== false;
+    const cols = mspVisible ? '1fr 1fr 1fr' : '1fr 1fr';
     return `
-      <div class="date-separator">
-        <div class="date-separator-line"></div>
-        <span class="date-separator-text">${dateLabel}</span>
-        <div class="date-separator-line"></div>
+    <div class="pg-card" data-id="${esc(p.id || p._id)}" data-mrp="${mrp}">
+      <div class="pg-card-header">
+        <div class="pg-name">${esc(p.productName)}</div>
+        ${slabName ? `<span class="pg-slab-badge">${esc(slabName)}</span>` : ''}
       </div>
-      ${sales.map(s => `
-        <div class="sale-card-wrap" id="saleWrap_${esc(s.id)}">
-          <div class="sale-swipe-bg sale-swipe-left" id="swipeDel_${esc(s.id)}" style="opacity:0">🗑 Delete</div>
-          <div class="sale-swipe-bg sale-swipe-right" id="swipeEdit_${esc(s.id)}" style="opacity:0">✏️ Edit</div>
-          <div class="sale-card" id="saleCard_${esc(s.id)}" data-saleid="${esc(s.id)}">
-            <div class="sale-info">
-              <div class="sale-product">${esc(s.product_name)}</div>
-              <div class="sale-meta">${s.customer_name ? esc(s.customer_name) + " · " : ""}${new Date(s.sale_timestamp?.seconds * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}</div>
-            </div>
-            <div class="sale-price">₹${(s.sale_price || 0).toLocaleString("en-IN")}</div>
-          </div>
-        </div>
-      `).join("")}`;
+      <div class="pg-quote-row${!mspVisible ? ' two-col' : ''}">
+        <button class="pg-quote-btn" onclick="stPgQuote(this,'MRP',${mrp},'${esc(p.id || p._id)}')">
+          <span class="label">MRP</span>
+          <span class="price">₹${mrp.toLocaleString("en-IN")}</span>
+        </button>
+        <button class="pg-quote-btn mop-btn" onclick="stPgQuote(this,'MOP',${mop},'${esc(p.id || p._id)}')">
+          <span class="label">MOP</span>
+          <span class="price">₹${mop.toLocaleString("en-IN")}</span>
+        </button>
+        ${mspVisible ? `<button class="pg-quote-btn msp-btn" onclick="stPgQuote(this,'MSP',${msp},'${esc(p.id || p._id)}')">
+          <span class="label">MSP</span>
+          <span class="price">₹${msp.toLocaleString("en-IN")}</span>
+        </button>` : ''}
+      </div>
+      <div class="pg-quote-strip" id="qs_${esc(p.id || p._id)}">
+        <div class="qlabel" id="qsl_${esc(p.id || p._id)}"></div>
+        <div class="qprice" id="qsp_${esc(p.id || p._id)}"></div>
+        <div class="qsaving" id="qss_${esc(p.id || p._id)}"></div>
+        <div class="qmrp" id="qmr_${esc(p.id || p._id)}"></div>
+      </div>
+    </div>`;
   }).join("");
 }
 
-/* ── Swipe handlers for sale cards ── */
-let swipeData = {};
+function stPgBuildChips() {
+  const row = document.getElementById('stPgChipRow');
+  if (!row) return;
+  const slabIds = [...new Set(priceGuideData.map(i => i.slabId).filter(Boolean))];
+  row.innerHTML = `<button class="pg-chip${!stPgFilterSlab ? ' active' : ''}" onclick="stPgFilterSlab=null;stPgFilterCat=null;stPgBuildCatTabs();stPgFilter();">All</button>` +
+    slabIds.map(sid => `<button class="pg-chip${stPgFilterSlab === sid ? ' active' : ''}" onclick="stPgFilterSlab='${sid}';stPgFilterCat=null;stPgBuildCatTabs();stPgFilter();">${esc(stPgSlabMap[sid] || sid)}</button>`).join('');
+}
 
-document.addEventListener("touchstart", function(e) {
-  const card = e.target.closest(".sale-card");
-  if (!card) return;
-  
-  const id = card.dataset.saleid;
-  swipeData[id] = {
-    startX: e.touches[0].clientX,
-    currentX: e.touches[0].clientX,
-    active: true
-  };
-}, { passive: true });
+function stPgBuildCatTabs() {
+  const row = document.getElementById('stPgCatRow');
+  if (!row) return;
+  row.innerHTML = `<button class="pg-chip${!stPgFilterCat ? ' active' : ''}" onclick="stPgFilterCat=null;stPgFilterSlab=null;stPgBuildChips();stPgFilter();">All</button>` +
+    stPgCatList.map(c => `<button class="pg-chip${stPgFilterCat === c.name ? ' active' : ''}" onclick="stPgFilterCat='${c.name}';stPgFilterSlab=null;stPgBuildChips();stPgFilter();">${esc(c.name)}</button>`).join('');
+}
 
-document.addEventListener("touchmove", function(e) {
-  const card = e.target.closest(".sale-card");
-  if (!card) return;
-  
-  const id = card.dataset.saleid;
-  if (!swipeData[id] || !swipeData[id].active) return;
-  
-  swipeData[id].currentX = e.touches[0].clientX;
-  const diff = swipeData[id].currentX - swipeData[id].startX;
-  
-  // Move card
-  const clamped = Math.max(-100, Math.min(100, diff));
-  card.style.transform = `translateX(${clamped}px)`;
-  
-  // Show action hints
-  const delBg = document.getElementById("swipeDel_" + id);
-  const editBg = document.getElementById("swipeEdit_" + id);
-  
-  if (diff < -50) {
-    if (delBg) delBg.style.opacity = "1";
-    if (editBg) editBg.style.opacity = "0";
-  } else if (diff > 50) {
-    if (delBg) delBg.style.opacity = "0";
-    if (editBg) editBg.style.opacity = "1";
+function stPgQuote(btn, label, price, cardId) {
+  // collapse previous card's strip if different
+  if (stPgActiveCard && stPgActiveCard !== cardId) {
+    const prevStrip = document.getElementById('qs_' + stPgActiveCard);
+    if (prevStrip) prevStrip.style.display = 'none';
+    const prevCard = document.querySelector(`.pg-card[data-id="${stPgActiveCard}"]`);
+    if (prevCard) prevCard.querySelectorAll('.pg-quote-btn').forEach(b => b.classList.remove('active'));
+  }
+  stPgActiveCard = cardId;
+  const strip = document.getElementById('qs_' + cardId);
+  const mrp = Number(document.querySelector(`.pg-card[data-id="${cardId}"]`)?.dataset.mrp || 0);
+  const priceNum = Number(price);
+  document.getElementById('qsl_' + cardId).textContent = 'Quoting at ' + label;
+  document.getElementById('qsp_' + cardId).textContent = '₹' + priceNum.toLocaleString('en-IN');
+  const saving = mrp - priceNum;
+  if (saving > 0) {
+    document.getElementById('qss_' + cardId).textContent = 'Saving ₹' + saving.toLocaleString('en-IN') + ' vs MRP';
+    document.getElementById('qss_' + cardId).style.display = '';
+    document.getElementById('qmr_' + cardId).textContent = '';
   } else {
-    if (delBg) delBg.style.opacity = "0";
-    if (editBg) editBg.style.opacity = "0";
+    document.getElementById('qss_' + cardId).textContent = '';
+    document.getElementById('qmr_' + cardId).textContent = 'Full MRP';
   }
-}, { passive: true });
-
-document.addEventListener("touchend", function(e) {
-  const card = e.target.closest(".sale-card");
-  if (!card) return;
-  
-  const id = card.dataset.saleid;
-  if (!swipeData[id]) return;
-  
-  const diff = swipeData[id].currentX - swipeData[id].startX;
-  swipeData[id].active = false;
-  
-  // Reset card position
-  card.style.transform = "";
-  
-  // Reset hints
-  const delBg = document.getElementById("swipeDel_" + id);
-  const editBg = document.getElementById("swipeEdit_" + id);
-  if (delBg) delBg.style.opacity = "0";
-  if (editBg) editBg.style.opacity = "0";
-  
-  // Trigger action based on swipe distance
-  if (diff < -80) {
-    // Swipe left - delete
-    if (confirm("Delete this sale?")) {
-      deleteSale(id);
-    }
-  } else if (diff > 80) {
-    // Swipe right - edit
-    openEditSale(id);
-  }
-  
-  delete swipeData[id];
-});
-
-/* ── Export today sales to WhatsApp ── */
-function exportTodaySalesWA() {
-  const today = todayIST();
-  const todaySales = allSales.filter(s => toIST(new Date(s.sale_timestamp?.seconds * 1000)).toDateString() === today);
-  
-  if (!todaySales.length) {
-    showToast("No sales today to export");
-    return;
-  }
-
-  const dateStr = toIST(new Date()).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-  const reportTitle = staffName ? `${staffName}'s Sales Report` : "Sales Report";
-  let msg = `📊 *${reportTitle}*\n📅 ${dateStr}\n━━━━━━━━━━━━━\n`;
-  
-  todaySales.forEach((s, i) => {
-    msg += `\n${i+1}. *${esc(s.product_name)}*\n   ₹${(s.sale_price || 0).toLocaleString("en-IN")}${s.customer_name ? `\n   Customer: ${esc(s.customer_name)}` : ""}\n`;
-  });
-  
-  const total = todaySales.reduce((sum, s) => sum + (s.sale_price || 0), 0);
-  msg += `\n━━━━━━━━━━━━━\n💰 *Total: ₹${total.toLocaleString("en-IN")}*\n━━━━━━━━━━━━━`;
-  
-  const encoded = encodeURIComponent(msg);
-  window.open(`https://wa.me/?text=${encoded}`, "_blank");
+  strip.style.display = '';
+  // toggle active button
+  const card = document.querySelector(`.pg-card[data-id="${cardId}"]`);
+  if (card) card.querySelectorAll('.pg-quote-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
 }
 
-/* ── Edit sale popup ── */
-let editingSaleId = null;
-
-function openEditSale(id) {
-  const sale = allSales.find(s => s.id === id);
-  if (!sale) return;
-  editingSaleId = id;
-  
-  const wrap = document.getElementById("saleWrap_" + id);
-  const editHtml = `
-    <div class="sale-edit-form" id="editForm_${id}">
-      <label class="form-label">Product *</label>
-      <input type="text" class="form-input" id="editProduct" value="${esc(sale.product_name)}">
-      <label class="form-label">Sale Price (₹) *</label>
-      <input type="number" class="form-input" id="editPrice" value="${sale.sale_price}" min="0">
-      <label class="form-label">Customer Name</label>
-      <input type="text" class="form-input" id="editCustomer" value="${esc(sale.customer_name || "")}">
-      <label class="form-label">Remarks</label>
-      <input type="text" class="form-input" id="editRemarks" value="${esc(sale.remarks || "")}">
-      <div class="sale-edit-actions">
-        <button class="sale-edit-save" onclick="saveEditSale()">Save</button>
-        <button class="sale-edit-cancel" onclick="closeEditSale()">Cancel</button>
-      </div>
-    </div>
-  `;
-  if (wrap) wrap.insertAdjacentHTML("afterend", editHtml);
-  if (wrap) wrap.style.display = "none";
-}
-
-function closeEditSale() {
-  if (editingSaleId) {
-    const wrap = document.getElementById("saleWrap_" + editingSaleId);
-    if (wrap) wrap.style.display = "";
-    const form = document.getElementById("editForm_" + editingSaleId);
-    if (form) form.remove();
-    editingSaleId = null;
-  }
-}
-
-async function saveEditSale() {
-  if (!editingSaleId) return;
-  
-  const product = document.getElementById("editProduct").value.trim();
-  const price = parseFloat(document.getElementById("editPrice").value) || 0;
-  const customer = document.getElementById("editCustomer").value.trim();
-  const remarks = document.getElementById("editRemarks").value.trim();
-  
-  if (!product) { showToast("Product name required"); return; }
-  if (!price || price <= 0) { showToast("Valid price required"); return; }
-  
-  try {
-    const res = await authFetch(`${BASE_URL}/incentives/sales/${editingSaleId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        product_name: product,
-        sale_price: price,
-        customer_name: customer,
-        remarks: remarks
-      })
+function stPgFilter() {
+  const q = document.getElementById("pgSearch").value.toLowerCase().trim();
+  let f = priceGuideData;
+  if (stPgFilterCat) {
+    const cat = stPgFilterCat;
+    f = f.filter(p => {
+      const pCat = p.category || (p.productName || '').trim().toUpperCase().split(/\s+/)[0];
+      return pCat === cat;
     });
-    
-    if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error || "Failed to update");
+  } else if (stPgFilterSlab) {
+    f = f.filter(p => p.slabId === stPgFilterSlab);
+  }
+  if (q) f = f.filter(p => (p.productName || '').toLowerCase().includes(q));
+  stPgRender(f);
+}
+
+/* ════════════════════════════════════════════════
+   SLABS INFO
+════════════════════════════════════════════════ */
+
+async function stSlLoadData() {
+  const list = document.getElementById("stSlList");
+  list.innerHTML = skeletons(3);
+  try {
+    const res = await authFetch(`${BASE_URL}/slabs`);
+    const slabs = res.ok ? await res.json() : [];
+    document.getElementById("stSlBadge").textContent = slabs.length;
+    if (!slabs.length) {
+      list.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No slabs defined yet</p></div>`;
       return;
     }
-    
-    showToast("Sale updated!");
-    editingSaleId = null;
-    await loadSales();
+    list.innerHTML = slabs.map(s => `
+      <div class="pg-card" style="cursor:default;">
+        <div style="font-size:18px;font-weight:800;color:var(--primary);margin-bottom:4px;">${esc(s.slabName)}</div>
+        <div style="font-size:13px;color:var(--on-surface-variant);line-height:1.4;">${esc(s.description || '')}</div>
+      </div>`).join('');
   } catch(e) {
-    showToast("Network error");
+    list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load slabs</p></div>`;
   }
 }
 
-async function deleteSale(id) {
+/* ════════════════════════════════════════════════
+   CALENDAR
+════════════════════════════════════════════════ */
+
+async function loadCalendarEvents() {
   try {
-    const res = await authFetch(`${BASE_URL}/incentives/sales/${id}`, {
-      method: "DELETE"
-    });
-    
-    if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error || "Failed to delete");
-      return;
+    const res = await authFetch(`${BASE_URL}/calendar-events`);
+    calendarEvents = await res.json();
+    if (currentTab === "calendar") renderCalendar();
+  } catch(e) { console.warn("Failed to load calendar events"); }
+}
+
+async function loadCalStaff() {
+  try {
+    const res = await authFetch(`${BASE_URL}/staff-weekly-off`);
+    calStaffList = await res.json();
+    if (currentTab === "calendar") renderCalendar();
+  } catch(e) { calStaffList = []; }
+}
+
+function isWeeklyOff(dateStr) {
+  const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const dayName = days[new Date(dateStr + "T00:00:00").getDay()];
+  return calStaffList.some(s => s.weekly_off === dayName);
+}
+
+function getEventsForDate(dateStr) {
+  return calendarEvents.filter(e => e.date === dateStr);
+}
+
+function renderCalendar() {
+  const year = calViewDate.getFullYear();
+  const month = calViewDate.getMonth();
+  const grid = document.getElementById("calGrid");
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById("calTitle").textContent = months[month] + " " + year;
+
+  let html = `<div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div><div class="cal-weekday">Sun</div>`;
+
+  const firstDay = new Date(year, month, 1);
+  const startDow = firstDay.getDay();
+  const startOff = startDow === 0 ? 6 : startDow - 1;
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const prevLast = new Date(year, month, 0).getDate();
+  for (let i = startOff - 1; i >= 0; i--) html += `<div class="cal-day other-month">${prevLast - i}</div>`;
+
+  for (let d = 1; d <= lastDate; d++) {
+    const ds = `${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const evs = getEventsForDate(ds);
+    const isToday = ds === todayStr;
+    const isOff = isWeeklyOff(ds);
+    let cls = "cal-day";
+    if (isToday) cls += " today";
+    if (isOff) cls += " weekly-off";
+
+    let pins = "";
+    if (isOff) {
+      const offStaff = calStaffList.find(s => s.weekly_off === ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(ds + "T00:00:00").getDay()]);
+      const col = offStaff ? getStaffColor(offStaff.id) : "var(--outline)";
+      pins += `<span class="pin-dot" style="background:${col}">W</span>`;
     }
-    
-    showToast("Sale deleted");
-    await loadSales();
-  } catch(e) {
-    showToast("Network error");
+    if (evs.length) {
+      pins += evs.slice(0, 4).map(e => {
+        const col = getStaffColor(e.createdById);
+        const isAdminEv = isAdminEvent(e.type, e.createdByRole);
+        if (isAdminEv) return `<span class="pin-star"><span class="label">${getStaffPinLabel(e.type)}</span>&#9733;</span>`;
+        return `<span class="pin-dot" style="background:${col}">${getStaffPinLabel(e.type)}</span>`;
+      }).join("");
+    }
+    if (pins) pins = `<div class="cal-pins">${pins}</div>`;
+
+    html += `<div class="${cls}" onclick="selectCalendarDay('${ds}')">${d}${pins}</div>`;
+  }
+
+  const total = startOff + lastDate;
+  const rem = (7 - total % 7) % 7;
+  for (let i = 1; i <= rem; i++) html += `<div class="cal-day other-month">${i}</div>`;
+
+  grid.innerHTML = html;
+  document.getElementById("calDayPanel").style.display = "none";
+  document.getElementById("calNoDay").style.display = "";
+}
+
+function selectCalendarDay(dateStr) {
+  selectedCalendarDate = dateStr;
+  const evs = getEventsForDate(dateStr);
+  const d = new Date(dateStr + "T00:00:00");
+  document.getElementById("calDayHeader").textContent = d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  document.getElementById("calDaySub").textContent = evs.length + " event" + (evs.length !== 1 ? "s" : "");
+  document.getElementById("calDayPanel").style.display = "";
+  document.getElementById("calNoDay").style.display = "none";
+  const list = document.getElementById("calEventList");
+  if (!evs.length) { list.innerHTML = `<div class="cal-empty"><p>No events on this day</p></div>`; }
+  else {
+    list.innerHTML = evs.map(e => {
+      const col = getStaffColor(e.createdById);
+      const label = getStaffPinLabel(e.type);
+      const isAdminEv = isAdminEvent(e.type, e.createdByRole);
+      const isOwn = e.createdById === (staffId || "");
+      const visTag = e.visibility === "admin_only" ? '<span class="cal-event-vis-badge">Admin</span>' : e.visibility === "staff_only" ? '<span class="cal-event-vis-badge">Staff</span>' : "";
+      return `
+      <div class="cal-event">
+        <div class="cal-event-card" style="border-left-color:${col};">
+          ${isAdminEv
+            ? `<span class="pin-star" style="flex-shrink:0;"><span class="label">${label}</span>&#9733;</span>`
+            : `<span class="pin-dot" style="background:${col};flex-shrink:0;">${label}</span>`}
+          <div class="cal-event-body">
+            <div class="cal-event-meta">${e.createdBy === "Unknown" ? "Admin" : esc(e.createdBy || "Admin")}${visTag}${isOwn ? ' <span style="opacity:0.5;">· you</span>' : ""}</div>
+            <div class="cal-event-title">${esc(e.title)}</div>
+            ${e.description ? `<div class="cal-event-desc">${esc(e.description)}</div>` : ""}
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const dayName = dayNames[d.getDay()];
+  const offStaff = calStaffList.filter(s => s.weekly_off === dayName);
+  const woEl = document.getElementById("calWeekOffList");
+  if (offStaff.length) {
+    woEl.style.display = "";
+    woEl.innerHTML = '<div class="title">Weekly Off</div>' +
+      offStaff.map(s => {
+        const label = s.id === staffId ? "You" : esc(s.name || s.id);
+        return '<div class="cal-weekoff-item"><span class="cal-weekoff-dot" style="background:' + getStaffColor(s.id) + '"></span>' + label + "</div>";
+      }).join("");
+  } else {
+    woEl.style.display = "none";
   }
 }
 
-/* ── Submit sale ── */
-async function submitSale() {
-  console.log("[submitSale] clicked, btn disabled:", document.getElementById("submitSaleBtn")?.disabled);
-  const productName = document.getElementById("sProduct").value.trim();
-  const price       = parseFloat(document.getElementById("sPrice").value) || 0;
-  const dateTime    = document.getElementById("sDateTime").value;
-  const customer    = document.getElementById("sCustomer").value.trim();
-  const remarks     = document.getElementById("sRemarks").value.trim();
-  const msg         = document.getElementById("saleFormMsg");
-  const btn         = document.getElementById("submitSaleBtn");
-  const formBody    = document.getElementById("saleFormBody");
+function calendarPrevMonth() { calViewDate.setMonth(calViewDate.getMonth() - 1); renderCalendar(); }
+function calendarNextMonth() { calViewDate.setMonth(calViewDate.getMonth() + 1); renderCalendar(); }
 
-  console.log("[submitSale] formBody display:", formBody?.style.display, "btn:", btn ? "found" : "null", "btn.disabled:", btn?.disabled);
+function openAddLeavePopup() {
+  if (!selectedCalendarDate) { showToast("Select a date first"); return; }
+  document.getElementById("calLeaveDate").value = selectedCalendarDate;
+  document.getElementById("calLeaveDate").min = new Date().toISOString().slice(0,10);
+  document.getElementById("calLeaveTitle").value = "";
+  document.getElementById("calLeaveDesc").value = "";
+  document.getElementById("calLeaveMsg").textContent = "";
+  document.getElementById("calLeavePopup").classList.add("open");
+}
 
-  if (saleSubmitting) { console.log("[submitSale] already submitting, ignoring"); return; }
-  saleSubmitting = true;
+function closeCalLeavePopup() {
+  document.getElementById("calLeavePopup").classList.remove("open");
+}
 
-  if (!productName) { msg.style.color = "var(--error)"; msg.textContent = "Enter a product name."; return; }
-  if (!price || price <= 0) { msg.style.color = "var(--error)"; msg.textContent = "Enter valid sale price."; return; }
-
-  const saleTimestamp = dateTime ? Math.floor(new Date(dateTime).getTime() / 1000) : Math.floor(Date.now() / 1000);
-
+async function submitCalendarLeave() {
+  const date = document.getElementById("calLeaveDate").value;
+  const title = document.getElementById("calLeaveTitle").value.trim();
+  const desc = document.getElementById("calLeaveDesc").value.trim();
+  const msg = document.getElementById("calLeaveMsg");
+  if (!title) { msg.style.color = "var(--error)"; msg.textContent = "Enter a title."; return; }
+  if (date < new Date().toISOString().slice(0,10)) { msg.style.color = "var(--error)"; msg.textContent = "Cannot create events in the past."; return; }
   msg.style.color = "var(--primary)"; msg.textContent = "Saving…";
-  btn.disabled = true;
-  btn.style.opacity = "0.7";
-  btn.innerHTML = "Saving…";
-  window.scrollTo({ top: 0, behavior: "smooth" });
-
   try {
-    const res = await authFetch(`${BASE_URL}/incentives/sales`, {
+    const res = await authFetch(`${BASE_URL}/calendar-events`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        product_name:   productName,
-        sale_price:     price,
-        sale_timestamp: { seconds: saleTimestamp },
-        customer_name:  customer,
-        remarks:       remarks,
-        staff_id:      staffId,
-        staff_name:    staffName
-      })
+      body: JSON.stringify({ date, type: "leave", title, description: desc, visibility: "public" })
     });
     const data = await res.json();
+    if (!res.ok) { msg.style.color = "var(--error)"; msg.textContent = data.error || "Failed."; return; }
+    showToast("✅ Leave saved!");
+    closeCalLeavePopup();
+    await loadCalendarEvents();
+  } catch(e) { msg.style.color = "var(--error)"; msg.textContent = "Network error."; }
+}
 
+function openAddNotePopup() {
+  if (!selectedCalendarDate) { showToast("Select a date first"); return; }
+  document.getElementById("calNoteDate").value = selectedCalendarDate;
+  document.getElementById("calNoteDate").min = new Date().toISOString().slice(0,10);
+  document.getElementById("calNoteTitle").value = "";
+  document.getElementById("calNoteDesc").value = "";
+  document.querySelector('input[name="calNoteVis"][value="public"]').checked = true;
+  onCalNoteVisChange();
+  document.getElementById("calNoteMsg").textContent = "";
+  document.getElementById("calNotePopup").classList.add("open");
+}
+
+function closeCalNotePopup() {
+  document.getElementById("calNotePopup").classList.remove("open");
+}
+
+function onCalNoteVisChange() {
+  const val = document.querySelector('input[name="calNoteVis"]:checked')?.value;
+  const pub = document.getElementById("calNoteVisPublicLabel");
+  const adm = document.getElementById("calNoteVisAdminLabel");
+  pub.style.borderColor = val === "public" ? "var(--primary)" : "transparent";
+  adm.style.borderColor = val === "admin_only" ? "var(--primary)" : "transparent";
+}
+
+async function submitCalendarNote() {
+  const date = document.getElementById("calNoteDate").value;
+  const title = document.getElementById("calNoteTitle").value.trim();
+  const desc = document.getElementById("calNoteDesc").value.trim();
+  const visibility = document.querySelector('input[name="calNoteVis"]:checked')?.value || "public";
+  const msg = document.getElementById("calNoteMsg");
+  if (!title) { msg.style.color = "var(--error)"; msg.textContent = "Enter a title."; return; }
+  if (date < new Date().toISOString().slice(0,10)) { msg.style.color = "var(--error)"; msg.textContent = "Cannot create events in the past."; return; }
+  msg.style.color = "var(--primary)"; msg.textContent = "Saving…";
+  try {
+    const res = await authFetch(`${BASE_URL}/calendar-events`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, type: "note", title, description: desc, visibility })
+    });
+    const data = await res.json();
+    if (!res.ok) { msg.style.color = "var(--error)"; msg.textContent = data.error || "Failed."; return; }
+    showToast("✅ Note saved!");
+    closeCalNotePopup();
+    await loadCalendarEvents();
+  } catch(e) { msg.style.color = "var(--error)"; msg.textContent = "Network error."; }
+}
+
+/* ── Delete lead ── */
+async function deleteLead(id) {
+  if (!confirm("Delete this lead permanently?")) return;
+  try {
+    const res = await authFetch(`${BASE_URL}/leads/${id}`, {
+      method: "DELETE"
+    });
     if (!res.ok) {
-      msg.style.color = "var(--error)"; msg.textContent = data.error || "Failed.";
-      btn.disabled = false; btn.innerHTML = "Save Sale";
+      const data = await res.json();
+      showToast("❌ " + (data.error || "Failed to delete"));
       return;
     }
-
-    msg.style.color = "var(--tertiary)"; msg.textContent = "✅ Sale recorded!";
-    btn.innerHTML = "Save Sale";
-
-    document.getElementById("sProduct").value = "";
-    document.getElementById("sPrice").value = "";
-    document.getElementById("sCustomer").value = "";
-    document.getElementById("sRemarks").value = "";
-    setDateTimeToNow();
-
-    await loadSales();
-    setTimeout(() => { msg.textContent = ""; collapseSaleForm(); saleSubmitting = false; }, 1200);
-    saleSubmitting = false;
+    showToast("✅ Lead deleted");
+    closeLeadPopup();
+    await loadLeads();
   } catch(e) {
-    msg.style.color = "var(--error)"; msg.textContent = "Error: " + (e.message || "Unknown error");
-    btn.disabled = false; btn.style.opacity = "1"; btn.innerHTML = "Save Sale";
-    showToast("Sale error: " + (e.message || e), 4000);
-    saleSubmitting = false;
+    showToast("❌ Network error");
   }
-}
-
-function setDateTimeToNow() {
-  const now = toIST(new Date());
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  const el = document.getElementById("sDateTime");
-  if (el) el.value = `${y}-${m}-${d}T${hh}:${mm}`;
-}
-
-/* ── Sale form toggle ── */
-function toggleSaleForm() {
-  saleFormOpen ? collapseSaleForm() : expandSaleForm();
-}
-
-function expandSaleForm() {
-  saleFormOpen = true;
-  document.getElementById("saleFormBody").style.display = "";
-  const chevron = document.getElementById("addSaleChevron");
-  const btn     = document.getElementById("addSaleToggleBtn");
-  if (chevron) { chevron.textContent = "\u00d7"; chevron.style.transform = "rotate(0deg)"; }
-  if (btn) btn.style.borderRadius = "16px 16px 0 0";
-  setDateTimeToNow();
-  setTimeout(() => document.getElementById("sProduct")?.focus(), 80);
-}
-
-function collapseSaleForm() {
-  saleFormOpen = false;
-  document.getElementById("saleFormBody").style.display = "none";
-  const chevron = document.getElementById("addSaleChevron");
-  const btn     = document.getElementById("addSaleToggleBtn");
-  if (chevron) { chevron.textContent = "\uff0b"; chevron.style.transform = ""; }
-  if (btn) btn.style.borderRadius = "16px";
 }
 </script>
 
