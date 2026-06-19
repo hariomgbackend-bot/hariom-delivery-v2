@@ -13,7 +13,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import {
   collection, addDoc, getDocs, Timestamp,
   doc, getDoc, updateDoc, deleteDoc,
-  query, where, setDoc
+  query, where, orderBy, setDoc, getCountFromServer
 } from "firebase/firestore";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -26,8 +26,7 @@ import cron from "node-cron";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-//const serviceAccount = require("./firebase-service-account.json");
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = require("./firebase-service-account.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -1067,48 +1066,11 @@ function authorize(allowedRoles) {
 /* ════════════════════════════════════════════════
    WHATSAPP — disabled (not in use)
 ════════════════════════════════════════════════ */
-
-// async function sendWhatsapp(phone, message) {
-//   try {
-//     await fetch(`https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`, {
-//       method: "POST",
-//       headers: {
-//         Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-//         "Content-Type": "application/json"
-//       },
-//       body: JSON.stringify({
-//         messaging_product: "whatsapp",
-//         to: phone,
-//         type: "text",
-//         text: { body: message }
-//       })
-//     });
-//   } catch (err) {
-//     console.log("WhatsApp error:", err.message);
-//   }
-// }
 async function sendWhatsapp(phone, message) { /* disabled */ }
 
 /* ════════════════════════════════════════════════
    SMS — disabled (not in use)
 ════════════════════════════════════════════════ */
-
-// async function sendSMS(phone, message) {
-//   try {
-//     const r = await fetch("https://www.fast2sms.com/dev/bulkV2", {
-//       method: "POST",
-//       headers: {
-//         authorization: FAST2SMS_API_KEY,
-//         "Content-Type": "application/json"
-//       },
-//       body: JSON.stringify({ route: "q", message, language: "english", numbers: phone })
-//     });
-//     const data = await r.json();
-//     console.log("SMS response:", data);
-//   } catch (err) {
-//     console.log("SMS error:", err.message);
-//   }
-// }
 async function sendSMS(phone, message) { /* disabled */ }
 
 /* ════════════════════════════════════════════════
@@ -1448,22 +1410,88 @@ app.post("/createDeliveries", writeLimiter, async (req, res) => {
 });
 
 /* ════════════════════════════════════════════════
+   IN-MEMORY CACHE for /deliveries
+════════════════════════════════════════════════ */
+
+let deliveriesCache = { data: null, expiry: 0 };
+const DELIVERIES_CACHE_TTL = 30_000; // 30 seconds
+
+async function countQuery(q) {
+  const snap = await getCountFromServer(q);
+  return snap.data().count || 0;
+}
+
+function startOfTodayISTTimestamp() {
+  const now = new Date();
+  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  ist.setHours(0, 0, 0, 0);
+  return Timestamp.fromMillis(ist.getTime() - 5.5 * 60 * 60 * 1000);
+}
+
+app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const deliveriesRef = collection(db, "deliveries");
+    const todayStart = startOfTodayISTTimestamp();
+    const [
+      total, booked, pending, loaded, delivered, failed, urgent, todaySnap
+    ] = await Promise.all([
+      countQuery(query(deliveriesRef)),
+      countQuery(query(deliveriesRef, where("status", "==", "booked"))),
+      countQuery(query(deliveriesRef, where("status", "==", "pending"))),
+      countQuery(query(deliveriesRef, where("status", "==", "loaded"))),
+      countQuery(query(deliveriesRef, where("status", "==", "delivered"))),
+      countQuery(query(deliveriesRef, where("status", "==", "failed"))),
+      countQuery(query(deliveriesRef, where("priority", "==", "urgent"))),
+      getDocs(query(deliveriesRef, where("created_timestamp", ">=", todayStart)))
+    ]);
+    const sourceToday = { manual: 0, tally_tdl: 0, import_file: 0 };
+    todaySnap.docs.forEach(d => {
+      const source = d.data().source === "tally_tdl"
+        ? "tally_tdl"
+        : d.data().source === "import_file"
+          ? "import_file"
+          : "manual";
+      sourceToday[source]++;
+    });
+
+    res.json({
+      total,
+      all: total,
+      booked,
+      pending,
+      loaded,
+      delivered,
+      failed,
+      urgent,
+      today: todaySnap.size,
+      sourceToday
+    });
+  } catch (error) {
+    console.error("/delivery-counts error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
    GET DELIVERIES
 ════════════════════════════════════════════════ */
 
 app.get("/deliveries", readLimiter, async (req, res) => {
   try {
+    // ─── Cache hit ───
+    if (Date.now() < deliveriesCache.expiry) {
+      return res.json(deliveriesCache.data);
+    }
+
     const snapshot = await getDocs(collection(db, "deliveries"));
     let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
     const statusOrder = { pending: 0, loaded: 1, delivered: 2 };
 
     deliveries.sort((a, b) => {
-      // Primary: status group order
       const statusDiff = (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
       if (statusDiff !== 0) return statusDiff;
 
-      // Within pending: urgent first, then newest created first
       if (a.status === "pending") {
         const urgentDiff = (b.priority === "urgent") - (a.priority === "urgent");
         if (urgentDiff !== 0) return urgentDiff;
@@ -1472,14 +1500,12 @@ app.get("/deliveries", readLimiter, async (req, res) => {
         return bTs - aTs;
       }
 
-      // Within loaded: newest loaded_timestamp first
       if (a.status === "loaded") {
         const aTs = a.loaded_timestamp?.seconds ?? 0;
         const bTs = b.loaded_timestamp?.seconds ?? 0;
         return bTs - aTs;
       }
 
-      // Within delivered: newest delivered_timestamp first
       if (a.status === "delivered") {
         const aTs = a.delivered_timestamp?.seconds ?? 0;
         const bTs = b.delivered_timestamp?.seconds ?? 0;
@@ -1488,6 +1514,8 @@ app.get("/deliveries", readLimiter, async (req, res) => {
 
       return 0;
     });
+
+    deliveriesCache = { data: deliveries, expiry: Date.now() + DELIVERIES_CACHE_TTL };
 
     res.json(deliveries);
   } catch (error) {
@@ -2340,6 +2368,95 @@ app.get("/tally/products", async (req, res) => {
   } catch (err) {
     console.error("/tally/products error:", err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   TALLY CONNECTIVITY TEST
+   GET /tally/test
+   — Static JSON only. No Firestore, no side effects.
+     Used to verify TallyPrime can reach DMS via HTTP GET
+     and parse a JSON response.
+════════════════════════════════════════════════ */
+app.get("/tally/test", async (req, res) => {
+  try {
+    const TALLY_PUSH_KEY = process.env.TALLY_PUSH_KEY;
+    if (TALLY_PUSH_KEY) {
+      const provided = req.headers["x-tally-key"];
+      if (provided !== TALLY_PUSH_KEY) {
+        return res.status(401).json({ error: "Invalid API key" });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Hello from DMS",
+      version: 1
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   TALLY SERIAL LOOKUP (read-only)
+   GET /tally/serials/:invoiceNumber
+   — Returns product + serial + status for every delivery doc
+     matching the given invoice_number.
+   — No writes, no side effects.
+════════════════════════════════════════════════ */
+app.get("/tally/serials/:invoiceNumber", async (req, res) => {
+  try {
+    const TALLY_PUSH_KEY = process.env.TALLY_PUSH_KEY;
+    if (TALLY_PUSH_KEY) {
+      const provided = req.headers["x-tally-key"];
+      if (provided !== TALLY_PUSH_KEY) {
+        return res.status(401).json({ error: "Invalid API key" });
+      }
+    }
+
+    const invoice = decodeURIComponent(req.params.invoiceNumber);
+    const snap = await getDocs(query(
+      collection(db, "deliveries"),
+      where("invoice_number", "==", invoice)
+    ));
+
+    if (snap.empty) {
+      return res.status(404).json({
+        success: false,
+        message: "No serial numbers found",
+        invoice: invoice
+      });
+    }
+
+    const items = snap.docs
+      .map(d => {
+        const data = d.data();
+        return {
+          product: data.product_name || "",
+          serial:  data.product_serial_number || "",
+          status:  data.status || ""
+        };
+      })
+      .filter(item => item.serial && item.serial.trim() !== "");
+
+    if (items.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No serial numbers found",
+        invoice: invoice
+      });
+    }
+
+    res.json({
+      success: true,
+      invoice: invoice,
+      count: items.length,
+      items: items
+    });
+  } catch (err) {
+    console.error("/tally/serials error:", err.message);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
@@ -5270,4 +5387,3 @@ app.listen(PORT, "0.0.0.0", () => {
   runStartupMigration();
   startSelfPing();
 });
-
