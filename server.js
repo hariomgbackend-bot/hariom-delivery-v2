@@ -2461,6 +2461,77 @@ app.get("/tally/serials/:invoiceNumber", async (req, res) => {
   }
 });
 
+/* ════════════════════════════════════════════════
+   TALLY SERIAL LOOKUP — QUERY-STRING VARIANT
+   GET /tally/serials?invoice=2026-27/1633
+   — Same logic as the route above, but takes the
+     invoice number as a query parameter instead of
+     a path segment. This avoids needing to encode
+     '/' as '%2F', since TallyPrime's TDL has no
+     reliable way to do that string substitution.
+════════════════════════════════════════════════ */
+app.get("/tally/serials", async (req, res) => {
+  try {
+    const TALLY_PUSH_KEY = process.env.TALLY_PUSH_KEY;
+    if (TALLY_PUSH_KEY) {
+      const provided = req.headers["x-tally-key"];
+      if (provided !== TALLY_PUSH_KEY) {
+        return res.status(401).json({ error: "Invalid API key" });
+      }
+    }
+
+    const invoice = req.query.invoice;
+    if (!invoice) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing 'invoice' query parameter"
+      });
+    }
+
+    const snap = await getDocs(query(
+      collection(db, "deliveries"),
+      where("invoice_number", "==", invoice)
+    ));
+
+    if (snap.empty) {
+      return res.status(404).json({
+        success: false,
+        message: "No serial numbers found",
+        invoice: invoice
+      });
+    }
+
+    const items = snap.docs
+      .map(d => {
+        const data = d.data();
+        return {
+          product: data.product_name || "",
+          serial:  data.product_serial_number || "",
+          status:  data.status || ""
+        };
+      })
+      .filter(item => item.serial && item.serial.trim() !== "");
+
+    if (items.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No serial numbers found",
+        invoice: invoice
+      });
+    }
+
+    res.json({
+      success: true,
+      invoice: invoice,
+      count: items.length,
+      items: items
+    });
+  } catch (err) {
+    console.error("/tally/serials (query) error:", err.message);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 
 /* ════════════════════════════════════════════════
    TALLY STOCK SYNC
