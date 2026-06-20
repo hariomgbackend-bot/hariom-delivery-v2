@@ -3658,8 +3658,8 @@ app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]),
     if (!snap.exists()) return res.status(404).json({ error: "Ticket not found" });
 
     const t = snap.data();
-    if (!["new", "open"].includes(t.status)) {
-      return res.status(400).json({ error: "Only new tickets can be deleted. Logged tickets cannot be deleted." });
+    if (req.user.role !== "admin" && !["new", "open"].includes(t.status)) {
+      return res.status(400).json({ error: "Only new tickets can be deleted." });
     }
 
     await deleteDoc(refDoc);

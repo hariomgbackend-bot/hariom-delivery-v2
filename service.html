@@ -677,6 +677,23 @@
       </select>
     </div>
 
+    <!-- In Stock toggle -->
+    <div class="form-field">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+        <input type="checkbox" id="ctInStock" onchange="onCtInStockChange()">
+        📦 In Stock
+      </label>
+    </div>
+    <div class="form-field" id="ctStoreWrap" style="display:none;">
+      <label>Store</label>
+      <select class="form-select" id="ctStore" onchange="onCtStoreChange()">
+        <option value="">— Select store —</option>
+        <option value="alandi">Hari Om Electronics - Alandi</option>
+        <option value="dhanore">Hari Om Electronics - Dhanore</option>
+      </select>
+    </div>
+
+    <div id="ctCustomerFields">
     <!-- Split name -->
     <div style="display:grid;gap:8px;margin-bottom:10px;" class="form-grid-3">
       <div class="form-field" style="margin:0">
@@ -740,6 +757,7 @@
         <input class="form-input" id="ctAddr2" placeholder="Street (optional)">
       </div>
     </div>
+    </div>
 
     <!-- Product with tally dropdown -->
     <div class="form-field" style="position:relative;">
@@ -754,7 +772,7 @@
       <label>Serial Number</label>
       <input class="form-input" id="ctSerial" placeholder="Product serial">
     </div>
-    <div class="form-field">
+    <div class="form-field" id="ctPurchaseDateField">
       <label>Date of Purchase</label>
       <input class="form-input" type="date" id="ctPurchaseDate">
     </div>
@@ -1233,14 +1251,20 @@ function openTicketDetail(id) {
       </div>` : "";
 
   const reLogSection = isLogged ? `
-    <div class="section-title" style="margin-top:16px;">Re-log (Customer Returned)
-      <span style="font-size:10px;font-weight:600;color:var(--on-surface-variant);margin-left:6px;">— enter new tracking ID to re-log</span>
+    <div style="margin-top:16px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--on-surface);cursor:pointer;">
+        <input type="checkbox" id="relogToggle_${t.id}" onchange="document.getElementById('relogWrap_${t.id}').style.display=this.checked?'':'none'">
+        Re-log (Customer Returned)
+      </label>
+      <span style="font-size:10px;font-weight:600;color:var(--on-surface-variant);margin-left:24px;">— enter new tracking ID</span>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
-      <input class="form-input" id="ticketRelogInput" placeholder="New brand tracking / ticket ID…" style="flex:1;">
-      <button class="btn btn-primary btn-sm" onclick="reLogTicketInline('${t.id}', this)">
-        <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">refresh</span> Re-log
-      </button>
+    <div id="relogWrap_${t.id}" style="display:none;">
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;margin-top:6px;">
+        <input class="form-input" id="ticketRelogInput" placeholder="New brand tracking / ticket ID…" style="flex:1;">
+        <button class="btn btn-primary btn-sm" onclick="reLogTicketInline('${t.id}', this)">
+          <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">refresh</span> Re-log
+        </button>
+      </div>
     </div>` : "";
 
   const statusButtons = isLogged
@@ -1276,7 +1300,11 @@ function openTicketDetail(id) {
     ${loggedDate   ? `<div class="detail-row"><span class="detail-label">Logged with Brand</span><span class="detail-value">${loggedDate}</span></div>` : ""}
     ${resolvedDate ? `<div class="detail-row"><span class="detail-label">Resolved</span><span class="detail-value">${resolvedDate}</span></div>` : ""}
     ${t.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${esc(t.notes)}</span></div>` : ""}
-    ${t.brand_tracking_number ? `<div class="detail-row"><span class="detail-label">Brand Ref#</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${esc(t.brand_tracking_number)}</span></div>` : ""}
+    ${t.brand_tracking_number ? `
+    <div style="margin-top:8px;padding:14px;background:rgba(78,222,163,0.08);border:1.5px solid rgba(78,222,163,0.25);border-radius:12px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tertiary);margin-bottom:4px;">Brand Ref#</div>
+      <div style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--on-surface);">${esc(t.brand_tracking_number)}</div>
+    </div>` : ""}
     ${trackingHistory}
 
     <!-- Status update -->
@@ -1301,10 +1329,17 @@ function openTicketDetail(id) {
     </div>` : ""}
 
     <!-- Note (separate field) -->
-    <div class="section-title" style="margin-top:${isLogged ? "16px" : "4px"};">Add Note</div>
-    <div style="display:flex;gap:8px;margin-bottom:6px;">
-      <input class="form-input" id="ticketNoteInput" placeholder="Add a note…" style="flex:1;">
-      <button class="btn btn-primary btn-sm" onclick="saveTicketNote('${t.id}')">Save Note</button>
+    <div style="margin-top:${isLogged ? "16px" : "4px"};">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--on-surface);cursor:pointer;">
+        <input type="checkbox" id="noteToggle_${t.id}" onchange="document.getElementById('noteWrap_${t.id}').style.display=this.checked?'':'none'">
+        Add Note
+      </label>
+    </div>
+    <div id="noteWrap_${t.id}" style="display:none;">
+      <div style="display:flex;gap:8px;margin-bottom:6px;margin-top:6px;">
+        <input class="form-input" id="ticketNoteInput" placeholder="Add a note…" style="flex:1;">
+        <button class="btn btn-primary btn-sm" onclick="saveTicketNote('${t.id}')">Save Note</button>
+      </div>
     </div>
 
     ${reLogSection}
@@ -1619,6 +1654,72 @@ function onCtTypeChange() {
   document.getElementById("ctDescFieldTextarea").style.display  = isComplaint ? "none" : "";
   document.getElementById("ctDescFieldDropdown").style.display  = isComplaint ? "" : "none";
   document.getElementById("ctPriorityField").style.display      = isComplaint ? "" : "none";
+}
+
+/* ── IN STOCK STORE SELECT ── */
+const STORES = {
+  alandi: {
+    name: "Hari Om Electronics - Alandi",
+    address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",
+    phone: "8177896218",
+    altPhone: "9822632095"
+  },
+  dhanore: {
+    name: "Hari Om Electronics - Dhanore",
+    address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105",
+    phone: "8177896218",
+    altPhone: "9822632095"
+  }
+};
+
+function clearCustomerFields() {
+  ["ctFirstName","ctMiddleName","ctLastName","ctPhone","ctAltPhone",
+   "ctPincode","ctState","ctCity","ctAddr1","ctAddr2"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  document.getElementById("ctArea").value = "";
+  document.getElementById("ctAreaManual").value = "";
+}
+
+function showCustomerFields(show) {
+  document.getElementById("ctCustomerFields").style.display = show ? "" : "none";
+  document.getElementById("ctPurchaseDateField").style.display = show ? "" : "none";
+}
+
+function onCtInStockChange() {
+  const checked = document.getElementById("ctInStock").checked;
+  const ctType = document.getElementById("ctType");
+  ctType.disabled = checked;
+  if (checked) ctType.value = "complaint";
+  onCtTypeChange();
+  document.getElementById("ctStoreWrap").style.display = checked ? "" : "none";
+  showCustomerFields(!checked);
+  if (!checked) {
+    document.getElementById("ctStore").value = "";
+    clearCustomerFields();
+  }
+}
+
+function onCtStoreChange() {
+  const storeKey = document.getElementById("ctStore").value;
+  if (!storeKey) return;
+  const store = STORES[storeKey];
+  if (!store) return;
+
+  document.getElementById("ctFirstName").value = store.name;
+  document.getElementById("ctMiddleName").value = "";
+  document.getElementById("ctLastName").value = "";
+  document.getElementById("ctPhone").value = store.phone;
+  document.getElementById("ctAltPhone").value = store.altPhone;
+  document.getElementById("ctAddr1").value = store.address;
+  document.getElementById("ctAddr2").value = "";
+  document.getElementById("ctPincode").value = "";
+  document.getElementById("ctState").value = "";
+  document.getElementById("ctCity").value = "";
+  document.getElementById("ctArea").value = "";
+  document.getElementById("ctAreaManual").value = "";
+  document.getElementById("ctPurchaseDate").value = new Date().toISOString().split("T")[0];
 }
 
 /* ── ISSUE TYPES (localStorage) ── */

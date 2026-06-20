@@ -1852,10 +1852,11 @@
               <th>Date</th>
               <th>Brand Tracking#</th>
               <th>Status</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="scTableBody">
-            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading…</td></tr>
+            <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -5612,14 +5613,14 @@ let scFilter = 'all';
 async function loadServiceCount() {
   const tbody = document.getElementById('scTableBody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading…</td></tr>';
   try {
     const res  = await authFetch(`${BASE_URL}/service/tickets`);
     allServiceTickets = await res.json();
     updateSCStats();
     renderSCTable();
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>';
   }
 }
 
@@ -5677,8 +5678,8 @@ function renderSCTable() {
     return (b.created_at?.seconds||0) - (a.created_at?.seconds||0);
   });
 
-  if (!tickets.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</td></tr>';
+    if (!tickets.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</td></tr>';
     return;
   }
 
@@ -5702,8 +5703,31 @@ function renderSCTable() {
       <td style="font-size:12px;color:var(--on-surface-variant);white-space:nowrap;">${dateStr}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px;">${t.brand_tracking_number ? escHtml(t.brand_tracking_number) : '<span style="color:var(--on-surface-variant);">—</span>'}</td>
       <td><span style="padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${sbg};color:${scl};">${escHtml(displayStatus)}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="confirmDeleteSCTicket('${escHtml(t.id)}')" style="font-size:10px;padding:3px 8px;">🗑 Delete</button></td>
     </tr>`;
   }).join('');
+}
+
+/* ════ DELETE SERVICE TICKET (admin only) ════ */
+function confirmDeleteSCTicket(id) {
+  const t = allServiceTickets.find(x => x.id === id);
+  if (!t) return;
+  const label = `${t.customer_name || t.phone} — ${t.product_name || t.type}`;
+  if (!confirm(`Delete ticket for ${label}?`)) return;
+  const reason = prompt("Reason for deleting this ticket:");
+  if (!reason || !reason.trim()) { alert("Reason required."); return; }
+  (async () => {
+    try {
+      const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() })
+      });
+      if (!res.ok) { const d = await res.json(); alert(d.error || "Failed"); return; }
+      showToast("🗑 Ticket deleted");
+      loadServiceCount();
+    } catch (e) { alert("Network error."); }
+  })();
 }
 
 /* ════ DELETE * LEAD ════ */
