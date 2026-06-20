@@ -3985,6 +3985,7 @@ function openViewPopup(id) {
     <div class="section-title">Delivery Info</div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${delivery.status}">${delivery.status}</span></span></div>
     <div class="detail-row"><b>Priority</b><span>${delivery.priority}</span></div>
+    ${!delivery.is_self_pickup ? `
     <div class="detail-row" id="driverDetailRow">
       <b>Driver</b>
       <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -3996,6 +3997,9 @@ function openViewPopup(id) {
       </span>
     </div>
     <div id="inlineDriverChangeArea" style="display:none;padding:10px 0 4px 0;"></div>
+    ` : `
+    <div class="detail-row"><b>Driver</b><span style="color:#f59e0b;font-weight:600;">🏪 Self Pickup — No driver needed</span></div>
+    `}
     <div class="detail-row"><b>ETA</b><span>${formatDate(delivery.estimated_delivery_time)}</span></div>
     ${ratingRow}
     <div class="detail-row"><b>Instruction</b><span>${escHtml(delivery.driver_instructions) || "—"}</span></div>
