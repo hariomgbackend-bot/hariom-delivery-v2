@@ -110,6 +110,19 @@ function tallyAutoETA() {
 }
 
 /* ════════════════════════════════════════════════
+   SELF-PICKUP ETA — straight now + 3h, no 7 PM
+   cutoff/next-day bump. A self-pickup customer can
+   collect from the counter any time, even at night,
+   so the auto-ETA shouldn't push them to "tomorrow".
+════════════════════════════════════════════════ */
+function selfPickupETA() {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(Date.now() + IST_OFFSET_MS);
+  const target = new Date(istNow.getTime() + 3 * 60 * 60 * 1000);
+  return target.toISOString().slice(0, 16);
+}
+
+/* ════════════════════════════════════════════════
    CRON — 6:00 AM IST daily
    Flips booked → pending when delivery date arrives
 ════════════════════════════════════════════════ */
@@ -403,6 +416,10 @@ app.post(
       const qtys  = tagAll("HARIOMFQTY");
       const amts  = tagAll("HARIOMFAMT");
 
+      // Self-pickup flag — sent as the same Yes/No string on every repeated
+      // line (mirrors how HARIOMFPARTY etc. are constant across line items).
+      const is_self_pickup = /^yes$/i.test(tag("HARIOMFSELFPICKUP").trim());
+
       if (!voucher_number) {
         res.status(400);
 res.set("Content-Type", "text/xml");
@@ -438,8 +455,9 @@ return res.send(`
         `);
 }
 
-      // ── Default ETA: now + 3h, or next-day 11:30 AM if it's 7 PM+ IST ──
-      const estimated_delivery_time = tallyAutoETA();
+      // ── Default ETA: self-pickup → now + 3h always.
+      //    Regular DO → now + 3h, or next-day 11:30 AM if it's 7 PM+ IST ──
+      const estimated_delivery_time = is_self_pickup ? selfPickupETA() : tallyAutoETA();
 
       // ── Driver: Tally has no driver info — park on "Unassigned" for dispatch ──
       const driversSnap   = await getDocs(collection(db, "drivers"));
@@ -473,7 +491,7 @@ return res.send(`
           freight_charged:         false,
           freight_amount:          "",
           freight_set_by:          "",
-          is_self_pickup:          false,
+          is_self_pickup:          is_self_pickup,
           sold_by_id:              "",
           sold_by_name:            "Others",
           sale_price:              rate,
@@ -486,7 +504,8 @@ return res.send(`
 
       console.log(
         "[tally/voucher TDL XML] DO auto-created:", voucher_number, "|",
-        customer_name, "|", items.length, "item(s) |", createdIds.length, "DO(s) | ETA:", estimated_delivery_time
+        customer_name, "|", items.length, "item(s) |", createdIds.length, "DO(s) | ETA:", estimated_delivery_time,
+        "| self_pickup:", is_self_pickup
       );
 
       // Background notifications — don't block the response back to Tally
