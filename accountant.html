@@ -1108,6 +1108,10 @@
       style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:rgba(78,222,163,0.1);color:var(--tertiary);border:1px solid rgba(78,222,163,0.25);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
       🔄 Sync Stock
     </button>
+    <button class="btn" onclick="openSalesPopup()"
+      style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:rgba(245,158,11,0.1);color:#f59e0b;border:1px solid rgba(245,158,11,0.25);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
+      🏷️ Sales <span id="salesCount" style="font-size:11px;opacity:0.8;"></span>
+    </button>
     <div style="display:flex;gap:14px;align-items:center;font-size:12px;font-weight:700;color:var(--on-surface-variant);margin-left:auto;flex-wrap:wrap;" title="DOs created today, by source">
       <span>Today's DOs:</span>
       <span>🖥 Page <b id="srcCountManual" style="color:var(--on-surface);">0</b></span>
@@ -3606,14 +3610,26 @@ async function loadDeliveries() {
       _deliveriesDebounceTimer = null;
       await _doLoadDeliveries();
       resolve();
-    }, 120);
+    }, 0);
   });
+}
+
+async function loadDeliveryCounts() {
+  try {
+    const res = await authFetch(`${BASE_URL}/delivery-counts`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.warn("[delivery-counts] Falling back to local counts:", e.message);
+    return null;
+  }
 }
 
 async function _doLoadDeliveries() {
   if (_deliveriesInflight) return;       // skip if a fetch is already running
   _deliveriesInflight = true;
   let data;
+  const countsPromise = loadDeliveryCounts();
   try {
     const res = await fetch(`${BASE_URL}/deliveries`);
     if (res.status === 429) {
@@ -3630,6 +3646,7 @@ async function _doLoadDeliveries() {
     console.warn("[deliveries] Unexpected response:", data);
     return;
   }
+  const serverCounts = await countsPromise;
 
   allRawDeliveries = data;   // store full list for repeat customer lookup
 
@@ -3707,16 +3724,21 @@ async function _doLoadDeliveries() {
       srcCounts[src]++;
     }
   });
+  const displayCounts = serverCounts
+    ? { ...counts, ...serverCounts, all: serverCounts.total ?? serverCounts.all ?? counts.all }
+    : counts;
+
   ["all","booked","pending","loaded","delivered","failed","urgent","self_pickup","today"].forEach(k => {
     const el = document.getElementById("fc-" + k);
-    if (el) el.innerText = counts[k] || "";
+    if (el) el.innerText = displayCounts[k] || "";
   });
   const elManual = document.getElementById("srcCountManual");
   const elTally  = document.getElementById("srcCountTally");
   const elImport = document.getElementById("srcCountImport");
-  if (elManual) elManual.innerText = srcCounts.manual;
-  if (elTally)  elTally.innerText  = srcCounts.tally_tdl;
-  if (elImport) elImport.innerText = srcCounts.import_file;
+  const displaySrcCounts = serverCounts?.sourceToday || srcCounts;
+  if (elManual) elManual.innerText = displaySrcCounts.manual || 0;
+  if (elTally)  elTally.innerText  = displaySrcCounts.tally_tdl || 0;
+  if (elImport) elImport.innerText = displaySrcCounts.import_file || 0;
 
   // Populate driver filter dropdown from full data
   populateDriverFilterDropdown(data);
@@ -6083,8 +6105,197 @@ document.addEventListener("keydown", e => {
   }
 });
 
+/* ── SALES POPUP ── */
+let _allSaleLeads = [];
+
+async function openSalesPopup() {
+  try {
+    const res = await authFetch(`${BASE_URL}/leads`);
+    if (!res.ok) { showToast("⚠ Failed to load sales"); return; }
+    const allLeads = await res.json();
+    _allSaleLeads = allLeads.filter(l => l.status === "sale");
+  } catch (e) {
+    showToast("⚠ Network error loading sales");
+    return;
+  }
+  const el = document.getElementById("salesCount");
+  if (el) el.textContent = `(${_allSaleLeads.length})`;
+  renderSalesList();
+  document.getElementById("salesPopup").classList.add("is-open");
+}
+
+function closeSalesPopup() {
+  document.getElementById("salesPopup").classList.remove("is-open");
+}
+
+function renderSalesList() {
+  const container = document.getElementById("salesContent");
+  if (!_allSaleLeads.length) {
+    container.innerHTML = `<div style="text-align:center;padding:32px;color:var(--on-surface-variant);">No Sale leads yet</div>`;
+    return;
+  }
+  const cols = ["Customer","Phone","Products","Price","Staff","Created","Status","Action"];
+  let html = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>`;
+  _allSaleLeads.forEach(l => {
+    const prodSummary = l.products?.length > 0
+      ? l.products.map(p => p.product_name).join(", ")
+      : l.product_interest || "—";
+    const totalQuote = l.products?.length
+      ? l.products.reduce((s, p) => s + (p.quoted_price || 0), 0)
+      : (l.quoted_price || 0);
+    const priceDisplay = l.admin_quoted_price != null
+      ? `₹${l.admin_quoted_price} <span style="font-size:10px;opacity:.7">(revised)</span>`
+      : (totalQuote ? `₹${totalQuote}` : "—");
+    const createdDate = l.created_at?.seconds
+      ? new Date(l.created_at.seconds * 1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short" })
+      : "—";
+    html += `
+    <tr>
+      <td style="font-weight:500;">${escHtml(l.customer_name || l.phone)}</td>
+      <td><a class="phone-link" href="tel:${escHtml(l.phone)}">${escHtml(l.phone)}</a></td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(prodSummary||'').replace(/"/g,'&quot;')}">${escHtml(prodSummary)}</td>
+      <td style="font-weight:600;white-space:nowrap;color:var(--tertiary);">${priceDisplay}</td>
+      <td>${escHtml(l.created_by_name || l.created_by || "—")}</td>
+      <td style="white-space:nowrap;">${createdDate}</td>
+      <td><span class="badge badge-sale">Sale</span></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-primary btn-sm" onclick="openSaleViewPopup('${escHtml(l.id)}')" style="margin-right:4px;">View</button>
+        <button class="btn btn-sm" style="background:rgba(245,158,11,0.1);color:#f59e0b;border:1px solid rgba(245,158,11,0.25);padding:3px 8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;" onclick="pushLeadToDO('${escHtml(l.id)}')">📦 DO</button>
+      </td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+async function pushLeadToDO(id) {
+  const lead = _allSaleLeads.find(l => l.id === id);
+  if (!lead) return;
+
+  // Pre-fill customer name
+  const parts = (lead.customer_name || "").trim().split(/\s+/);
+  const fn = document.getElementById("first_name");
+  const mn = document.getElementById("middle_name");
+  const ln = document.getElementById("last_name");
+  if (fn) fn.value = parts[0] || "";
+  if (mn) mn.value = parts.length === 3 ? parts[1] : "";
+  if (ln) ln.value = parts.length >= 2 ? parts[parts.length - 1] : "";
+
+  // Pre-fill phone
+  const ph = document.getElementById("phone");
+  if (ph) ph.value = lead.phone || "";
+
+  // Pre-fill alternate phone
+  const alt = document.getElementById("alt_phone");
+  if (alt) alt.value = lead.alternate_phone || "";
+
+  // Pre-fill address
+  const addr1 = document.getElementById("addr1");
+  if (addr1) addr1.value = lead.address || "";
+
+  // Pre-fill products (same Tally toggle pattern as confirmTallyImport)
+  const leadProducts = lead.products?.length > 0 ? lead.products : (lead.product_interest ? [{ product_name: lead.product_interest }] : []);
+  if (leadProducts.length > 0) {
+    const list = document.getElementById("productList");
+    if (list) {
+      list.innerHTML = "";
+      if (typeof productItemCounter !== "undefined") productItemCounter = 0;
+      leadProducts.forEach(p => {
+        if (typeof productItemCounter !== "undefined") productItemCounter++;
+        const idx = typeof productItemCounter !== "undefined" ? productItemCounter : 1;
+        const div = document.createElement("div");
+        if (typeof createProductItemHTML === "function") {
+          div.innerHTML = createProductItemHTML(idx);
+          list.appendChild(div.firstElementChild);
+          const item = list.lastElementChild;
+          const tallyToggle = item.querySelector(`[data-field="tally_toggle"]`);
+          if (tallyToggle && typeof toggleTallyInput === "function") {
+            tallyToggle.checked = true;
+            toggleTallyInput(tallyToggle, idx);
+            const tallyInput = item.querySelector(`[data-field="tally_input"]`);
+            if (tallyInput) {
+              const pname = p.product_name || "";
+              tallyInput.value = pname;
+              const ts = item.querySelector(`[data-field="tally_search"]`);
+              const tl = item.querySelector(`[data-field="tally_selected_label"]`);
+              if (ts) ts.value = pname;
+              if (tl && pname) tl.textContent = `✔ Selected: ${pname}`;
+            }
+          }
+        }
+      });
+      if (typeof updateProductCount === "function") updateProductCount();
+    }
+  }
+
+  // Close sales popup and open create delivery popup
+  closeSalesPopup();
+  document.getElementById("popup").classList.add("is-open");
+  showToast("✅ Lead data loaded into DO form");
+}
+
+function openSaleViewPopup(id) {
+  const lead = _allSaleLeads.find(l => l.id === id);
+  if (!lead) return;
+  const createdDate = lead.created_at?.seconds
+    ? new Date(lead.created_at.seconds * 1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
+    : "—";
+  const prodRows = lead.products?.length > 0
+    ? lead.products.map((p, i) => `
+      <tr>
+        <td style="padding:4px 0;">${i+1}.</td>
+        <td style="padding:4px 0;">${escHtml(p.product_name)}</td>
+        <td style="padding:4px 0;">${p.quoted_price != null ? "₹" + escHtml(String(p.quoted_price)) : "—"}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="3" style="padding:4px 0;color:var(--on-surface-variant);">${escHtml(lead.product_interest || "—")}</td></tr>`;
+  document.getElementById("saleViewContent").innerHTML = `
+    <div class="section-title">Customer Details</div>
+    <div class="detail-row"><b>Name</b><span>${escHtml(lead.customer_name || "—")}</span></div>
+    <div class="detail-row"><b>Phone</b><span>${escHtml(lead.phone || "—")}</span></div>
+    <div class="detail-row"><b>Alternate</b><span>${escHtml(lead.alternate_phone || "—")}</span></div>
+    <div class="detail-row"><b>Address</b><span>${escHtml(lead.address || "—")}</span></div>
+    <div class="section-title">Products</div>
+    <table style="width:100%;font-size:13px;"><thead><tr><th style="text-align:left;">#</th><th style="text-align:left;">Product</th><th style="text-align:left;">Price</th></tr></thead><tbody>${prodRows}</tbody></table>
+    <div class="section-title">Lead Info</div>
+    <div class="detail-row"><b>Staff</b><span>${escHtml(lead.created_by_name || lead.created_by || "—")}</span></div>
+    <div class="detail-row"><b>Created</b><span>${createdDate}</span></div>
+    <div class="detail-row"><b>Status</b><span><span class="badge badge-sale">Sale</span></span></div>
+    <button class="btn btn-primary" style="margin-top:16px;width:100%;" onclick="pushLeadToDO('${escHtml(lead.id)}');closeSaleViewPopup();">
+      📦 Create DO
+    </button>
+  `;
+  document.getElementById("saleViewPopup").classList.add("is-open");
+}
+
+function closeSaleViewPopup() {
+  document.getElementById("saleViewPopup").classList.remove("is-open");
+}
+
+/* ── END SALES POPUP ── */
 console.log("[tally-import] Module loaded ✓");
 </script>
+
+<!-- SALES POPUP -->
+<div class="popup-overlay" id="salesPopup">
+  <div class="popup-card" style="max-width:960px;">
+    <h3 style="margin-bottom:16px;">🏷️ Sales — Leads marked as Sale</h3>
+    <div id="salesContent" style="max-height:65vh;overflow-y:auto;"></div>
+    <div class="form-actions" style="margin-top:16px;">
+      <button class="btn btn-gray" onclick="closeSalesPopup()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- SALE VIEW POPUP -->
+<div class="popup-overlay" id="saleViewPopup">
+  <div class="popup-card">
+    <h3>Sale Details</h3>
+    <div id="saleViewContent"></div>
+    <div class="form-actions">
+      <button class="btn btn-gray" onclick="closeSaleViewPopup()">Close</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

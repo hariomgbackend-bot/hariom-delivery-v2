@@ -1181,6 +1181,29 @@ function displayType(type) {
   return type === "installation" ? "Demo-Installation" : (type || "—");
 }
 
+function shareTicketWA(id) {
+  const t = allTickets.find(x => x.id === id);
+  if (!t) return;
+  const createdDate = fmtDateTime(t.created_at);
+  const altLine = t.alternate_phone ? `Alternate: ${t.alternate_phone}\n` : "";
+  const brandRefLine = t.brand_tracking_number ? `Brand Ref#: ${t.brand_tracking_number}\n` : "";
+  const msg = encodeURIComponent(
+`Hariom Electronics — Service Ticket
+════════════════════════════════════
+Type: ${displayType(t.type)}
+Customer: ${t.customer_name || "—"}
+Phone: ${t.phone || "—"}
+${altLine}Address: ${t.address || "—"}
+Product: ${t.product_name || "—"}
+Serial: ${t.serial_number || "—"}
+Description/Problem: ${t.description || "—"}
+${brandRefLine}Created: ${createdDate}
+════════════════════════════════════
+Hariom Electronics, Pune`
+  );
+  window.open("https://wa.me/?text=" + msg, "_blank");
+}
+
 function openTicketDetail(id) {
   const t = allTickets.find(x => x.id === id);
   if (!t) return;
@@ -1288,6 +1311,13 @@ function openTicketDetail(id) {
 
     <!-- Brand request actions -->
     <div id="brandActionContainer"></div>
+
+    <!-- WhatsApp share -->
+    <div style="margin-top:14px;">
+      <button class="btn btn-teal btn-sm" onclick="shareTicketWA('${t.id}')" style="width:100%;">
+        📱 Share on WhatsApp
+      </button>
+    </div>
 
     <!-- Edit / Delete (open tickets only) -->
     ${isEditable ? `

@@ -252,7 +252,7 @@
     .badge-failed    { background: rgba(255,180,171,0.12); color: var(--error); }
     .badge-open      { background: rgba(173,198,255,0.15); color: var(--primary); }
     .badge-followup  { background: rgba(255,179,0,0.15);   color: #ffb300; }
-    .badge-converted { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
+    .badge-sale      { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
     .badge-lost      { background: rgba(255,180,171,0.12); color: var(--error); }
     .badge-warranty-ok     { background: rgba(78,222,163,0.12);  color: var(--tertiary); }
     .badge-warranty-expiring { background: rgba(255,179,0,0.12); color: #ffb300; }
@@ -480,7 +480,7 @@
     [data-theme="light"] .badge-failed    { background: #fee2e2; color: #991b1b; }
     [data-theme="light"] .badge-open      { background: #dbeafe; color: #1e40af; }
     [data-theme="light"] .badge-followup  { background: #fef3c7; color: #92400e; }
-    [data-theme="light"] .badge-converted { background: #dcfce7; color: #166534; }
+    [data-theme="light"] .badge-sale { background: #dcfce7; color: #166534; }
     [data-theme="light"] .badge-lost      { background: #fee2e2; color: #991b1b; }
     [data-theme="light"] .skeleton-card   { background: var(--surface); }
 
@@ -819,6 +819,7 @@
           <select class="form-select" id="lStatus">
             <option value="open">Open</option>
             <option value="followup">Follow Up</option>
+            <option value="sale">Sale</option>
           </select>
 
           <label class="form-label">Remarks</label>
@@ -998,7 +999,7 @@
     </button>
     <button class="kinetic-nav-btn" id="nav-leads" onclick="switchTab('leads')">
       <span class="material-symbols-outlined">contacts</span>
-      <span class="nav-label">Leads</span>
+      <span class="nav-label">Leads/Sales</span>
     </button>
     <button class="kinetic-nav-btn" id="nav-prices" onclick="switchTab('prices')">
       <span class="material-symbols-outlined">sell</span>
@@ -1434,16 +1435,26 @@ function openDelivPopup(id) {
 
   // Action buttons — actionsEl declared outside if to avoid ReferenceError
   const actionsEl = document.getElementById("delivPopupActions");
+  const wa = buildWAMessage(d);
   let actionBtns = "";
   if (d.status === "delivered") {
-    const wa = buildWAMessage(d);
     actionBtns = `
       <div class="popup-actions-row">
         <button class="btn btn-teal-sm" style="flex:1;" onclick="raiseTicket('${esc(d.id)}','installation')">
-          <span class="material-symbols-outlined" style="font-size:16px;">build</span> Installation
+          <span class="material-symbols-outlined" style="font-size:16px;">build</span> Demo-Installation
         </button>
         <button class="btn btn-danger-sm" style="flex:1;" onclick="raiseTicket('${esc(d.id)}','complaint')">
           <span class="material-symbols-outlined" style="font-size:16px;">warning</span> Complaint
+        </button>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;" onclick="shareOnWA('${encodeURIComponent(wa)}')">
+        <span class="material-symbols-outlined" style="font-size:16px;">share</span> Share on WhatsApp
+      </button>`;
+  } else if (d.status === "booked" || d.status === "pending" || d.status === "loaded") {
+    actionBtns = `
+      <div class="popup-actions-row">
+        <button class="btn btn-teal-sm" style="flex:1;" onclick="raiseTicket('${esc(d.id)}','installation')">
+          <span class="material-symbols-outlined" style="font-size:16px;">build</span> Demo-Installation
         </button>
       </div>
       <button class="btn btn-ghost" style="width:100%;" onclick="shareOnWA('${encodeURIComponent(wa)}')">
@@ -1567,7 +1578,7 @@ function removeLeadProduct(idx) {
   const rows = document.querySelectorAll(".lead-product-row");
   if (rows.length <= 1) { showToast("At least one product is required."); return; }
   const row = document.querySelector(`.lead-product-row[data-idx="${idx}"]`);
-  if (row) { row.remove(); leadProductCount--; }
+  if (row) { row.remove(); }
 }
 
 function onProdSearch(input, idx) {
@@ -1964,7 +1975,7 @@ function openLeadPopup(id) {
           <select class="lead-edit-select" id="popupLeadStatus" onchange="updateLeadStatus('${esc(l.id)}', this.value)">
             <option value="open"      ${l.status==="open"?"selected":""}>Open</option>
             <option value="followup"  ${l.status==="followup"?"selected":""}>Follow Up</option>
-            <option value="converted" ${l.status==="converted"?"selected":""}>Converted</option>
+            <option value="sale"      ${l.status==="sale"?"selected":""}>Sale</option>
             <option value="lost"      ${l.status==="lost"?"selected":""}>Lost</option>
           </select>
         </span>

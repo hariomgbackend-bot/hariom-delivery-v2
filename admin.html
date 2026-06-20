@@ -1491,7 +1491,7 @@
 
     <button class="sidebar-item" id="nav-leads-admin" onclick="showView('leads-admin')">
       <span class="material-symbols-outlined">contacts</span>
-      Leads
+      Leads/Sales
     </button>
 
     <button class="sidebar-item" id="nav-incentive" onclick="showView('incentive')">
@@ -2178,7 +2178,7 @@
           <button class="filter-btn activeFilter" onclick="setLeadFilter('all',this)">All</button>
           <button class="filter-btn" onclick="setLeadFilter('open',this)">Open</button>
           <button class="filter-btn" onclick="setLeadFilter('followup',this)">Follow Up</button>
-          <button class="filter-btn" onclick="setLeadFilter('converted',this)">Converted</button>
+          <button class="filter-btn" onclick="setLeadFilter('sale',this)">Sale</button>
           <button class="filter-btn" onclick="setLeadFilter('lost',this)">Lost</button>
           <button class="filter-btn" onclick="setLeadFilter('expiring',this)">⚠ Expiring</button>
         </div>
@@ -5452,7 +5452,7 @@ function renderLeadsAdmin() {
   const ss  = {
     open:      {bg:'rgba(173,198,255,0.15)',cl:'var(--primary)'},
     followup:  {bg:'rgba(245,158,11,0.15)', cl:'var(--amber)'},
-    converted: {bg:'rgba(78,222,163,0.15)', cl:'var(--tertiary)'},
+    sale:      {bg:'rgba(78,222,163,0.15)', cl:'var(--tertiary)'},
     lost:      {bg:'rgba(255,180,171,0.15)',cl:'var(--error)'}
   };
 
@@ -5550,7 +5550,7 @@ function openLeadAdminPopup(id) {
           <select id="laStatus" style="width:100%;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;">
             <option value="open"      ${l.status==='open'?'selected':''}>Open</option>
             <option value="followup"  ${l.status==='followup'?'selected':''}>Follow Up</option>
-            <option value="converted" ${l.status==='converted'?'selected':''}>Converted</option>
+            <option value="sale"      ${l.status==='sale'?'selected':''}>Sale</option>
             <option value="lost"      ${l.status==='lost'?'selected':''}>Lost</option>
           </select>
         </div>

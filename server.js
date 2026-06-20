@@ -3263,7 +3263,7 @@ app.get("/leads", authenticate, authorize(["admin", "accountant", "staff", "serv
     }
 
     // Sort: open/followup first, then by created_at desc
-    const statusOrder = { open: 0, followup: 1, converted: 2, lost: 3 };
+    const statusOrder = { open: 0, followup: 1, sale: 2, lost: 3 };
     leads.sort((a, b) => {
       const sd = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
       if (sd !== 0) return sd;
@@ -3281,6 +3281,7 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
     const {
       customer_name, phone, alternate_phone,
       product_interest, quoted_price, remarks, status,
+      address,
       products   // new: array of { product_name, quoted_price }
     } = req.body;
     if (!phone || phone.length !== 10 || !/^\d+$/.test(phone)) return res.status(400).json({ error: "Valid 10-digit phone required" });
@@ -3304,6 +3305,7 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
       customer_name:    customer_name   || "",
       phone:            phone,
       alternate_phone:  alternate_phone || "",
+      address:          address         || "",
       // Legacy single-product fields (kept for backward compat)
       product_interest: productsArray[0].product_name,
       quoted_price:     productsArray[0].quoted_price,
@@ -3320,6 +3322,20 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
       admin_quoted_price: null,
       converted_delivery_id: null
     });
+
+    // Push notification to accountant if status is "sale"
+    if (status === "sale") {
+      (async () => {
+        try {
+          const raiser = req.user.name || req.user.role;
+          await sendAccountantPush(
+            `🏷️ Sale by ${raiser}`,
+            `${customer_name || phone} — ${phone}`
+          );
+        } catch (e) { console.warn("[lead push]", e.message); }
+      })();
+    }
+
     res.json({ success: true, id: docRef.id });
   } catch (err) {
     console.error("/leads POST error:", err.message);
@@ -3339,8 +3355,8 @@ app.put("/leads/:id", authenticate, authorize(["admin", "accountant", "staff"]),
     }
 
     const allowed = [
-      "customer_name", "phone", "alternate_phone", "product_interest",
-      "quoted_price", "products", "remarks", "status",
+      "customer_name", "phone", "alternate_phone", "address",
+      "product_interest", "quoted_price", "products", "remarks", "status",
       "followup_note", "admin_quoted_price", "converted_delivery_id"
     ];
     const updates = {};
@@ -3352,7 +3368,23 @@ app.put("/leads/:id", authenticate, authorize(["admin", "accountant", "staff"]),
       delete updates.followup_note;
     }
 
+    const prevStatus = snap.data().status;
     await updateDoc(refDoc, { ...updates, updated_at: Timestamp.now() });
+
+    // Push notification to accountant if status changed to "sale"
+    if (req.body.status === "sale" && prevStatus !== "sale") {
+      (async () => {
+        try {
+          const raiser = req.user.name || req.user.role;
+          const data   = snap.data();
+          await sendAccountantPush(
+            `🏷️ Sale by ${raiser}`,
+            `${data.customer_name || data.phone} — ${data.phone}`
+          );
+        } catch (e) { console.warn("[lead update push]", e.message); }
+      })();
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error("/leads/:id PUT error:", err.message);
