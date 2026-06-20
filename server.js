@@ -416,9 +416,15 @@ app.post(
       const qtys  = tagAll("HARIOMFQTY");
       const amts  = tagAll("HARIOMFAMT");
 
-      // Self-pickup flag — sent as the same Yes/No string on every repeated
-      // line (mirrors how HARIOMFPARTY etc. are constant across line items).
-      const is_self_pickup = /^yes$/i.test(tag("HARIOMFSELFPICKUP").trim());
+      // Self-pickup flag — primary source is the ?selfpickup= query param
+      // (set inline in HariomDoAction right before HTTP Post fires, so
+      // there's no risk of the value getting lost crossing into the
+      // separate Report context that builds the XML body). Falls back to
+      // the HARIOMFSELFPICKUP XML tag for older TDL versions.
+      const selfPickupParam = (req.query.selfpickup || req.query.selfPickup || "").toString().trim();
+      const is_self_pickup = selfPickupParam
+        ? /^yes$/i.test(selfPickupParam)
+        : /^yes$/i.test(tag("HARIOMFSELFPICKUP").trim());
 
       if (!voucher_number) {
         res.status(400);
