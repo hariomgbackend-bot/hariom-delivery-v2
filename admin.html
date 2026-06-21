@@ -4170,6 +4170,8 @@ function viewDetails(d) {
     <div class="detail-row"><b>Delivery Rating</b><span>${(() => { if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—"; const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000; if (diff<=-10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">\u26a1 Early (' + Math.abs(Math.round(diff)) + 'm early)</span>'; if (diff<=10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">\u2705 On Time</span>'; if (diff<=30) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">\ud83d\udd50 Late (' + Math.round(diff) + 'm)</span>'; return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">\ud83d\udd34 Very Late (' + Math.round(diff) + 'm)</span>'; })()}</span></div>
     <div class="detail-row"><b>Driver</b><span>${escHtml(d.assigned_driver_name || "—")}</span></div>
     <div class="detail-row"><b>Driver Instructions</b><span>${d.driver_instructions && d.driver_instructions !== "none" ? escHtml(d.driver_instructions) : "—"}</span></div>
+    <div class="detail-row"><b>Point of Sale</b><span>${escHtml(d.point_of_sale) || "—"}</span></div>
+    <div class="detail-row"><b>Pickup From</b><span>${escHtml(d.pickup_from) || "—"}</span></div>
     <div class="detail-row"><b>Freight</b><span>${freightDisplay}</span></div>
     <div class="detail-row"><b>Distance Covered</b><span>${d.distance_km != null ? "<strong style=\"color:#16a34a;\">" + d.distance_km + " km</strong>" : "—"}</span></div>
     <div class="detail-row"><b>Created At</b><span>${ts(d.created_timestamp)}</span></div>
@@ -4253,6 +4255,14 @@ function enableEdit() {
         </div>
         <div class="edit-field"><label>ETA</label><input id="edit_eta" value="${escHtml(d.estimated_delivery_time || "")}"></div>
         <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${escHtml(d.product_serial_number || "")}"></div>
+        <div class="edit-field"><label>Point of Sale</label>
+          <select id="edit_point_of_sale" style="width:100%;padding:9px 12px;border:1px solid rgba(173,198,255,0.15);border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;outline:none;background:var(--surface-container-high);color:var(--on-surface);">
+            <option value="">—</option>
+            <option value="Alandi" ${d.point_of_sale === "Alandi" ? "selected" : ""}>Alandi</option>
+            <option value="Dhanore" ${d.point_of_sale === "Dhanore" ? "selected" : ""}>Dhanore</option>
+          </select>
+        </div>
+        <div class="edit-field"><label>Pickup From</label><input id="edit_pickup_from" value="${escHtml(d.pickup_from || "")}"></div>
 
         <div style="margin-top:12px;padding:14px;background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.15);border-radius:12px;">
           <div style="font-size:10px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">📷 Replace Photos (optional)</div>
@@ -4331,7 +4341,9 @@ async function updateDelivery(id) {
         assigned_driver_id:      driverId,
         priority:                document.getElementById("edit_priority").value,
         estimated_delivery_time: document.getElementById("edit_eta").value,
-        product_serial_number:   document.getElementById("edit_serial").value
+        product_serial_number:   document.getElementById("edit_serial").value,
+        point_of_sale:           document.getElementById("edit_point_of_sale")?.value || "",
+        pickup_from:             document.getElementById("edit_pickup_from")?.value?.trim() || ""
       })
     });
     if (!res.ok) {

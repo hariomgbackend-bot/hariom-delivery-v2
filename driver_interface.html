@@ -13,10 +13,17 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
   <title>Driver Panel — Hariom Electronics</title>
 
-  <!-- Kinetic fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+  <!-- Kinetic fonts (non-blocking) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+  </noscript>
 
   <style>
     /* ════════════════════════════════════════════════
@@ -1231,10 +1238,6 @@
   </div>
 <div style="display:flex;align-items:center;gap:10px;">
   <div id="pushDot" class="push-dot" title="Push notification status"></div>
-  <div id="weatherWidget" title="Weather" style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface-container-high);border-radius:12px;font-size:13px;cursor:default;user-select:none;">
-    <span id="weatherIcon">☀️</span>
-    <span id="weatherTemp">--°</span>
-  </div>
   <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">☀️</button>
 </div>
 </div>
@@ -1506,21 +1509,6 @@ document.addEventListener("DOMContentLoaded", function() {
   const btn = document.getElementById("darkToggleBtn");
   if (btn) btn.textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
   
-  // Start weather updates if API key is configured
-  startWeatherUpdates();
-});
-
-// Cleanup when page is hidden/unloaded
-document.addEventListener("visibilitychange", function() {
-  if (document.hidden) {
-    stopWeatherUpdates();
-  } else {
-    startWeatherUpdates();
-  }
-});
-
-window.addEventListener("beforeunload", function() {
-  stopWeatherUpdates();
 });
 /* ── END DARK MODE ───────────────────────────────────── */
 
@@ -2473,6 +2461,16 @@ async function openDelivery(id) {
         <span class="detail-label">Product</span>
         <span class="detail-value">${d.product_name}</span>
       </div>
+      ${d.point_of_sale ? `
+      <div class="detail-row">
+        <span class="detail-label">Point of Sale</span>
+        <span class="detail-value">${escHtmlDisp(d.point_of_sale)}</span>
+      </div>` : ""}
+      ${d.pickup_from ? `
+      <div class="detail-row">
+        <span class="detail-label">Pickup From</span>
+        <span class="detail-value">${escHtmlDisp(d.pickup_from)}</span>
+      </div>` : ""}
       <div class="detail-row">
         <span class="detail-label">ETA</span>
         <span class="detail-value">
@@ -3076,6 +3074,7 @@ function logoutDriver() {
   historyOpen = false; historyData = [];
 
   // Reset dispatcher panel
+  dispatcherDataHash = null;
   document.getElementById("dispatcherPanel").style.display = "none";
   document.getElementById("dispatcherCards").innerHTML     = "";
   document.getElementById("dispSelectBtn").style.display = "none";
@@ -3886,9 +3885,11 @@ if (isOnline()) {
 let dispatcherTab = "pending"; // "pending" | "all"
 let selectedDeliveries = new Set(); // bulk selection IDs
 let selectionMode = false; // long-press activates this
+let dispatcherDataHash = null; // hash of last rendered dispatcher data
 
 function setDispTab(tab) {
   dispatcherTab = tab;
+  dispatcherDataHash = null; // force re-render on tab switch
   const pendBtn = document.getElementById("dispTab_pending");
   const allBtn  = document.getElementById("dispTab_all");
   if (pendBtn) {
@@ -3907,7 +3908,6 @@ let dispatcherDriverList = []; // cached driver list for assign dropdowns
 async function loadDispatcherDeliveries() {
   const container = document.getElementById("dispatcherCards");
   if (!container) return;
-  container.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:14px;">⏳ Loading…</div>`;
 
   try {
     const [delivRes, driverRes] = await Promise.all([
@@ -3956,6 +3956,11 @@ async function loadDispatcherDeliveries() {
     selfPickups.sort(sortFn);
     toAssign.sort(sortFn);
 
+    // Smart refresh: skip re-render if data unchanged (auto-refresh path only)
+    const newHash = deliveries.map(d => d.id + ":" + d.status + ":" + (d.is_self_pickup ? "1" : "0")).sort().join("|");
+    if (dispatcherDataHash === newHash) return;
+    dispatcherDataHash = newHash;
+
     if (deliveries.length === 0) {
       container.innerHTML = `
         <div style="text-align:center;padding:40px 20px;background:var(--surface);border-radius:16px;border:1px solid var(--border);">
@@ -3971,7 +3976,7 @@ async function loadDispatcherDeliveries() {
     // ── Self-pickup section ──
     if (selfPickups.length > 0) {
       const spHdr = document.createElement("div");
-      spHdr.style.cssText = "font-size:12px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:4px;";
+      spHdr.style.cssText = "font-size:12px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:4px;";
       spHdr.textContent = `🏪 ${selfPickups.length} Self Pickup${selfPickups.length !== 1 ? "s" : ""} — Awaiting Collection`;
       container.appendChild(spHdr);
       selfPickups.forEach(d => container.appendChild(buildDispatcherCard(d)));
@@ -4049,8 +4054,12 @@ function buildDispatcherCard(d) {
   const selectedOutline = isSelected ? "2px solid var(--accent)" : "none";
   const selectedBg      = isSelected ? (canSelect ? "rgba(173,198,255,0.07)" : "") : "";
 
+  // Self-pickup cards: neon green styling
+  const spBorder = d.is_self_pickup ? "#22c55e" : selectedBorder;
+  const spBg     = d.is_self_pickup && !isSelected ? "rgba(34,197,94,0.06)" : (selectedBg || "var(--surface)");
+
   card.innerHTML = `
-    <div id="dcard_inner_${d.id}" style="background:${selectedBg || "var(--surface)"};border:1.5px solid ${selectedBorder};border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);outline:${selectedOutline};transition:border-color 0.15s,outline 0.15s,background 0.15s;">
+    <div id="dcard_inner_${d.id}" style="background:${spBg};border:1.5px solid ${spBorder};border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);outline:${selectedOutline};transition:border-color 0.15s,outline 0.15s,background 0.15s;">
 
       <!-- ── Card header ── -->
       <div style="padding:14px 16px 10px;display:flex;align-items:flex-start;gap:10px;">
@@ -4109,7 +4118,7 @@ function buildDispatcherCard(d) {
       <!-- ── Footer ── -->
       <div id="dcard_footer_${d.id}" style="padding:0 16px 14px;display:${selectionMode && canSelect ? "none" : "block"};">
         ${d.is_self_pickup ? `
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#f59e0b;margin-bottom:8px;">🏪 Self Pickup — Customer Collects at Shop</div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#16a34a;margin-bottom:8px;">🏪 Self Pickup — Customer Collects at Shop</div>
           <div id="sp_form_${d.id}">
             ${!d.product_serial_number ? `
               <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Serial Number *</label>
@@ -4371,69 +4380,6 @@ async function bulkAssignDispatch() {
 
 function escHtmlDisp(s) {
   return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-
-// Weather widget update
-async function updateWeatherWidget() {
-  const widget = document.getElementById('weatherWidget');
-  const iconEl = document.getElementById('weatherIcon');
-  const tempEl = document.getElementById('weatherTemp');
-  if (!widget || !iconEl || !tempEl) return;
-
-  try {
-    const response = await fetch(`${BASE_URL}/weather`);
-
-    // 503 = API key not configured; 404 = route not added yet — hide widget silently
-    if (response.status === 503 || response.status === 404) {
-      widget.style.display = 'none';
-      return;
-    }
-    if (!response.ok) throw new Error('Weather fetch failed: ' + response.status);
-
-    const data = await response.json();
-    const iconMap = {
-      'clear':        '☀️',
-      'clouds':       '☁️',
-      'rain':         '🌧️',
-      'drizzle':      '🌦️',
-      'thunderstorm': '⛈️',
-      'snow':         '❄️',
-      'mist':         '🌫️',
-      'fog':          '🌫️',
-      'haze':         '🌫️',
-      'smoke':        '🌫️',
-      'dust':         '🌫️',
-      'sand':         '🌫️',
-      'ash':          '🌋',
-      'squall':       '💨',
-      'tornado':      '🌪️'
-    };
-
-    const icon = iconMap[data.condition?.toLowerCase()] || '🌡️';
-    iconEl.textContent       = icon;
-    tempEl.textContent       = `${data.temp}°`;
-    widget.title             = `${data.description || data.condition}, ${data.temp}°C`;
-    widget.style.display     = 'flex';
-  } catch (error) {
-    console.warn('[Weather] Could not update widget:', error);
-    // Hide instead of showing ❓ so the header stays clean
-    widget.style.display = 'none';
-  }
-}
-
-// Periodic weather update (every 10 minutes)
-let weatherInterval = null;
-function startWeatherUpdates() {
-  if (weatherInterval) clearInterval(weatherInterval);
-  updateWeatherWidget(); // Initial load
-  weatherInterval = setInterval(updateWeatherWidget, 10 * 60 * 1000); // 10 minutes
-}
-
-function stopWeatherUpdates() {
-  if (weatherInterval) {
-    clearInterval(weatherInterval);
-    weatherInterval = null;
-  }
 }
 
 // When dispatcher changes a driver dropdown, mirror it to all selected cards

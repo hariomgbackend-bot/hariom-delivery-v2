@@ -398,6 +398,8 @@ app.post(
       const customer_name  = tag("HARIOMFPARTY");
       const raw_address    = tag("HARIOMFADDRESS");
       const mobile         = tag("HARIOMFMOBILE"); // ledger's mobile — always the primary phone
+      const store_branch   = tag("HARIOMFSTOREBRANCH");
+      const godown         = tag("HARIOMFGODOWN");
 
       // The address line often has a second number written in manually
       // (e.g. a delivery contact) — that one becomes the alternate.
@@ -502,6 +504,8 @@ return res.send(`
           sold_by_name:            "Others",
           sale_price:              rate,
           source:                  "tally_tdl",
+          point_of_sale:           store_branch || "",
+          pickup_from:             godown || "",
           created_timestamp:       Timestamp.now(),
           status:                  statusForETA(estimated_delivery_time)
         });
@@ -510,8 +514,11 @@ return res.send(`
 
       console.log(
         "[tally/voucher TDL XML] DO auto-created:", voucher_number, "|",
-        customer_name, "|", items.length, "item(s) |", createdIds.length, "DO(s) | ETA:", estimated_delivery_time,
-        "| self_pickup:", is_self_pickup
+        customer_name, "|", items.length, "item(s) |", createdIds.length,
+        "DO(s) | ETA:", estimated_delivery_time,
+        "| self_pickup:", is_self_pickup,
+        "| store_branch:", store_branch,
+        "| godown:", godown
       );
 
       // Background notifications — don't block the response back to Tally
@@ -1377,6 +1384,7 @@ app.post("/createDeliveries", writeLimiter, async (req, res) => {
         product_name:          item.product_name          || "",
         product_serial_number: item.product_serial_number || "",
         invoice_number:        item.invoice_number        || "",
+        pickup_from:           item.pickup_from           || "",
         batch_id:              products.length > 1 ? batchId : null,
         priority:              shared.priority || "normal",
         created_timestamp:     Timestamp.now(),

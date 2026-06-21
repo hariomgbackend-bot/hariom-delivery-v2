@@ -13,9 +13,15 @@
   <meta name="theme-color" content="#0b1326">
   <title>Accountant Panel — Hariom Electronics</title>
 
-  <!-- Kinetic fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+  <!-- Kinetic fonts (non-blocking) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+  </noscript>
 
   <style>
     /* ════════════════════════════════════════════════
@@ -1214,6 +1220,13 @@
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);margin-bottom:8px;">🕑 Recent Imports</div>
       <div id="recentInvoicesList"></div>
     </div>
+
+    <div class="section-title">Point of Sale</div>
+    <select id="point_of_sale">
+      <option value="">— Select —</option>
+      <option value="Alandi">Alandi</option>
+      <option value="Dhanore">Dhanore</option>
+    </select>
 
     <div class="section-title">Customer Name</div>
     <input id="first_name" placeholder="First Name">
@@ -2623,7 +2636,7 @@ function buildSelectOptions(arr, selectedVal) {
 }
 
 function escHtml(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
 function populateItemSelects(idx) {
@@ -2706,6 +2719,9 @@ function createProductItemHTML(idx) {
 
     <div class="section-title">Invoice Number</div>
     <input data-field="invoice" placeholder="Invoice Number (optional)">
+
+    <div class="section-title">Pickup From (Godown)</div>
+    <input data-field="pickup_from" placeholder="Enter godown name (e.g. MAULI)">
 
     <label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer;font-size:13px;font-weight:600;color:#2563eb;">
       <input type="checkbox" data-field="raise_installation"
@@ -3360,6 +3376,7 @@ async function createDelivery() {
       product_name:          productName,
       product_serial_number: (item.querySelector(`[data-field="serial"]`)?.value || "").trim(),
       invoice_number:        (item.querySelector(`[data-field="invoice"]`)?.value || "").trim(),
+      pickup_from:           (item.querySelector(`[data-field="pickup_from"]`)?.value || "").trim(),
       raise_installation:    item.querySelector(`[data-field="raise_installation"]`)?.checked || false,
       install_priority:      item.querySelector(`[data-field="install_priority"]`)?.value || "normal"
     });
@@ -3414,6 +3431,7 @@ async function createDelivery() {
     sold_by_id:              document.getElementById("sold_by").value || "",
     sold_by_name:            document.getElementById("sold_by").options[document.getElementById("sold_by").selectedIndex].text || "Others",
     sale_price:              parseFloat(document.getElementById("sale_price").value) || 0,
+    point_of_sale:           document.getElementById("point_of_sale").value || "",
     source:                  _formCreationSource
   };
 
@@ -3536,6 +3554,8 @@ function resetForm() {
   document.getElementById("freight_charged").checked = false;
   document.getElementById("freight_amount").style.display = "none";
   document.getElementById("freight_amount").value = "";
+  document.getElementById("point_of_sale").selectedIndex = 0;
+  // Per-product fields (serial, invoice, pickup_from) reset when product items are re-rendered
   // Per-product installation checkboxes reset automatically when product items are re-rendered
   // Reset self-pickup
   document.getElementById("is_self_pickup").checked = false;
@@ -4003,6 +4023,8 @@ function openViewPopup(id) {
     <div class="detail-row"><b>ETA</b><span>${formatDate(delivery.estimated_delivery_time)}</span></div>
     ${ratingRow}
     <div class="detail-row"><b>Instruction</b><span>${escHtml(delivery.driver_instructions) || "—"}</span></div>
+    <div class="detail-row"><b>Point of Sale</b><span>${escHtml(delivery.point_of_sale) || "—"}</span></div>
+    <div class="detail-row"><b>Pickup From</b><span>${escHtml(delivery.pickup_from) || "—"}</span></div>
 
     <div class="section-title">Freight</div>
     <div class="detail-row"><b>Freight Applied</b><span>${delivery.freight_charged ? "Yes" : "No"}</span></div>
@@ -5999,6 +6021,10 @@ function confirmTallyImport() {
   const addr1 = document.getElementById("addr1");
   if (addr1 && v.address) addr1.value = v.address;
 
+  // ── Fill Point of Sale ──
+  const pos = document.getElementById("point_of_sale");
+  if (pos && v.store_branch) pos.value = v.store_branch;
+
   // ── Fill products ── (same logic as handleInvoiceImport for consistency)
   if (v.products && v.products.length > 0) {
     const list = document.getElementById("productList");
@@ -6044,6 +6070,10 @@ function confirmTallyImport() {
           // Invoice number
           const invoice = item.querySelector(`[data-field="invoice"]`);
           if (invoice && v.invoice_number) invoice.value = v.invoice_number;
+
+          // Pickup From (godown)
+          const pf = item.querySelector(`[data-field="pickup_from"]`);
+          if (pf && p.godown) pf.value = p.godown;
         }
       });
 
