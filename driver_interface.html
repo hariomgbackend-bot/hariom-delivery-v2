@@ -358,6 +358,15 @@
     .delivery-card:active { transform: scale(0.99); background: var(--surface-container); }
     .delivery-card.priority-urgent { border-left: 4px solid var(--error); }
     .delivery-card.pending-sync { opacity: 0.85; }
+
+    .instr-badge {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 14px;
+      line-height: 1;
+      vertical-align: middle;
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
@@ -634,6 +643,49 @@
     }
     .info-box-yellow { background: rgba(255,179,0,0.1); color: #ffb300; }
     .info-box-gray   { background: var(--surface-container-highest); color: var(--on-surface); }
+    .info-box-instructions {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 0 22px 10px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #1e293b;
+    }
+    .info-box-instructions strong { color: #d97706; }
+    .info-box-instructions .instr-text {
+      font-weight: 600;
+      color: #92400e;
+      margin-top: 4px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.7);
+      border-radius: 8px;
+      font-size: 15px;
+    }
+
+    .instructions-confirm {
+      margin: 0 22px 10px;
+      padding: 12px 16px;
+      background: #f0fdf4;
+      border: 1.5px solid #86efac;
+      border-radius: 10px;
+    }
+    .instructions-confirm label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #166534;
+      cursor: pointer;
+    }
+    .instructions-confirm input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: #16a34a;
+      flex-shrink: 0;
+    }
 
     .eta-countdown {
       font-size: 13px;
@@ -2262,7 +2314,7 @@ function renderDeliveries(data) {
       <div class="card-top">
         <div>
           <div class="card-name">${d.customer_name}</div>
-          <div class="card-product">${d.product_name}</div>
+          <div class="card-product">${d.product_name}${d.driver_instructions && d.driver_instructions !== "none" ? `<span class="instr-badge">📋</span>` : ""}</div>
         </div>
         <div class="card-badges">
           ${statusText}
@@ -2430,10 +2482,22 @@ async function openDelivery(id) {
       </div>
     </div>
 
+    ${d.driver_instructions && d.driver_instructions !== "none" ? `
+    <div class="info-box-instructions">
+      <strong>📝 Delivery Instructions</strong>
+      <div class="instr-text">${escHtmlDisp(d.driver_instructions)}</div>
+    </div>
+    ${currentStatus === "loaded" ? `
+    <div class="instructions-confirm">
+      <label>
+        <input type="checkbox" id="instructionsConfirm">
+        ✓ I confirm I have read and understood the delivery instructions
+      </label>
+    </div>` : ""}` : `
     <div class="info-box info-box-yellow">
       📝 <strong>Instructions:</strong><br>
-      ${d.driver_instructions && d.driver_instructions !== "none" ? d.driver_instructions : "No special instructions"}
-    </div>
+      No special instructions
+    </div>`}
 
     <div class="info-box info-box-gray">
       💰 <strong>Freight:</strong>
@@ -2650,6 +2714,15 @@ async function updateDelivery() {
   }
 
   const actionType = currentStatus === "pending" ? "loaded" : "delivered";
+
+  // Instructions acknowledgment check (loaded → delivered only)
+  if (currentStatus === "loaded") {
+    const instrConfirm = document.getElementById("instructionsConfirm");
+    if (instrConfirm && !instrConfirm.checked) {
+      showToast("⚠ Please read and confirm the delivery instructions first");
+      return;
+    }
+  }
 
   if (!isOnline()) {
     isProcessingAction = true;
