@@ -289,7 +289,7 @@
 
     /* ════ CONTAINER ════ */
     .container {
-      max-width: 1300px;
+      max-width: 1600px;
       margin: 0 auto;
       padding: 24px 20px;
     }
@@ -401,18 +401,6 @@
       line-height: 1;
     }
     .filter-count:not(:empty) { display: inline-flex; }
-
-    #customDate {
-      display: none;
-      padding: 6px 10px;
-      border: 1px solid rgba(173,198,255,0.15);
-      border-radius: 8px;
-      font-family: 'Inter', sans-serif;
-      font-size: 12px;
-      background: var(--surface-container-high);
-      color: var(--on-surface);
-      outline: none;
-    }
 
     /* Driver filter select */
     #driverFilterSelect {
@@ -1128,7 +1116,7 @@
 
   <!-- DELIVERIES CARD -->
   <div class="card">
-    <h3>Order Stream</h3>
+    <h3>Order Stream <span class="summary-bar" id="deliverySummary" style="font-size:12px;font-weight:400;margin-left:12px;color:var(--outline);display:inline;"></span></h3>
 
     <!-- STATUS FILTERS -->
     <div class="filter-bar">
@@ -1142,21 +1130,23 @@
       <button class="filter-btn" data-filter="self_pickup" onclick="setFilter('self_pickup')" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);">🏪 Self Pickup <span class="filter-count" id="fc-self_pickup"></span></button>
       <button class="filter-btn" data-filter="today"     onclick="setFilter('today')">Today <span class="filter-count" id="fc-today"></span></button>
       <button class="filter-btn" data-filter="yesterday" onclick="setFilter('yesterday')">Yesterday</button>
-      <button class="filter-btn" data-filter="custom"    onclick="showCustomDate()">📅 Custom</button>
-      <input type="date" id="customDate" onchange="applyCustomDate()">
+      <button class="filter-btn" data-filter="datepicker" onclick="toggleDatePicker()" id="customerFilterBtn">📅 Date Picker</button>
     </div>
 
-    <!-- DRIVER FILTER -->
-    <div class="filter-bar" id="driverFilterBar" style="margin-top:4px;padding-top:8px;border-top:1px solid var(--border);align-items:center;">
-      <span style="font-size:10px;font-weight:700;color:var(--outline);text-transform:uppercase;letter-spacing:1px;margin-right:4px;white-space:nowrap;align-self:center;">🚚 Driver:</span>
-      <select id="driverFilterSelect" onchange="setDriverFilter(this.value)">
+    <!-- DATE RANGE PICKER (hidden by default) -->
+    <div class="filter-bar" id="dateRangeBar" style="display:none;margin-top:4px;gap:6px;">
+      <input type="date" id="dateFrom" style="width:130px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--surface-container-high);color:var(--on-surface);outline:none;">
+      <span style="color:var(--outline);font-size:11px;">→</span>
+      <input type="date" id="dateTo" style="width:130px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--surface-container-high);color:var(--on-surface);outline:none;">
+      <button class="filter-btn" style="padding:4px 10px;font-size:11px;" onclick="applyDateRange()">📅 Apply</button>
+      <button class="filter-btn" style="padding:4px 10px;font-size:11px;color:var(--error);" onclick="resetDateRange()">✕ Reset</button>
+    </div>
+
+    <!-- DRIVER & ROUTE FILTERS (combined row) -->
+    <div class="filter-bar" id="driverRouteBar" style="margin-top:4px;gap:8px;">
+      <select id="driverFilterSelect" onchange="setDriverFilter(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--surface-container-high);color:var(--on-surface);outline:none;">
         <option value="all">All Drivers</option>
       </select>
-    </div>
-
-    <!-- ROUTE FILTER -->
-    <div class="filter-bar" id="routeFilterBar" style="margin-top:6px;padding-top:10px;border-top:1px solid var(--border);">
-      <span style="font-size:10px;font-weight:700;color:var(--outline);text-transform:uppercase;letter-spacing:1px;margin-right:4px;align-self:center;">Route:</span>
       <button class="filter-btn route-btn active-route" data-route="all"      onclick="setRoute('all')">🗺 All <span class="filter-count" id="rc-all"></span></button>
       <button class="filter-btn route-btn" data-route="bhosari"   onclick="setRoute('bhosari')">Bhosari <span class="filter-count" id="rc-bhosari"></span></button>
       <button class="filter-btn route-btn" data-route="moshi"     onclick="setRoute('moshi')">Moshi <span class="filter-count" id="rc-moshi"></span></button>
@@ -1167,8 +1157,6 @@
     </div>
 
     <input class="search-input" id="searchInput" placeholder="Search by name or phone…" oninput="applySearch()">
-
-    <div class="summary-bar" id="deliverySummary"></div>
 
     <!-- DESKTOP TABLE -->
     <div class="table-wrap">
@@ -1533,7 +1521,8 @@ let swRegistration      = null;
 let currentFilter       = "all";
 let currentRoute        = "all";
 let currentDriverFilter = "all";
-let customSelectedDate  = null;
+let dateRangeStart      = "";
+let dateRangeEnd        = "";
 let searchQuery         = "";
 let currentAccountantData = [];
 // Tracks how the form currently being filled was started — "manual" (typed
@@ -1814,9 +1803,22 @@ function applySearch() {
   }, 180);
 }
 
+function toggleDatePicker() {
+  const bar = document.getElementById("dateRangeBar");
+  const btn = document.getElementById("customerFilterBtn");
+  if (bar.style.display === "flex") {
+    bar.style.display = "none";
+    btn.classList.remove("activeFilter");
+  } else {
+    bar.style.display = "flex";
+    btn.classList.add("activeFilter");
+  }
+}
+
 function setFilter(type) {
   currentFilter = type;
-  if (type !== "custom") document.getElementById("customDate").style.display = "none";
+  document.getElementById("dateRangeBar").style.display = "none";
+  document.getElementById("customerFilterBtn").classList.remove("activeFilter");
   highlightActiveFilter(type);
   loadDeliveries();
 }
@@ -1855,14 +1857,22 @@ function highlightActiveFilter(filter) {
   });
 }
 
-function showCustomDate() {
-  document.getElementById("customDate").style.display = "inline-block";
-  highlightActiveFilter("custom");
+function applyDateRange() {
+  const from = document.getElementById("dateFrom").value;
+  const to   = document.getElementById("dateTo").value;
+  if (!from || !to) return;
+  dateRangeStart = from;
+  dateRangeEnd   = to;
+  document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("activeFilter"));
+  loadDeliveries();
 }
 
-function applyCustomDate() {
-  customSelectedDate = document.getElementById("customDate").value;
-  currentFilter = "custom";
+function resetDateRange() {
+  document.getElementById("dateFrom").value = "";
+  document.getElementById("dateTo").value   = "";
+  dateRangeStart = "";
+  dateRangeEnd   = "";
+  document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("activeFilter"));
   loadDeliveries();
 }
 
@@ -3651,7 +3661,11 @@ async function _doLoadDeliveries() {
   let data;
   const countsPromise = loadDeliveryCounts();
   try {
-    const res = await fetch(`${BASE_URL}/deliveries`);
+    let url = `${BASE_URL}/deliveries`;
+    if (dateRangeStart && dateRangeEnd) {
+      url += `?startDate=${encodeURIComponent(dateRangeStart)}&endDate=${encodeURIComponent(dateRangeEnd)}`;
+    }
+    const res = await fetch(url);
     if (res.status === 429) {
       console.warn("[deliveries] Rate limited — will retry on next refresh");
       _deliveriesInflight = false;
@@ -3677,10 +3691,7 @@ async function _doLoadDeliveries() {
 
   let finalData = [];
 
-  if (currentFilter === "custom" && customSelectedDate) {
-    const selStr = new Date(customSelectedDate).toDateString();
-    finalData = data.filter(d => d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === selStr);
-  } else if (currentFilter === "yesterday") {
+  if (currentFilter === "yesterday") {
     finalData = data.filter(d => d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === yestStr);
   } else {
     const bookedArr  = data.filter(d => d.status === "booked")

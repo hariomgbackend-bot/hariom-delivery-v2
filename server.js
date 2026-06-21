@@ -1512,12 +1512,32 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
 
 app.get("/deliveries", readLimiter, async (req, res) => {
   try {
-    // ─── Cache hit ───
-    if (Date.now() < deliveriesCache.expiry) {
-      return res.json(deliveriesCache.data);
+    const { startDate, endDate } = req.query;
+    const hasDateRange = startDate || endDate;
+
+    if (!hasDateRange) {
+      // ─── Cache hit (only when no date filter) ───
+      if (Date.now() < deliveriesCache.expiry) {
+        return res.json(deliveriesCache.data);
+      }
     }
 
-    const snapshot = await getDocs(collection(db, "deliveries"));
+    // Build Firestore query with optional date range
+    let q = collection(db, "deliveries");
+    if (hasDateRange) {
+      const constraints = [];
+      if (startDate) {
+        const s = new Date(startDate + "T00:00:00+05:30");
+        constraints.push(where("created_timestamp", ">=", Timestamp.fromMillis(s.getTime())));
+      }
+      if (endDate) {
+        const e = new Date(endDate + "T23:59:59+05:30");
+        constraints.push(where("created_timestamp", "<=", Timestamp.fromMillis(e.getTime())));
+      }
+      q = query(q, ...constraints);
+    }
+
+    const snapshot = await getDocs(q);
     let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
     const statusOrder = { pending: 0, loaded: 1, delivered: 2 };
@@ -1549,7 +1569,9 @@ app.get("/deliveries", readLimiter, async (req, res) => {
       return 0;
     });
 
-    deliveriesCache = { data: deliveries, expiry: Date.now() + DELIVERIES_CACHE_TTL };
+    if (!hasDateRange) {
+      deliveriesCache = { data: deliveries, expiry: Date.now() + DELIVERIES_CACHE_TTL };
+    }
 
     res.json(deliveries);
   } catch (error) {
