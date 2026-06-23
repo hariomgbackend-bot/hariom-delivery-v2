@@ -1032,8 +1032,9 @@ const EXPIRING_SOON_DAYS = 2;
 /* ── HTML ESCAPE (prevents XSS in innerHTML rendering) ── */
 function esc(s) {
   if (s == null) return "—";
+  s = String(s).replace(/&#x2F;/g, '/');
   const d = document.createElement("div");
-  d.textContent = String(s);
+  d.textContent = s;
   return d.innerHTML || "—";
 }
 
@@ -1421,6 +1422,7 @@ function openDelivPopup(id) {
       <div class="popup-status-row">
         <span class="badge badge-${esc(d.status)}">${esc(d.status)}</span>
         ${warranty ? warranty : ""}
+        ${d.is_self_pickup ? `<span class="badge badge-selfpickup" style="background:rgba(22,163,74,0.15);color:#16a34a;border:1px solid rgba(22,163,74,0.3);">🏪 Self Pickup</span>` : ""}
       </div>
       <div class="popup-name">${esc(d.customer_name)}</div>
     </div>
@@ -1437,6 +1439,13 @@ function openDelivPopup(id) {
         <img src="${esc(d.photo_loaded_url)}"
           onclick="openPhotoLightbox('${esc(d.photo_loaded_url)}','Loaded Photo')"
           style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dbeafe;">
+      </div>` : ""}
+      ${d.photo_delivered_url ? `
+      <div style="padding:4px 22px 6px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">✅ ${d.is_self_pickup ? 'Self Pickup' : 'Delivered'} Photo</div>
+        <img src="${esc(d.photo_delivered_url)}"
+          onclick="openPhotoLightbox('${esc(d.photo_delivered_url)}','${d.is_self_pickup ? 'Self Pickup' : 'Delivered'} Photo')"
+          style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #bbf7d0;">
       </div>` : ""}
     </div>`;
 

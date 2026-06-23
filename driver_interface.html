@@ -3370,6 +3370,11 @@ function triggerSelfPickupScan(deliveryId) {
   }
 }
 
+function triggerSelfPickupNightScan(deliveryId) {
+  selfPickupScanTargetId = deliveryId;
+  openNightScan();
+}
+
 /* ═══════════════════════════════════════════════
    iOS SCANNER — canvas bridge → /decode-barcode
    Hidden <video> feeds visible <canvas> every frame.
@@ -3501,9 +3506,8 @@ function handleIosScanResult(value) {
   document.getElementById("iosScanResult").classList.add("show");
 
   setTimeout(() => {
-    closeIosScanner();
-    // Fill the right input depending on whether this was a self-pickup scan
     const targetId = selfPickupScanTargetId;
+    closeIosScanner();
     selfPickupScanTargetId = null;
     const input = targetId
       ? document.getElementById("sp_serial_" + targetId)
@@ -3774,8 +3778,11 @@ async function onNightScanPhoto(e) {
     }
 
     if (result) {
-      // Fill serial input and trigger same success flow as normal scan
-      const input = document.getElementById("serialInput");
+      const targetId = selfPickupScanTargetId;
+      selfPickupScanTargetId = null;
+      const input = targetId
+        ? document.getElementById("sp_serial_" + targetId)
+        : document.getElementById("serialInput");
       if (input) {
         input.value = result;
         input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -3806,9 +3813,8 @@ function handleScanResult(value) {
   document.getElementById("scannerResult")?.classList.add("show");
 
   setTimeout(() => {
-    closeScanner();
-    // Fill the right input depending on whether this was a self-pickup scan
     const targetId = selfPickupScanTargetId;
+    closeScanner();
     selfPickupScanTargetId = null;
     const input = targetId
       ? document.getElementById("sp_serial_" + targetId)
@@ -4129,6 +4135,11 @@ function buildDispatcherCard(d) {
                   style="display:flex;align-items:center;gap:5px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;padding:9px 14px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent;">
                   <span style="font-size:16px;">&#x1F4F7;</span> Scan
                 </button>
+                <button type="button" onclick="triggerSelfPickupNightScan('${d.id}')"
+                  style="display:flex;align-items:center;gap:3px;background:var(--surface-container-high);color:var(--on-surface);border:none;border-radius:10px;padding:9px 10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent;"
+                  title="Night scan — take photo with flash">
+                  <span style="font-size:15px;">&#x1F319;</span>
+                </button>
               </div>
             ` : `
               <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Serial: <strong style="color:var(--text);">${escHtmlDisp(d.product_serial_number)}</strong></div>
@@ -4379,7 +4390,7 @@ async function bulkAssignDispatch() {
 }
 
 function escHtmlDisp(s) {
-  return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  return String(s || "").replace(/&#x2F;/g,"/").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
 // When dispatcher changes a driver dropdown, mirror it to all selected cards
