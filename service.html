@@ -590,15 +590,15 @@
         oninput="onGlobalSearch(this.value)">
 
       <div id="searchResultsPanel">
-        <!-- Deliveries found -->
-        <div class="search-results-section" id="srDeliveriesSection">
-          <div class="search-results-title">📦 Deliveries</div>
-          <div id="srDeliveries"></div>
-        </div>
         <!-- Tickets found -->
         <div class="search-results-section" id="srTicketsSection">
           <div class="search-results-title">🔧 Existing Tickets</div>
           <div id="srTickets"></div>
+        </div>
+        <!-- Deliveries found -->
+        <div class="search-results-section" id="srDeliveriesSection">
+          <div class="search-results-title">📦 Deliveries</div>
+          <div id="srDeliveries"></div>
         </div>
       </div>
     </div>
@@ -831,8 +831,9 @@ const BASE_URL = window.location.origin;
 })();
 function esc(s) {
   if (s == null) return "—";
+  s = String(s).replace(/&#x2F;/g, '/');
   const d = document.createElement("div");
-  d.textContent = String(s);
+  d.textContent = s;
   return d.innerHTML || "—";
 }
 function toggleDarkMode() {
@@ -1850,7 +1851,7 @@ let searchTimer = null;
 function onGlobalSearch(val) {
   clearTimeout(searchTimer);
   const q = val.trim();
-  if (q.length < 3) { clearSearch(); return; }
+  if (q.length < 3) { document.getElementById("searchResultsPanel").style.display = "none"; return; }
   searchTimer = setTimeout(() => runSearch(q), 350);
 }
 
