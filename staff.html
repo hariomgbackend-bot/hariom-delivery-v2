@@ -1433,18 +1433,18 @@ function openDelivPopup(id) {
       <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:'JetBrains Mono',monospace;font-size:13px;">${esc(d.product_serial_number)}</span></div>
       <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${esc(d.address)}</span></div>
       <div class="detail-row"><span class="detail-label">Delivered</span><span class="detail-value">${delivDate}</span></div>
-      ${d.photo_loaded_url ? `
+      ${!d.is_self_pickup && d.photo_loaded_url ? `
       <div style="padding:4px 22px 6px;">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">📦 Loaded Photo</div>
         <img src="${esc(d.photo_loaded_url)}"
           onclick="openPhotoLightbox('${esc(d.photo_loaded_url)}','Loaded Photo')"
           style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dbeafe;">
       </div>` : ""}
-      ${d.photo_delivered_url ? `
+      ${d.is_self_pickup && d.photo_delivered_url ? `
       <div style="padding:4px 22px 6px;">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">✅ ${d.is_self_pickup ? 'Self Pickup' : 'Delivered'} Photo</div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">✅ Self Pickup Photo</div>
         <img src="${esc(d.photo_delivered_url)}"
-          onclick="openPhotoLightbox('${esc(d.photo_delivered_url)}','${d.is_self_pickup ? 'Self Pickup' : 'Delivered'} Photo')"
+          onclick="openPhotoLightbox('${esc(d.photo_delivered_url)}','Self Pickup Photo')"
           style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #bbf7d0;">
       </div>` : ""}
     </div>`;
