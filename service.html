@@ -586,19 +586,13 @@
         <button class="btn btn-teal btn-sm" onclick="clearSearch()">Clear</button>
       </div>
       <input class="search-input" id="globalSearch"
-        placeholder="Search by name or phone — finds deliveries + existing tickets…"
+        placeholder="Search tickets by name, phone, product, or brand ref…"
         oninput="onGlobalSearch(this.value)">
 
       <div id="searchResultsPanel">
-        <!-- Tickets found -->
         <div class="search-results-section" id="srTicketsSection">
-          <div class="search-results-title">🔧 Existing Tickets</div>
+          <div class="search-results-title">🔧 Tickets</div>
           <div id="srTickets"></div>
-        </div>
-        <!-- Deliveries found -->
-        <div class="search-results-section" id="srDeliveriesSection">
-          <div class="search-results-title">📦 Deliveries</div>
-          <div id="srDeliveries"></div>
         </div>
       </div>
     </div>
@@ -829,12 +823,12 @@ const BASE_URL = window.location.origin;
   const saved = localStorage.getItem("hariom_theme");
   if (saved === "light") document.documentElement.setAttribute("data-theme","light");
 })();
+const _escDiv = document.createElement("div");
 function esc(s) {
   if (s == null) return "—";
   s = String(s).replace(/&#x2F;/g, '/');
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML || "—";
+  _escDiv.textContent = s;
+  return _escDiv.innerHTML || "—";
 }
 function toggleDarkMode() {
   const isDark = document.documentElement.getAttribute("data-theme") !== "light";
@@ -1421,19 +1415,6 @@ async function loadBrandActions(ticket) {
   } catch (e) { /* no brands configured, silently skip */ }
 }
 
-async function updateTicketStatus(id, status, btn) {
-  // Legacy — redirects to markAsLogged for "logged" status
-  if (status === "logged") { markAsLogged(id, btn); return; }
-  try {
-    const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status })
-    });
-    if (!res.ok) { showToast("❌ Failed to update status"); return; }
-    showToast(`✅ Status → ${status}`);
-    await loadTickets();
-  } catch (e) { showToast("❌ Network error"); }
-}
 
 async function markAsLoggedInline(id, btn) {
   const trackingInput = document.getElementById("ticketTrackingInput");
@@ -1451,7 +1432,11 @@ async function markAsLoggedInline(id, btn) {
     });
     if (!res.ok) { showToast("❌ Failed to log ticket"); if(btn){btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">check_circle</span> Mark as Logged';} return; }
     showToast("✅ Ticket logged with tracking # " + val);
-    await loadTickets();
+    const t = allTickets.find(x => x.id === id);
+    if (t) { t.status = "logged"; t.brand_tracking_number = val; }
+    _searchCache.clear();
+    renderTickets();
+    updateStats();
     openTicketDetail(id);
   } catch (e) { showToast("❌ Network error"); if(btn){btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">check_circle</span> Mark as Logged';} }
 }
@@ -1472,7 +1457,15 @@ async function reLogTicketInline(id, btn) {
     });
     if (!res.ok) { showToast("❌ Failed to re-log ticket"); if(btn){btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">refresh</span> Re-log';} return; }
     showToast("✅ Re-logged with new tracking # " + val);
-    await loadTickets();
+    const t = allTickets.find(x => x.id === id);
+    if (t) {
+      t.brand_tracking_number = val;
+      if (!t.tracking_history) t.tracking_history = [];
+      t.tracking_history.push({ tracking_number: val, logged_at: Date.now() });
+    }
+    _searchCache.clear();
+    renderTickets();
+    updateStats();
     openTicketDetail(id);
   } catch (e) { showToast("❌ Network error"); if(btn){btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">refresh</span> Re-log';} }
 }
@@ -1489,7 +1482,8 @@ async function saveTicketNote(id) {
     if (!res.ok) { showToast("❌ Failed to save note"); return; }
     showToast("✅ Note saved");
     input.value = "";
-    await loadTickets();
+    const t = allTickets.find(x => x.id === id);
+    if (t) t.notes = val;
   } catch (e) { showToast("❌ Network error"); }
 }
 
@@ -1550,7 +1544,9 @@ document.addEventListener("click", e => {
 });
 
 /* ── Pincode lookup for ticket form ── */
-async function onCtPinInput(val) {
+let _pinTimer = null;
+function onCtPinInput(val) {
+  clearTimeout(_pinTimer);
   val = val.replace(/\D/g, "");
   const spinner = document.getElementById("ctPinSpinner");
   const errEl   = document.getElementById("ctPinError");
@@ -1560,8 +1556,10 @@ async function onCtPinInput(val) {
     document.getElementById("ctCity").value  = "";
     document.getElementById("ctArea").style.display = "none";
     document.getElementById("ctAreaManual").style.display = "none";
+    spinner.style.display = "none";
     return;
   }
+  _pinTimer = setTimeout(async () => {
   spinner.style.display = "inline";
   try {
     const res  = await fetch(`https://api.postalpincode.in/pincode/${val}`);
@@ -1592,6 +1590,7 @@ async function onCtPinInput(val) {
   } finally {
     spinner.style.display = "none";
   }
+  }, 300);
 }
 
 function openCreateTicketPopup(prefill = {}) {
@@ -1638,9 +1637,6 @@ function openCreateTicketPopup(prefill = {}) {
 
   document.getElementById("createTicketPopup").classList.add("is-open");
   document.getElementById("ctFirstName").focus();
-  // Reset type-dependent fields to default (installation)
-  document.getElementById("ctType").value = "installation";
-  onCtTypeChange();
   loadIssueTypes();
   // Reset description fields
   document.getElementById("ctDescTextarea").value = "";
@@ -1838,7 +1834,29 @@ async function submitCreateTicket() {
     }
     msg.style.color = "var(--tertiary)"; msg.textContent = "Ticket created!";
     btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
-    setTimeout(() => { closeCreateTicketPopup(); loadAll(); }, 800);
+    // Build local ticket from form data
+    const firstName = document.getElementById("ctFirstName").value.trim();
+    const middleName = document.getElementById("ctMiddleName").value.trim();
+    const lastName = document.getElementById("ctLastName").value.trim();
+    const localName = [firstName, middleName, lastName].filter(Boolean).join(" ");
+    const localAddr = [addr1, addr2, area, city, state && pincode ? state + " - " + pincode : (state || pincode)].filter(Boolean).join(", ");
+    const localTicket = {
+      id: data.id, type, status: "open",
+      linked_delivery_id: document.getElementById("ctLinkedDeliveryId").value || null,
+      customer_name: localName, phone, alternate_phone: document.getElementById("ctAltPhone").value.trim(),
+      address: localAddr, product_name: productName, serial_number: document.getElementById("ctSerial").value.trim(),
+      description: desc, priority,
+      created_by: serviceName, created_by_name: serviceName, created_by_role: "service",
+      created_at: { seconds: Math.floor(Date.now() / 1000) },
+      resolved_at: null, warranty_expiry: null, purchase_date: null,
+      is_auto_created: false, brand_tracking_number: null, brand_request_status: null,
+      notes: null
+    };
+    allTickets.push(localTicket);
+    _searchCache.clear();
+    closeCreateTicketPopup();
+    renderTickets();
+    updateStats();
   } catch(e) {
     msg.style.color = "var(--error)"; msg.textContent = "Network error.";
     btn.disabled = false;
@@ -1848,6 +1866,8 @@ async function submitCreateTicket() {
 
 /* ── GLOBAL SEARCH ── */
 let searchTimer = null;
+const _searchCache = new Map();
+const _searchCacheTTL = 60000;
 function onGlobalSearch(val) {
   clearTimeout(searchTimer);
   const q = val.trim();
@@ -1857,41 +1877,31 @@ function onGlobalSearch(val) {
 
 async function runSearch(q) {
   const panel = document.getElementById("searchResultsPanel");
+  const cached = _searchCache.get(q);
+  if (cached && Date.now() - cached.ts < _searchCacheTTL) {
+    panel.style.display = "block";
+    renderSearchResults(cached.tickets);
+    return;
+  }
   panel.style.display = "block";
   try {
     const res  = await authFetch(`${BASE_URL}/service/search?q=${encodeURIComponent(q)}`);
     const data = await res.json();
-    renderSearchResults(data.deliveries || [], data.tickets || []);
+    const tickets = data.tickets || [];
+    _searchCache.set(q, { ts: Date.now(), tickets });
+    renderSearchResults(tickets);
   } catch (e) {
     panel.style.display = "none";
   }
 }
 
-function renderSearchResults(deliveries, tickets) {
-  const dSec = document.getElementById("srDeliveriesSection");
+function renderSearchResults(tickets) {
   const tSec = document.getElementById("srTicketsSection");
-  const dEl  = document.getElementById("srDeliveries");
   const tEl  = document.getElementById("srTickets");
 
-  dSec.style.display = deliveries.length ? "" : "none";
-  tSec.style.display = tickets.length    ? "" : "none";
+  tSec.style.display = tickets.length ? "" : "none";
 
-  dEl.innerHTML = deliveries.slice(0,8).map(d => {
-    const warranty = getWarrantyHtml(d);
-    return `
-    <div class="search-result-row" onclick="prefillFromDelivery('${d.id}')">
-      <div>
-        <div class="srr-name">${esc(d.customer_name)||"—"}</div>
-        <div class="srr-product">${esc(d.product_name)||"—"} · ${esc(d.phone)||"—"}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        ${warranty}
-        <span class="srr-action">+ Ticket</span>
-      </div>
-    </div>`;
-  }).join("");
-
-  tEl.innerHTML = tickets.slice(0,5).map(t => `
+  tEl.innerHTML = tickets.slice(0,30).map(t => `
     <div class="search-result-row" onclick="openTicketDetail('${t.id}')">
       <div>
         <div class="srr-name">${esc(t.customer_name)||"—"}</div>
@@ -1932,8 +1942,7 @@ async function prefillFromDelivery(deliveryId) {
 function clearSearch() {
   document.getElementById("globalSearch").value = "";
   document.getElementById("searchResultsPanel").style.display = "none";
-  document.getElementById("srDeliveries").innerHTML = "";
-  document.getElementById("srTickets").innerHTML    = "";
+  document.getElementById("srTickets").innerHTML = "";
 }
 
 /* ── ENTER KEY on login ── */
@@ -2026,7 +2035,11 @@ async function submitEditTicket(id) {
     });
     if (!res.ok) { const d = await res.json(); msg.style.color="var(--error)"; msg.textContent=d.error||"Failed."; return; }
     showToast("✅ Ticket updated");
-    await loadTickets();
+    const t = allTickets.find(x => x.id === id);
+    if (t) Object.assign(t, updates);
+    _searchCache.clear();
+    renderTickets();
+    updateStats();
     openTicketDetail(id);
   } catch(e) { msg.style.color="var(--error)"; msg.textContent="Network error."; }
 }
@@ -2069,8 +2082,11 @@ async function executeDeleteTicket(id) {
     });
     if (!res.ok) { const d = await res.json(); showToast("❌ " + (d.error || "Failed")); return; }
     showToast("🗑 Ticket deleted");
+    _searchCache.clear();
     closeTicketDetail();
-    await loadTickets();
+    allTickets = allTickets.filter(x => x.id !== id);
+    renderTickets();
+    updateStats();
   } catch(e) { showToast("❌ Network error"); }
 }
 

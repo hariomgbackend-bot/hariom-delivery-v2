@@ -58,7 +58,7 @@
       background: var(--bg);
       color: var(--on-surface);
       min-height: 100%;
-      padding-bottom: calc(100px + var(--safe-bottom));
+      padding-bottom: calc(24px + var(--safe-bottom));
       -webkit-font-smoothing: antialiased;
       -webkit-tap-highlight-color: transparent;
     }
@@ -403,31 +403,55 @@
     .lead-edit-input:focus { box-shadow: 0 0 0 2px var(--primary); }
 
     /* ── KINETIC BOTTOM NAV ── */
-    .kinetic-bottom-nav {
-      position: fixed; bottom: calc(20px + var(--safe-bottom)); left: 50%;
-      transform: translateX(-50%); width: 92%; max-width: 380px;
-      border-radius: 48px; z-index: 50;
-      background: rgba(45,52,73,0.60); backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px); box-shadow: 0 48px 48px rgba(0,0,0,0.12);
+    .back-home-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: none; border: none; padding: 8px 0 4px;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+      color: var(--primary); cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
     }
-    .kinetic-bottom-nav-inner {
-      display: flex; justify-content: space-around; align-items: center;
-      height: 72px; padding: 0 12px;
+    .back-home-btn .material-symbols-outlined { font-size: 18px; }
+    .page-title {
+      font-size: 20px; font-weight: 900; letter-spacing: -0.4px;
+      color: var(--on-surface); margin: 4px 0 16px;
     }
-    .kinetic-nav-btn {
+
+    /* ── HOME SCREEN CARDS ── */
+    .home-greeting {
+      font-size: 24px; font-weight: 900; letter-spacing: -0.5px;
+      color: var(--on-surface); margin-bottom: 2px;
+    }
+    .home-greeting span { color: var(--primary); }
+    .home-date {
+      font-size: 13px; font-weight: 500; color: var(--on-surface-variant);
+      margin-bottom: 24px;
+    }
+    .home-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    .home-card {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 3px; width: 80px; height: 56px; background: none; border: none;
-      cursor: pointer; border-radius: 18px; color: rgba(218,226,253,0.5);
-      transition: color 0.2s, background 0.2s, transform 0.1s;
-      -webkit-tap-highlight-color: transparent; font-family: 'Inter', sans-serif;
+      gap: 6px; padding: 22px 10px 18px;
+      background: var(--surface-container-low); border-radius: 20px;
+      cursor: pointer; transition: transform 0.12s, background 0.15s, box-shadow 0.15s;
+      -webkit-tap-highlight-color: transparent; position: relative;
+      border: 1px solid var(--border);
     }
-    .kinetic-nav-btn:active { transform: scale(0.9); }
-    .kinetic-nav-btn.active {
-      background: linear-gradient(135deg, var(--primary-container), var(--primary));
-      color: var(--on-primary-container);
+    .home-card:active { transform: scale(0.95); background: var(--surface-container); }
+    .home-card-icon {
+      width: 50px; height: 50px; border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin-bottom: 2px;
     }
-    .kinetic-nav-btn .nav-label { font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
-    .kinetic-nav-btn .material-symbols-outlined { font-size: 22px; }
+    .home-card-label {
+      font-size: 13px; font-weight: 700; color: var(--on-surface); text-align: center;
+      line-height: 1.2;
+    }
+    .home-card-count {
+      font-size: 12px; font-weight: 600; color: var(--primary); text-align: center;
+      min-height: 18px; line-height: 1.2;
+    }
+    .home-card-count.muted { color: var(--outline); }
 
     /* ── LIGHT MODE ── */
     [data-theme="light"] {
@@ -460,8 +484,7 @@
     [data-theme="light"] .login-row select,
     [data-theme="light"] .login-row input { background: var(--surface-container-high); color: #1a2540; }
     [data-theme="light"] #toast { background: #1e293b; color: white; }
-    [data-theme="light"] .kinetic-bottom-nav { background: rgba(255,255,255,0.80); }
-    [data-theme="light"] .kinetic-nav-btn { color: rgba(26,37,64,0.4); }
+
     [data-theme="light"] .card-name  { color: #1a2540; }
     [data-theme="light"] .card-product { color: #64748b; }
     [data-theme="light"] .card-address { color: #64748b; }
@@ -560,6 +583,30 @@
       border: none; border-radius: 7px; padding: 6px 9px;
       font-size: 16px; cursor: pointer; flex-shrink: 0; line-height: 1;
     }
+
+    /* ── RECENT TICKET CARDS ── */
+    .rt-card {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface-container-low); border-radius: 12px;
+      padding: 10px 12px; margin-bottom: 6px;
+      border: 1px solid var(--border); cursor: default;
+    }
+    .rt-card-icon {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+      background: rgba(255,180,171,0.12);
+    }
+    .rt-card-body { flex: 1; min-width: 0; }
+    .rt-card-name { font-size: 14px; font-weight: 600; color: var(--on-surface); }
+    .rt-card-meta { font-size: 12px; color: var(--on-surface-variant); margin-top: 1px; }
+    .rt-card-meta span { white-space: nowrap; }
+    .rt-badge {
+      font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+      flex-shrink: 0;
+    }
+    .rt-badge-new { background: #e8f5e9; color: #2e7d32; }
+    .rt-badge-logged { background: #f5f5f5; color: #757575; }
 
     /* ── PRICE GUIDE CARDS ── */
     .pg-card {
@@ -708,7 +755,10 @@
       <div class="header-sub" id="headerSub">Staff Panel</div>
     </div>
   </div>
-  <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle theme">☀️</button>
+  <div style="display:flex;gap:6px;">
+    <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle theme">☀️</button>
+    <button class="dark-toggle" onclick="doLogout()" title="Logout" style="font-size:13px;padding:6px 8px;">🚪</button>
+  </div>
 </div>
 
 <div class="container" id="mainContainer">
@@ -752,23 +802,154 @@
       <button class="btn-install-dismiss" onclick="dismissInstall()">✕</button>
     </div>
 
-    <!-- TAB: DELIVERIES -->
-    <div id="tabDeliveries">
-      <div class="section-header">
-        <div class="section-title-text">Deliveries</div>
-        <span class="count-badge" id="delivBadge">—</span>
+    <!-- TAB: HOME -->
+    <div id="tabHome">
+      <div class="home-greeting" id="homeGreeting">Good morning, <span id="homeName"></span></div>
+      <div class="home-date" id="homeDate"></div>
+      <div class="home-grid">
+        <div class="home-card" onclick="switchTab('deliveries')">
+          <div class="home-card-icon" style="background:rgba(77,142,255,0.12);">📦</div>
+          <div class="home-card-label">Deliveries</div>
+          <div class="home-card-count" id="hcDeliveries">—</div>
+        </div>
+        <div class="home-card" onclick="switchTab('leads')">
+          <div class="home-card-icon" style="background:rgba(78,222,163,0.12);">📋</div>
+          <div class="home-card-label">Leads / Sales</div>
+          <div class="home-card-count" id="hcLeads">—</div>
+        </div>
+        <div class="home-card" onclick="switchTab('prices')">
+          <div class="home-card-icon" style="background:rgba(255,179,0,0.12);">💰</div>
+          <div class="home-card-label">Price Guide</div>
+          <div class="home-card-count" id="hcPrices">—</div>
+        </div>
+        <div class="home-card" onclick="switchTab('calendar')">
+          <div class="home-card-icon" style="background:rgba(173,198,255,0.12);">📅</div>
+          <div class="home-card-label">Calendar</div>
+          <div class="home-card-count" id="hcCalendar">—</div>
+        </div>
+        <div class="home-card" onclick="switchTab('slabs')">
+          <div class="home-card-icon" style="background:rgba(255,179,0,0.12);">🏆</div>
+          <div class="home-card-label">Incentive Slabs</div>
+          <div class="home-card-count" id="hcSlabs">—</div>
+        </div>
+        <div class="home-card" onclick="switchTab('raiseTicket')">
+          <div class="home-card-icon" style="background:rgba(255,180,171,0.12);">🔧</div>
+          <div class="home-card-label">Raise Ticket</div>
+          <div class="home-card-count muted" id="hcRaiseTicket">by phone</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: RAISE TICKET -->
+    <div id="tabRaiseTicket" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home');clearPhoneSearch()">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">🔧 Raise Service Ticket</div>
+
+      <div class="search-wrap" style="margin-bottom:12px;">
+        <input class="search-input" id="ptPhone" placeholder="Enter phone number to find customer…" maxlength="10" inputmode="numeric" style="padding-left:16px;" oninput="onPhoneTicketSearch(this.value)">
       </div>
 
+      <!-- Recently raised tickets (24h) -->
+      <div id="ptRecent" style="display:none;">
+        <div style="font-size:13px;font-weight:600;color:var(--on-surface-variant);margin:6px 0 8px;padding:0 2px;">📋 Recently raised</div>
+        <div id="ptRecentList"></div>
+      </div>
+
+      <!-- Match prompt -->
+      <div id="ptMatch" style="display:none;padding:4px 0 12px;animation:rcSlide 0.2s ease;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:500;color:var(--on-surface);">Is this <strong id="ptMatchName"></strong>?</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-primary" style="padding:5px 18px;font-size:12px;" onclick="confirmPhoneMatch()">Yes</button>
+            <button class="btn btn-gray" style="padding:5px 18px;font-size:12px;" onclick="nextPhoneMatch()">No</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- No match -->
+      <div id="ptNoMatch" style="display:none;padding:4px 0 12px;">
+        <p style="font-size:13px;color:var(--on-surface-variant);margin-bottom:10px;">No matching customer found for this number.</p>
+        <button class="btn btn-primary" style="padding:8px 20px;font-size:13px;" onclick="createNewTicket()">➕ Create New Ticket</button>
+      </div>
+
+      <!-- Create Service Ticket form -->
+      <div id="ptForm" style="display:none;">
+        <div class="form-card" style="padding:16px 14px;">
+          <label class="form-label">Type *</label>
+          <select class="form-select" id="ptType" style="margin-bottom:12px;" onchange="onPtTypeChange()">
+            <option value="complaint" selected>Complaint</option>
+            <option value="installation">Demo-Installation</option>
+          </select>
+
+          <label class="form-label">Customer Name *</label>
+          <input class="form-input" id="ptName" placeholder="Full name" style="margin-bottom:8px;">
+
+          <div class="form-row" style="margin-bottom:8px;">
+            <input class="form-input" id="ptPhoneDisplay" placeholder="Phone *" maxlength="10" inputmode="numeric" style="margin-bottom:0;flex:1;">
+            <input class="form-input" id="ptAltPhone" placeholder="Alt Phone" maxlength="10" inputmode="numeric" style="margin-bottom:0;flex:1;">
+          </div>
+
+          <label class="form-label">Pincode *</label>
+          <input class="form-input" id="ptPincode" placeholder="6-digit pincode" maxlength="6" inputmode="numeric" value="412105" oninput="onPtPincodeInput(this)" style="margin-bottom:8px;">
+
+          <div class="form-row" style="margin-bottom:8px;">
+            <input class="form-input" id="ptState" readonly placeholder="State" style="margin-bottom:0;flex:1;background:var(--surface-container);">
+            <input class="form-input" id="ptDistrict" readonly placeholder="District" style="margin-bottom:0;flex:1;background:var(--surface-container);">
+          </div>
+
+          <div class="form-row" style="margin-bottom:8px;">
+            <input class="form-input" id="ptTaluka" readonly placeholder="Taluka" style="margin-bottom:0;flex:1;background:var(--surface-container);">
+            <select class="form-select" id="ptArea" style="margin-bottom:0;flex:1;">
+              <option value="">Select area…</option>
+            </select>
+          </div>
+
+          <input class="form-input" id="ptAddr1" placeholder="Address Line 1 * (House no, street)" style="margin-bottom:8px;">
+
+          <input class="form-input" id="ptLandmark" placeholder="Landmark (optional)" style="margin-bottom:8px;">
+
+          <div class="form-row" style="margin-bottom:8px;">
+            <div class="prod-search-wrap" style="flex:1;">
+              <input class="form-input" id="ptProduct" placeholder="Search product…" autocomplete="off" style="margin-bottom:0;" oninput="onPtProductSearch(this)" onfocus="onPtProductSearch(this)">
+              <div class="prod-dropdown" id="ptProductDrop" style="display:none;"></div>
+            </div>
+            <input class="form-input" id="ptSerial" placeholder="Serial No. (optional)" style="margin-bottom:0;flex:0.6;font-family:'JetBrains Mono',monospace;font-size:13px;">
+          </div>
+
+          <label class="form-label">Description *</label>
+          <textarea class="form-input" id="ptDesc" placeholder="Describe the issue…" style="min-height:80px;margin-bottom:8px;"></textarea>
+
+          <div id="ptFormMsg" style="font-size:12px;font-weight:600;min-height:18px;margin-bottom:6px;text-align:center;"></div>
+          <div class="form-row">
+            <button class="btn-full btn-full-primary" style="flex:1;padding:12px;font-size:14px;" onclick="submitPhoneTicket()">Submit Ticket</button>
+            <button class="btn btn-gray" style="padding:0 20px;" onclick="clearPhoneSearch()">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: DELIVERIES -->
+    <div id="tabDeliveries">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">📦 Deliveries</div>
+      <span class="count-badge" id="delivBadge" style="display:none;">0</span>
       <div class="search-wrap">
         <span class="material-symbols-outlined search-icon">search</span>
         <input class="search-input" id="delivSearch" placeholder="Search name or phone…" oninput="filterDeliveries()">
       </div>
-
       <div id="deliveriesList"></div>
     </div>
 
     <!-- TAB: LEADS -->
     <div id="tabLeads" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">📋 Leads / Sales</div>
 
       <!-- Add New Lead toggle button -->
       <button onclick="toggleLeadForm()" id="addLeadToggleBtn"
@@ -867,10 +1048,11 @@
 
     <!-- TAB: PRICE GUIDE -->
     <div id="tabPriceGuide" style="display:none;">
-      <div class="section-header">
-        <div class="section-title-text">Price Guide</div>
-        <span class="count-badge" id="pgBadge">—</span>
-      </div>
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">💰 Price Guide</div>
+      <span class="count-badge" id="pgBadge" style="display:none;">0</span>
       <div class="search-wrap">
         <span class="material-symbols-outlined search-icon">search</span>
         <input class="search-input" id="pgSearch" placeholder="Search product…" oninput="stPgFilter()">
@@ -882,15 +1064,20 @@
 
     <!-- TAB: SLABS INFO -->
     <div id="tabSlabs" style="display:none;">
-      <div class="section-header">
-        <div class="section-title-text">Incentive Slabs</div>
-        <span class="count-badge" id="stSlBadge">—</span>
-      </div>
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">🏆 Incentive Slabs</div>
+      <span class="count-badge" id="stSlBadge" style="display:none;">0</span>
       <div id="stSlList"></div>
     </div>
 
     <!-- TAB: CALENDAR -->
     <div id="tabCalendar" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">📅 Calendar</div>
       <div class="cal-nav">
         <button class="cal-nav-btn" onclick="calendarPrevMonth()">‹</button>
         <span class="cal-nav-title" id="calTitle">June 2026</span>
@@ -990,34 +1177,7 @@
   </div>
 </div>
 
-<!-- ══ BOTTOM NAV ══ -->
-<nav class="kinetic-bottom-nav" id="bottomNav" style="display:none;">
-  <div class="kinetic-bottom-nav-inner">
-    <button class="kinetic-nav-btn active" id="nav-deliveries" onclick="switchTab('deliveries')">
-      <span class="material-symbols-outlined">local_shipping</span>
-      <span class="nav-label">Deliveries</span>
-    </button>
-    <button class="kinetic-nav-btn" id="nav-leads" onclick="switchTab('leads')">
-      <span class="material-symbols-outlined">contacts</span>
-      <span class="nav-label">Leads/Sales</span>
-    </button>
-    <button class="kinetic-nav-btn" id="nav-prices" onclick="switchTab('prices')">
-      <span class="material-symbols-outlined">sell</span>
-      <span class="nav-label">Prices</span>
-    </button>
-    <button class="kinetic-nav-btn" id="nav-calendar" onclick="switchTab('calendar')">
-      <span class="material-symbols-outlined">calendar_month</span>
-      <span class="nav-label">Calendar</span>
-    </button>
-    <button class="kinetic-nav-btn" id="nav-slabs" onclick="switchTab('slabs')">
-      <span class="material-symbols-outlined">layers</span>
-      <span class="nav-label">Slabs</span>
-    </button>
-    <button class="kinetic-nav-btn" id="nav-logout" onclick="doLogout()" style="width:56px;">
-      <span class="material-symbols-outlined" style="font-size:20px;">logout</span>
-    </button>
-  </div>
-</nav>
+
 
 <script>
 /* ════════════════════════════════════════════════
@@ -1233,14 +1393,15 @@ async function doLogin() {
 function showMainPanel() {
   document.getElementById("loginSection").style.display  = "none";
   document.getElementById("mainPanel").style.display     = "";
-  document.getElementById("bottomNav").style.display     = "";
   document.getElementById("headerSub").textContent       = staffName;
+  writeHomeGreeting();
   loadDeliveries();
   loadLeads();
   loadTallyProducts();
   stPgLoadData();
   loadCalendarEvents();
   loadCalStaff();
+  switchTab("home");
   // Don't pre-fill product row — form is collapsed until user opens it
   // Phone listeners
   const lPhoneEl = document.getElementById("lPhone");
@@ -1258,6 +1419,24 @@ function showMainPanel() {
 // Auto-refresh calendar data every 60s so admin color/event edits show up
 setInterval(() => { loadCalendarEvents(); loadCalStaff(); }, 60_000);
 
+/* ── Home screen helpers ── */
+function writeHomeGreeting() {
+  const h = new Date().getHours();
+  const g = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  document.getElementById("homeGreeting").innerHTML = g + ", <span>" + esc(staffName) + "</span>";
+  document.getElementById("homeDate").textContent =
+    new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function updateHomeCounts() {
+  const delivCount = allDeliveries.filter(d => ["delivered","loaded","pending","failed"].includes(d.status)).length;
+  document.getElementById("hcDeliveries").textContent = delivCount || "—";
+  document.getElementById("hcLeads").textContent = allLeads.length || "—";
+  document.getElementById("hcPrices").textContent = priceGuideData.length || "—";
+  document.getElementById("hcCalendar").textContent = calendarEvents.length || "—";
+  document.getElementById("hcSlabs").textContent = Object.keys(stPgSlabMap).length || "—";
+}
+
 function doLogout() {
   staffToken = null; staffId = null; staffName = ""; staffWeeklyOff = ""; staffColor = "";
   allDeliveries = []; allLeads = []; staffPerms = {};
@@ -1268,7 +1447,6 @@ function doLogout() {
   localStorage.removeItem("staffColor");
   document.getElementById("loginSection").style.display  = "";
   document.getElementById("mainPanel").style.display     = "none";
-  document.getElementById("bottomNav").style.display     = "none";
   document.getElementById("headerSub").textContent       = "Staff Panel";
   document.getElementById("loginMsg").textContent        = "";
   document.getElementById("pinInput").value              = "";
@@ -1278,14 +1456,13 @@ function doLogout() {
 /* ── TAB SWITCH ── */
 function switchTab(tab) {
   currentTab = tab;
-  document.getElementById("tabDeliveries").style.display  = tab === "deliveries" ? "" : "none";
-  document.getElementById("tabLeads").style.display       = tab === "leads"      ? "" : "none";
-  document.getElementById("tabPriceGuide").style.display  = tab === "prices"    ? "" : "none";
-  document.getElementById("tabCalendar").style.display    = tab === "calendar"  ? "" : "none";
-  document.getElementById("tabSlabs").style.display       = tab === "slabs"     ? "" : "none";
-  ["deliveries", "leads", "prices", "calendar", "slabs"].forEach(t => {
-    document.getElementById("nav-" + t)?.classList.toggle("active", t === tab);
+  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", slabs:"tabSlabs" };
+  Object.keys(idMap).forEach(k => {
+    const el = document.getElementById(idMap[k]);
+    if (el) el.style.display = k === tab ? "" : "none";
   });
+  if (tab === "home") updateHomeCounts();
+  if (tab === "raiseTicket") clearPhoneSearch();
   if (tab === "calendar") renderCalendar();
   if (tab === "prices") stPgRender(priceGuideData);
   if (tab === "slabs") stSlLoadData();
@@ -1302,26 +1479,17 @@ async function loadDeliveries() {
     const res  = await authFetch(`${BASE_URL}/deliveries`);
     const data = await res.json();
     allDeliveries = data;
-    renderDeliveries(getRecentDeliveries(data)); // show recent only on load
+    renderDeliveries(data);
+    updateHomeCounts();
   } catch (e) {
     list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load</p><small>${e.message}</small><button onclick="loadDeliveries()" style="margin-top:12px;padding:10px 24px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Retry</button></div>`;
   }
 }
 
-// Returns last 7 days — staff only see this week's deliveries
-function getRecentDeliveries(data) {
-  const cutoff7d = Date.now() - 7 * 24 * 3600 * 1000;
-  return data.filter(d => {
-    const ts = d.created_timestamp?.seconds;
-    return ts && ts * 1000 >= cutoff7d;
-  });
-}
-
 function filterDeliveries() {
   const q = document.getElementById("delivSearch").value.toLowerCase().trim();
   if (!q) {
-    // Back to recent-only view when search is cleared
-    renderDeliveries(getRecentDeliveries(allDeliveries));
+    renderDeliveries(allDeliveries);
     return;
   }
   // Search full dataset — no limit
@@ -1338,16 +1506,10 @@ function renderDeliveries(data) {
   const list = document.getElementById("deliveriesList");
   // Show delivered and loaded only — no pending (staff don't manage dispatch)
   const shown = data.filter(d => ["delivered","loaded","pending","failed"].includes(d.status));
-  const q         = document.getElementById("delivSearch").value.trim();
+  const q     = document.getElementById("delivSearch").value.trim();
   const totalAll  = allDeliveries.filter(d => ["delivered","loaded","pending","failed"].includes(d.status)).length;
-  const isFiltered = q.length > 0;
-  const isRecent   = !isFiltered && shown.length < totalAll;
 
-  // Badge: show "10 of 247" when in recent mode
-  document.getElementById("delivBadge").textContent =
-    isFiltered ? shown.length :
-    isRecent   ? `${shown.length} of ${totalAll}` :
-    shown.length;
+  document.getElementById("delivBadge").textContent = q.length > 0 ? shown.length : shown.length;
 
   if (!shown.length) {
     list.innerHTML = `<div class="empty-state"><div class="icon">📦</div><p>No deliveries found</p><small>Try a different search</small></div>`;
@@ -1376,18 +1538,6 @@ function renderDeliveries(data) {
     </div>`;
   }).join("");
 
-  // Show "search for older" hint only in recent mode
-  if (!q && shown.length < totalAll) {
-    list.innerHTML += `
-      <div style="text-align:center;padding:16px 12px 6px;font-size:12px;
-        color:var(--outline);font-weight:500;letter-spacing:0.2px;">
-        Showing last 7 days · 
-        <span style="color:var(--primary);cursor:pointer;font-weight:700;"
-          onclick="document.getElementById('delivSearch').focus()">
-          Search to find older deliveries ↑
-        </span>
-      </div>`;
-  }
 }
 
 /* Warranty badge helper */
@@ -1506,6 +1656,7 @@ async function raiseTicket(delivId, type) {
         linked_delivery_id: delivId,
         customer_name:  d.customer_name,
         phone:          d.phone,
+        alternate_phone: d.alternate_phone || "",
         address:        d.address,
         product_name:   d.product_name,
         serial_number:  d.product_serial_number,
@@ -1521,8 +1672,314 @@ async function raiseTicket(delivId, type) {
   }
 }
 
+/* ── Raise Ticket by Phone ── */
+let _ptMatches = [];
+let _ptMatchIdx = 0;
+let _ptConfirmedMatch = null;
+let _ptTimer = null;
+
+function onPhoneTicketSearch(val) {
+  val = val.replace(/\D/g, "");
+  const input = document.getElementById("ptPhone");
+  if (!input) return;
+  input.value = val;
+  clearTimeout(_ptTimer);
+  _ptMatches = []; _ptMatchIdx = 0;
+  const e = id => document.getElementById(id);
+  if (e("ptMatch")) e("ptMatch").style.display = "none";
+  if (e("ptNoMatch")) e("ptNoMatch").style.display = "none";
+  if (e("ptForm")) e("ptForm").style.display = "none";
+  if (e("ptFormMsg")) e("ptFormMsg").textContent = "";
+  if (val.length < 3) { loadRecentTickets(); return; }
+  if (e("ptRecent")) e("ptRecent").style.display = "none";
+  _ptTimer = setTimeout(() => doPhoneSearch(val), 400);
+}
+
+async function doPhoneSearch(q) {
+  let matches = [];
+
+  allDeliveries.forEach(d => {
+    if (d.phone === q || d.alternate_phone === q) {
+      matches.push({ source: "delivery", data: d, name: d.customer_name, phone: d.phone, altPhone: d.alternate_phone || "", address: d.address, product: d.product_name, serial: d.product_serial_number, linkedDeliveryId: d.id });
+    }
+  });
+
+  try {
+    const res = await authFetch(`${BASE_URL}/service/search?q=${encodeURIComponent(q)}`);
+    if (res.ok) {
+      const result = await res.json();
+      (result.tickets || []).forEach(t => {
+        if (t.phone !== q && t.alternate_phone !== q) return;
+        const matchPhone = t.phone || "";
+        if (!matches.some(m => m.phone === matchPhone)) {
+          matches.push({ source: "ticket", data: t, name: t.customer_name, phone: t.phone, altPhone: t.alternate_phone || "", address: t.address, product: t.product_name, serial: t.brand_tracking_number || "" });
+        }
+      });
+    }
+  } catch(e) {}
+
+  if (matches.length === 0) {
+    document.getElementById("ptMatch").style.display = "none";
+    document.getElementById("ptNoMatch").style.display = "";
+    document.getElementById("ptForm").style.display = "none";
+    _ptMatches = []; _ptMatchIdx = 0;
+    return;
+  }
+
+  _ptMatches = matches;
+  _ptMatchIdx = 0;
+  showPtMatch();
+}
+
+function showPtMatch() {
+  const m = _ptMatches[_ptMatchIdx];
+  document.getElementById("ptMatchName").textContent = m.name || "—";
+  document.getElementById("ptMatch").style.display = "";
+  document.getElementById("ptNoMatch").style.display = "none";
+  document.getElementById("ptForm").style.display = "none";
+}
+
+function confirmPhoneMatch() {
+  const m = _ptMatches[_ptMatchIdx];
+  if (!m) return;
+  _ptConfirmedMatch = m;
+
+  document.getElementById("ptName").value = toTitleCase(m.name || "");
+  document.getElementById("ptPhoneDisplay").value = m.phone || "";
+  document.getElementById("ptAltPhone").value = m.altPhone || "";
+  document.getElementById("ptAddr1").value = m.address || "";
+  document.getElementById("ptProduct").value = m.product || "";
+  document.getElementById("ptSerial").value = m.serial || "";
+
+  document.getElementById("ptMatch").style.display = "none";
+  document.getElementById("ptNoMatch").style.display = "none";
+  document.getElementById("ptForm").style.display = "";
+
+  document.getElementById("ptType").value = "complaint";
+  document.getElementById("ptDesc").value = "";
+  document.getElementById("ptFormMsg").textContent = "";
+  // Trigger pincode API for default pincode
+  setTimeout(() => { const e = document.getElementById("ptPincode"); if (e) onPtPincodeInput(e); }, 50);
+}
+
+function nextPhoneMatch() {
+  _ptMatchIdx++;
+  if (_ptMatchIdx >= _ptMatches.length) {
+    document.getElementById("ptMatch").style.display = "none";
+    document.getElementById("ptNoMatch").style.display = "";
+    document.getElementById("ptForm").style.display = "none";
+    _ptMatches = []; _ptMatchIdx = 0;
+    return;
+  }
+  showPtMatch();
+}
+
+function clearPhoneSearch() {
+  const el = id => document.getElementById(id);
+  if (el("ptPhone")) el("ptPhone").value = "";
+  if (el("ptMatch")) el("ptMatch").style.display = "none";
+  if (el("ptNoMatch")) el("ptNoMatch").style.display = "none";
+  if (el("ptForm")) el("ptForm").style.display = "none";
+  if (el("ptFormMsg")) el("ptFormMsg").textContent = "";
+  _ptMatches = []; _ptMatchIdx = 0; _ptConfirmedMatch = null;
+  loadRecentTickets();
+}
+
+function onPtTypeChange() {}
+
+function onPtPincodeInput(el) {
+  el.value = el.value.replace(/\D/g, "").slice(0, 6);
+  const pin = el.value;
+  document.getElementById("ptState").value = "";
+  document.getElementById("ptDistrict").value = "";
+  document.getElementById("ptTaluka").value = "";
+  document.getElementById("ptArea").innerHTML = '<option value="">Select area…</option>';
+  if (pin.length !== 6) return;
+  fetch(`https://api.postalpincode.in/pincode/${pin}`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data || data[0]?.Status !== "Success") return;
+      const offices = data[0].PostOffice || [];
+      if (!offices.length) return;
+      document.getElementById("ptState").value = offices[0].State || "";
+      document.getElementById("ptDistrict").value = offices[0].District || "";
+      document.getElementById("ptTaluka").value = offices[0].Taluk || offices[0].Block || "";
+      const areas = [...new Set(offices.map(o => o.Name))];
+      const sel = document.getElementById("ptArea");
+      sel.innerHTML = '<option value="">Select area…</option>' + areas.map(a => `<option value="${a}">${a}</option>`).join("");
+    })
+    .catch(() => {});
+}
+
+function onPtProductSearch(input) {
+  const q = input.value.trim().toLowerCase();
+  const drop = document.getElementById("ptProductDrop");
+  if (!q) { drop.style.display = "none"; return; }
+  const filtered = tallyNames.filter(n => n.toLowerCase().includes(q)).slice(0, 10);
+  if (!filtered.length) { drop.style.display = "none"; return; }
+  drop.innerHTML = filtered.map(n =>
+    `<div class="prod-dropdown-item" data-action="ptselect" data-name="${n.replace(/"/g,'&quot;')}">${esc(n)}</div>`
+  ).join("");
+  drop.style.display = "block";
+}
+
+/* ── Recent tickets (24h) ── */
+function saveRecentTicket(ticket) {
+  const DAY_MS = 86400000;
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem("recentTickets") || "[]"); } catch(_) {}
+  // Remove >24h entries
+  const cutoff = Date.now() - DAY_MS;
+  list = list.filter(t => t.created_at > cutoff);
+  // Add new ticket to front
+  list.unshift({ ...ticket, created_at: Date.now() });
+  // Cap at 20
+  if (list.length > 20) list = list.slice(0, 20);
+  localStorage.setItem("recentTickets", JSON.stringify(list));
+}
+
+async function loadRecentTickets() {
+  const DAY_MS = 86400000;
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem("recentTickets") || "[]"); } catch(_) {}
+  const cutoff = Date.now() - DAY_MS;
+  list = list.filter(t => t.created_at > cutoff);
+  if (!list.length) {
+    document.getElementById("ptRecent").style.display = "none";
+    return;
+  }
+  // Fetch live statuses
+  try {
+    const ids = list.map(t => t.id).filter(Boolean).join(",");
+    if (ids) {
+      const res = await authFetch(`${BASE_URL}/api/ticket-status?ids=${encodeURIComponent(ids)}`);
+      if (res.ok) {
+        const statusMap = await res.json();
+        list.forEach(t => { if (statusMap[t.id]) t.status = statusMap[t.id]; });
+      }
+    }
+  } catch(_) {}
+  renderRecentTickets(list);
+}
+
+function renderRecentTickets(arr) {
+  const container = document.getElementById("ptRecentList");
+  const DAY_MS = 86400000;
+  container.innerHTML = arr.map(t => {
+    const isLogged = t.status === "logged";
+    const badgeCls = isLogged ? "rt-badge-logged" : "rt-badge-new";
+    const badgeTxt = isLogged ? "Logged" : "New";
+    const ago = timeAgo(t.created_at);
+    const icon = t.type === "installation" ? "🔧" : "⚠️";
+    return `<div class="rt-card">
+      <div class="rt-card-icon">${icon}</div>
+      <div class="rt-card-body">
+        <div class="rt-card-name">${esc(t.customer_name || "—")}</div>
+        <div class="rt-card-meta">${esc(t.phone || "")}${t.product ? " · " + esc(t.product) : ""} <span>· ${ago}</span></div>
+      </div>
+      <div class="rt-badge ${badgeCls}">${badgeTxt}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("ptRecent").style.display = "";
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  return Math.floor(hrs / 24) + "d ago";
+}
+
+function toTitleCase(s) {
+  return (s || "").replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function createNewTicket() {
+  const phone = document.getElementById("ptPhone").value;
+  document.getElementById("ptMatch").style.display = "none";
+  document.getElementById("ptNoMatch").style.display = "none";
+  document.getElementById("ptForm").style.display = "";
+  document.getElementById("ptPhoneDisplay").value = phone;
+  document.getElementById("ptType").value = "complaint";
+  document.getElementById("ptFormMsg").textContent = "";
+  _ptConfirmedMatch = null;
+  setTimeout(() => { const e = document.getElementById("ptPincode"); if (e) onPtPincodeInput(e); }, 50);
+}
+
+async function submitPhoneTicket() {
+  const msg = id => document.getElementById(id);
+  const val = id => msg(id)?.value?.trim() || "";
+
+  const name     = val("ptName");
+  const phone    = val("ptPhoneDisplay");
+  const altPhone = val("ptAltPhone");
+  const pincode  = val("ptPincode");
+  const state    = val("ptState");
+  const district = val("ptDistrict");
+  const taluka   = val("ptTaluka");
+  const area     = msg("ptArea")?.value || "";
+  const addr1    = val("ptAddr1");
+  const landmark = val("ptLandmark");
+  const product  = val("ptProduct");
+  const serial   = val("ptSerial");
+  const type     = msg("ptType")?.value || "complaint";
+  const desc     = val("ptDesc");
+  const linkedDeliveryId = _ptConfirmedMatch?.linkedDeliveryId || "";
+
+  const missing = [];
+  if (!name)     missing.push("Customer Name");
+  if (!phone)    missing.push("Phone");
+  if (!pincode || pincode.length !== 6) missing.push("Pincode");
+  if (!state)    missing.push("State");
+  if (!district) missing.push("District");
+  if (!area)     missing.push("Area");
+  if (!addr1)    missing.push("Address Line 1");
+  if (!product)  missing.push("Product");
+  if (!desc)     missing.push("Description");
+  if (missing.length) {
+    msg("ptFormMsg").textContent = "❌ Required: " + missing.join(", ");
+    return;
+  }
+
+  const address = [addr1, area, district + " " + taluka, state + " " + pincode, landmark].filter(Boolean).join(", ");
+
+  msg("ptFormMsg").textContent = "Submitting…";
+
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        linked_delivery_id: linkedDeliveryId,
+        customer_name: name,
+        phone,
+        alternate_phone: altPhone,
+        address,
+        product_name: product,
+        serial_number: serial,
+        description: desc
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      msg("ptFormMsg").textContent = "❌ " + (data.error || "Failed");
+      return;
+    }
+    showToast(`✅ ${type === "installation" ? "Installation" : "Complaint"} ticket raised!`);
+    saveRecentTicket({ id: data.id, customer_name: name, phone, product, type });
+    clearPhoneSearch();
+  } catch(e) {
+    msg("ptFormMsg").textContent = "❌ Network error";
+  }
+}
+
 /* WhatsApp share message */
 function buildWAMessage(d) {
+  const _d = s => (s || "—").replace(/&#x2F;/g, '/');
   const delivDate = d.delivered_timestamp?.seconds
     ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
     : "—";
@@ -1536,12 +1993,12 @@ function buildWAMessage(d) {
 
   return `🏪 Hariom Electronics
 ━━━━━━━━━━━━━━
-👤 Customer: ${d.customer_name || "—"}
-📞 Phone: ${d.phone || "—"}
-📞 Alternate : ${d.alternate_phone || "—"}
-📍 Address: ${d.address || "—"}
-📦 Product: ${d.product_name || "—"}
-🔑 Serial: ${d.product_serial_number || "—"}
+👤 Customer: ${_d(d.customer_name)}
+📞 Phone: ${_d(d.phone)}
+📞 Alternate : ${_d(d.alternate_phone)}
+📍 Address: ${_d(d.address)}
+📦 Product: ${_d(d.product_name)}
+🔑 Serial: ${_d(d.product_serial_number)}
 📅 Date : ${delivDate}
 🛡 Warranty till: ${expiryDate}
 ━━━━━━━━━━━━━━
@@ -1645,6 +2102,7 @@ document.addEventListener("click", e => {
     const name   = item.dataset.name;
     if (action === "select")  selectProd(idx, name);
     if (action === "addnew")  addNewProd(idx, name);
+    if (action === "ptselect") { document.getElementById("ptProduct").value = name; document.getElementById("ptProductDrop").style.display = "none"; return; }
     return;
   }
   // Close dropdowns on outside click
@@ -1686,6 +2144,7 @@ async function loadLeads() {
     const res = await authFetch(`${BASE_URL}/leads`);
     allLeads  = await res.json();
     filterAndRenderLeads();
+    updateHomeCounts();
   } catch(e) {
     document.getElementById("leadsList").innerHTML =
       `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load leads</p><button onclick="loadLeads()" style="margin-top:12px;padding:10px 24px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Retry</button></div>`;
@@ -2139,6 +2598,7 @@ async function stPgLoadData() {
     stPmMspGlobal = mspRes.ok ? (await mspRes.json()).mspGlobalEnabled : true;
     stPgCatList = catRes.ok ? await catRes.json() : [];
     stPgRender(priceGuideData);
+    updateHomeCounts();
   } catch(e) {
     list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load prices</p><button onclick="stPgLoadData()" style="margin-top:12px;padding:10px 24px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Retry</button></div>`;
   }
@@ -2263,6 +2723,7 @@ async function stSlLoadData() {
     const res = await authFetch(`${BASE_URL}/slabs`);
     const slabs = res.ok ? await res.json() : [];
     document.getElementById("stSlBadge").textContent = slabs.length;
+    updateHomeCounts();
     if (!slabs.length) {
       list.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No slabs defined yet</p></div>`;
       return;
@@ -2285,6 +2746,7 @@ async function loadCalendarEvents() {
   try {
     const res = await authFetch(`${BASE_URL}/calendar-events`);
     calendarEvents = await res.json();
+    updateHomeCounts();
     if (currentTab === "calendar") renderCalendar();
   } catch(e) { console.warn("Failed to load calendar events"); }
 }

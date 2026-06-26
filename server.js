@@ -22,6 +22,7 @@ import admin from "firebase-admin";
 import { createRequire } from "module";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
 
@@ -40,10 +41,8 @@ const PHONE_NUMBER_ID  = process.env.PHONE_NUMBER_ID;
 const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || "";
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }
-});
+const upload = multer({ storage: multer.memoryStorage() });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const app = express();
 app.set("trust proxy", 1); // Required on Render — sits behind a reverse proxy
@@ -3712,6 +3711,25 @@ app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]),
   }
 });
 
+// GET /api/ticket-status?ids=id1,id2,id3  — lightweight status check for recent tickets
+app.get("/api/ticket-status", authenticate, authorize(["admin", "staff", "service"]), async (req, res) => {
+  try {
+    const ids = (req.query.ids || "").split(",").map(s => s.trim()).filter(Boolean);
+    if (!ids.length) return res.json({});
+    const statuses = {};
+    const promises = ids.map(async id => {
+      try {
+        const snap = await getDoc(doc(db, "service_tickets", id));
+        if (snap.exists()) statuses[id] = snap.data().status || "unknown";
+      } catch (_) {}
+    });
+    await Promise.all(promises);
+    res.json(statuses);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 /* ════════════════════════════════════════════════
    LEGACY IMPORT ENDPOINTS — one-time use
@@ -3881,30 +3899,24 @@ app.get("/service/search", authenticate, authorize(["admin", "accountant", "serv
     const q = (req.query.q || "").toLowerCase().trim();
     if (!q || q.length < 3) return res.status(400).json({ error: "Query must be at least 3 characters" });
 
-    const [delivSnap, ticketSnap] = await Promise.all([
-      getDocs(collection(db, "deliveries")),
-      getDocs(collection(db, "service_tickets"))
-    ]);
+    const _norm = s => (s || "").toLowerCase().replace(/[.,\-/ ]+/g, "");
+    const qNorm = _norm(q);
 
-    const deliveries = delivSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(d =>
-        d.customer_name?.toLowerCase().includes(q) ||
-        d.phone?.includes(q) ||
-        d.alternate_phone?.includes(q)
-      )
-      .sort((a, b) => (b.delivered_timestamp?.seconds ?? b.created_timestamp?.seconds ?? 0) -
-                      (a.delivered_timestamp?.seconds ?? a.created_timestamp?.seconds ?? 0));
+    const ticketSnap = await getDocs(collection(db, "service_tickets"));
 
     const tickets = ticketSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(d =>
-        d.customer_name?.toLowerCase().includes(q) ||
-        d.phone?.includes(q)
+        _norm(d.customer_name).includes(qNorm) ||
+        _norm(d.phone).includes(qNorm) ||
+        _norm(d.alternate_phone).includes(qNorm) ||
+        _norm(d.product_name).includes(qNorm) ||
+        _norm(d.brand_tracking_number).includes(qNorm)
       )
-      .sort((a, b) => (b.created_at?.seconds ?? 0) - (a.created_at?.seconds ?? 0));
+      .sort((a, b) => (b.created_at?.seconds ?? 0) - (a.created_at?.seconds ?? 0))
+      .slice(0, 30);
 
-    res.json({ deliveries, tickets });
+    res.json({ tickets });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4128,6 +4140,89 @@ async function sendServicePush(title, body) {
     console.warn("sendServicePush error:", err.message);
   }
 }
+
+app.post("/api/extract-invoice", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const allowedTypes = ["application/pdf","image/jpeg","image/png","image/webp"];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ error: "Unsupported file type: " + req.file.mimetype });
+    }
+
+    console.log(`📄 Invoice received: ${req.file.originalname} (${req.file.mimetype}, ${req.file.size} bytes)`);
+
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      generationConfig: { responseMimeType: "application/json" },
+    });
+
+    const prompt = `You are an expert accounting assistant for an Indian electronics retailer.
+You are looking at a purchase invoice image or PDF. Extract all data and return ONLY a valid JSON object with this exact structure — no explanation, no markdown, no code fences:
+
+{
+  "invoiceDate": "YYYYMMDD",
+  "vendorName": "full supplier company name as printed on the invoice",
+  "invoiceNumber": "invoice or bill number",
+  "gstinSupplier": "supplier GSTIN (15 characters)",
+  "items": [
+    {
+      "description": "product name and model only — strip serial numbers, batch codes, and S/No values",
+      "qty": number,
+      "unitPrice": number,
+      "amount": number,
+      "hsn": "HSN code string"
+    }
+  ],
+  "taxSummary": [
+    {
+      "hsn": "string",
+      "cgstRate": number,
+      "cgstAmount": number,
+      "sgstRate": number,
+      "sgstAmount": number,
+      "igstRate": number,
+      "igstAmount": number
+    }
+  ],
+  "taxableAmount": number,
+  "totalTax": number,
+  "totalAmount": number
+}
+
+Rules you must follow:
+1. CRITICAL: If multiple rows have the same product description but different serial numbers, batch codes, or product S/No values, they are the SAME product. Merge them into ONE item: add their qty values, add their amount values, keep unitPrice the same.
+2. Do NOT include tax rows, freight charges, discount rows, or summary rows in items[].
+3. invoiceDate MUST be in YYYYMMDD format. Example: 16-05-2026 becomes 20260516.
+4. unitPrice is the price per unit BEFORE GST.
+5. amount = qty x unitPrice (taxable base value, no GST included).
+6. For intra-state: use cgstRate/cgstAmount and sgstRate/sgstAmount. Set igstRate and igstAmount to 0.
+7. For inter-state: use igstRate/igstAmount. Set cgstRate, cgstAmount, sgstRate, sgstAmount to 0.
+8. If any field cannot be found, use null.
+9. Return ONLY the JSON object. Nothing else.`;
+
+    console.log("🧠 Sending to Gemini Vision...");
+
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: req.file.mimetype,
+          data: req.file.buffer.toString("base64"),
+        },
+      },
+      { text: prompt },
+    ]);
+
+    const raw = result.response.text();
+    const extracted = JSON.parse(raw);
+
+    console.log(`✅ Gemini extracted ${extracted.items?.length ?? 0} items from invoice`);
+    res.json(extracted);
+
+  } catch (err) {
+    console.error("❌ Extraction error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Express async error handler
 app.use((err, req, res, next) => {
@@ -5539,6 +5634,29 @@ function startSelfPing() {
 /* ════════════════════════════════════════════════
    START
 ══════════════════════════════════════════════ */
+
+// ==========================================
+// TALLY PRIME PROXY ROUTE
+// Bypasses browser CORS for local XML posts
+// ==========================================
+app.post("/api/tally-proxy", express.text({ type: 'text/xml' }), async (req, res) => {
+  try {
+    const xmlPayload = req.body;
+    const tallyResponse = await fetch("http://localhost:9000", {
+      method: "POST",
+      headers: { "Content-Type": "text/xml" },
+      body: xmlPayload
+    });
+    const responseText = await tallyResponse.text();
+    res.status(tallyResponse.status).send(responseText);
+  } catch (error) {
+    console.error("[Tally Proxy Error]:", error.message);
+    res.status(500).json({
+      error: "Could not connect to TallyPrime.",
+      details: error.message
+    });
+  }
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => {
