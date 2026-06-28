@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Purchase Ingest">
+<meta name="theme-color" content="#0f1117">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<title>Purchase Ingestion</title>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+  });
+}
+</script>
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #232733; --border: #2a2e3a;
+  --text: #e8eaed; --text2: #9aa0ab; --primary: #5b8def; --primary-hover: #4a7de0;
+  --success: #34a853; --warning: #fbbc04; --error: #ea4335;
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Code', monospace; --radius: 10px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+[data-theme="light"] {
+  --bg: #f0f2f5; --surface: #ffffff; --surface2: #e8eaed; --border: #d0d4da;
+  --text: #1a1d27; --text2: #5f6368;
+}
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px; padding-bottom: calc(20px + var(--safe-bottom)); }
+.app { max-width: 1200px; margin: 0 auto; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; padding-top: calc(16px + var(--safe-top)); margin-bottom: 20px; border-bottom: 1px solid var(--border); gap: 8px; }
+header h1 { font-size: 22px; font-weight: 700; }
+.header-actions { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); flex-shrink: 0; }
+.icon-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); width: 40px; height: 40px; border-radius: 8px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: .15s; min-width: 40px; min-height: 40px; }
+.icon-btn:hover { background: var(--border); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+.card-header h2 { font-size: 16px; font-weight: 600; }
+.drop-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 48px 24px; text-align: center; cursor: pointer; transition: .2s; position: relative; min-height: 180px; display: flex; align-items: center; justify-content: center; }
+.drop-zone:hover, .drop-zone.drag-over { border-color: var(--primary); background: rgba(91,141,239,0.05); }
+.drop-zone .drop-icon { font-size: 48px; display: block; margin-bottom: 12px; }
+.drop-zone p { font-size: 15px; margin-bottom: 8px; color: var(--text2); }
+.drop-zone .or { font-size: 12px; color: var(--text2); margin: 8px 0; display: block; }
+.drop-zone.loading .drop-content { opacity: 0.3; pointer-events: none; }
+.spinner { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 14px; color: var(--primary); font-weight: 600; gap: 10px; background: rgba(15,17,23,0.7); border-radius: var(--radius); }
+.drop-zone.loading .spinner { display: flex; }
+.spinner-ring { width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.drop-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 8px; border: none; font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer; transition: .15s; min-height: 44px; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 12px; min-height: 36px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-outline:hover { background: var(--surface2); }
+.console { background: #0a0c12; border-radius: 8px; padding: 12px 16px; max-height: 200px; overflow-y: auto; font-family: var(--mono); font-size: 12px; line-height: 1.7; }
+.console .line { white-space: pre-wrap; word-break: break-all; }
+.console .line.info { color: #8ab4f8; }
+.console .line.success { color: var(--success); }
+.console .line.warn { color: var(--warning); }
+.console .line.error { color: var(--error); }
+.console .line.system { color: var(--text2); }
+.form-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.form-row label { font-size: 13px; font-weight: 600; color: var(--text2); white-space: nowrap; min-width: 140px; }
+.form-row input, .form-row select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 10px 12px; font-family: var(--font); font-size: 14px; min-height: 44px; }
+.form-row input:focus, .form-row select:focus { outline: none; border-color: var(--primary); }
+.form-row input[type="date"] { flex: 0 0 auto; min-height: 44px; }
+
+/* ── Combobox (searchable dropdown) ── */
+.combobox-wrap { position: relative; flex: 1; max-width: 400px; }
+.combobox-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 10px 36px 10px 12px; font-family: var(--font); font-size: 14px; min-height: 44px; }
+.combobox-input:focus { outline: none; border-color: var(--primary); }
+.combobox-arrow { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text2); pointer-events: none; font-size: 11px; }
+.combobox-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; max-height: 220px; overflow-y: auto; z-index: 999; box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: none; }
+.combobox-dropdown.open { display: block; }
+.combobox-option { padding: 10px 14px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.combobox-option:hover, .combobox-option.active { background: var(--surface2); }
+.combobox-option .opt-score { font-size: 10px; color: var(--text2); }
+.combobox-empty { padding: 10px 14px; font-size: 13px; color: var(--text2); font-style: italic; }
+
+.table-wrap { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tbody tr.needs-review { background: rgba(251,188,4,0.08); }
+tbody tr.needs-review td:first-child { border-left: 3px solid var(--warning); }
+tbody tr.auto-matched td:first-child { border-left: 3px solid var(--success); }
+.raw-desc { font-size: 12px; color: var(--text2); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display:block; }
+input.tally-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px 28px 8px 10px; font-family: var(--font); font-size: 13px; width: 100%; min-width: 180px; min-height: 44px; }
+.qty-input, .rate-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px 10px; font-family: var(--font); font-size: 14px; font-weight: 600; width: 80px; text-align: center; min-height: 44px; }
+.sn-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px 10px; font-family: var(--font); font-size: 13px; width: 100%; resize: vertical; min-height: 44px; }
+.sn-input:focus { outline: none; border-color: var(--primary); }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.badge-success { background: rgba(52,168,83,0.15); color: var(--success); }
+.badge-warn { background: rgba(251,188,4,0.15); color: var(--warning); }
+.action-bar { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; flex-wrap: wrap; }
+.action-bar .spacer { flex: 1; }
+.section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--text2); margin: 20px 0 10px; }
+
+/* ── Login Overlay ── */
+#loginOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
+#loginOverlay.hidden { display: none; }
+.login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 36px 28px; width: 100%; max-width: 380px; text-align: center; }
+.login-card h2 { font-size: 20px; margin-bottom: 6px; }
+.login-card p { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
+.login-card input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 12px 16px; font-size: 16px; text-align: center; letter-spacing: 4px; min-height: 48px; }
+.login-card input:focus { outline: none; border-color: var(--primary); }
+.login-card .btn { width: 100%; margin-top: 16px; justify-content: center; padding: 12px; font-size: 15px; }
+.login-error { color: var(--error); font-size: 12px; margin-top: 10px; display: none; }
+
+/* ── Toast ── */
+#toast { position: fixed; bottom: calc(24px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); z-index: 999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; max-width: 90vw; }
+.toast { padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; color: #fff; box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: toastIn .3s ease; pointer-events: auto; white-space: nowrap; }
+.toast-success { background: #1b5e20; }
+.toast-error { background: #b71c1c; }
+.toast-warn { background: #e65100; }
+.toast-info { background: #1a237e; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Draft Resume Bar ── */
+#draftBar { display: none; align-items: center; gap: 12px; padding: 12px 16px; background: rgba(251,188,4,0.1); border: 1px solid var(--warning); border-radius: var(--radius); margin-bottom: 16px; font-size: 13px; }
+#draftBar .spacer { flex: 1; }
+
+/* ── History Panel ── */
+#historyOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998; display: none; align-items: flex-end; justify-content: center; }
+#historyOverlay.open { display: flex; }
+.history-panel { background: var(--surface); border-radius: 16px 16px 0 0; width: 100%; max-width: 600px; max-height: 70vh; padding: 20px; padding-bottom: calc(20px + var(--safe-bottom)); overflow-y: auto; animation: slideUp .3s ease; }
+.history-panel h3 { font-size: 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+.history-empty { text-align: center; color: var(--text2); padding: 40px 0; font-size: 14px; }
+.history-item { padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.history-item .h-row { display: flex; justify-content: space-between; gap: 8px; }
+.history-item .h-supplier { font-weight: 600; }
+.history-item .h-amount { color: var(--success); }
+.history-item .h-meta { font-size: 11px; color: var(--text2); margin-top: 4px; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* ── Auth Badge ── */
+.auth-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; background: rgba(91,141,239,0.15); color: var(--primary); white-space: nowrap; }
+.auth-badge.logged-in { background: rgba(52,168,83,0.15); color: var(--success); }
+
+/* ── Mobile Item Cards (rendered via JS on small screens) ── */
+.item-cards { display: none; flex-direction: column; gap: 12px; }
+.item-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; border-left: 4px solid var(--border); }
+.item-card.auto-matched { border-left-color: var(--success); }
+.item-card.needs-review { border-left-color: var(--warning); }
+.item-card .ic-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.item-card .ic-label { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; }
+.item-card .ic-value { font-size: 13px; text-align: right; word-break: break-word; }
+.item-card .ic-full { margin-bottom: 6px; }
+.item-card .ic-full input, .item-card .ic-full textarea { width: 100%; }
+.item-card .ic-inline { display: flex; gap: 8px; }
+.item-card .ic-inline > * { flex: 1; }
+
+/* ── Mobile Responsive ── */
+@media (max-width: 768px) {
+  body { padding: 12px; }
+  header h1 { font-size: 17px; }
+  .drop-zone { padding: 32px 16px; min-height: 150px; }
+  .drop-zone .drop-icon { font-size: 36px; }
+  .form-row { flex-direction: column; align-items: stretch; gap: 4px; }
+  .form-row label { min-width: 0; font-size: 12px; }
+  .combobox-wrap { max-width: 100%; }
+  .card { padding: 16px; }
+  .action-bar { flex-wrap: wrap; padding: 12px 16px; }
+  .header-actions { gap: 6px; }
+  .console { max-height: 120px; }
+  .section-title { margin: 14px 0 8px; }
+  .table-wrap table { display: none; }
+  .item-cards { display: flex; }
+  #masterCount { font-size: 11px; }
+  .card-header { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 480px) {
+  header { flex-wrap: wrap; }
+  .header-actions { width: 100%; justify-content: flex-end; }
+  .table-wrap { margin: 0 -16px; border-radius: 0; }
+  .qty-input, .rate-input { width: 70px; }
+  .drop-zone .drop-icon { font-size: 28px; }
+  .drop-zone { padding: 24px 12px; min-height: 130px; }
+}
+/* Desktop: always show table, hide cards */
+@media (min-width: 769px) {
+  .item-cards { display: none !important; }
+  table { display: table !important; }
+}
+</style>
+</head>
+<body>
+<div id="loginOverlay">
+  <div class="login-card">
+    <h2>🔐 Purchase Ingestion</h2>
+    <p>Enter accountant password to sync products &amp; push to Tally</p>
+    <input type="password" id="loginPass" placeholder="••••••" autocomplete="off" inputmode="numeric" maxlength="10">
+    <button class="btn btn-primary" id="loginBtn" onclick="handleLogin()">Login</button>
+    <div class="login-error" id="loginError">Invalid password</div>
+  </div>
+</div>
+<div class="app">
+
+<header>
+  <h1>📦 Purchase Ingestion</h1>
+  <div class="header-actions">
+    <span id="masterCount" style="font-weight:600;">Loading master list…</span>
+    <button class="btn btn-outline" id="xmlUploadBtn" title="Upload XML">📂</button>
+    <input type="file" id="xmlFileInput" accept=".xml" hidden>
+    <button class="icon-btn" id="historyBtn" onclick="openHistory()" title="History">📜</button>
+    <span class="auth-badge" id="authBadge">🔐 Not logged in</span>
+    <button class="icon-btn" id="darkToggle" onclick="toggleDark()">☀️</button>
+  </div>
+</header>
+
+<div id="draftBar">
+  <span>📋 Resume draft from <span id="draftTime"></span></span>
+  <span class="spacer"></span>
+  <button class="btn btn-sm btn-outline" onclick="resumeDraft()">Resume</button>
+  <button class="btn btn-sm btn-outline" onclick="clearDraft()">Discard</button>
+</div>
+
+<div class="card">
+  <div class="drop-zone" id="dropZone">
+    <div class="drop-content">
+      <span class="drop-icon">📄</span>
+      <p>Drop invoice PDF or photo here</p>
+      <p style="font-size:12px;color:var(--text2);margin-top:4px;">PDF • JPG • PNG from WhatsApp</p>
+      <span class="or">or</span>
+      <div class="drop-btns">
+        <button class="btn btn-outline" id="filePickerBtn">📂 Browse Files</button>
+        <button class="btn btn-outline" id="cameraBtn">📷 Camera</button>
+      </div>
+      <input type="file" id="fileInput" accept=".pdf,image/*" hidden>
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" hidden>
+    </div>
+    <div class="spinner">
+      <div class="spinner-ring"></div>
+      Extracting…
+    </div>
+  </div>
+</div>
+
+<div class="card" id="resultsCard" style="display:none">
+  <div class="card-header">
+    <h2>Extracted Items</h2>
+  </div>
+
+  <div class="section-title">Invoice Details</div>
+  <div class="form-row">
+    <label>Invoice Date</label>
+    <input type="date" id="invoiceDate">
+  </div>
+  <div class="form-row">
+    <label>Invoice No.</label>
+    <input type="text" id="supplierInvNo" placeholder="From supplier invoice…" style="flex:1;max-width:260px;">
+  </div>
+  <div class="form-row">
+    <label>Tally Voucher No.</label>
+    <input type="text" id="tallyVoucherNo" placeholder="Leave blank for auto-number" style="flex:1;max-width:260px;">
+  </div>
+  <div class="form-row">
+    <label>Supplier (Party Ledger)</label>
+    <!-- Combobox replaces plain datalist -->
+    <div class="combobox-wrap" id="supplierComboWrap">
+      <input type="text" class="combobox-input" id="partyLedger" placeholder="Type to search supplier…" autocomplete="off">
+      <span class="combobox-arrow">▼</span>
+      <div class="combobox-dropdown" id="supplierDropdown"></div>
+    </div>
+  </div>
+  <div class="section-title">Validation Table</div>
+  <div class="table-wrap">
+    <table id="validationTable">
+      <thead>
+        <tr>
+          <th>Raw Description</th>
+          <th>Mapped Tally Item</th>
+          <th>S/No (Comma separated)</th>
+          <th>Qty</th>
+          <th>Rate</th>
+          <th>Amount</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="validationBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="action-bar" id="actionBar" style="display:none">
+  <div class="summary" id="actionSummary" style="font-size:13px; color:var(--text2)"></div>
+  <div class="spacer"></div>
+  <button class="btn btn-primary" id="pushBtn" onclick="pushToTally()">🚀 Push to Tally</button>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Console</h2>
+    <button class="btn btn-sm btn-outline" onclick="clearLog()">Clear</button>
+  </div>
+  <div class="console" id="consoleLog">
+    <div class="line system">⏳ System ready. Drop an invoice to begin.</div>
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ════════════════════════════════════════════════
+   State & Setup
+   ════════════════════════════════════════════════ */
+let masterProducts = [];
+let masterSuppliers = [];
+let productFuse = null;
+let supplierFuse = null;
+let validatedItems = [];
+let sessionToken = sessionStorage.getItem("purchase_token") || null;
+const pushedRefs = new Set();
+
+// ── Noise word list — single source of truth ──
+const NOISE_WORDS = new Set([
+  "tv","led","hd","fhd","qhd","4k","uhd","qled","oled","amoled","smart","android",
+  "ac","inv","inverter","frost","free","direct","cool","star","rating",
+  "air","conditioner","washing","machine","wm","ref","refrigerator",
+  "ltd","pvt","limited","india","brand","new","box","pack","pcs","nos",
+  "with","and","for","the","inch","cm","mm","kg","ltr","litre","watts","w"
+]);
+
+function normaliseForMatch(str) {
+  return String(str)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !NOISE_WORDS.has(w))
+    .join(" ")
+    .trim();
+}
+
+function log(msg, type = "info") {
+  const el = document.getElementById("consoleLog");
+  const d = document.createElement("div");
+  d.className = "line " + type;
+  const ts = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  d.textContent = `[${ts}] ${msg}`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog() { document.getElementById("consoleLog").innerHTML = ""; }
+
+(function() {
+  const s = localStorage.getItem("purchase_theme");
+  if (s === "light") document.documentElement.setAttribute("data-theme", "light");
+})();
+function toggleDark() {
+  const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
+  localStorage.setItem("purchase_theme", isDark ? "light" : "dark");
+  document.getElementById("darkToggle").textContent = isDark ? "🌙" : "☀️";
+}
+
+/* ════════════════════════════════════════════════
+   Supplier Combobox
+   ════════════════════════════════════════════════ */
+(function initSupplierCombobox() {
+  const input = document.getElementById("partyLedger");
+  const dropdown = document.getElementById("supplierDropdown");
+  let activeIdx = -1;
+
+  function renderOptions(items) {
+    activeIdx = -1;
+    if (!items.length) {
+      dropdown.innerHTML = `<div class="combobox-empty">No suppliers found</div>`;
+    } else {
+      dropdown.innerHTML = items.slice(0, 50).map((item, i) => {
+        const score = item.score != null ? `<span class="opt-score">${Math.round((1 - item.score) * 100)}%</span>` : "";
+        const name = esc(typeof item === "string" ? item : item.item);
+        return `<div class="combobox-option" data-val="${name}" data-i="${i}">${name}${score}</div>`;
+      }).join("");
+      dropdown.querySelectorAll(".combobox-option").forEach(el => {
+        el.addEventListener("mousedown", e => {
+          e.preventDefault();
+          input.value = el.dataset.val;
+          closeDropdown();
+        });
+      });
+    }
+    dropdown.classList.add("open");
+  }
+
+  function closeDropdown() { dropdown.classList.remove("open"); activeIdx = -1; }
+
+  input.addEventListener("input", () => {
+    const q = input.value.trim();
+    if (!q || !supplierFuse) {
+      // Show all suppliers when empty
+      if (!q && masterSuppliers.length) {
+        renderOptions(masterSuppliers.slice(0, 50).map(s => ({ item: s, score: 0 })));
+      } else {
+        closeDropdown();
+      }
+      return;
+    }
+    const results = supplierFuse.search(q);
+    renderOptions(results.length ? results : []);
+  });
+
+  input.addEventListener("focus", () => {
+    const q = input.value.trim();
+    if (!q && masterSuppliers.length) {
+      renderOptions(masterSuppliers.slice(0, 50).map(s => ({ item: s, score: 0 })));
+    } else if (q && supplierFuse) {
+      renderOptions(supplierFuse.search(q));
+    }
+  });
+
+  input.addEventListener("keydown", e => {
+    const opts = dropdown.querySelectorAll(".combobox-option");
+    if (!opts.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, opts.length - 1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+    } else if (e.key === "Enter" && activeIdx >= 0) {
+      e.preventDefault();
+      input.value = opts[activeIdx].dataset.val;
+      closeDropdown();
+      return;
+    } else if (e.key === "Escape") {
+      closeDropdown(); return;
+    }
+    opts.forEach((o, i) => o.classList.toggle("active", i === activeIdx));
+    if (activeIdx >= 0) opts[activeIdx].scrollIntoView({ block: "nearest" });
+  });
+
+  document.addEventListener("click", e => {
+    if (!document.getElementById("supplierComboWrap").contains(e.target)) closeDropdown();
+  });
+})();
+
+/* ════════════════════════════════════════════════
+   1. XML Upload for Products & Ledgers (replaces live Tally sync)
+   ════════════════════════════════════════════════ */
+const CACHE_KEY = "tally_masters";
+const CACHE_TS_KEY = "tally_masters_at";
+
+function parseProductXml(xml) {
+  const names = [];
+  const re = /<DSPDISPNAME>([^<]+)<\/DSPDISPNAME>/gi;
+  let m;
+  while ((m = re.exec(xml)) !== null) {
+    const n = m[1].trim();
+    if (n) names.push(n);
+  }
+  return [...new Set(names)];
+}
+
+function parseLedgerXml(xml) {
+  const names = [];
+  const re = /<CAACCTYPENAME>([^<]+)<\/CAACCTYPENAME>/gi;
+  let m;
+  while ((m = re.exec(xml)) !== null) {
+    const n = m[1].trim();
+    if (n) names.push(n);
+  }
+  return [...new Set(names)];
+}
+
+function applyMasterData(data) {
+  masterProducts = data.products || [];
+  masterSuppliers = data.suppliers || [];
+
+  // Populate datalist for product cells
+  const dlProducts = document.getElementById("tallyProductList");
+  if (dlProducts) {
+    dlProducts.innerHTML = "";
+    masterProducts.forEach(p => {
+      const o = document.createElement("option"); o.value = p; dlProducts.appendChild(o);
+    });
+  }
+
+  // Build normalised product index for bidirectional matching
+  const normProducts = masterProducts.map(p => ({ original: p, key: normaliseForMatch(p) }));
+  productFuse = new Fuse(normProducts, {
+    keys: ["key"],
+    threshold: 0.40,
+    ignoreLocation: true,
+    minMatchCharLength: 3,
+    includeScore: true
+  });
+
+  // Supplier Fuse (names are already clean)
+  supplierFuse = new Fuse(masterSuppliers, {
+    threshold: 0.45,
+    ignoreLocation: true,
+    includeScore: true
+  });
+
+  document.getElementById("masterCount").textContent =
+    `📦 ${masterProducts.length} Products | 🏢 ${masterSuppliers.length} Suppliers`;
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
+async function handleXmlUpload(file) {
+  const text = await readFileAsText(file);
+  const products = parseProductXml(text);
+  const suppliers = parseLedgerXml(text);
+
+  if (products.length === 0 && suppliers.length === 0) {
+    log("⚠️ No <DSPDISPNAME> or <CAACCTYPENAME> tags found in XML", "warn");
+    return;
+  }
+
+  // Merge with existing cached data so uploading both files adds up
+  const cached = localStorage.getItem(CACHE_KEY);
+  const existing = cached ? JSON.parse(cached) : {};
+  const merged = {
+    products: [...new Set([...(existing.products || []), ...products])],
+    suppliers: [...new Set([...(existing.suppliers || []), ...suppliers])],
+  };
+
+  localStorage.setItem(CACHE_KEY, JSON.stringify(merged));
+  localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+  applyMasterData(merged);
+
+  const msgs = [];
+  if (products.length > 0) msgs.push(`${products.length} products`);
+  if (suppliers.length > 0) msgs.push(`${suppliers.length} suppliers/ledgers`);
+  log(`✅ XML loaded: ${msgs.join(", ")}`, "success");
+
+  // Sync new products to Firestore if logged in
+  if (sessionToken && products.length > 0) {
+    try {
+      const syncRes = await fetch("/tally/products/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + sessionToken },
+        body: JSON.stringify({ names: products })
+      });
+      if (syncRes.ok) {
+        const syncData = await syncRes.json();
+        log("🔥 Synced " + syncData.added + " new product(s) to Firestore (" + syncData.total + " total)", "success");
+      } else {
+        log("⚠️ Firestore sync failed: HTTP " + syncRes.status, "warn");
+      }
+    } catch (e) {
+      log("⚠️ Could not sync to Firestore: " + e.message, "warn");
+    }
+  }
+}
+
+document.getElementById("xmlUploadBtn").addEventListener("click", () => {
+  document.getElementById("xmlFileInput").click();
+});
+
+document.getElementById("xmlFileInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await handleXmlUpload(file);
+  e.target.value = "";
+});
+
+/* ════════════════════════════════════════════════
+   Auth — Login / Logout
+   ════════════════════════════════════════════════ */
+function updateAuthUI() {
+  const badge = document.getElementById("authBadge");
+  if (sessionToken) {
+    badge.textContent = "🔐 Logged in";
+    badge.className = "auth-badge logged-in";
+    badge.style.cursor = "pointer";
+    badge.title = "Click to logout";
+    badge.onclick = handleLogout;
+  } else {
+    badge.textContent = "🔐 Not logged in";
+    badge.className = "auth-badge";
+    badge.onclick = null;
+  }
+}
+
+async function handleLogin() {
+  const pass = document.getElementById("loginPass").value.trim();
+  const errEl = document.getElementById("loginError");
+  if (!pass) return;
+  try {
+    const res = await fetch("/accountant/login", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pass })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Login failed");
+    sessionToken = data.token;
+    sessionStorage.setItem("purchase_token", data.token);
+    document.getElementById("loginOverlay").classList.add("hidden");
+    updateAuthUI();
+    showToast("Logged in", "success");
+    log("🔐 Accountant logged in", "success");
+    await fetchProductsFromFirestore();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = "block";
+    setTimeout(() => { errEl.style.display = "none"; }, 3000);
+  }
+}
+
+function handleLogout() {
+  sessionToken = null;
+  sessionStorage.removeItem("purchase_token");
+  updateAuthUI();
+  document.getElementById("loginOverlay").classList.remove("hidden");
+  showToast("Logged out", "info");
+  log("🔐 Logged out", "system");
+}
+
+/* ════════════════════════════════════════════════
+   Toast
+   ════════════════════════════════════════════════ */
+function showToast(msg, type) {
+  const container = document.getElementById("toast");
+  const el = document.createElement("div");
+  el.className = "toast toast-" + (type || "info");
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .3s"; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+/* ════════════════════════════════════════════════
+   Products from Firestore
+   ════════════════════════════════════════════════ */
+async function fetchProductsFromFirestore() {
+  try {
+    const res = await fetch("/tally/products");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    if (!data.names?.length) throw new Error("Empty product list");
+    const allProducts = [...new Set([...masterProducts, ...data.names])];
+    applyMasterData({ products: allProducts, suppliers: masterSuppliers });
+    const cached = localStorage.getItem(CACHE_KEY);
+    const existing = cached ? JSON.parse(cached) : {};
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ products: allProducts, suppliers: existing.suppliers || masterSuppliers }));
+    log("📦 +" + data.count + " products from Firestore (total: " + allProducts.length + ")", "success");
+  } catch (e) {
+    log("⚠️ Firestore products unavailable: " + e.message, "warn");
+  }
+}
+
+/* ════════════════════════════════════════════════
+   Draft
+   ════════════════════════════════════════════════ */
+function saveDraft() {
+  if (!validatedItems.length) return;
+    sessionStorage.setItem("purchase_draft", JSON.stringify({
+    items: validatedItems,
+    invoiceDate: document.getElementById("invoiceDate").value,
+    supplierInvNo: document.getElementById("supplierInvNo").value,
+    tallyVoucherNo: document.getElementById("tallyVoucherNo").value,
+    partyLedger: document.getElementById("partyLedger").value,
+    ts: Date.now()
+  }));
+}
+
+function checkDraft() {
+  const raw = sessionStorage.getItem("purchase_draft");
+  if (!raw) return;
+  try {
+    const draft = JSON.parse(raw);
+    if (!draft.items?.length) return;
+    document.getElementById("draftTime").textContent = Math.round((Date.now() - draft.ts) / 60000) + "m ago";
+    document.getElementById("draftBar").style.display = "flex";
+  } catch {}
+}
+
+function resumeDraft() {
+  const raw = sessionStorage.getItem("purchase_draft");
+  if (!raw) return;
+  try {
+    const draft = JSON.parse(raw);
+    validatedItems = draft.items;
+    if (draft.invoiceDate) document.getElementById("invoiceDate").value = draft.invoiceDate;
+    if (draft.supplierInvNo) document.getElementById("supplierInvNo").value = draft.supplierInvNo;
+    if (draft.tallyVoucherNo) document.getElementById("tallyVoucherNo").value = draft.tallyVoucherNo;
+    if (draft.partyLedger) document.getElementById("partyLedger").value = draft.partyLedger;
+    document.getElementById("resultsCard").style.display = "";
+    document.getElementById("actionBar").style.display = "";
+    document.getElementById("draftBar").style.display = "none";
+    renderValidationTable();
+    log("📋 Resumed draft — " + validatedItems.length + " items", "system");
+    showToast("Draft resumed", "info");
+  } catch {}
+}
+
+function clearDraft() {
+  sessionStorage.removeItem("purchase_draft");
+  document.getElementById("draftBar").style.display = "none";
+}
+
+/* ════════════════════════════════════════════════
+   History
+   ════════════════════════════════════════════════ */
+function pushHistory(entry) {
+  const raw = localStorage.getItem("purchase_history");
+  const list = raw ? JSON.parse(raw) : [];
+  list.unshift(entry);
+  if (list.length > 100) list.pop();
+  localStorage.setItem("purchase_history", JSON.stringify(list));
+}
+
+function openHistory() {
+  const raw = localStorage.getItem("purchase_history");
+  const list = raw ? JSON.parse(raw) : [];
+  const el = document.getElementById("historyList");
+  if (!list.length) {
+    el.innerHTML = '<div class="history-empty">No pushes yet</div>';
+  } else {
+    el.innerHTML = list.map(function(h) {
+      return '<div class="history-item"><div class="h-row"><span class="h-supplier">' + esc(h.supplier) + '</span><span class="h-amount">₹' + (+h.amount).toLocaleString("en-IN") + '</span></div><div class="h-row"><span>' + (h.invoiceNo ? "Inv: " + esc(h.invoiceNo) : "") + '</span><span>' + h.items + " items</span></div><div class=\"h-meta\">" + new Date(h.ts).toLocaleString("en-IN") + "</div></div>";
+    }).join("");
+  }
+  document.getElementById("historyOverlay").classList.add("open");
+}
+
+function closeHistory() {
+  document.getElementById("historyOverlay").classList.remove("open");
+}
+
+/* ════════════════════════════════════════════════
+   Init — runs on page load
+   ════════════════════════════════════════════════ */
+(function init() {
+  const cached = localStorage.getItem(CACHE_KEY);
+  if (cached) {
+    try { const data = JSON.parse(cached); if (data.products || data.suppliers) applyMasterData(data); } catch {}
+  }
+  if (sessionToken) {
+    document.getElementById("loginOverlay").classList.add("hidden");
+    updateAuthUI();
+    fetchProductsFromFirestore();
+  } else {
+    document.getElementById("loginOverlay").classList.remove("hidden");
+    updateAuthUI();
+  }
+  checkDraft();
+})();
+
+/* ════════════════════════════════════════════════
+   Drag & Drop
+   ════════════════════════════════════════════════ */
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+const cameraInput = document.getElementById("cameraInput");
+
+dropZone.addEventListener("click", function(e) { if (!e.target.closest(".btn")) fileInput.click(); });
+document.getElementById("filePickerBtn").addEventListener("click", function(e) { e.stopPropagation(); fileInput.click(); });
+document.getElementById("cameraBtn").addEventListener("click", function(e) { e.stopPropagation(); cameraInput.click(); });
+dropZone.addEventListener("dragover", function(e) { e.preventDefault(); dropZone.classList.add("drag-over"); });
+dropZone.addEventListener("dragleave", function() { dropZone.classList.remove("drag-over"); });
+dropZone.addEventListener("drop", function(e) { e.preventDefault(); dropZone.classList.remove("drag-over"); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener("change", function() { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+cameraInput.addEventListener("change", function() { if (cameraInput.files.length) handleFile(cameraInput.files[0]); });
+
+async function handleFile(file) {
+  if (masterProducts.length === 0) { log("⚠️ Please wait for master sync to complete first", "warn"); return; }
+  dropZone.classList.add("loading");
+  log(`📎 Processing: ${file.name}`, "info");
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/api/extract-invoice", { method: "POST", body: formData });
+
+    const rawText = await response.text();
+    if (!response.ok) throw new Error(rawText);
+    const data = JSON.parse(rawText);
+
+    log(`✅ Groq extraction complete — ${data.items.length} items`, "success");
+
+    // Set Date
+    const d = (data.invoiceDate || "").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
+    document.getElementById("invoiceDate").value = d || new Date().toISOString().slice(0, 10);
+
+    // Set supplier invoice number if returned
+    if (data.invoiceNumber) document.getElementById("supplierInvNo").value = data.invoiceNumber;
+
+    // Auto-match Supplier via combobox
+    const partyInput = document.getElementById("partyLedger");
+    if (supplierFuse && data.vendorName) {
+      const match = supplierFuse.search(normaliseForMatch(data.vendorName));
+      if (match.length > 0) {
+        partyInput.value = match[0].item;
+        log(`🏢 Matched Supplier: "${match[0].item}" (score: ${Math.round((1 - match[0].score) * 100)}%)`, "success");
+      } else {
+        partyInput.value = data.vendorName;
+        log(`⚠️ Supplier "${data.vendorName}" not found in Tally — check manually`, "warn");
+      }
+    }
+
+    // Auto-match Products — bidirectional normalisation
+    validatedItems = data.items.map(i => {
+      let matchedItem = "";
+      let matchScore = 1;
+      if (productFuse && i.description) {
+        const cleanDesc = normaliseForMatch(i.description);
+        const results = productFuse.search(cleanDesc);
+        if (results.length > 0) {
+          matchedItem = results[0].item.original;
+          matchScore = results[0].score ?? 1;
+        }
+      }
+      // High confidence = auto (green), weak match = review (yellow)
+      const status = matchedItem && matchScore < 0.35 ? "auto" : (matchedItem ? "review" : "review");
+      if (matchedItem) log(`🔗 "${i.description}" → "${matchedItem}" (${Math.round((1 - matchScore) * 100)}% match)`, matchScore < 0.35 ? "success" : "warn");
+
+      const srStr = (i.serialNumbers && i.serialNumbers.length > 0) ? i.serialNumbers.join(", ") : "";
+      return { raw: i.description, matchedItem, srStr, qty: i.qty, rate: i.rate, gstRate: i.gstRate || 18, status };
+    });
+
+    document.getElementById("resultsCard").style.display = "";
+    document.getElementById("actionBar").style.display = "";
+    renderValidationTable();
+    saveDraft();
+    showToast(data.items.length + " items extracted", "success");
+
+  } catch (e) {
+    log(`❌ Extraction failed: ${e.message}`, "error");
+    showToast("Extraction failed", "error");
+  } finally {
+    dropZone.classList.remove("loading");
+  }
+}
+
+/* ════════════════════════════════════════════════
+   Render Table
+   ════════════════════════════════════════════════ */
+// Hidden datalist for product autocomplete in table cells
+document.head.insertAdjacentHTML("beforeend", `<datalist id="tallyProductList"></datalist>`);
+
+function renderValidationTable() {
+  const tbody = document.getElementById("validationBody");
+  tbody.innerHTML = validatedItems.map(function(item, idx) {
+    var rowClass = item.status === "auto" ? "auto-matched" : "needs-review";
+    var badge = item.status === "auto" ? '<span class="badge badge-success">✅ Matched</span>' : '<span class="badge badge-warn">⚠ Review</span>';
+    return '<tr class="' + rowClass + '" data-idx="' + idx + '"><td><span class="raw-desc" title="' + esc(item.raw) + '">' + esc(item.raw) + '</span></td><td><input type="text" class="tally-select" list="tallyProductList" value="' + esc(item.matchedItem) + '" placeholder="— Search —" onchange="updateItem(' + idx + ', \'matchedItem\', this.value)" onfocus="this.select()"></td><td><textarea class="sn-input" rows="1" placeholder="IMEI/SN" onchange="updateItem(' + idx + ', \'srStr\', this.value)">' + esc(item.srStr) + '</textarea></td><td><input class="qty-input" type="number" min="1" value="' + item.qty + '" onchange="updateItem(' + idx + ', \'qty\', Number(this.value))"></td><td><input class="rate-input" type="number" step="0.01" value="' + item.rate + '" onchange="updateItem(' + idx + ', \'rate\', Number(this.value))"></td><td id="amount_' + idx + '">' + (item.qty * item.rate).toLocaleString("en-IN") + '</td><td>' + badge + '</td></tr>';
+  }).join("");
+
+  // Mobile cards
+  var tableWrap = document.getElementById("validationTable").parentNode;
+  var cardsEl = document.getElementById("itemCards");
+  if (!cardsEl) { cardsEl = document.createElement("div"); cardsEl.id = "itemCards"; cardsEl.className = "item-cards"; tableWrap.appendChild(cardsEl); }
+  cardsEl.innerHTML = validatedItems.map(function(item, idx) {
+    var cls = item.status === "auto" ? "auto-matched" : "needs-review";
+    var badge = item.status === "auto" ? '<span class="badge badge-success">✅</span>' : '<span class="badge badge-warn">⚠</span>';
+    return '<div class="item-card ' + cls + '" data-idx="' + idx + '"><div class="ic-row"><span class="ic-label">Item ' + (idx + 1) + ' ' + badge + '</span><span class="ic-value">' + esc(item.raw) + '</span></div><div class="ic-full"><span class="ic-label">Product</span><input type="text" class="tally-select" list="tallyProductList" value="' + esc(item.matchedItem) + '" placeholder="Search…" onchange="updateItem(' + idx + ', \'matchedItem\', this.value)"></div><div class="ic-full"><span class="ic-label">S/No</span><textarea class="sn-input" rows="1" placeholder="IMEI/SN (comma sep)" onchange="updateItem(' + idx + ', \'srStr\', this.value)">' + esc(item.srStr) + '</textarea></div><div class="ic-inline"><div><span class="ic-label">Qty</span><input class="qty-input" type="number" min="1" value="' + item.qty + '" onchange="updateItem(' + idx + ', \'qty\', Number(this.value))" style="width:100%"></div><div><span class="ic-label">Rate</span><input class="rate-input" type="number" step="0.01" value="' + item.rate + '" onchange="updateItem(' + idx + ', \'rate\', Number(this.value))" style="width:100%"></div><div><span class="ic-label">Amount</span><div style="font-size:14px;font-weight:600;padding:8px 0;text-align:center">' + (item.qty * item.rate).toLocaleString("en-IN") + '</div></div></div></div>';
+  }).join("");
+
+  updateActionSummary();
+}
+
+function updateItem(idx, field, val) {
+  if (field === "matchedItem") {
+    const oldVal = validatedItems[idx].matchedItem;
+    validatedItems[idx].matchedItem = val;
+    validatedItems[idx].status = masterProducts.includes(val) ? "auto" : "review";
+    const raw = validatedItems[idx].raw;
+    validatedItems.forEach((item, i) => {
+      if (i !== idx && item.raw === raw && item.matchedItem === oldVal) { item.matchedItem = val; item.status = masterProducts.includes(val) ? "auto" : "review"; }
+    });
+    renderValidationTable();
+  } else if (field === "qty" || field === "rate") {
+    document.getElementById("amount_" + idx).textContent = (validatedItems[idx].qty * validatedItems[idx].rate).toLocaleString("en-IN");
+    updateActionSummary();
+  }
+  saveDraft();
+}
+
+function updateActionSummary() {
+  // Use integer paise arithmetic to avoid float drift in display total
+  const totalPaise = validatedItems.reduce((s, i) => s + Math.round(i.qty * i.rate * 100), 0);
+  const total = totalPaise / 100;
+  const reviewCount = validatedItems.filter(i => !masterProducts.includes(i.matchedItem)).length;
+  document.getElementById("actionSummary").innerHTML =
+    `${validatedItems.length} items · ₹${total.toLocaleString("en-IN")} total` +
+    (reviewCount ? ` · <span style="color:var(--warning)">${reviewCount} need review</span>` : "");
+}
+
+/* ════════════════════════════════════════════════
+   XML Generator — fixes applied:
+   • Paise integer arithmetic (no float drift)
+   • Supplier invoice number used as reference
+   • <AUTONUMBER>Yes</AUTONUMBER> instead of literal "AUTO"
+   • Per-slab GST grouping (5/12/18/28%)
+   • BASICUSERDESCRIPTION.LIST placed after BILLEDQTY
+   ════════════════════════════════════════════════ */
+function generateTallyXML(items) {
+  const dateVal = document.getElementById("invoiceDate").value;
+  const date = dateVal ? dateVal.replace(/-/g, "") : "";
+  const partyLedger = document.getElementById("partyLedger").value.trim() || "Sundry Creditors";
+  const supplierInvNo = document.getElementById("supplierInvNo").value.trim();
+  const voucherNo = document.getElementById("tallyVoucherNo").value.trim();
+  const referenceNo = supplierInvNo || ("PI-" + Date.now().toString().slice(-8));
+
+  // ── Group items by GST rate slab ──
+  const slabs = {}; // { "18": { cgstLedger, sgstLedger, totalBasePaise } }
+  const GST_LEDGERS = {
+    5:  { cgst: "INPUT CGST 2.5%", sgst: "INPUT SGST 2.5%" },
+    12: { cgst: "INPUT CGST 6%",   sgst: "INPUT SGST 6%"   },
+    18: { cgst: "INPUT CGST 9%",   sgst: "INPUT SGST 9%"   },
+    28: { cgst: "INPUT CGST 14%",  sgst: "INPUT SGST 14%"  },
+  };
+
+  let grandBasePaise = 0;
+
+  const inventoryEntries = items.filter(i => i.matchedItem).map(i => {
+    const baseAmtPaise = Math.round(i.qty * i.rate * 100);
+    grandBasePaise += baseAmtPaise;
+
+    const slab = i.gstRate || 18;
+    if (!slabs[slab]) slabs[slab] = { ...GST_LEDGERS[slab] || GST_LEDGERS[18], totalBasePaise: 0 };
+    slabs[slab].totalBasePaise += baseAmtPaise;
+
+    const baseAmt = (baseAmtPaise / 100).toFixed(2);
+
+    // S/No injection — placed after BILLEDQTY, before BATCHALLOCATIONS
+    let descriptionXml = "";
+    if (i.srStr) {
+      const srArray = i.srStr.split(",").map(s => s.trim()).filter(s => s);
+      if (srArray.length > 0) {
+        const descItems = srArray.map(sn => `        <BASICUSERDESCRIPTION>${xmlEsc(sn)}</BASICUSERDESCRIPTION>`).join("\n");
+        descriptionXml = `\n       <BASICUSERDESCRIPTION.LIST TYPE="String">\n${descItems}\n       </BASICUSERDESCRIPTION.LIST>`;
+      }
+    }
+
+    return `            <ALLINVENTORYENTRIES.LIST>
+              <STOCKITEMNAME>${xmlEsc(i.matchedItem)}</STOCKITEMNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <ISLASTDEEMEDPOSITIVE>Yes</ISLASTDEEMEDPOSITIVE>
+              <RATE>${i.rate.toFixed(2)}/NOS</RATE>
+              <AMOUNT>-${baseAmt}</AMOUNT>
+              <ACTUALQTY> ${i.qty} NOS</ACTUALQTY>
+              <BILLEDQTY> ${i.qty} NOS</BILLEDQTY>${descriptionXml}
+
+              <BATCHALLOCATIONS.LIST>
+                <GODOWNNAME>Showroom</GODOWNNAME>
+                <BATCHNAME>Primary Batch</BATCHNAME>
+                <AMOUNT>-${baseAmt}</AMOUNT>
+                <ACTUALQTY> ${i.qty} NOS</ACTUALQTY>
+                <BILLEDQTY> ${i.qty} NOS</BILLEDQTY>
+              </BATCHALLOCATIONS.LIST>
+
+              <ACCOUNTINGALLOCATIONS.LIST>
+                <LEDGERNAME>GST PURCHASE @ ${i.gstRate || 18}%</LEDGERNAME>
+                <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+                <ISLASTDEEMEDPOSITIVE>Yes</ISLASTDEEMEDPOSITIVE>
+                <AMOUNT>-${baseAmt}</AMOUNT>
+              </ACCOUNTINGALLOCATIONS.LIST>
+            </ALLINVENTORYENTRIES.LIST>`;
+  }).join("\n");
+
+  // ── Per-slab GST ledger entries ──
+  let totalGstPaise = 0;
+  const gstEntries = Object.entries(slabs).map(([rate, slab]) => {
+    const halfRate = Number(rate) / 2 / 100;
+    const cgstPaise = Math.round(slab.totalBasePaise * halfRate);
+    const sgstPaise = Math.round(slab.totalBasePaise * halfRate);
+    totalGstPaise += cgstPaise + sgstPaise;
+    const cgstAmt = (cgstPaise / 100).toFixed(2);
+    const sgstAmt = (sgstPaise / 100).toFixed(2);
+    return `
+            <LEDGERENTRIES.LIST><LEDGERNAME>${xmlEsc(slab.cgst)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><ISLASTDEEMEDPOSITIVE>Yes</ISLASTDEEMEDPOSITIVE><AMOUNT>-${cgstAmt}</AMOUNT></LEDGERENTRIES.LIST>
+            <LEDGERENTRIES.LIST><LEDGERNAME>${xmlEsc(slab.sgst)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><ISLASTDEEMEDPOSITIVE>Yes</ISLASTDEEMEDPOSITIVE><AMOUNT>-${sgstAmt}</AMOUNT></LEDGERENTRIES.LIST>`;
+  }).join("");
+
+  const supplierTotalPaise = grandBasePaise + totalGstPaise;
+  const supplierTotal = (supplierTotalPaise / 100).toFixed(2);
+
+  // Tally's ROUNDING OFF ledger auto-calculates the rounding amount
+  const roundingEntry = `
+            <LEDGERENTRIES.LIST><LEDGERNAME>ROUNDING OFF</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><ISLASTDEEMEDPOSITIVE>Yes</ISLASTDEEMEDPOSITIVE><AMOUNT>0.00</AMOUNT></LEDGERENTRIES.LIST>`;
+
+  return `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME></REQUESTDESC><REQUESTDATA><TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <VOUCHER VCHTYPE="Purchase" ACTION="Create" OBJVIEW="Invoice Voucher View">
+            <DATE>${date}</DATE><VOUCHERTYPENAME>Purchase</VOUCHERTYPENAME>
+            ${voucherNo ? `<VOUCHERNUMBER>${xmlEsc(voucherNo)}</VOUCHERNUMBER>` : `<VOUCHERNUMBER></VOUCHERNUMBER><AUTONUMBER>Yes</AUTONUMBER>`}
+            <REFERENCE>${xmlEsc(referenceNo)}</REFERENCE>
+            <PARTYLEDGERNAME>${xmlEsc(partyLedger)}</PARTYLEDGERNAME>
+            <NARRATION>Purchase against Inv No. ${xmlEsc(referenceNo)} from ${xmlEsc(partyLedger)}</NARRATION>
+            <ISINVOICE>Yes</ISINVOICE>
+${inventoryEntries}
+            <LEDGERENTRIES.LIST>
+              <LEDGERNAME>${xmlEsc(partyLedger)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><ISLASTDEEMEDPOSITIVE>No</ISLASTDEEMEDPOSITIVE><ISPARTYLEDGER>Yes</ISPARTYLEDGER><AMOUNT>${supplierTotal}</AMOUNT>
+              <BILLALLOCATIONS.LIST><NAME>${xmlEsc(referenceNo)}</NAME><BILLTYPE>New Ref</BILLTYPE><AMOUNT>${supplierTotal}</AMOUNT></BILLALLOCATIONS.LIST>
+            </LEDGERENTRIES.LIST>${gstEntries}${roundingEntry}
+          </VOUCHER>
+        </TALLYMESSAGE></REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`;
+}
+
+function xmlEsc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+/* ════════════════════════════════════════════════
+   Push to Tally — with proper XML response parsing
+   and idempotency guard
+   ════════════════════════════════════════════════ */
+async function pushToTally() {
+  const btn = document.getElementById("pushBtn");
+  const refNo = document.getElementById("supplierInvNo").value.trim() || "";
+  if (refNo && pushedRefs.has(refNo) && !confirm('Invoice "' + refNo + '" was already pushed. Push again?')) return;
+
+  btn.disabled = true; btn.textContent = "⏳ Pushing…";
+  const xml = generateTallyXML(validatedItems);
+  log("📤 XML payload generated — pushing to Tally…", "info");
+
+  try {
+    const res = await fetch("http://localhost:5005/api/tally-proxy", { method: "POST", headers: { "Content-Type": "text/xml" }, body: xml });
+    const text = await res.text();
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(text, "text/xml");
+    const exceptions = xmlDoc.querySelector("EXCEPTIONS")?.textContent?.trim();
+    const created = xmlDoc.querySelector("CREATED")?.textContent?.trim();
+    const lastVchNo = xmlDoc.querySelector("LASTVOUCHERNUMBER")?.textContent?.trim();
+
+    if (exceptions === "1" || created === "0") {
+      log("❌ Tally rejected the voucher — check XML", "error");
+      showToast("Tally rejected", "error");
+    } else {
+      if (refNo) pushedRefs.add(refNo);
+      log("✅ Voucher created! Tally Voucher No: " + (lastVchNo || "—"), "success");
+      showToast("Voucher pushed to Tally", "success");
+      clearDraft();
+      pushHistory({
+        supplier: document.getElementById("partyLedger").value.trim() || "—",
+        invoiceNo: refNo,
+        amount: validatedItems.reduce(function(s, i) { return s + Math.round(i.qty * i.rate * 100); }, 0) / 100,
+        items: validatedItems.length,
+        ts: Date.now()
+      });
+    }
+  } catch (e) {
+    log("❌ Network error: " + e.message, "error");
+    showToast("Push failed", "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "🚀 Push to Tally";
+  }
+}
+
+function esc(s) { if (s == null) return ""; const d = document.createElement("div"); d.textContent = String(s); return d.innerHTML; }
+</script>
+
+<!-- Toast container -->
+<div id="toast"></div>
+
+<!-- History panel -->
+<div id="historyOverlay" onclick="if(event.target===this)closeHistory()">
+  <div class="history-panel">
+    <h3>📜 Push History <button class="btn btn-sm btn-outline" onclick="closeHistory()">Close</button></h3>
+    <div id="historyList"><div class="history-empty">No pushes yet</div></div>
+  </div>
+</div>
+
+</body>
+</html>

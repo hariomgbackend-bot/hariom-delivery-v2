@@ -22,7 +22,7 @@ import admin from "firebase-admin";
 import { createRequire } from "module";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
 dotenv.config();
 
@@ -42,7 +42,7 @@ const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || "";
 
 const upload = multer({ storage: multer.memoryStorage() });
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const app = express();
 app.set("trust proxy", 1); // Required on Render — sits behind a reverse proxy
@@ -4141,86 +4141,290 @@ async function sendServicePush(title, body) {
   }
 }
 
+// ── Deterministic Reliance/JioMart parser ──
+function parseRelianceInvoice(text) {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+  let invNo = "", invDate = "", vendor = "RELIANCE RETAIL LIMITED";
+  for (const l of lines) {
+    let m = l.match(/Tax Invoice No\s*:\s*(\S+?)(?:\s*Date|\s|$)/);
+    if (m) invNo = m[1];
+    m = l.match(/Date\s*:\s*(\d{2})-(\d{2})-(\d{4})/);
+    if (m) invDate = `${m[3]}-${m[2]}-${m[1]}`;
+  }
+
+  const srIdx = lines.findIndex(l => l.includes("Sr.No."));
+  if (srIdx === -1) return null;
+
+  const discIdx = lines.findIndex((l, i) => i >= srIdx && l.includes("DiscountAmount"));
+  if (discIdx === -1) return null;
+
+  const totalIdx = lines.findIndex((l, i) => i > discIdx &&
+    (l.includes("Total Amount") || l.includes("Tax Summary")));
+  const dataEnd = totalIdx !== -1 ? totalIdx : lines.length;
+
+  const dataLines = lines.slice(discIdx + 1, dataEnd);
+
+  const slashIdxArr = [];
+  for (let i = 0; i < dataLines.length; i++) {
+    if (dataLines[i].includes("/")) slashIdxArr.push(i);
+  }
+  if (slashIdxArr.length === 0) return null;
+
+  const skuMatch = text.match(/Total no\. of SKUs\s*:\s*(\d+)/);
+  const expectedN = skuMatch ? parseInt(skuMatch[1], 10) : 0;
+
+  function extractDescFromSlashLine(line) {
+    const m = line.match(/\d+\s*\/\s*\d+([A-Za-z].*)/);
+    return m ? m[1].trim() : "";
+  }
+
+  const HAS_TAIL = /\d{8}\d+\d{1,3},\d{3}/;
+  const IS_SERIAL = l => /^[A-Za-z0-9][A-Za-z0-9\-]{5,}$/.test(l) && !l.includes(" ") &&
+    /[A-Za-z]/.test(l) && /\d/.test(l);
+
+  const items = [];
+  for (let s = 0; s < slashIdxArr.length; s++) {
+    const slashIdx = slashIdxArr[s];
+    const nextSlash = s + 1 < slashIdxArr.length ? slashIdxArr[s + 1] : dataLines.length;
+
+    let blockStart = slashIdx;
+    if (slashIdx > 0 && /^\d+$/.test(dataLines[slashIdx - 1])) {
+      blockStart = slashIdx - 1;
+    }
+    let blockEnd = nextSlash;
+    if (nextSlash > 0 && /^\d+$/.test(dataLines[nextSlash - 1])) {
+      const pn = parseInt(dataLines[nextSlash - 1], 10);
+      if (pn >= 1 && pn <= expectedN) blockEnd = nextSlash - 1;
+    }
+    if (items.length > 0) {
+      const prevEnd = items[items.length - 1]._endIdx;
+      if (prevEnd > blockStart) blockStart = prevEnd;
+    }
+
+    const chunk = dataLines.slice(blockStart, blockEnd);
+
+    const rawSrParts = [];
+    for (const l of chunk) {
+      if (/^\d+$/.test(l) || l.includes("/") || /^\d{8,}$/.test(l)) {
+        rawSrParts.push(l);
+      } else break;
+    }
+    const srNoRaw = rawSrParts.join(" ");
+
+    let descFromSlash = "";
+    const slashLine = chunk.find(l => l.includes("/"));
+    if (slashLine) descFromSlash = extractDescFromSlashLine(slashLine);
+
+    let di = 0;
+    while (di < chunk.length &&
+           (/^\d+$/.test(chunk[di]) || chunk[di].includes("/") || /^\d{8,}$/.test(chunk[di]))) {
+      di++;
+    }
+
+    const descLines = descFromSlash ? [descFromSlash] : [];
+    let serialStr = "";
+    let tailStr = "";
+    let stage = descFromSlash ? "serial" : "desc";
+    let inlineDesc = "";
+
+    for (let scanIdx = di; scanIdx < chunk.length; scanIdx++) {
+      let l = chunk[scanIdx];
+      const tailMatchPos = HAS_TAIL.exec(l);
+      if (tailMatchPos) {
+        inlineDesc = l.slice(0, tailMatchPos.index).trim();
+        tailStr = l.slice(tailMatchPos.index);
+        break;
+      }
+      if (l.includes(",") || /^\d{1,3},\d{3}$/.test(l)) {
+        tailStr = l;
+        break;
+      }
+
+      if (stage === "desc") {
+        if (IS_SERIAL(l)) { serialStr = l; stage = "skip"; continue; }
+        if (/^\d{4,}$/.test(l) && l.length < 12) { serialStr = l; stage = "skip"; continue; }
+        descLines.push(l);
+      } else if (stage === "serial") {
+        if (IS_SERIAL(l)) { serialStr = l; stage = "skip"; continue; }
+        if (!/^\d+$/.test(l) && !/^\d{8,}$/.test(l)) { descLines.push(l); }
+      } else if (stage === "skip") {
+        serialStr += l; continue;
+      }
+    }
+
+    if (inlineDesc) descLines.push(inlineDesc);
+    if (!tailStr) {
+      for (let i = chunk.length - 1; i >= 0; i--) {
+        if (chunk[i].includes(",")) { tailStr = chunk[i]; break; }
+      }
+    }
+
+    const description = descLines.join(" ").trim().replace(/\s+/g, " ");
+
+    let qty = 1, unitPrice = 0, amount = 0, discount = 0;
+    if (tailStr) {
+      const hm = tailStr.match(/^(\d{8})(\d)/);
+      if (hm) {
+        qty = parseInt(hm[2], 10) || 1;
+        const rest = tailStr.slice(hm[0].length);
+        const commaVals = Array.from(rest.matchAll(/\d{1,3},\d{3}/g));
+        if (commaVals.length >= 1) {
+          const last = commaVals[commaVals.length - 1];
+          amount = parseInt(last[0].replace(/,/g, ""), 10);
+        }
+        if (commaVals.length >= 2) {
+          const slm = commaVals[commaVals.length - 2];
+          unitPrice = parseInt(slm[0].replace(/,/g, ""), 10);
+          const btwn = rest.slice(slm.index + slm[0].length,
+            commaVals[commaVals.length - 1].index);
+          discount = parseInt(btwn, 10) || 0;
+        } else if (commaVals.length === 1) {
+          unitPrice = amount;
+        }
+      }
+    }
+
+    items.push({
+      description,
+      serialNumbers: serialStr ? [serialStr] : [],
+      qty,
+      rate: Math.round((unitPrice / 1.18) * 100) / 100,
+      amount, discount, gstRate: 18, srNoRaw, _endIdx: blockEnd
+    });
+  }
+
+  const taxMatch = text.match(/Total Taxable Amount\s*:\s*([\d,]+\.?\d*)/);
+  const totalTaxable = taxMatch ? parseFloat(taxMatch[1].replace(/,/g, "")) : null;
+  const sameAmt = items.length > 0 && items.every(it => it.amount === items[0].amount);
+  if (totalTaxable && sameAmt && items.length > 0) {
+    const perItem = Math.round((totalTaxable / items.length) * 100) / 100;
+    items.forEach(it => { it.rate = perItem; });
+  }
+
+  for (const it of items) { delete it._endIdx; delete it.amount; delete it.discount; }
+  return { invoiceNumber: invNo, invoiceDate: invDate, vendorName: vendor, items };
+}
+
+const GROQ_EXTRACT_PROMPT = `You are a professional GST invoice data extractor for an Indian electronics retailer.
+Output ONLY valid JSON — no markdown, no explanation.
+
+EXTRACTION RULES:
+1. invoiceNumber: the supplier's own invoice/bill number (e.g. KM/1576, H26-27/1126, SLS2700497)
+2. invoiceDate: YYYY-MM-DD format
+3. vendorName: the seller/supplier company name (NOT "Hariom Electronics" — that is the buyer)
+4. items[]: one entry per LINE ITEM in the invoice table. Each item:
+   - description: full product name/model as printed (e.g. "SURYA ACC 3B TRIO SS DT", "Samsung Refrigerator DC RR21H2H25BB/HL")
+   - qty: numeric quantity (e.g. 4, 10, 2) — "nos", "pcs", "pc" are units not quantities
+   - rate: base price per unit EXCLUDING GST. If only taxable amount shown, divide by qty.
+           If discount applied, use the post-discount taxable rate.
+           Taxable Amount / qty = rate.
+   - gstRate: total GST % as integer (5, 12, 18, or 28). CGST 9% + SGST 9% = 18%.
+   - serialNumbers: array of serial/IMEI numbers for this item. Can be listed below description,
+     as bullet points, or handwritten. Each S/N is a separate string. Empty array if none.
+
+COMMON MISTAKES TO AVOID:
+- "rate" must be TAXABLE (ex-GST) value per unit, never the total row amount
+- If invoice shows "Taxable Amount" column, that is qty×rate — divide by qty to get rate
+- Discount % is already applied in taxable amount — do not re-apply it
+- S/Nos on Novel/Samsung invoices are listed as "06274PAL400887" style codes under description
+- Handwritten S/Nos (like on Nayan Electronics invoices) must also be captured
+- GST rate 9%+9% = 18%, never "9"`;
+
+async function extractWithGroqText(rawText) {
+  const completion = await groq.chat.completions.create({
+    messages: [
+      { role: "system", content: GROQ_EXTRACT_PROMPT },
+      { role: "user",   content: `Extract invoice data from this text and return JSON with keys: invoiceNumber, invoiceDate, vendorName, items[].
+
+<INVOICE_TEXT>
+${rawText}
+</INVOICE_TEXT>` }
+    ],
+    model: "llama-3.3-70b-versatile",
+    temperature: 0,
+    response_format: { type: "json_object" }
+  });
+  const raw = completion.choices[0].message.content.replace(/```json/gi,"").replace(/```/g,"").trim();
+  return JSON.parse(raw);
+}
+
+async function extractWithGroqVision(imageBuffer, mimeType) {
+  const base64 = imageBuffer.toString("base64");
+  const completion = await groq.chat.completions.create({
+    messages: [
+      { role: "system", content: GROQ_EXTRACT_PROMPT },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Extract invoice data from this invoice image and return JSON with keys: invoiceNumber, invoiceDate, vendorName, items[]." },
+          { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }
+        ]
+      }
+    ],
+    model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    temperature: 0,
+    response_format: { type: "json_object" },
+    max_tokens: 2048
+  });
+  const raw = completion.choices[0].message.content.replace(/```json/gi,"").replace(/```/g,"").trim();
+  return JSON.parse(raw);
+}
+
 app.post("/api/extract-invoice", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const allowedTypes = ["application/pdf","image/jpeg","image/png","image/webp"];
-    if (!allowedTypes.includes(req.file.mimetype)) {
-      return res.status(400).json({ error: "Unsupported file type: " + req.file.mimetype });
+
+    const { mimetype, originalname, buffer, size } = req.file;
+    const isImage = mimetype.startsWith("image/");
+    const isPdf   = mimetype === "application/pdf";
+
+    console.log(`📄 Received: ${originalname} (${(size/1024).toFixed(0)} KB, ${mimetype})`);
+
+    let result;
+
+    if (isImage) {
+      console.log("🖼️  Image invoice — sending to Groq vision (llama-4-scout)...");
+      result = await extractWithGroqVision(buffer, mimetype);
+      console.log(`✅ Vision: ${result.items?.length || 0} items from ${result.vendorName || "?"}`);
+
+    } else if (isPdf) {
+      const rawText = (await pdfParse(buffer)).text;
+
+      if (!rawText || rawText.trim().length < 30) {
+        return res.status(422).json({
+          error: "This PDF appears to be a scanned image. Please take a photo and upload as JPG instead."
+        });
+      }
+
+      if (rawText.includes("RELIANCE RETAIL LIMITED") && rawText.includes("Tax Invoice No")) {
+        console.log("🏷️  Reliance PDF — using deterministic parser...");
+        result = parseRelianceInvoice(rawText);
+        if (!result || !result.items?.length) {
+          console.warn("⚠️  Deterministic parser empty — falling back to Groq text");
+          result = await extractWithGroqText(rawText);
+        } else {
+          console.log(`✅ Deterministic: ${result.items.length} items, invoice ${result.invoiceNumber}`);
+        }
+      } else {
+        console.log("🧠 Non-Reliance PDF — sending to Groq text (llama-3.3)...");
+        result = await extractWithGroqText(rawText);
+        console.log(`✅ Groq text: ${result.items?.length || 0} items from ${result.vendorName || "?"}`);
+      }
+
+    } else {
+      return res.status(415).json({ error: `Unsupported file type: ${mimetype}. Use PDF or JPG/PNG.` });
     }
 
-    console.log(`📄 Invoice received: ${req.file.originalname} (${req.file.mimetype}, ${req.file.size} bytes)`);
-
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: { responseMimeType: "application/json" },
-    });
-
-    const prompt = `You are an expert accounting assistant for an Indian electronics retailer.
-You are looking at a purchase invoice image or PDF. Extract all data and return ONLY a valid JSON object with this exact structure — no explanation, no markdown, no code fences:
-
-{
-  "invoiceDate": "YYYYMMDD",
-  "vendorName": "full supplier company name as printed on the invoice",
-  "invoiceNumber": "invoice or bill number",
-  "gstinSupplier": "supplier GSTIN (15 characters)",
-  "items": [
-    {
-      "description": "product name and model only — strip serial numbers, batch codes, and S/No values",
-      "qty": number,
-      "unitPrice": number,
-      "amount": number,
-      "hsn": "HSN code string"
+    if (!result?.items?.length) {
+      return res.status(422).json({ error: "Could not extract any line items from this invoice." });
     }
-  ],
-  "taxSummary": [
-    {
-      "hsn": "string",
-      "cgstRate": number,
-      "cgstAmount": number,
-      "sgstRate": number,
-      "sgstAmount": number,
-      "igstRate": number,
-      "igstAmount": number
-    }
-  ],
-  "taxableAmount": number,
-  "totalTax": number,
-  "totalAmount": number
-}
 
-Rules you must follow:
-1. CRITICAL: If multiple rows have the same product description but different serial numbers, batch codes, or product S/No values, they are the SAME product. Merge them into ONE item: add their qty values, add their amount values, keep unitPrice the same.
-2. Do NOT include tax rows, freight charges, discount rows, or summary rows in items[].
-3. invoiceDate MUST be in YYYYMMDD format. Example: 16-05-2026 becomes 20260516.
-4. unitPrice is the price per unit BEFORE GST.
-5. amount = qty x unitPrice (taxable base value, no GST included).
-6. For intra-state: use cgstRate/cgstAmount and sgstRate/sgstAmount. Set igstRate and igstAmount to 0.
-7. For inter-state: use igstRate/igstAmount. Set cgstRate, cgstAmount, sgstRate, sgstAmount to 0.
-8. If any field cannot be found, use null.
-9. Return ONLY the JSON object. Nothing else.`;
+    res.json(result);
 
-    console.log("🧠 Sending to Gemini Vision...");
-
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: req.file.mimetype,
-          data: req.file.buffer.toString("base64"),
-        },
-      },
-      { text: prompt },
-    ]);
-
-    const raw = result.response.text();
-    const extracted = JSON.parse(raw);
-
-    console.log(`✅ Gemini extracted ${extracted.items?.length ?? 0} items from invoice`);
-    res.json(extracted);
-
-  } catch (err) {
-    console.error("❌ Extraction error:", err.message);
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error("❌ Extraction Error:", error);
+    res.status(500).json({ error: "Failed to parse invoice: " + error.message });
   }
 });
 
