@@ -1621,8 +1621,9 @@ function parseProductName(name) {
 /** HTML-escape a value for safe insertion into innerHTML */
 function esc(s) {
   if (s == null) return '—';
+  s = String(s).replace(/&#x2F;/g, '/');
   const d = document.createElement('div');
-  d.textContent = String(s);
+  d.textContent = s;
   return d.innerHTML;
 }
 

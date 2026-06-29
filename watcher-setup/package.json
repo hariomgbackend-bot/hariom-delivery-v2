@@ -1,0 +1,16 @@
+{
+  "name": "hariom-invoice-watcher",
+  "version": "1.0.0",
+  "description": "Hariom DMS — Cloud Invoice Watcher",
+  "main": "watcher.js",
+  "scripts": {
+    "start": "node watcher.js"
+  },
+  "type": "module",
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "firebase-admin": "^13.7.0",
+    "express": "^4.21.0",
+    "dotenv": "^16.4.5"
+  }
+}

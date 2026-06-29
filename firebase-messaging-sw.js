@@ -14,8 +14,6 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage(function(payload) {
 
-  console.log("SW background payload:", payload);
-
   const title = payload?.data?.title || "New Notification";
   const body  = payload?.data?.body  || "";
 

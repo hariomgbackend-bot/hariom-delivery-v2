@@ -1,0 +1,84 @@
+
+
+RELIANCE RETAIL LIMITED
+Tax Invoice
+ORIGINAL FOR RECIPIENT
+Tax Invoice No : V01499326530795Date : 06/06/2026 18:21:16
+Customer Id : 0761501380
+Customer Type : R
+Customer Order No. : BB6A23ECD60E9B1D5E30-01
+PAN No. : NA
+Bill To Address
+Name of the Customer : HARIOM ELECTRONICS
+Flat No. : Gala 19
+Bldg : anandi devachi
+Sec/Loc : Khed Street : alandi road Area : Khed
+City : Pune State : Maharashtra Pincode : 412105
+State Code : 27
+GSTIN : 27AFJPC2223B1Z7
+Relationship ID : NA
+Email : 7276039806@nomail.jiomart.com
+Place of Supply & State Code : 27 MAH
+Mobile No. : 7276039806
+Ship To Address
+Name of the Customer : Hariom Electronics
+Flat No. : Hariom
+Bldg : Alandi Devachi
+Sec/Loc : Alandi Street : Alandi Devachi,Alandi Area : NA
+City : Pune State : Maharashtra Pincode : 412105
+State Code : 27
+GSTIN : 27AFJPC2223B1Z7
+Relationship ID : NA
+Email : 7276039806@nomail.jiomart.com
+Place of Supply & State Code : 27 MAH
+Mobile No. : 7276039806
+Transporter Name : NA
+Consignment Note No. : BB6A23ECD60E9B1D5E30-01
+Consignment Date : 06/06/2026 18:21:16
+EwayBill No. : NA
+EwayBill Date : NA
+AWB Number : NA
+Delivery Number : 4325395390
+Sr.No.Article No./EAN No.Article DescriptionProduct S/No.
+HSN/SAC
+Code
+Quantity
+Unit
+Price
+DiscountAmount
+1
+492284019 /
+8902901039306
+BPL REF BRF-
+3800AVJG
+492284019DBCK00040584182100121,000021,000
+Total Amount21,000
+Tax Summary
+Sr. No.HSN Code
+CGSTSGST/IGSTCess
+Cess Lump
+Sum Amount
+Total Tax
+Value
+Rate %AmountRate %AmountRate %Amount
+1841821009.00%1601.699.00%1601.690.00.00.003203.38
+Total Taxable Amount : 17796.61Total Tax Amount : 3203.38
+Gross Sales Value21,000
+Total Discount0
+Net Sales Value (inclusive of GST)21,000
+Net Banking : 21000.0
+TransRefNo. : 4000432771973
+Date & Time : 06/06/2026 18:21:16
+Thank you for shopping with us!
+Total no. of Deliveries : 1Total no. of SKUs : 1
+C# 55182345S# V014Txn# 72S# 993PaymentRefNo# V014993007206062026
+1. Tax is not payable under Reverse Charge basis for this supply.
+2. We hereby certify that goods mentioned in this invoice/bill is/are warranted to be of the nature and quality which they purpose to be
+3. An Electronic document issued in accordance with the provisions of the Information Technology Act, 2000 (21 of 2000)
+REGD OFFICE: 3rd Floor, Court House Lokmanya Tilak Marg, Dhobi Talao,Mumbai 400002 CIN: U01100MH1999PLC120563 PAN No: 
+AABCR1718E Customer Care toll free number-1800 890 1333 | Customer Care JMDigital.CS@jiomart.com Merchant care JMDigital.MS@jiomart.
+com
+Supply/Dispatch Location Address : 
+Pune, Maharashtra, 413105, Taluka - daund, Kurkumbh, Area, Pune - Solapur Highway, 
+Reliance Retail Ltd, D-1, Kurkumbh Ind, Supply State GSTIN: 27AABCR1718E1ZP
+IRN : 3ef22e7b7511b5f28c38e074661f8f701da6e4de44f20ebfbb3182ddb882c189

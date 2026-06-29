@@ -1,4 +1,9 @@
 node_modules/
 firebase-service-account.json
 .env
-tally_products.json 
+tally_products.json
+
+# Generated audit artifacts (kept on disk; produced by removed audit scripts)
+audit.log
+audit_results.txt
+nul

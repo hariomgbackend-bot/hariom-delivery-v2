@@ -877,8 +877,11 @@ function updateItem(idx, field, val) {
     });
     renderValidationTable();
   } else if (field === "qty" || field === "rate") {
+    validatedItems[idx][field] = val; // persist new value into state
     document.getElementById("amount_" + idx).textContent = (validatedItems[idx].qty * validatedItems[idx].rate).toLocaleString("en-IN");
     updateActionSummary();
+  } else if (field === "srStr") {
+    validatedItems[idx].srStr = val;
   }
   saveDraft();
 }

@@ -1,0 +1,34 @@
+--- a/server.js
++++ b/server.js
+@@ -2399,6 +2399,33 @@
+     res.status(500).json({ success: false, message: "Internal server error" });
+   }
+ });
++
++/* ════════════════════════════════════════════════
++   TALLY ECHO (diagnostic)
++   GET /tally/echo/:value
++   — Returns the decoded value of :value. No Firestore,
++     no side effects. Used to verify TDL can construct
++     dynamic URLs and safely pass values containing "/"
++     (e.g. 2026-27%2F1642 → 2026-27/1642).
++════════════════════════════════════════════════ */
++app.get("/tally/echo/:value", async (req, res) => {
++  try {
++    const TALLY_PUSH_KEY = process.env.TALLY_PUSH_KEY;
++    if (TALLY_PUSH_KEY) {
++      const provided = req.headers["x-tally-key"];
++      if (provided !== TALLY_PUSH_KEY) {
++        return res.status(401).json({ error: "Invalid API key" });
++      }
++    }
++
++    const received = decodeURIComponent(req.params.value);
++    res.json({ success: true, received: received });
++  } catch (err) {
++    res.status(500).json({ success: false, message: "Internal server error" });
++  }
++});
+
+ /* ════════════════════════════════════════════════
+    TALLY SERIAL LOOKUP (read-only)

@@ -1,0 +1,145 @@
+
+
+RELIANCE RETAIL LIMITED
+Tax Invoice
+ORIGINAL FOR RECIPIENT
+Supply/Dispatch Location Address :
+Pune, Maharashtra, 413105, Taluka - daund, Kurkumbh,  Area, Pune - Solapur Highway,
+Reliance Retail Ltd, D-1, Kurkumbh Ind, Supply State GSTIN: 27AABCR1718E1ZP
+
+
+
+
+IRN : cdfeff4401a3ca04d066a8ed10f3f04c055d8b87b24ba6f87226e793d53f63ae
+Tax Invoice No : V01499326505649Date : 24-01-2026 20:14:59
+Customer ID : 0761501380Ship To Address
+Customer Type : RName of the Customer : Hariom Electronics
+Customer Order No. : BB697454F70EE8320B6C-01Flat No. : Hariom
+PAN No. : NABldg : Alandi Devachi
+Bill To AddressSec/Loc : Alandi  Street : Alandi Devachi,Alandi  Area : NA
+Name of the Customer  : HARIOM ELECTRONICSCity : Pune  State : Maharashtra  Pincode : 412105
+Flat No. :Gala 19State Code : 27
+Bldg : anandi devachiGSTIN : 27AFJPC2223B1Z7
+Sec/Loc : Khed  Street : alandi road  Area : KhedRelationship ID : NA
+City : Pune  State : Maharashtra  Pincode : 412105Email : 7276039806@nomail.jiomart.com
+State Code : 27Place of Supply & State Code : 27 MAH
+GSTIN : 27AFJPC2223B1Z7Mobile No. : 7276039806
+Relationship ID : NATransporter Name : NA
+Email : 7276039806@nomail.jiomart.comConsignment Note No. : BB697454F70EE8320B6C-01
+Place of Supply & State Code : 27 MAHConsignment Date : 24-01-2026 20:14:59
+Mobile No. : 7276039806EwayBill No. : 222125566784
+EwayBill Date : 2026-01-24 20:15:00
+AWB Number : NA
+Delivery Number : 4322226412
+Sr.No.Article No. / EAN No.Article DescriptionProduct
+S/No.
+HSN/SAC
+Code
+QuantityUnit
+Price
+DiscountAmount
+1
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500100
+300
+8528721416,99006,990
+2
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500100
+298
+8528721416,99006,990
+3
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500099
+850
+8528721416,99006,990
+4
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500099
+730
+8528721416,99006,990
+5
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500099
+870
+8528721416,99006,990
+6
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500099
+872
+8528721416,99006,990
+7
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500099
+761
+8528721416,99006,990
+8
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500099
+941
+8528721416,99006,990
+9
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500099
+731
+8528721416,99006,990
+10
+494496058 /
+3203201900101
+BUSH 32 JMK32PRO
+JMK32PROC
+D122500099
+939
+8528721416,99006,990
+Total Amount69,900
+Tax Summary
+
+Sr.
+No.
+HSN CodeCGSTSGST/IGSTCessCess Lump
+Sum Amount
+Total Tax Value
+Rate%AmountRate%AmountRate%Amount
+1852872149.05,331.49.05,331.40.000.0010,662.8
+Total Taxable Amount : 59,237.3Total Tax Amount : 10,662.8
+Total Invoice Value69,900
+Net Banking : 69900
+TransRefNo.  : 2000354168888
+Date & Time : 24-01-2026 20:14:59
+Thank you for shopping with us!
+Total no. of Deliveries : 1 Total no. of SKUs : 10
+C# 55182345S# V014Txn# 213S# 993 PaymentRefNo#
+V014993021324012026
+1. Tax is not payable under Reverse Charge basis for this supply.
+2. We hereby certify that goods mentioned in this invoice/bill is/are warranted to be of the nature and quality which they purpose to be
+3. An Electronic document issued in accordance with the provisions of the Information Technology Act, 2000 (21 of 2000)
+REGD OFFICE: 3rd Floor, Court House Lokmanya Tilak Marg, Dhobi Talao,Mumbai 400002
+CIN: U01100MH1999PLC120563 PAN No: AABCR1718E
+Customer Care toll free number-1800 890 1333 | Customer Care JMDigital.CS@jiomart.com Merchant care JMDigital.MS@jiomart.com

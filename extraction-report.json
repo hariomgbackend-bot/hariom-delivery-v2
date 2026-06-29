@@ -1,0 +1,360 @@
+[
+  {
+    "file": "BB697454F70EE8320B6C.pdf",
+    "pages": 2,
+    "textLength": 3517,
+    "isReliance": true,
+    "parserUsed": "deterministic",
+    "parsed": true,
+    "invoiceNumber": "V01499326505649",
+    "invoiceDate": "2026-01-24",
+    "vendorName": "RELIANCE RETAIL LIMITED",
+    "itemCount": 10,
+    "items": [
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500100300"
+        ]
+      },
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500100298"
+        ]
+      },
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500099850"
+        ]
+      },
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500099730"
+        ]
+      },
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500099870"
+        ]
+      },
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500099872"
+        ]
+      },
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500099761"
+        ]
+      },
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500099941"
+        ]
+      },
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500099731"
+        ]
+      },
+      {
+        "description": "BUSH 32 JMK32PRO",
+        "qty": 1,
+        "rate": 5923.73,
+        "gstRate": 18,
+        "serialNumbers": [
+          "JMK32PROCD122500099939"
+        ]
+      }
+    ]
+  },
+  {
+    "file": "BB6991ACD00E2EBB6C59.pdf",
+    "pages": 1,
+    "textLength": 2835,
+    "isReliance": true,
+    "parserUsed": "deterministic",
+    "parsed": true,
+    "invoiceNumber": "V01499326509461",
+    "invoiceDate": "2026-02-15",
+    "vendorName": "RELIANCE RETAIL LIMITED",
+    "itemCount": 3,
+    "items": [
+      {
+        "description": "NVY 43 NVA43SFR1",
+        "qty": 1,
+        "rate": 9957.63,
+        "gstRate": 18,
+        "serialNumbers": [
+          "NRGOR1255224608"
+        ]
+      },
+      {
+        "description": "NVY 43 NVA43SFR1",
+        "qty": 1,
+        "rate": 9957.63,
+        "gstRate": 18,
+        "serialNumbers": [
+          "NRGOR1255224607"
+        ]
+      },
+      {
+        "description": "NVY 43 NVA43SFR1",
+        "qty": 1,
+        "rate": 9957.63,
+        "gstRate": 18,
+        "serialNumbers": [
+          "NRGOR1255224606"
+        ]
+      }
+    ]
+  },
+  {
+    "file": "BB699D5CAB0E0AB816C1.pdf",
+    "pages": 2,
+    "textLength": 3825,
+    "isReliance": true,
+    "parserUsed": "deterministic",
+    "parsed": true,
+    "invoiceNumber": "V01499326510847",
+    "invoiceDate": "2026-02-24",
+    "vendorName": "RELIANCE RETAIL LIMITED",
+    "itemCount": 13,
+    "items": [
+      {
+        "description": "Foxsky 32 FSELS PRO",
+        "qty": 1,
+        "rate": 6093.22,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F32FSELSPRO012600398"
+        ]
+      },
+      {
+        "description": "Foxsky 32 FSELS PRO",
+        "qty": 1,
+        "rate": 6093.22,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F32FSELSPRO012600425"
+        ]
+      },
+      {
+        "description": "Foxsky 32 FSELS PRO",
+        "qty": 1,
+        "rate": 6093.22,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F32FSELSPRO012600473"
+        ]
+      },
+      {
+        "description": "Foxsky 32 FSELS PRO",
+        "qty": 1,
+        "rate": 6093.22,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F32FSELSPRO012602646"
+        ]
+      },
+      {
+        "description": "Foxsky 32 FSELS PRO",
+        "qty": 1,
+        "rate": 6093.22,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F32FSELSPRO012602653"
+        ]
+      },
+      {
+        "description": "Foxsky 43 FSFHS",
+        "qty": 1,
+        "rate": 10415.25,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F43FSFHS012601992"
+        ]
+      },
+      {
+        "description": "Foxsky 43 FSFHS",
+        "qty": 1,
+        "rate": 10415.25,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F43FSFHS012601659"
+        ]
+      },
+      {
+        "description": "Foxsky 43 FSFHS",
+        "qty": 1,
+        "rate": 10415.25,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F43FSFHS012602023"
+        ]
+      },
+      {
+        "description": "Foxsky 43 FSFHS",
+        "qty": 1,
+        "rate": 10415.25,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F43FSFHS012601668"
+        ]
+      },
+      {
+        "description": "Foxsky 43 FSFHS",
+        "qty": 1,
+        "rate": 10415.25,
+        "gstRate": 18,
+        "serialNumbers": [
+          "F43FSFHS012601651"
+        ]
+      },
+      {
+        "description": "FOXSKY 43 4K QLED 43",
+        "qty": 1,
+        "rate": 13550.85,
+        "gstRate": 18,
+        "serialNumbers": [
+          "01260000281"
+        ]
+      },
+      {
+        "description": "FOXSKY 43 4K QLED 43",
+        "qty": 1,
+        "rate": 13550.85,
+        "gstRate": 18,
+        "serialNumbers": [
+          "01260000205"
+        ]
+      },
+      {
+        "description": "FOXSKY 43 4K QLED 43",
+        "qty": 1,
+        "rate": 13550.85,
+        "gstRate": 18,
+        "serialNumbers": [
+          "01260000124"
+        ]
+      }
+    ]
+  },
+  {
+    "file": "BB6A087FA30ECAE16D7E.pdf",
+    "pages": 2,
+    "textLength": 3000,
+    "isReliance": true,
+    "parserUsed": "deterministic",
+    "parsed": true,
+    "invoiceNumber": "SLGC99326501287",
+    "invoiceDate": "2026-05-16",
+    "vendorName": "RELIANCE RETAIL LIMITED",
+    "itemCount": 5,
+    "items": [
+      {
+        "description": "TCL 32 HD TV 32S49K",
+        "qty": 1,
+        "rate": 9694.92,
+        "gstRate": 18,
+        "serialNumbers": [
+          "2507DEF2507008T38300758"
+        ]
+      },
+      {
+        "description": "TCL 32 HD TV 32S49K",
+        "qty": 1,
+        "rate": 9694.92,
+        "gstRate": 18,
+        "serialNumbers": [
+          "2507DEF2507008J88400086"
+        ]
+      },
+      {
+        "description": "TCL 32 HD TV 32S49K",
+        "qty": 1,
+        "rate": 9694.92,
+        "gstRate": 18,
+        "serialNumbers": [
+          "2507DEF2507008S75400349"
+        ]
+      },
+      {
+        "description": "TCL 32 HD TV 32S49K",
+        "qty": 1,
+        "rate": 9694.92,
+        "gstRate": 18,
+        "serialNumbers": [
+          "2507DEF2507008U46300446"
+        ]
+      },
+      {
+        "description": "TCL 32 HD TV 32S49K",
+        "qty": 1,
+        "rate": 9694.92,
+        "gstRate": 18,
+        "serialNumbers": [
+          "76-FDTLA0-0ATZ5TE-A"
+        ]
+      }
+    ]
+  },
+  {
+    "file": "JIO B2B.pdf",
+    "pages": 1,
+    "textLength": 2736,
+    "isReliance": true,
+    "parserUsed": "deterministic",
+    "parsed": true,
+    "invoiceNumber": "V01499326530795",
+    "invoiceDate": "",
+    "vendorName": "RELIANCE RETAIL LIMITED",
+    "itemCount": 1,
+    "items": [
+      {
+        "description": "BPL REF BRF 3800AVJG",
+        "qty": 1,
+        "rate": 17796.61,
+        "gstRate": 18,
+        "serialNumbers": [
+          "492284019DBCK000405"
+        ]
+      }
+    ]
+  }
+]

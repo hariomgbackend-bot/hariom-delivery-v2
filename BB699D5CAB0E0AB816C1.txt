@@ -1,0 +1,140 @@
+
+
+RELIANCE RETAIL LIMITED
+Tax Invoice
+ORIGINAL FOR RECIPIENT
+Supply/Dispatch Location Address :
+Pune, Maharashtra, 413105, Taluka - daund, Kurkumbh,  Area, Pune - Solapur Highway,
+Reliance Retail Ltd, D-1, Kurkumbh Ind, Supply State GSTIN: 27AABCR1718E1ZP
+
+
+
+
+IRN : a2646796fd39a1f414c486b9a801081968af953c9a2abf6434f81ab40f80e235
+Tax Invoice No : V01499326510847Date : 24-02-2026 18:01:14
+Customer ID : 0761501380Ship To Address
+Customer Type : RName of the Customer : Hariom Electronics
+Customer Order No. : BB699D5CAB0E0AB816C1-01Flat No. : Hariom
+PAN No. : NABldg : Alandi Devachi
+Bill To AddressSec/Loc : Alandi  Street : Alandi Devachi,Alandi  Area : NA
+Name of the Customer  : HARIOM ELECTRONICSCity : Pune  State : Maharashtra  Pincode : 412105
+Flat No. :Gala 19State Code : 27
+Bldg : anandi devachiGSTIN : 27AFJPC2223B1Z7
+Sec/Loc : Khed  Street : alandi road  Area : KhedRelationship ID : NA
+City : Pune  State : Maharashtra  Pincode : 412105Email : 7276039806@nomail.jiomart.com
+State Code : 27Place of Supply & State Code : 27 MAH
+GSTIN : 27AFJPC2223B1Z7Mobile No. : 7276039806
+Relationship ID : NATransporter Name : NA
+Email : 7276039806@nomail.jiomart.comConsignment Note No. : BB699D5CAB0E0AB816C1-01
+Place of Supply & State Code : 27 MAHConsignment Date : 24-02-2026 18:01:14
+Mobile No. : 7276039806EwayBill No. : 212147265051
+EwayBill Date : 2026-02-24 18:01:00
+AWB Number : NA
+Delivery Number : 4322757438
+Sr.No.Article No. / EAN No.Article DescriptionProduct
+S/No.
+HSN/SAC
+Code
+QuantityUnit
+Price
+DiscountAmount
+1493179133 / 789993526819
+Foxsky 32 FSELS
+PRO
+F32FSELSP
+RO01260039
+8
+8528721417,19007,190
+2493179133 / 789993526819
+Foxsky 32 FSELS
+PRO
+F32FSELSP
+RO01260042
+5
+8528721417,19007,190
+3493179133 / 789993526819
+Foxsky 32 FSELS
+PRO
+F32FSELSP
+RO01260047
+3
+8528721417,19007,190
+4493179133 / 789993526819
+Foxsky 32 FSELS
+PRO
+F32FSELSP
+RO01260264
+6
+8528721417,19007,190
+5493179133 / 789993526819
+Foxsky 32 FSELS
+PRO
+F32FSELSP
+RO01260265
+3
+8528721417,19007,190
+6493179136 / 745808980733Foxsky 43 FSFHS
+F43FSFHS0
+12601992
+85287216112,290012,290
+7493179136 / 745808980733Foxsky 43 FSFHS
+F43FSFHS0
+12601659
+85287216112,290012,290
+8493179136 / 745808980733Foxsky 43 FSFHS
+F43FSFHS0
+12602023
+85287216112,290012,290
+9493179136 / 745808980733Foxsky 43 FSFHS
+F43FSFHS0
+12601668
+85287216112,290012,290
+10493179136 / 745808980733Foxsky 43 FSFHS
+F43FSFHS0
+12601651
+85287216112,290012,290
+11494749453 / 656465505811
+FOXSKY 43 4K QLED
+43
+0126000028
+1
+85287217115,990015,990
+12494749453 / 656465505811
+FOXSKY 43 4K QLED
+43
+0126000020
+5
+85287217115,990015,990
+13494749453 / 656465505811
+FOXSKY 43 4K QLED
+43
+0126000012
+4
+85287217115,990015,990
+Total Amount145,370
+Tax Summary
+
+Sr.
+No.
+HSN CodeCGSTSGST/IGSTCessCess Lump
+Sum Amount
+Total Tax Value
+Rate%AmountRate%AmountRate%Amount
+1852872179.03,658.749.03,658.740.000.007,317.48
+2852872149.02,741.959.02,741.950.000.005,483.9
+3852872169.04,686.859.04,686.850.000.009,373.7
+Total Taxable Amount : 123,194.9Total Tax Amount : 22,175.08
+Total Invoice Value145,370
+Net Banking : 145370
+TransRefNo.  : 4000385119541
+Date & Time : 24-02-2026 18:01:14
+Thank you for shopping with us!
+Total no. of Deliveries : 1 Total no. of SKUs : 13
+C# 55182345S# V014Txn# 212S# 993 PaymentRefNo#
+V014993021224022026
+1. Tax is not payable under Reverse Charge basis for this supply.
+2. We hereby certify that goods mentioned in this invoice/bill is/are warranted to be of the nature and quality which they purpose to be
+3. An Electronic document issued in accordance with the provisions of the Information Technology Act, 2000 (21 of 2000)
+REGD OFFICE: 3rd Floor, Court House Lokmanya Tilak Marg, Dhobi Talao,Mumbai 400002
+CIN: U01100MH1999PLC120563 PAN No: AABCR1718E
+Customer Care toll free number-1800 890 1333 | Customer Care JMDigital.CS@jiomart.com Merchant care JMDigital.MS@jiomart.com

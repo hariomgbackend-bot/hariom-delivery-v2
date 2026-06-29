@@ -10,8 +10,7 @@ import { storage } from "./storage.js";
 import fetch from "node-fetch";
 import multer from "multer";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import {
-  collection, addDoc, getDocs, Timestamp,
+import {  collection, addDoc, getDocs, Timestamp,
   doc, getDoc, updateDoc, deleteDoc,
   query, where, orderBy, setDoc, getCountFromServer
 } from "firebase/firestore";
@@ -27,8 +26,8 @@ import Groq from "groq-sdk";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-//const serviceAccount = require("./firebase-service-account.json");
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = require("./firebase-service-account.json");
+//const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -4179,7 +4178,6 @@ function parseRelianceInvoice(text) {
     return m ? m[1].trim() : "";
   }
 
-  const HAS_TAIL = /\d{8}\d+\d{1,3},\d{3}/;
   const IS_SERIAL = l => /^[A-Za-z0-9][A-Za-z0-9\-]{5,}$/.test(l) && !l.includes(" ") &&
     /[A-Za-z]/.test(l) && /\d/.test(l);
 
@@ -4230,18 +4228,36 @@ function parseRelianceInvoice(text) {
 
     for (let scanIdx = di; scanIdx < chunk.length; scanIdx++) {
       let l = chunk[scanIdx];
-      const tailMatchPos = HAS_TAIL.exec(l);
-      if (tailMatchPos) {
-        inlineDesc = l.slice(0, tailMatchPos.index).trim();
-        tailStr = l.slice(tailMatchPos.index);
-        break;
-      }
-      if (l.includes(",") || /^\d{1,3},\d{3}$/.test(l)) {
-        tailStr = l;
+      // Find the tail line.
+      // Pure digits+commas: HSN is always at position 0 (no serial prefix).
+      // With letters: scan backwards for HSN(8)+qty(1), rejecting any where
+      //   the qty exceeds Total SKUs count (serial suffix bleeds into HSN).
+      const commaVals = [...l.matchAll(/\d{1,3},\d{3}/g)];
+      if (commaVals.length >= 1 || l.includes(",")) {
+        if (/^[\d,]+$/.test(l)) {
+          tailStr = l;
+        } else {
+          for (let i = l.length - 9; i >= 0; i--) {
+            if (!/^\d{9}$/.test(l.slice(i, i + 9))) continue;
+            if (l[i + 9] === ",") continue;
+            if (expectedN > 0) {
+              const qtyDigit = parseInt(l[i + 8], 10);
+              if (qtyDigit > expectedN) continue;
+            }
+            inlineDesc = l.slice(0, i).trim();
+            tailStr = l.slice(i);
+            break;
+          }
+          if (!tailStr) tailStr = l;
+        }
         break;
       }
 
       if (stage === "desc") {
+        if (descLines.length > 0 && descLines[descLines.length - 1].endsWith("-")) {
+          descLines[descLines.length - 1] = descLines[descLines.length - 1].replace(/-$/, "").trimEnd() + " " + l.trimStart();
+          continue;
+        }
         if (IS_SERIAL(l)) { serialStr = l; stage = "skip"; continue; }
         if (/^\d{4,}$/.test(l) && l.length < 12) { serialStr = l; stage = "skip"; continue; }
         descLines.push(l);
@@ -4253,7 +4269,13 @@ function parseRelianceInvoice(text) {
       }
     }
 
-    if (inlineDesc) descLines.push(inlineDesc);
+    if (inlineDesc) {
+      if (!serialStr) {
+        serialStr = inlineDesc;
+      } else {
+        descLines.push(inlineDesc);
+      }
+    }
     if (!tailStr) {
       for (let i = chunk.length - 1; i >= 0; i--) {
         if (chunk[i].includes(",")) { tailStr = chunk[i]; break; }
@@ -4444,6 +4466,7 @@ process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
   process.exit(1);
 });
+
 
 /* ════════════════════════════════════════════════
    STOCK MANAGEMENT SYSTEM
