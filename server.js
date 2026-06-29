@@ -26,8 +26,8 @@ import Groq from "groq-sdk";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-const serviceAccount = require("./firebase-service-account.json");
-//const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+//const serviceAccount = require("./firebase-service-account.json");
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -4342,6 +4342,7 @@ EXTRACTION RULES:
            If discount applied, use the post-discount taxable rate.
            Taxable Amount / qty = rate.
    - gstRate: total GST % as integer (5, 12, 18, or 28). CGST 9% + SGST 9% = 18%.
+   - hsnCode: the HSN/SAC code printed for this item (e.g. "85287217", "84182100"). String. Empty string if not visible.
    - serialNumbers: array of serial/IMEI numbers for this item. Can be listed below description,
      as bullet points, or handwritten. Each S/N is a separate string. Empty array if none.
 

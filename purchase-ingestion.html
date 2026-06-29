@@ -322,22 +322,82 @@ let sessionToken = sessionStorage.getItem("purchase_token") || null;
 const pushedRefs = new Set();
 
 // ── Noise word list — single source of truth ──
+// Only truly generic noise words — KEEP product identifiers (tv, led, ac, ref, etc.)
 const NOISE_WORDS = new Set([
-  "tv","led","hd","fhd","qhd","4k","uhd","qled","oled","amoled","smart","android",
-  "ac","inv","inverter","frost","free","direct","cool","star","rating",
-  "air","conditioner","washing","machine","wm","ref","refrigerator",
   "ltd","pvt","limited","india","brand","new","box","pack","pcs","nos",
-  "with","and","for","the","inch","cm","mm","kg","ltr","litre","watts","w"
+  "with","and","for","the","inch"
 ]);
 
 function normaliseForMatch(str) {
   return String(str)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/(\d+)\s+(mm|cm|kg|ltr|litre|watts|w|ton|nos)\b/gi, "$1$2")
+    .replace(/(\d)\s+(\d)/g, "$1.$2")
     .split(/\s+/)
     .filter(w => w.length > 1 && !NOISE_WORDS.has(w))
     .join(" ")
     .trim();
+}
+
+// ── Known brands for pre-filtering matching candidates ──
+const KNOWN_BRANDS = [
+  "SAMSUNG","LG","WHIRLPOOL","HAIER","VOLTAS","LLOYD","PANASONIC","SONY",
+  "BUSH","FOXSKY","NVY","TCL","SURYA","NOVEL","NAYAN","GODREJ","HITACHI",
+  "DAIKIN","BLUE STAR","VIDEOCON","ONIDA","MI","REALME","ONEPLUS","OPPO",
+  "VIVO","XIAOMI","INFINIX","TECHNO","MOTOROLA","NOKIA","ACER","DELL",
+  "HP","LENOVO","ASUS","IFB","MARQ","CROMPTON","ORIENT","HAVELLS",
+  "BAJAJ","USHA","BUTTERFLY","PRESTIGE","PHILIPS","BOSCH","BPL","AQUAGUARD",
+  "EUREKA","KENT","LUMINOUS","SU-KAM","INVERTEX","MICROTEK","APC","ATHENZA",
+  "AKAI","INTEX","KORYO","SYSTABUZZ","GREEN","ERGO"
+].map(b => b.toUpperCase());
+
+// ── Sub-brand → parent brand mapping (for invoices that omit the parent brand) ──
+const SUB_BRAND_MAP = [
+  ["MAXIMA","BAJAJ"],["CHETAK","BAJAJ"],["ARK","BAJAJ"],["REGULAR","BAJAJ"],
+  ["ELEGANCE","BAJAJ"],["HARRIER","BAJAJ"],["JUNET","BAJAJ"],
+  ["CHAMP","AQUAGUARD"],["SUPERB","AQUAGUARD"],["GRAND","AQUAGUARD"],
+  ["SURECHAMP","AQUAGUARD"],["SURE CHAMP","AQUAGUARD"],
+  ["TRIO","SURYA"],["FROSTY","SURYA"],["VICTOR","SURYA"],["GLORY","SURYA"],
+  ["BIANCO","BAJAJ"]
+];
+
+function getBrand(desc) {
+  const u = desc.toUpperCase();
+  for (const b of KNOWN_BRANDS) if (u.includes(b)) return b;
+  for (const [sub, parent] of SUB_BRAND_MAP) if (u.includes(sub)) return parent;
+  return null;
+}
+
+// ── Category prefix matcher ──
+const CATEGORY_PREFIXES = [
+  {kw:["cf","exhaust","chimney"],        pfx:"c-fan"},
+  {kw:["acc","cooktop","hob"],           pfx:"cooktop"},
+  {kw:["refrigerator","ref","fridge"],   pfx:"ref"},
+  {kw:["washing","wm"],                  pfx:"wm"},
+  {kw:["ac","split"],                    pfx:"ac"},
+  {kw:["led","tv","oled","qled"],        pfx:"led"},
+  {kw:["water","aquaguard","ro","uv"],   pfx:"wp"},
+  {kw:["geyser","water heater"],         pfx:"e-geyser"},
+  {kw:["cooler","air cooler"],           pfx:"cooler"},
+  {kw:["mixer","grinder","juicer"],      pfx:"mixer"},
+  {kw:["iron","garment"],                pfx:"iron"},
+  {kw:["inverter","ups"],                pfx:"inverter"},
+  {kw:["battery"],                       pfx:"battery"},
+  {kw:["laptop"],                        pfx:"laptop"},
+  {kw:["mobile","phone"],                pfx:"mobile"},
+  {kw:["d freeze","deep freezer"],       pfx:"d freeze"},
+  {kw:["air fryer","oven","microwave"],  pfx:"air fryer"},
+  {kw:["attamaker","atta"],              pfx:"attamaker"},
+  {kw:["fan","ceiling"],                 pfx:"c-fan"},
+  {kw:["solar"],                         pfx:"solar"},
+];
+
+function getCategoryPrefix(desc) {
+  const u = desc.toLowerCase();
+  for (const {kw,pfx} of CATEGORY_PREFIXES)
+    for (const k of kw) if (u.includes(k)) return pfx;
+  return null;
 }
 
 function log(msg, type = "info") {
@@ -503,6 +563,95 @@ function applyMasterData(data) {
 
   document.getElementById("masterCount").textContent =
     `📦 ${masterProducts.length} Products | 🏢 ${masterSuppliers.length} Suppliers`;
+}
+
+// ── Multi-phase product matcher ──
+function findBestMatch(description) {
+  if (!masterProducts.length) return { matchedItem: "", matchScore: 1, method: "no-data" };
+
+  const brand = getBrand(description);
+  const category = getCategoryPrefix(description);
+  const cleanDesc = normaliseForMatch(description);
+  const descTokens = cleanDesc.split(/\s+/).filter(Boolean);
+  if (!descTokens.length) return { matchedItem: "", matchScore: 1, method: "empty" };
+
+  // Phase 1: Exact substring match (invoice desc is contained in Tally product name)
+  const descLower = description.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  const descWordCount = descLower.split(/\s+/).length;
+  for (const p of masterProducts) {
+    if (p.toLowerCase().includes(descLower)) {
+      const ratio = descWordCount / Math.max(p.toLowerCase().split(/\s+/).length, 1);
+      return { matchedItem: p, matchScore: Math.max(0, 1 - ratio * 1.5), method: "exact-substr" };
+    }
+  }
+
+  // Helper: score a candidate product against descTokens
+  function scoreProduct(product) {
+    const pTokens = new Set(normaliseForMatch(product).split(/\s+/).filter(Boolean));
+    let overlap = 0;
+    for (const t of descTokens) if (pTokens.has(t)) overlap++;
+    const jaccard = descTokens.length + pTokens.size > 0
+      ? overlap / (descTokens.length + pTokens.size - overlap)
+      : 0;
+    return jaccard;
+  }
+
+  function pickBest(candidates) {
+    let best = { product: "", score: 0 };
+    for (const p of candidates) {
+      const s = scoreProduct(p);
+      if (s > best.score) best = { product: p, score: s };
+    }
+    return best;
+  }
+
+  // Phase 2: Brand-filtered token match
+  if (brand) {
+    const brandLower = brand.toLowerCase();
+    const branded = masterProducts.filter(p => p.toLowerCase().includes(brandLower));
+    if (branded.length) {
+      const best = pickBest(branded);
+      if (best.score >= 0.3) {
+        // Boost by proximity to description length
+        const lenRatio = cleanDesc.length / Math.max(normaliseForMatch(best.product).length, 1);
+        const adjusted = best.score * Math.min(lenRatio, 1.5);
+        return { matchedItem: best.product, matchScore: Math.max(0, 1 - adjusted), method: "brand+" + brand };
+      }
+    }
+  }
+
+  // Phase 3: Category-filtered token match (for generic descriptions e.g. "Maxima 600mm")
+  if (category) {
+    const catLower = category.toLowerCase();
+    const categorized = masterProducts.filter(p => {
+      const pc = normaliseForMatch(p);
+      return pc.startsWith(catLower) || p.toLowerCase().includes(catLower.replace(/-/g, " "));
+    });
+    if (categorized.length) {
+      const best = pickBest(categorized);
+      if (best.score >= 0.25) {
+        const lenRatio = cleanDesc.length / Math.max(normaliseForMatch(best.product).length, 1);
+        const adjusted = best.score * Math.min(lenRatio, 1.5);
+        return { matchedItem: best.product, matchScore: Math.max(0, 1 - adjusted), method: "cat+" + category };
+      }
+    }
+  }
+
+  // Phase 4: Fuse.js fallback (original matching)
+  if (productFuse) {
+    const results = productFuse.search(cleanDesc);
+    if (results.length > 0) {
+      return { matchedItem: results[0].item.original, matchScore: results[0].score ?? 1, method: "fuse" };
+    }
+  }
+
+  // Phase 5: Desperate — any product with at least one token match
+  const best = pickBest(masterProducts);
+  if (best.score >= 0.15) {
+    return { matchedItem: best.product, matchScore: Math.max(0, 1 - best.score), method: "token-fallback" };
+  }
+
+  return { matchedItem: "", matchScore: 1, method: "no-match" };
 }
 
 function readFileAsText(file) {
@@ -805,21 +954,17 @@ async function handleFile(file) {
       }
     }
 
-    // Auto-match Products — bidirectional normalisation
+    // Auto-match Products — multi-phase matcher
     validatedItems = data.items.map(i => {
-      let matchedItem = "";
-      let matchScore = 1;
-      if (productFuse && i.description) {
-        const cleanDesc = normaliseForMatch(i.description);
-        const results = productFuse.search(cleanDesc);
-        if (results.length > 0) {
-          matchedItem = results[0].item.original;
-          matchScore = results[0].score ?? 1;
-        }
+      let matchedItem = "", matchScore = 1, method = "";
+      if (i.description) {
+        const result = findBestMatch(i.description);
+        matchedItem = result.matchedItem;
+        matchScore = result.matchScore;
+        method = result.method;
       }
-      // High confidence = auto (green), weak match = review (yellow)
       const status = matchedItem && matchScore < 0.35 ? "auto" : (matchedItem ? "review" : "review");
-      if (matchedItem) log(`🔗 "${i.description}" → "${matchedItem}" (${Math.round((1 - matchScore) * 100)}% match)`, matchScore < 0.35 ? "success" : "warn");
+      if (matchedItem) log(`🔗 "${i.description}" → "${matchedItem}" [${method}] (${Math.round((1 - matchScore) * 100)}% match)`, matchScore < 0.35 ? "success" : "warn");
 
       const srStr = (i.serialNumbers && i.serialNumbers.length > 0) ? i.serialNumbers.join(", ") : "";
       return { raw: i.description, matchedItem, srStr, qty: i.qty, rate: i.rate, gstRate: i.gstRate || 18, status };
