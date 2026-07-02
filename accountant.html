@@ -418,6 +418,36 @@
     }
     #driverFilterSelect:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(173,198,255,0.1); }
 
+    /* ════ PAGINATION ════ */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .page-btn {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-container-high);
+      color: var(--on-surface-variant);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .page-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .page-btn.active { background: var(--primary); color: var(--on-primary-container); border-color: transparent; }
+    .page-btn:disabled { opacity: 0.35; cursor: default; }
+    .page-info {
+      font-size: 12px;
+      color: var(--outline);
+      padding: 0 4px;
+    }
+
     /* ════ SEARCH ════ */
     .search-input {
       width: 100%;
@@ -1131,6 +1161,7 @@
       <button class="filter-btn" data-filter="today"     onclick="setFilter('today')">Today <span class="filter-count" id="fc-today"></span></button>
       <button class="filter-btn" data-filter="yesterday" onclick="setFilter('yesterday')">Yesterday</button>
       <button class="filter-btn" data-filter="datepicker" onclick="toggleDatePicker()" id="customerFilterBtn">📅 Date Picker</button>
+      <button class="filter-btn" data-filter="past" onclick="setFilter('past')" style="color:#0891b2;border-color:rgba(8,145,178,0.3);">📋 Past</button>
     </div>
 
     <!-- DATE RANGE PICKER (hidden by default) -->
@@ -1156,7 +1187,7 @@
       <button class="filter-btn route-btn" data-route="other"     onclick="setRoute('other')" style="color:var(--outline);">Other <span class="filter-count" id="rc-other"></span></button>
     </div>
 
-    <input class="search-input" id="searchInput" placeholder="Search by name or phone…" oninput="applySearch()">
+    <input class="search-input" id="searchInput" placeholder="Search by name, phone or product…" oninput="applySearch()">
 
     <!-- DESKTOP TABLE -->
     <div class="table-wrap">
@@ -1180,6 +1211,9 @@
 
     <!-- MOBILE CARDS -->
     <div class="mobile-cards" id="mobileCards"></div>
+
+    <!-- PAGINATION -->
+    <div class="pagination" id="paginationBar"></div>
   </div>
 
 </div><!-- /.container -->
@@ -1538,6 +1572,12 @@ let _deliveriesInflight = false;
 let batchNumberMap = {};
 let phoneCounts    = {};
 
+/* ── PAGINATION STATE ── */
+let currentPage = 1;
+let totalDeliveries = 0;
+let totalPages = 1;
+const PAGE_SIZE = 20;
+
 /* ── CACHED CONSTANTS (computed once, reused everywhere) ── */
 const _isDark = () => document.documentElement.getAttribute("data-theme") !== "light";
 const BATCH_PALETTES = _isDark() ? [
@@ -1799,6 +1839,7 @@ function applySearch() {
   if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
   _searchDebounceTimer = setTimeout(() => {
     searchQuery = document.getElementById("searchInput").value.toLowerCase();
+    currentPage = 1;
     loadDeliveries();
   }, 180);
 }
@@ -1817,8 +1858,18 @@ function toggleDatePicker() {
 
 function setFilter(type) {
   currentFilter = type;
+  currentPage = 1;
   document.getElementById("dateRangeBar").style.display = "none";
   document.getElementById("customerFilterBtn").classList.remove("activeFilter");
+
+  if (type === "past") {
+    const d30 = new Date(); d30.setDate(d30.getDate() - 30);
+    dateRangeStart = d30.toISOString().slice(0,10);
+    dateRangeEnd = new Date().toISOString().slice(0,10);
+    document.getElementById("dateFrom").value = dateRangeStart;
+    document.getElementById("dateTo").value = dateRangeEnd;
+  }
+
   highlightActiveFilter(type);
   loadDeliveries();
 }
@@ -1844,7 +1895,7 @@ function getDeliveryRoute(delivery) {
 
 function setRoute(route) {
   currentRoute = route;
-  // Highlight active route button
+  currentPage = 1;
   document.querySelectorAll(".route-btn").forEach(btn => {
     btn.classList.toggle("active-route", btn.dataset.route === route);
   });
@@ -1863,6 +1914,7 @@ function applyDateRange() {
   if (!from || !to) return;
   dateRangeStart = from;
   dateRangeEnd   = to;
+  currentPage = 1;
   document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("activeFilter"));
   loadDeliveries();
 }
@@ -1872,6 +1924,7 @@ function resetDateRange() {
   document.getElementById("dateTo").value   = "";
   dateRangeStart = "";
   dateRangeEnd   = "";
+  currentPage = 1;
   document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("activeFilter"));
   loadDeliveries();
 }
@@ -2951,6 +3004,7 @@ function setupTransliteration() {
 /* ── DRIVER FILTER (Feature 6) ── */
 function setDriverFilter(val) {
   currentDriverFilter = val;
+  currentPage = 1;
   loadDeliveries();
 }
 
@@ -3633,7 +3687,6 @@ function formatDate(dateString) {
 
 /* ── LOAD DELIVERIES ── */
 async function loadDeliveries() {
-  // Debounce: collapse rapid successive calls into one
   if (_deliveriesDebounceTimer) { clearTimeout(_deliveriesDebounceTimer); }
   return new Promise(resolve => {
     _deliveriesDebounceTimer = setTimeout(async () => {
@@ -3656,254 +3709,209 @@ async function loadDeliveryCounts() {
 }
 
 async function _doLoadDeliveries() {
-  if (_deliveriesInflight) return;       // skip if a fetch is already running
+  if (_deliveriesInflight) return;
   _deliveriesInflight = true;
-  let data;
-  const countsPromise = loadDeliveryCounts();
   try {
-    let url = `${BASE_URL}/deliveries`;
-    if (dateRangeStart && dateRangeEnd) {
-      url += `?startDate=${encodeURIComponent(dateRangeStart)}&endDate=${encodeURIComponent(dateRangeEnd)}`;
+    let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
+
+    const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
+    if (currentFilter === "past")             url += `&status=delivered,failed`;
+    else if (statusMap[currentFilter])        url += `&status=${statusMap[currentFilter]}`;
+    if (currentFilter === "urgent")           url += `&priority=urgent`;
+    if (currentFilter === "self_pickup")      url += `&selfPickup=true`;
+
+    if (currentFilter === "today") {
+      const t = new Date().toISOString().slice(0,10);
+      url += `&startDate=${t}&endDate=${t}`;
+    } else if (currentFilter === "yesterday") {
+      const y = new Date(Date.now()-864e5).toISOString().slice(0,10);
+      url += `&startDate=${y}&endDate=${y}`;
+    } else if (dateRangeStart && dateRangeEnd) {
+      url += `&startDate=${encodeURIComponent(dateRangeStart)}&endDate=${encodeURIComponent(dateRangeEnd)}`;
     }
+
+    if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+
+    // Send route and driver filters to server (so pagination works correctly)
+    if (currentRoute !== "all") url += `&route=${encodeURIComponent(currentRoute)}`;
+    if (currentDriverFilter !== "all") url += `&driver=${encodeURIComponent(currentDriverFilter)}`;
+
     const res = await fetch(url);
-    if (res.status === 429) {
-      console.warn("[deliveries] Rate limited — will retry on next refresh");
-      _deliveriesInflight = false;
-      return;
+    if (res.status === 429) { _deliveriesInflight = false; return; }
+    const result = await res.json();
+
+    let pageData, totalItems, totalPagesResult;
+    if (result && result.data !== undefined) {
+      pageData = result.data;
+      totalItems = result.total;
+      totalPagesResult = result.totalPages;
+    } else if (Array.isArray(result)) {
+      pageData = result;
+      totalItems = result.length;
+      totalPagesResult = 1;
+    } else {
+      _deliveriesInflight = false; return;
     }
-    data = await res.json();
-  } catch (e) { _deliveriesInflight = false; return; }
+
+    // Route and driver filters are now applied server-side (sent as query params above)
+    // No client-side filtering needed — the server already returned filtered results.
+
+    currentAccountantData = pageData;
+    totalDeliveries = totalItems;
+    totalPages = totalPagesResult;
+
+    // Counts from server endpoint
+    const sc = await loadDeliveryCounts();
+    if (sc) {
+      ["all","booked","pending","loaded","delivered","failed","urgent","self_pickup","today"].forEach(k => {
+        const el = document.getElementById("fc-"+k);
+        if (el) el.innerText = sc[k] || "";
+      });
+      const src = sc.sourceToday || {};
+      const elM = document.getElementById("srcCountManual");
+      const elT = document.getElementById("srcCountTally");
+      const elI = document.getElementById("srcCountImport");
+      if (elM) elM.innerText = src.manual || 0;
+      if (elT) elT.innerText = src.tally_tdl || 0;
+      if (elI) elI.innerText = src.import_file || 0;
+    }
+
+    populateDriverFilterDropdown(pageData);
+
+    // Route counts (approximate from page data)
+    const rCounts = { all:pageData.length, bhosari:0, moshi:0, wadgaon:0, markal:0, charholi:0, other:0 };
+    pageData.forEach(d => rCounts[getDeliveryRoute(d)]++);
+    Object.keys(rCounts).forEach(r => {
+      const el = document.getElementById("rc-"+r);
+      if (el) el.innerText = rCounts[r] || "";
+    });
+
+    // Batch grouping
+    phoneCounts = {};
+    pageData.forEach(d => { if (d.phone) phoneCounts[d.phone] = (phoneCounts[d.phone]||0)+1; });
+    batchPhones = Object.keys(phoneCounts).filter(p => phoneCounts[p] > 1);
+    batchNumberMap = {};
+    let bc = 1;
+    pageData.forEach(d => {
+      if (d.phone && batchPhones.includes(d.phone) && !(d.phone in batchNumberMap)) batchNumberMap[d.phone] = bc++;
+    });
+
+    // Render rows
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+    const phonePositions = {};
+    pageData.forEach((d,i) => {
+      if (d.phone && batchPhones.includes(d.phone)) {
+        if (!phonePositions[d.phone]) phonePositions[d.phone] = [];
+        phonePositions[d.phone].push(i);
+      }
+    });
+
+    let bkd=0, pnd=0, lod=0, dlv=0, fld=0;
+    pageData.forEach((d,i) => {
+      if (d.status === "booked") bkd++;
+      if (d.status === "pending") pnd++;
+      if (d.status === "loaded") lod++;
+      if (d.status === "delivered") dlv++;
+      if (d.status === "failed") fld++;
+
+      const tr = document.createElement("tr");
+      const isBatched = d.phone && batchPhones.includes(d.phone);
+      let batchTag = "";
+      if (isBatched) {
+        const bN = batchNumberMap[d.phone];
+        const pal = BATCH_PALETTES[(bN-1)%BATCH_PALETTES.length];
+        const pos = phonePositions[d.phone];
+        const pIdx = pos.indexOf(i);
+        tr.classList.add("batch-row");
+        if (pIdx===0) tr.classList.add("batch-first");
+        if (pIdx===pos.length-1) tr.classList.add("batch-last");
+        if (pIdx!==0 && pIdx!==pos.length-1) tr.classList.add("batch-mid");
+        tr.style.setProperty("--batch-color", pal.border);
+        tr.style.setProperty("--batch-bg", pal.bg);
+        batchTag = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${pal.bg};color:${pal.text};border:1px solid ${pal.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bN}</span>`;
+      }
+      if (d.status==="booked") tr.style.background=_isDark()?"rgba(99,102,241,0.08)":"#eef2ff";
+      if (d.status==="failed") tr.style.background=_isDark()?"rgba(255,180,171,0.06)":"#fff1f2";
+
+      function gr(d2) {
+        if (d2.status!=="delivered"||!d2.delivered_timestamp||!d2.estimated_delivery_time) return "";
+        const dm = new Date(d2.delivered_timestamp.seconds*1000).getTime();
+        const em = new Date(d2.estimated_delivery_time).getTime();
+        const df = (dm-em)/60000;
+        if (df<=-10) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early</span>`;
+        if (df<=10) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
+        if (df<=30) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late</span>`;
+        return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">🔴 Very Late</span>`;
+      }
+
+      tr.innerHTML = `
+        <td>${escHtml(d.customer_name)}${batchTag}${d.previous_failures>0?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>`:""}</td>
+        <td><a class='phone-link' href='tel:${escHtml(d.phone)}'>${escHtml(d.phone)}</a></td>
+        <td>${escHtml(d.product_name)}</td>
+        <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${escHtml(d.address)||'—'}</span></td>
+        <td>${escHtml(d.assigned_driver_name)||"—"}</td>
+        <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
+        <td>
+          <span class="badge badge-${d.status}">${d.status}</span>
+          ${d.is_self_pickup?`<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>`:""}
+          ${(d.status!=="delivered"&&d.status!=="failed"&&d.status!=="booked"&&d.estimated_delivery_time&&new Date(d.estimated_delivery_time)<new Date())?`<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>`:""}
+          ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
+        </td>
+        <td>${gr(d)}</td>
+        <td><button class="btn ${d.status==='failed'?'btn-danger':'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status==="failed"?"⚠ Action":"View"}</button></td>
+      `;
+      list.appendChild(tr);
+    });
+
+    document.getElementById("deliverySummary").innerHTML =
+      `${bkd>0?`📅 Booked: <span style="color:#4338ca;font-weight:700;">${bkd}</span> &nbsp;|&nbsp; `:""}📦 Pending: <span>${pnd}</span> &nbsp;|&nbsp; 🚚 Loaded: <span>${lod}</span> &nbsp;|&nbsp; ✅ Delivered: <span>${dlv}</span>${fld>0?` &nbsp;|&nbsp; <span style="color:#dc2626;font-weight:700;">❌ Failed: ${fld}</span>`:""}`;
+
+    const luEl = document.getElementById("lastUpdated");
+    if (luEl) luEl.innerText = "🕐 "+new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
+
+    renderMobileCards(pageData, batchPhones, batchNumberMap, BATCH_PALETTES);
+    renderPaginationBar(totalItems, totalPagesResult, currentPage);
+  } catch (e) { console.error(e); }
   finally { _deliveriesInflight = false; }
+}
 
-  // Guard: server may return {error:...} on unexpected failures
-  if (!Array.isArray(data)) {
-    console.warn("[deliveries] Unexpected response:", data);
-    return;
-  }
-  const serverCounts = await countsPromise;
+function renderPaginationBar(total, totalPages, currPage) {
+  const bar = document.getElementById("paginationBar");
+  if (!bar) return;
+  bar.innerHTML = "";
+  if (totalPages <= 1) return;
 
-  allRawDeliveries = data;   // store full list for repeat customer lookup
+  const make = (label, page, disabled, active) => {
+    const btn = document.createElement("button");
+    btn.className = "page-btn" + (active ? " active" : "");
+    btn.textContent = label;
+    btn.disabled = disabled;
+    btn.onclick = () => { currentPage = page; loadDeliveries(); window.scrollTo({top:0,behavior:"smooth"}); };
+    return btn;
+  };
 
-  const today    = new Date();
-  const todayStr = today.toDateString();
-  const yest     = new Date(); yest.setDate(today.getDate() - 1);
-  const yestStr  = yest.toDateString();
+  bar.appendChild(make("←", currPage - 1, currPage === 1, false));
 
-  let finalData = [];
-
-  if (currentFilter === "yesterday") {
-    finalData = data.filter(d => d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === yestStr);
-  } else {
-    const bookedArr  = data.filter(d => d.status === "booked")
-      .sort((a, b) => new Date(a.estimated_delivery_time || 0) - new Date(b.estimated_delivery_time || 0));
-    const pendingArr = data.filter(d => d.status === "pending")
-      .sort((a, b) => (b.created_timestamp?.seconds || 0) - (a.created_timestamp?.seconds || 0));
-    const loadedArr  = data.filter(d => d.status === "loaded");
-    const failedArr  = data.filter(d => d.status === "failed");
-    const deliveredTodayArr = data.filter(d =>
-      d.status === "delivered" && d.delivered_timestamp &&
-      new Date(d.delivered_timestamp.seconds * 1000).toDateString() === todayStr
-    );
-    finalData = [...bookedArr, ...pendingArr, ...loadedArr, ...failedArr, ...deliveredTodayArr];
-
-    if      (currentFilter === "booked")    finalData = bookedArr;
-    else if (currentFilter === "pending")   finalData = pendingArr;
-    else if (currentFilter === "loaded")    finalData = loadedArr;
-    else if (currentFilter === "failed")    finalData = failedArr;
-    else if (currentFilter === "delivered") finalData = deliveredTodayArr;
-    else if (currentFilter === "urgent")    finalData = finalData.filter(d => d.priority === "urgent");
-    else if (currentFilter === "self_pickup") finalData = finalData.filter(d => d.is_self_pickup === true);
-    else if (currentFilter === "today")     finalData = finalData.filter(d =>
-      d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === todayStr
-    );
-  }
-
-  if (searchQuery) {
-    finalData = finalData.filter(d =>
-      (d.customer_name && d.customer_name.toLowerCase().includes(searchQuery)) ||
-      (d.phone && d.phone.includes(searchQuery))
-    );
-  }
-
-  // ── Route filter (applied after status + search filters) ──
-  if (currentRoute !== "all") {
-    finalData = finalData.filter(d => getDeliveryRoute(d) === currentRoute);
-  }
-
-  // ── Driver filter (Feature 6) ──
-  if (currentDriverFilter !== "all") {
-    finalData = finalData.filter(d => d.assigned_driver_name === currentDriverFilter);
-  }
-
-  currentAccountantData = finalData;
-
-  // Update filter count badges (based on all unfiltered data)
-  const counts = { all: data.length, booked: 0, pending: 0, loaded: 0, delivered: 0, failed: 0, urgent: 0, self_pickup: 0, today: 0 };
-  const srcCounts = { manual: 0, tally_tdl: 0, import_file: 0 };
-  data.forEach(d => {
-    if (d.status === "booked")    counts.booked++;
-    if (d.status === "pending")   counts.pending++;
-    if (d.status === "loaded")    counts.loaded++;
-    if (d.status === "delivered") counts.delivered++;
-    if (d.status === "failed")    counts.failed++;
-    if (d.priority === "urgent")  counts.urgent++;
-    if (d.is_self_pickup)         counts.self_pickup++;
-    const isToday = d.created_timestamp && new Date(d.created_timestamp.seconds * 1000).toDateString() === todayStr;
-    if (isToday) {
-      counts.today++;
-      const src = d.source === "tally_tdl" ? "tally_tdl" : d.source === "import_file" ? "import_file" : "manual";
-      srcCounts[src]++;
+  const pages = new Set([1, totalPages, currPage, currPage - 1, currPage + 1].filter(p => p >= 1 && p <= totalPages));
+  let prev = 0;
+  [...pages].sort((a,b) => a-b).forEach(p => {
+    if (prev && p - prev > 1) {
+      const dots = document.createElement("span");
+      dots.className = "page-info";
+      dots.textContent = "…";
+      bar.appendChild(dots);
     }
-  });
-  const displayCounts = serverCounts
-    ? { ...counts, ...serverCounts, all: serverCounts.total ?? serverCounts.all ?? counts.all }
-    : counts;
-
-  ["all","booked","pending","loaded","delivered","failed","urgent","self_pickup","today"].forEach(k => {
-    const el = document.getElementById("fc-" + k);
-    if (el) el.innerText = displayCounts[k] || "";
-  });
-  const elManual = document.getElementById("srcCountManual");
-  const elTally  = document.getElementById("srcCountTally");
-  const elImport = document.getElementById("srcCountImport");
-  const displaySrcCounts = serverCounts?.sourceToday || srcCounts;
-  if (elManual) elManual.innerText = displaySrcCounts.manual || 0;
-  if (elTally)  elTally.innerText  = displaySrcCounts.tally_tdl || 0;
-  if (elImport) elImport.innerText = displaySrcCounts.import_file || 0;
-
-  // Populate driver filter dropdown from full data
-  populateDriverFilterDropdown(data);
-
-  // ── Update route counts (based on current status-filtered data, before route filter) ──
-  // Use the pre-route-filter data so counts reflect current status filter
-  const routeSource = (() => {
-    // Re-apply only status/date filter to get base for route counts
-    let base = [...data];
-    if (currentFilter === "booked")    base = data.filter(d => d.status === "booked");
-    else if (currentFilter === "pending")   base = data.filter(d => d.status === "pending");
-    else if (currentFilter === "loaded")    base = data.filter(d => d.status === "loaded");
-    else if (currentFilter === "failed")    base = data.filter(d => d.status === "failed");
-    else if (currentFilter === "urgent")    base = data.filter(d => d.priority === "urgent");
-    else if (currentFilter === "self_pickup") base = data.filter(d => d.is_self_pickup === true);
-    return base;
-  })();
-
-  const routeCounts = { all: routeSource.length, bhosari:0, moshi:0, wadgaon:0, markal:0, charholi:0, other:0 };
-  routeSource.forEach(d => { routeCounts[getDeliveryRoute(d)]++; });
-  Object.keys(routeCounts).forEach(r => {
-    const el = document.getElementById("rc-" + r);
-    if (el) el.innerText = routeCounts[r] || "";
+    bar.appendChild(make(p, p, false, p === currPage));
+    prev = p;
   });
 
-  // Update page tab title with pending count
-  const pendingCount = counts.pending;
-  document.title = pendingCount > 0
-    ? `(${pendingCount}) Accountant Panel — Hariom Electronics`
-    : "Accountant Panel — Hariom Electronics";
+  bar.appendChild(make("→", currPage + 1, currPage === totalPages, false));
 
-  // ── BATCH GROUPING (module-scope vars updated here) ──
-  phoneCounts    = {};
-  data.forEach(d => { if (d.phone) phoneCounts[d.phone] = (phoneCounts[d.phone] || 0) + 1; });
-  batchPhones    = Object.keys(phoneCounts).filter(p => phoneCounts[p] > 1);
-  batchNumberMap = {};
-  let batchCounter = 1;
-  data.forEach(d => {
-    if (d.phone && batchPhones.includes(d.phone) && !(d.phone in batchNumberMap)) {
-      batchNumberMap[d.phone] = batchCounter++;
-    }
-  });
-
-  function getDeliveryRating(d) {
-    if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "";
-    const deliveredMs = new Date(d.delivered_timestamp.seconds * 1000).getTime();
-    const etaMs       = new Date(d.estimated_delivery_time).getTime();
-    const diffMin     = (deliveredMs - etaMs) / 60000;
-    if (diffMin <= -10) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early</span>`;
-    if (diffMin <=  10) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
-    if (diffMin <=  30) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late</span>`;
-    return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">🔴 Very Late</span>`;
-  }
-
-  let booked = 0, pending = 0, loaded = 0, delivered = 0, failed = 0;
-  const list = document.getElementById("list");
-  list.innerHTML = "";
-
-  // Group finalData by phone to know positions (first/mid/last in batch)
-  const phonePositions = {};
-  finalData.forEach((d, i) => {
-    if (d.phone && batchPhones.includes(d.phone)) {
-      if (!phonePositions[d.phone]) phonePositions[d.phone] = [];
-      phonePositions[d.phone].push(i);
-    }
-  });
-
-  finalData.forEach((d, i) => {
-    if (d.status === "booked")    booked++;
-    if (d.status === "pending")   pending++;
-    if (d.status === "loaded")    loaded++;
-    if (d.status === "delivered") delivered++;
-    if (d.status === "failed")    failed++;
-
-    const tr = document.createElement("tr");
-    const isBatched = d.phone && batchPhones.includes(d.phone);
-
-    let batchTag = "";
-    let batchStyle = "";
-
-    if (isBatched) {
-      const bNum    = batchNumberMap[d.phone];
-      const palette = BATCH_PALETTES[(bNum - 1) % BATCH_PALETTES.length];
-      const positions = phonePositions[d.phone];
-      const posIdx    = positions.indexOf(i);
-      const isFirst   = posIdx === 0;
-      const isLast    = posIdx === positions.length - 1;
-
-      tr.classList.add("batch-row");
-      if (isFirst) tr.classList.add("batch-first");
-      if (isLast)  tr.classList.add("batch-last");
-      if (!isFirst && !isLast) tr.classList.add("batch-mid");
-
-      tr.style.setProperty("--batch-color", palette.border);
-      tr.style.setProperty("--batch-bg",    palette.bg);
-
-      batchTag = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bNum}</span>`;
-    }
-
-    if (d.status === "booked") tr.style.background = _isDark() ? "rgba(99,102,241,0.08)" : "#eef2ff";
-    if (d.status === "failed") tr.style.background = _isDark() ? "rgba(255,180,171,0.06)" : "#fff1f2";
-
-    tr.innerHTML = `
-      <td>${escHtml(d.customer_name)}${batchTag}${d.previous_failures > 0 ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>` : ""}</td>
-      <td><a class='phone-link' href='tel:${escHtml(d.phone)}'>${escHtml(d.phone)}</a></td>
-      <td>${escHtml(d.product_name)}</td>
-      <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${escHtml(d.address) || '—'}</span></td>
-      <td>${escHtml(d.assigned_driver_name) || "—"}</td>
-      <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
-      <td>
-        <span class="badge badge-${d.status}">${d.status}</span>
-        ${d.is_self_pickup ? `<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>` : ""}
-        ${(d.status !== "delivered" && d.status !== "failed" && d.status !== "booked" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < new Date()) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
-        ${d.status === "failed" && d.failure_reason ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>` : ""}
-      </td>
-      <td>${getDeliveryRating(d)}</td>
-      <td><button class="btn ${d.status === 'failed' ? 'btn-danger' : 'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status === "failed" ? "⚠ Action" : "View"}</button></td>
-    `;
-    list.appendChild(tr);
-  });
-
-  document.getElementById("deliverySummary").innerHTML = `
-    ${booked > 0 ? `📅 Booked: <span style="color:#4338ca;font-weight:700;">${booked}</span> &nbsp;|&nbsp; ` : ""}📦 Pending: <span>${pending}</span> &nbsp;|&nbsp;
-    🚚 Loaded: <span>${loaded}</span> &nbsp;|&nbsp;
-    ✅ Delivered: <span>${delivered}</span>
-    ${failed > 0 ? ` &nbsp;|&nbsp; <span style="color:#dc2626;font-weight:700;">❌ Failed: ${failed}</span>` : ""}
-  `;
-
-  // Last updated
-  const luEl = document.getElementById("lastUpdated");
-  if (luEl) luEl.innerText = "🕐 " + new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
-
-  // Mobile cards
-  renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTES);
+  const info = document.createElement("span");
+  info.className = "page-info";
+  info.textContent = `${total} total`;
+  bar.appendChild(info);
 }
 
 /* ── MOBILE CARD RENDER ── */
@@ -4113,7 +4121,7 @@ function openViewPopup(id) {
     content.innerHTML += `<button class="btn btn-primary" style="margin-top:16px;" onclick="editDelivery('${escHtml(delivery.id)}')">✏ Edit</button>`;
   }
 
-  if (delivery.status === "delivered") {
+  if (delivery.status === "delivered" || delivery.status === "booked") {
     content.innerHTML += `
       <div style="margin-top:16px;padding:14px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:12px;">
         <div style="font-size:13px;font-weight:700;color:#c2410c;margin-bottom:4px;">↩ Customer returned the product?</div>

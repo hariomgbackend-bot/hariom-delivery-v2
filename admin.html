@@ -3703,7 +3703,7 @@ let currentDeliveryObj = null;
 let currentDisplayedData = [];
 let allDeliveryData = [];
 let currentPage = 1;
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 async function loadDeliveryCounts() {
   try {
@@ -3747,59 +3747,52 @@ function applyDateFilter() {
 let adminTallyProducts = [];
 
 async function loadAdmin() {
-  // Pre-load tally products for edit form (fire-and-forget)
   if (!adminTallyProducts.length) {
     fetch(`${BASE_URL}/tally/products`).then(r => r.json()).then(d => {
       adminTallyProducts = d.names || [];
     }).catch(() => {});
   }
 
-  const countsPromise = loadDeliveryCounts();
-  const res = await authFetch(`${BASE_URL}/deliveries`);
-  let data = await res.json();
-  const serverCounts = await countsPromise;
   const now = new Date();
+  const serverCounts = await loadDeliveryCounts();
 
+  // Build server-side URL with filters
+  let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
+
+  const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
+  if (statusMap[currentFilter])          url += `&status=${statusMap[currentFilter]}`;
+  if (currentFilter === "urgent")        url += `&priority=urgent`;
   if (currentFilter === "today") {
-    data = data.filter(d => {
-      if (!d.created_timestamp) return false;
-      return new Date(d.created_timestamp.seconds * 1000).toDateString() === now.toDateString();
-    });
-  } else if (currentFilter === "date") {
-    if (!selectedAdminDate) return;
-    const sel = new Date(selectedAdminDate);
-    data = data.filter(d => {
-      if (!d.created_timestamp) return false;
-      return new Date(d.created_timestamp.seconds * 1000).toDateString() === sel.toDateString();
-    });
-  } else if (currentFilter === "booked")    data = data.filter(d => d.status === "booked");
-  else if (currentFilter === "pending")   data = data.filter(d => d.status === "pending");
-  else if (currentFilter === "loaded")      data = data.filter(d => d.status === "loaded");
-  else if (currentFilter === "delivered")   data = data.filter(d => d.status === "delivered");
-  else if (currentFilter === "failed")      data = data.filter(d => d.status === "failed");
-  else if (currentFilter === "urgent")      data = data.filter(d => d.priority === "urgent");
+    const t = new Date().toISOString().slice(0,10);
+    url += `&startDate=${t}&endDate=${t}`;
+  } else if (currentFilter === "date" && selectedAdminDate) {
+    url += `&startDate=${selectedAdminDate}&endDate=${selectedAdminDate}`;
+  }
+
+  const searchTerm = (document.getElementById("adminSearch")?.value || "").trim().toLowerCase();
+  if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
+
+  const res = await authFetch(url);
+  const result = await res.json();
+
+  let data, total, totalPages;
+  if (result && result.data !== undefined) {
+    data = result.data;
+    total = result.total;
+    totalPages = result.totalPages;
+  } else if (Array.isArray(result)) {
+    data = result;
+    total = result.length;
+    totalPages = 1;
+  } else {
+    return;
+  }
 
   currentDisplayedData = data;
   allDeliveryData = data;
   updateSummaryCards(data, serverCounts);
   updateFilterCounts(data, serverCounts);
-
-  // Search filter (applied after status/date filter)
-  const searchTerm = (document.getElementById("adminSearch")?.value || "").trim().toLowerCase();
-  if (searchTerm) {
-    data = data.filter(d =>
-      (d.customer_name  || "").toLowerCase().includes(searchTerm) ||
-      (d.phone          || "").toLowerCase().includes(searchTerm) ||
-      (d.product_name   || "").toLowerCase().includes(searchTerm) ||
-      (d.address        || "").toLowerCase().includes(searchTerm) ||
-      (d.invoice_number || "").toLowerCase().includes(searchTerm)
-    );
-  }
-
-  // Paginate
-  const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
-  if (currentPage > totalPages) currentPage = totalPages;
-  const pageData = data.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageData = data;
 
   const table = document.getElementById("adminTable");
   table.innerHTML = "";
@@ -3969,10 +3962,10 @@ async function loadAdmin() {
   if (luEl) luEl.innerText = "🕐 " + new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
 
   // Render pagination
-  renderPagination(data.length, totalPages);
+  renderPagination(total, totalPages);
 
-  // Mobile cards (show all, no pagination on mobile)
-  renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES);
+  // Mobile cards
+  renderAdminMobCards(pageData, batchPhones, batchNumberMap, BATCH_PALETTES);
 }
 
 function renderPagination(total, totalPages) {

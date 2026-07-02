@@ -12,7 +12,7 @@ import multer from "multer";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import {  collection, addDoc, getDocs, Timestamp,
   doc, getDoc, updateDoc, deleteDoc,
-  query, where, orderBy, setDoc, getCountFromServer
+  query, where, orderBy, setDoc, getCountFromServer, limit
 } from "firebase/firestore";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -275,18 +275,63 @@ app.delete("/tally/pending/:invoice_number", authenticate, authorize(["accountan
 const TALLY_DEBUG_MAX = 20;
 const _tallyDebugRing = []; // ring buffer, newest at index 0
 
-function _tallyDebugCapture(rawBody) {
+function _tallyExtractDebugFromXml(xml = "") {
+  const tagAll = (t) => {
+    const re = new RegExp(`<${t}>([^<]*)</${t}>`, "gi");
+    const out = []; let m;
+    while ((m = re.exec(xml)) !== null) out.push(m[1].trim());
+    return out;
+  };
+  const tag = (t) => tagAll(t)[0] || "";
+
+  const route =
+    tag("HARIOMTFTYPE") || tag("HARIOMTFSERIALNO") || tag("HARIOMTFDESCRIPTION")
+      ? "/tally/ticket"
+      : "/tally/voucher";
+
+  const invoice_number =
+    tag("HARIOMTFVOUCHERNO") ||
+    tag("HARIOMFVOUCHERNO") ||
+    null;
+
+  const customer_name =
+    tag("HARIOMTFPARTY") ||
+    tag("HARIOMFPARTY") ||
+    null;
+
+  const items = tagAll("HARIOMTFITEM");
+  const voucherItems = tagAll("HARIOMFITEM");
+
+  return {
+    route,
+    payload_kind: "raw_xml",
+    invoice_number,
+    customer_name,
+    item_count: items.length || voucherItems.length || null,
+    ticket_type: tag("HARIOMTFTYPE") || null,
+    priority: tag("HARIOMTFPRIORITY") || null,
+    serial_number: tag("HARIOMTFSERIALNO") || null,
+  };
+}
+
+function _tallyDebugCapture(rawBody, meta = {}) {
   const bodyStr = JSON.stringify(rawBody);
+  const xml = rawBody?._raw_xml_or_text_body || "";
+  const xmlMeta = xml ? _tallyExtractDebugFromXml(xml) : {};
   const entry = {
     received_at:    new Date().toISOString(),
     payload_bytes:  Buffer.byteLength(bodyStr, "utf8"),
+    route:          meta.route || xmlMeta.route || null,
+    payload_kind:   xml ? "raw_xml" : "json",
     // Quick field sniffs — purely informational, no parsing side-effects
     invoice_number: (
+      xmlMeta.invoice_number ||
       rawBody?.tallymessage?.[0]?.vouchernumber  ||
       rawBody?.tallymessage?.[0]?.VOUCHERNUMBER  ||
       rawBody?.vouchernumber || rawBody?.VOUCHERNUMBER || null
     ),
     customer_name: (
+      xmlMeta.customer_name ||
       rawBody?.tallymessage?.[0]?.partymailingname ||
       rawBody?.tallymessage?.[0]?.partyledgername  ||
       rawBody?.tallymessage?.[0]?.partyname        ||
@@ -294,14 +339,20 @@ function _tallyDebugCapture(rawBody) {
       rawBody?.partyname || null
     ),
     item_count: (
+      xmlMeta.item_count ??
       rawBody?.tallymessage?.[0]?.allinventoryentries?.length ??
       rawBody?.allinventoryentries?.length ?? null
     ),
+    ticket_type:   xmlMeta.ticket_type || null,
+    priority:      xmlMeta.priority || null,
+    serial_number: xmlMeta.serial_number || null,
     payload: rawBody   // raw object as-received
   };
   _tallyDebugRing.unshift(entry);
   if (_tallyDebugRing.length > TALLY_DEBUG_MAX) _tallyDebugRing.pop();
-  console.log(`[tally/debug] captured payload — invoice=${entry.invoice_number ?? "?"} bytes=${entry.payload_bytes}`);
+  console.log(
+    `[tally/debug] captured payload — route=${entry.route ?? "?"} invoice=${entry.invoice_number ?? "?"} bytes=${entry.payload_bytes}`
+  );
 }
 
 // GET /tally/debug → latest single payload
@@ -371,7 +422,7 @@ app.post(
     }
 
     // ── DEBUG CAPTURE (raw, before any transformation) ──
-    _tallyDebugCapture(req.body);
+    _tallyDebugCapture(req.body, { route: "/tally/voucher" });
 
     // ── HANDLE TDL XML PUSH (Tally button sends raw XML) ──
     // DIRECT-CREATE: the moment Tally pushes this, the DO(s) are created
@@ -712,6 +763,181 @@ return res.send(`
   }
 });
 
+// ── Tally TDL push: create a Service Ticket directly from the
+//    "Send Ticket" button on the Sales Voucher (mirrors /tally/voucher) ──
+// Called directly by Tally TDL button (no browser auth possible).
+// Auth: same static key as /tally/voucher, via x-tally-key header.
+app.post(
+  "/tally/ticket",
+  express.text({ type: () => true, limit: "10mb" }),
+  (req, res, next) => {
+    const alreadyParsedJson =
+      req.body && typeof req.body === "object" && Object.keys(req.body).length > 0;
+
+    if (!alreadyParsedJson && typeof req.body === "string" && req.body.length) {
+      const rawText = req.body;
+      try {
+        req.body = JSON.parse(rawText);
+      } catch {
+        req.body = { _raw_xml_or_text_body: rawText };
+      }
+    }
+    next();
+  },
+  async (req, res) => {
+    const xmlEscape = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const xmlRes = (statusCode, body) => {
+      res.status(statusCode);
+      res.set("Content-Type", "text/xml");
+      return res.send(body);
+    };
+
+    try {
+      const TALLY_PUSH_KEY = process.env.TALLY_PUSH_KEY;
+      if (TALLY_PUSH_KEY) {
+        const provided = req.headers["x-tally-key"] || req.body?.api_key;
+        if (provided !== TALLY_PUSH_KEY) {
+          return xmlRes(401, `<RESPONSE>
+<STATUS>0</STATUS>
+<MESSAGE>Invalid API key</MESSAGE>
+</RESPONSE>
+`);
+        }
+      }
+
+      _tallyDebugCapture(req.body, { route: "/tally/ticket" });
+
+      if (!req.body?._raw_xml_or_text_body) {
+        return xmlRes(400, `<RESPONSE>
+<STATUS>0</STATUS>
+<MESSAGE>Expected raw XML body from Tally HTTP Post</MESSAGE>
+</RESPONSE>
+`);
+      }
+
+      const xml = req.body._raw_xml_or_text_body;
+
+      const tagAll = (t) => {
+        const re = new RegExp(`<${t}>([^<]*)</${t}>`, "gi");
+        const out = []; let m;
+        while ((m = re.exec(xml)) !== null) out.push(m[1].trim());
+        return out;
+      };
+      const tag = (t) => tagAll(t)[0] || "";
+
+      const voucher_number = tag("HARIOMTFVOUCHERNO");
+      const customer_name  = tag("HARIOMTFPARTY");
+      const raw_address    = tag("HARIOMTFADDRESS");
+      const mobile         = tag("HARIOMTFMOBILE");
+      const store_branch   = tag("HARIOMTFSTOREBRANCH");
+
+      const phonesInAddr  = raw_address.match(/\b[6-9]\d{9}\b/g) || [];
+      const clean_address = raw_address.replace(/,?\s*[6-9]\d{9}/g, "").trim();
+      const addrPhone     = phonesInAddr[0] || "";
+
+      const phone     = mobile || tag("HARIOMTFPHONE") || addrPhone || "";
+      const alt_phone = (addrPhone && addrPhone !== phone) ? addrPhone : (phonesInAddr[1] || "");
+
+      const product_name = (tagAll("HARIOMTFITEM")[0] || "").toUpperCase();
+
+      const serial_number = tag("HARIOMTFSERIALNO");
+      const description   = tag("HARIOMTFDESCRIPTION") || "Not Working";
+
+      let type = (tag("HARIOMTFTYPE") || "complaint").toLowerCase();
+      if (!["installation", "complaint"].includes(type)) type = "complaint";
+
+      let priority = (tag("HARIOMTFPRIORITY") || "normal").toLowerCase();
+      if (!["normal", "high"].includes(priority)) priority = "normal";
+
+      if (!voucher_number) {
+        return xmlRes(400, `<RESPONSE>
+<STATUS>0</STATUS>
+<MESSAGE>Voucher Number Missing</MESSAGE>
+</RESPONSE>
+`);
+      }
+
+      const dupeSnap = await getDocs(query(
+        collection(db, "service_tickets"),
+        where("tally_voucher_number", "==", voucher_number)
+      ));
+      const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+      const recentDuplicate = dupeSnap.docs.find(d => {
+        const data = d.data() || {};
+        const createdMs =
+          typeof data.created_at?.toMillis === "function"
+            ? data.created_at.toMillis()
+            : 0;
+        return (data.type || "") === type && createdMs >= fiveMinutesAgo;
+      });
+      if (recentDuplicate) {
+        console.log("[tally/ticket] recent duplicate push ignored:", voucher_number);
+        return xmlRes(200, `<RESPONSE>
+<STATUS>1</STATUS>
+<MESSAGE>Recent Duplicate Ticket</MESSAGE>
+</RESPONSE>
+`);
+      }
+
+      const docRef = await addDoc(collection(db, "service_tickets"), {
+        type,
+        status:                "open",
+        linked_delivery_id:    null,
+        customer_name:         customer_name || "Unknown",
+        phone:                 phone || "",
+        alternate_phone:       alt_phone || "",
+        address:               clean_address || "",
+        product_name:          product_name || "",
+        serial_number:         serial_number || "",
+        description:           description,
+        priority,
+        created_by:            "tally_tdl",
+        created_by_name:       "Tally TDL",
+        created_by_role:       "accountant",
+        raised_by_role:        "accountant",
+        assigned_to:           null,
+        created_at:            Timestamp.now(),
+        resolved_at:           null,
+        warranty_expiry:       null,
+        purchase_date:         null,
+        is_auto_created:       true,
+        source:                "tally_tdl",
+        point_of_sale:         store_branch || "",
+        tally_voucher_number:  voucher_number,
+        brand_tracking_number: null,
+        brand_request_status:  null,
+      });
+
+      console.log(
+        "[tally/ticket] Ticket auto-created:", voucher_number, "|",
+        customer_name, "|", type, "|", priority, "| id:", docRef.id
+      );
+
+      (async () => {
+        try {
+          await sendServicePush(
+            `🔧 New ${type === "installation" ? "Demo-Installation" : "Complaint"} Ticket`,
+            `${customer_name || phone} — ${product_name || "Product"} — from Tally`
+          );
+        } catch (e) { console.warn("[tally/ticket push]", e.message); }
+      })();
+
+      return xmlRes(200, `<RESPONSE>
+<STATUS>1</STATUS>
+<MESSAGE>Service Ticket Created</MESSAGE>
+</RESPONSE>
+`);
+
+    } catch (err) {
+      console.error("[tally/ticket]", err.message);
+      return xmlRes(500, `<RESPONSE>
+<STATUS>0</STATUS>
+<MESSAGE>${xmlEscape(err.message || "Service Ticket Failed")}</MESSAGE>
+</RESPONSE>
+`);
+    }
+  }
+);
 
 /* ════════════════════════════════════════════════
    PRODUCT NORMALIZE
@@ -975,6 +1201,7 @@ app.post("/assignDelivery/:id", async (req, res) => {
       assigned_driver_name: driver_name
     });
 
+    invalidateDeliveriesCache();
     res.json({ success: true });
 
     // Push notification to newly assigned driver — in background
@@ -1061,6 +1288,7 @@ app.post("/correctDelivery/:id", authenticate, authorize(["admin"]), upload.fiel
     }
 
     await updateDoc(deliveryRef, updates);
+    invalidateDeliveriesCache();
     res.json({ success: true, updated: Object.keys(updates) });
   } catch (err) {
     console.error("/correctDelivery error:", err.message);
@@ -1448,6 +1676,10 @@ app.post("/createDeliveries", writeLimiter, async (req, res) => {
 let deliveriesCache = { data: null, expiry: 0 };
 const DELIVERIES_CACHE_TTL = 30_000; // 30 seconds
 
+function invalidateDeliveriesCache() {
+  deliveriesCache = { data: null, expiry: 0 };
+}
+
 async function countQuery(q) {
   const snap = await getCountFromServer(q);
   return snap.data().count || 0;
@@ -1510,20 +1742,24 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
 
 app.get("/deliveries", readLimiter, async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, force, page, pageSize, search, status, priority, selfPickup, route, driver } = req.query;
     const hasDateRange = startDate || endDate;
+    const isPaginated = page !== undefined;
+    const p = Math.max(1, parseInt(page) || 1);
+    const ps = Math.min(200, Math.max(1, parseInt(pageSize) || 50));
 
-    if (!hasDateRange) {
-      // ─── Cache hit (only when no date filter) ───
+    // Cache only applies to unfiltered, non-paginated requests
+    if (!force && !hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver) {
       if (Date.now() < deliveriesCache.expiry) {
         return res.json(deliveriesCache.data);
       }
     }
 
-    // Build Firestore query with optional date range
+    // Build Firestore query with optional filters
     let q = collection(db, "deliveries");
+    const constraints = [];
+
     if (hasDateRange) {
-      const constraints = [];
       if (startDate) {
         const s = new Date(startDate + "T00:00:00+05:30");
         constraints.push(where("created_timestamp", ">=", Timestamp.fromMillis(s.getTime())));
@@ -1532,17 +1768,108 @@ app.get("/deliveries", readLimiter, async (req, res) => {
         const e = new Date(endDate + "T23:59:59+05:30");
         constraints.push(where("created_timestamp", "<=", Timestamp.fromMillis(e.getTime())));
       }
+    }
+
+    if (status) {
+      const statuses = status.split(",").map(s => s.trim()).filter(Boolean);
+      if (statuses.length === 1) {
+        constraints.push(where("status", "==", statuses[0]));
+      } else if (statuses.length > 1) {
+        constraints.push(where("status", "in", statuses.slice(0, 10)));
+      }
+    }
+
+    if (priority) {
+      constraints.push(where("priority", "==", priority));
+    }
+
+    if (selfPickup === "true") {
+      constraints.push(where("is_self_pickup", "==", true));
+    }
+
+    if (constraints.length > 0) {
       q = query(q, ...constraints);
+    }
+
+    // Get accurate total count (before limit, before text search)
+    let totalCount = 0;
+    if (isPaginated) {
+      try {
+        // Use the constraint-only query (no limit) for counting
+        const countQ = constraints.length > 0
+          ? query(collection(db, "deliveries"), ...constraints)
+          : collection(db, "deliveries");
+        const countSnap = await getCountFromServer(countQ);
+        totalCount = countSnap.data().count;
+      } catch (_) { /* fall back to deliveries.length */ }
+    }
+
+    // For paginated single-status queries, add limit to avoid fetching all docs.
+    // Multi-status (0 or 2+ status values) need ALL matching docs for the
+    // in-memory interleave sort — no limit applied.
+    // Text search excluded (narrow scope, no limit needed).
+    if (isPaginated && !search) {
+      const statuses = status ? status.split(",").map(s => s.trim()).filter(Boolean) : [];
+      if (statuses.length === 1) {
+        q = query(q, limit(p * ps));
+      }
     }
 
     const snapshot = await getDocs(q);
     let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const statusOrder = { pending: 0, loaded: 1, delivered: 2 };
+    // Client-side text search (Firestore can't do partial text search)
+    if (search) {
+      const term = search.toLowerCase();
+      deliveries = deliveries.filter(d =>
+        (d.customer_name || "").toLowerCase().includes(term) ||
+        (d.phone || "").includes(term) ||
+        (d.product_name || "").toLowerCase().includes(term)
+      );
+      // Can't use Firestore count when text search is applied — fall back to fetched count
+      totalCount = deliveries.length;
+    }
+
+    // Route filter — match address/area against route keywords
+    if (route && route !== "all") {
+      const ROUTE_KEYWORDS = {
+        bhosari:  ["bhosari"],
+        moshi:    ["moshi"],
+        wadgaon:  ["wadgaon", "wadgoan", "vadgaon", "vadgoan"],
+        markal:   ["markal"],
+        charholi: ["charholi", "charoli"]
+      };
+      const keywords = ROUTE_KEYWORDS[route] || [];
+      if (keywords.length > 0) {
+        deliveries = deliveries.filter(d => {
+          const addr = ((d.address || "") + " " + (d.area || "")).toLowerCase();
+          return keywords.some(kw => addr.includes(kw));
+        });
+      }
+      totalCount = deliveries.length;
+    }
+
+    // Driver filter — match assigned driver name
+    if (driver && driver !== "all") {
+      deliveries = deliveries.filter(d => d.assigned_driver_name === driver);
+      totalCount = deliveries.length;
+    }
+
+    const statusOrder = { booked: -1, pending: 0, loaded: 1, delivered: 2, failed: 3 };
 
     deliveries.sort((a, b) => {
-      const statusDiff = (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
+      const statusDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
       if (statusDiff !== 0) return statusDiff;
+
+      if (a.status === "booked") {
+        const eta = d => {
+          const v = d.estimated_delivery_time;
+          if (!v) return 0;
+          if (v.seconds) return v.seconds * 1000;
+          return new Date(v).getTime();
+        };
+        return eta(a) - eta(b);
+      }
 
       if (a.status === "pending") {
         const urgentDiff = (b.priority === "urgent") - (a.priority === "urgent");
@@ -1567,8 +1894,17 @@ app.get("/deliveries", readLimiter, async (req, res) => {
       return 0;
     });
 
-    if (!hasDateRange) {
+    // Cache unfiltered, non-paginated results
+    if (!hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup) {
       deliveriesCache = { data: deliveries, expiry: Date.now() + DELIVERIES_CACHE_TTL };
+    }
+
+    if (isPaginated) {
+      const total = totalCount || deliveries.length;
+      const totalPages = Math.max(1, Math.ceil(total / ps));
+      const start = (p - 1) * ps;
+      const pageData = deliveries.slice(start, start + ps);
+      return res.json({ data: pageData, total, page: p, pageSize: ps, totalPages });
     }
 
     res.json(deliveries);
@@ -1604,11 +1940,13 @@ app.put("/delivery/:id", async (req, res) => {
     req.body.status = statusForETA(req.body.estimated_delivery_time);
   }
   await updateDoc(refDoc, req.body);
+  invalidateDeliveriesCache();
   res.json({ success: true });
 });
 
 app.delete("/delivery/:id", authenticate, authorize(["admin"]), async (req, res) => {
   await deleteDoc(doc(db, "deliveries", req.params.id));
+  invalidateDeliveriesCache();
   res.json({ success: true });
 });
 
@@ -1637,6 +1975,7 @@ app.post("/deleteFailedDelivery/:id", authenticate, authorize(["accountant", "ad
     console.log(`[DELETE] Failed delivery ${req.params.id} deleted by accountant. Reason: ${reason.trim()}. Customer: ${delivery.customer_name}, Product: ${delivery.product_name}`);
 
     await deleteDoc(refDoc);
+    invalidateDeliveriesCache();
     res.json({ success: true });
   } catch (error) {
     console.error("/deleteFailedDelivery error:", error);
@@ -1693,6 +2032,7 @@ app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
     }
 
     // ✅ Respond immediately — push runs in background
+    invalidateDeliveriesCache();
     res.json({ success: true });
 
     sendAccountantPush("📦 Delivery Loaded", `${delivery.customer_name} - ${delivery.address}`)
@@ -1787,6 +2127,7 @@ app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
     }
 
     // ✅ Respond to driver immediately
+    invalidateDeliveriesCache();
     res.json({ success: true });
 
     // Run distance calculation + notifications in background (non-blocking)
@@ -2123,6 +2464,7 @@ app.post("/markFailed/:id", upload.single("photo"), async (req, res) => {
       ...(failure_photo_url && { failure_photo_url })
     });
     // Respond immediately, push in background
+    invalidateDeliveriesCache();
     res.json({ success: true });
     const urgentPrefix = isDamage ? "🔴 URGENT — " : "";
     sendAccountantPush(
@@ -2149,6 +2491,7 @@ app.post("/markReturned/:id", authenticate, authorize(["admin", "accountant"]), 
       return res.status(400).json({ error: "Only failed deliveries can be marked as returned" });
     }
     await updateDoc(deliveryRef, { product_returned: true, returned_timestamp: Timestamp.now() });
+    invalidateDeliveriesCache();
     res.json({ success: true });
   } catch (error) {
     console.error("/markReturned error:", error);
@@ -2195,6 +2538,7 @@ app.post("/rescheduleDelivery/:id", authenticate, authorize(["admin", "accountan
       ...(assigned_driver_name && { assigned_driver_name })
     });
 
+    invalidateDeliveriesCache();
     res.json({ success: true });
 
     // Notify new driver in background
@@ -2261,6 +2605,7 @@ app.post("/reverseDelivery/:id", authenticate, authorize(["admin", "accountant"]
     });
 
     console.log(`[reverseDelivery] ${req.params.id} reversed. Reason: ${reason}. Customer: ${delivery.customer_name}`);
+    invalidateDeliveriesCache();
     res.json({ success: true });
 
     // Notify driver that delivery was reversed
@@ -2316,6 +2661,7 @@ app.post("/markFreightPaid/:id", authenticate, authorize(["admin"]), async (req,
       console.log(`[markFreightPaid] Batch ${delivery.batch_id} — marked ${siblings.length + 1} deliveries paid`);
     }
 
+    invalidateDeliveriesCache();
     res.json({ success: true });
   } catch (err) {
     console.error("/markFreightPaid error:", err.message);
@@ -2585,6 +2931,159 @@ app.get("/tally/serials", async (req, res) => {
   }
 });
 
+/* ════════════════════════════════════════════════
+   TODAY'S SALES (for TDL "Today's Sale" button)
+   GET /api/sales/today
+   — Auth: x-tally-key header
+   — Returns leads with status="sale" created today
+   — Fields: id, customer_name, phone, address, products[], created_by_name, created_at
+════════════════════════════════════════════════ */
+app.get("/api/sales/today", async (req, res) => {
+  try {
+    const TALLY_PUSH_KEY = process.env.TALLY_PUSH_KEY;
+    if (TALLY_PUSH_KEY) {
+      const provided = req.headers["x-tally-key"];
+      if (provided !== TALLY_PUSH_KEY) {
+        return res.status(401).json({ error: "Invalid API key" });
+      }
+    }
+
+    const snap = await getDocs(collection(db, "leads"));
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const sales = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(l => {
+        if (l.status !== "sale") return false;
+        const ts = l.created_at;
+        if (!ts) return false;
+        const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+        return d >= todayStart && d <= todayEnd;
+      })
+      .sort((a, b) => {
+        const da = a.created_at?.seconds || 0;
+        const db = b.created_at?.seconds || 0;
+        return db - da;
+      })
+      .map(l => ({
+        id: l.id,
+        customer_name: l.customer_name || "",
+        phone: l.phone || "",
+        alternate_phone: l.alternate_phone || "",
+        address: l.address || "",
+        products: (l.products || []).map(p => ({
+          product_name: p.product_name || "",
+          quoted_price: parseFloat(p.quoted_price) || 0
+        })),
+        product_summary: (l.products || []).slice(0, 2).map(p => p.product_name || "").filter(Boolean).join(", ") + ((l.products || []).length > 2 ? "..." : ""),
+        amount_summary: (l.products || []).reduce((s, p) => s + (parseFloat(p.quoted_price) || 0), 0),
+        created_by_name: l.created_by_name || "",
+        created_at: l.created_at?.seconds || 0
+      }));
+
+    res.json({ success: true, count: sales.length, sales });
+
+  } catch (err) {
+    console.error("/api/sales/today error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/sales/today-ui", async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "leads"));
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const sales = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(l => {
+        if (l.status !== "sale") return false;
+        const ts = l.created_at;
+        if (!ts) return false;
+        const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+        return d >= todayStart && d <= todayEnd;
+      })
+      .sort((a, b) => {
+        const da = a.created_at?.seconds || 0;
+        const db = b.created_at?.seconds || 0;
+        return db - da;
+      });
+
+    let rows = "";
+    for (const l of sales) {
+      const cn = l.customer_name || "Unknown";
+      const ph = l.phone || "";
+      const items = (l.products || []).map(p => `${xmlEsc(p.product_name || "")} - ₹${parseFloat(p.quoted_price || 0).toFixed(0)}`).join("<br>");
+      const total = (l.products || []).reduce((s, p) => s + (parseFloat(p.quoted_price) || 0), 0);
+      const by = l.created_by_name || "";
+      rows += `<tr onclick="createVoucher('${xmlEscAttr(cn)}')" style="cursor:pointer">
+        <td>${xmlEsc(cn)}</td>
+        <td>${ph}</td>
+        <td>${items}</td>
+        <td style="text-align:right">₹${total.toFixed(0)}</td>
+        <td>${xmlEsc(by)}</td>
+      </tr>`;
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Today's Sales</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0 }
+  body { font-family:-apple-system,sans-serif; background:#f5f5f5; padding:20px }
+  h1 { margin-bottom:16px; font-size:22px; color:#333 }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.12) }
+  th { background:#1565c0; color:#fff; padding:12px 14px; text-align:left; font-size:14px }
+  td { padding:12px 14px; border-bottom:1px solid #e0e0e0; font-size:14px }
+  tr:hover td { background:#e3f2fd }
+  .no-sales { text-align:center; padding:40px; color:#999; font-size:16px }
+  .note { margin-top:12px; color:#666; font-size:13px }
+</style>
+</head>
+<body>
+  <h1>Today's Sales (${sales.length})</h1>
+  ${sales.length === 0 ? '<div class="no-sales">No sales found for today</div>' : `<table>
+    <thead><tr>
+      <th>Customer</th><th>Phone</th><th>Items</th><th style="text-align:right">Total</th><th>Staff</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`}
+  <div class="note">Click a row to create a Sales Voucher in TallyPrime. Close this window after creating.</div>
+  <script>
+    function createVoucher(name) {
+      if (!confirm('Create Sales Voucher for "' + name + '" in Tally?')) return;
+      fetch('http://127.0.0.1:5005/api/create-sales-voucher?customerName=' + encodeURIComponent(name))
+        .then(function(r) { return r.json() })
+        .then(function(d) { alert(d.success ? '✅ ' + d.message : '❌ ' + d.error); location.reload() })
+        .catch(function(e) { alert('❌ Error: ' + e.message) });
+    }
+  </script>
+</body>
+</html>`;
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+
+  } catch (err) {
+    console.error("/api/sales/today-ui error:", err.message);
+    res.status(500).send("Error: " + err.message);
+  }
+
+  function xmlEsc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function xmlEscAttr(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+});
 
 /* ════════════════════════════════════════════════
    TALLY STOCK SYNC

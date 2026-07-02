@@ -578,6 +578,7 @@
     }
     .prod-dropdown-item:hover { background: var(--surface-container-high); }
     .prod-dropdown-item.add-new { color: var(--primary); font-weight: 700; }
+    .combobox-dropdown .add-new-item { color: var(--primary); font-weight: 700; }
     .prod-remove-btn {
       background: rgba(255,180,171,0.1); color: var(--error);
       border: none; border-radius: 7px; padding: 6px 9px;
@@ -739,7 +740,23 @@
     .day-btn-leave { background: var(--primary-container); color: var(--on-primary-container); }
     .day-btn-note { background: var(--surface-container-high); color: var(--on-surface); }
     .day-btn .material-symbols-outlined { font-size: 18px; }
+
+    /* ── COMBOBOX (Ledger Picker) ── */
+    .combobox-wrap { position: relative; }
+    .combobox-dropdown {
+      position: absolute; top: calc(100% - 12px); left: 0; right: 0; z-index: 50;
+      background: var(--surface-container-highest); border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3); max-height: 200px; overflow-y: auto;
+      margin-top: 3px; display: none;
+    }
+    .combobox-dropdown div {
+      padding: 9px 12px; font-size: 13px; cursor: pointer; color: var(--on-surface);
+      text-transform: uppercase; transition: background 0.1s;
+    }
+    .combobox-dropdown div:hover,
+    .combobox-dropdown div.active { background: var(--surface-container-high); }
   </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
 </head>
 <body>
 
@@ -883,12 +900,25 @@
             <option value="installation">Demo-Installation</option>
           </select>
 
-          <label class="form-label">Customer Name *</label>
-          <input class="form-input" id="ptName" placeholder="Full name" style="margin-bottom:8px;">
+          <label class="form-label">Customer Details</label>
+          <label class="pt-tally-toggle" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;">
+            <input type="checkbox" id="ptTallySearch" onchange="togglePtTallySearch()">
+            Search from Tally
+          </label>
 
-          <div class="form-row" style="margin-bottom:8px;">
-            <input class="form-input" id="ptPhoneDisplay" placeholder="Phone *" maxlength="10" inputmode="numeric" style="margin-bottom:0;flex:1;">
-            <input class="form-input" id="ptAltPhone" placeholder="Alt Phone" maxlength="10" inputmode="numeric" style="margin-bottom:0;flex:1;">
+          <div id="ptManualFields">
+            <input class="form-input" id="ptName" placeholder="Full name" style="margin-bottom:8px;">
+            <div class="form-row" style="margin-bottom:8px;">
+              <input class="form-input" id="ptPhoneDisplay" placeholder="Phone *" maxlength="10" inputmode="numeric" style="margin-bottom:0;flex:1;">
+              <input class="form-input" id="ptAltPhone" placeholder="Alt Phone" maxlength="10" inputmode="numeric" style="margin-bottom:0;flex:1;">
+            </div>
+          </div>
+
+          <div id="ptTallyFields" style="display:none;">
+            <div class="combobox-wrap" style="margin-bottom:8px;">
+              <input class="form-input" id="ptTallyName" placeholder="Search customer from Tally…" style="margin-bottom:0;" autocomplete="off">
+              <div class="combobox-dropdown" id="ptTallyDropdown"></div>
+            </div>
           </div>
 
           <label class="form-label">Pincode *</label>
@@ -983,7 +1013,10 @@
           <input class="form-input" id="lAltPhone" placeholder="Optional" maxlength="10" inputmode="numeric">
 
           <label class="form-label">Customer Name</label>
-          <input class="form-input" id="lName" placeholder="Full name">
+          <div class="combobox-wrap">
+            <input class="form-input" id="lName" placeholder="Full name" style="margin-bottom:0;" autocomplete="off">
+            <div class="combobox-dropdown" id="lNameDropdown"></div>
+          </div>
 
           <label class="form-label">Address</label>
           <input class="form-input" id="lAddress" placeholder="House, street, area, city…">
@@ -1912,17 +1945,18 @@ function createNewTicket() {
 async function submitPhoneTicket() {
   const msg = id => document.getElementById(id);
   const val = id => msg(id)?.value?.trim() || "";
+  const useTally = msg("ptTallySearch")?.checked;
 
-  const name     = val("ptName");
-  const phone    = val("ptPhoneDisplay");
-  const altPhone = val("ptAltPhone");
-  const pincode  = val("ptPincode");
-  const state    = val("ptState");
-  const district = val("ptDistrict");
-  const taluka   = val("ptTaluka");
-  const area     = msg("ptArea")?.value || "";
-  const addr1    = val("ptAddr1");
-  const landmark = val("ptLandmark");
+  const name     = useTally ? val("ptTallyName").toUpperCase() : val("ptName");
+  const phone    = useTally ? "" : val("ptPhoneDisplay");
+  const altPhone = useTally ? "" : val("ptAltPhone");
+  const pincode  = useTally ? "" : val("ptPincode");
+  const state    = useTally ? "" : val("ptState");
+  const district = useTally ? "" : val("ptDistrict");
+  const taluka   = useTally ? "" : val("ptTaluka");
+  const area     = useTally ? "" : (msg("ptArea")?.value || "");
+  const addr1    = useTally ? "" : val("ptAddr1");
+  const landmark = useTally ? "" : val("ptLandmark");
   const product  = val("ptProduct");
   const serial   = val("ptSerial");
   const type     = msg("ptType")?.value || "complaint";
@@ -1931,12 +1965,12 @@ async function submitPhoneTicket() {
 
   const missing = [];
   if (!name)     missing.push("Customer Name");
-  if (!phone)    missing.push("Phone");
-  if (!pincode || pincode.length !== 6) missing.push("Pincode");
-  if (!state)    missing.push("State");
-  if (!district) missing.push("District");
-  if (!area)     missing.push("Area");
-  if (!addr1)    missing.push("Address Line 1");
+  if (!useTally && !phone) missing.push("Phone");
+  if (!useTally && (!pincode || pincode.length !== 6)) missing.push("Pincode");
+  if (!useTally && !state)    missing.push("State");
+  if (!useTally && !district) missing.push("District");
+  if (!useTally && !area)     missing.push("Area");
+  if (!useTally && !addr1)    missing.push("Address Line 1");
   if (!product)  missing.push("Product");
   if (!desc)     missing.push("Description");
   if (missing.length) {
@@ -1944,25 +1978,17 @@ async function submitPhoneTicket() {
     return;
   }
 
-  const address = [addr1, area, district + " " + taluka, state + " " + pincode, landmark].filter(Boolean).join(", ");
+  const address = useTally ? "" : [addr1, area, district + " " + taluka, state + " " + pincode, landmark].filter(Boolean).join(", ");
 
   msg("ptFormMsg").textContent = "Submitting…";
 
   try {
+    const payload = { type, linked_delivery_id: linkedDeliveryId, customer_name: name, product_name: product, serial_number: serial, description: desc };
+    if (!useTally) { payload.phone = phone; payload.alternate_phone = altPhone; payload.address = address; }
     const res = await authFetch(`${BASE_URL}/service/ticket`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type,
-        linked_delivery_id: linkedDeliveryId,
-        customer_name: name,
-        phone,
-        alternate_phone: altPhone,
-        address,
-        product_name: product,
-        serial_number: serial,
-        description: desc
-      })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!res.ok) {
@@ -1970,7 +1996,7 @@ async function submitPhoneTicket() {
       return;
     }
     showToast(`✅ ${type === "installation" ? "Installation" : "Complaint"} ticket raised!`);
-    saveRecentTicket({ id: data.id, customer_name: name, phone, product, type });
+    saveRecentTicket({ id: data.id, customer_name: name, phone: phone || "", product, type });
     clearPhoneSearch();
   } catch(e) {
     msg("ptFormMsg").textContent = "❌ Network error";
@@ -2036,7 +2062,7 @@ function addLeadProduct(prefillName, prefillPrice) {
         id="lprod_${idx}" autocomplete="off"
         oninput="onProdSearch(this, ${idx})"
         onfocus="onProdSearch(this, ${idx})"
-        value="${esc(prefillName)||''}">
+        value="${prefillName != null ? esc(prefillName) : ''}">
       <div class="prod-dropdown" id="pdrop_${idx}" style="display:none;"></div>
     </div>
     <input type="number" class="prod-price" placeholder="₹ Quote"
@@ -2128,7 +2154,7 @@ function checkLeadRepeat(phone) {
 
 function applyLeadRepeat() {
   if (!lrcPending) return;
-  document.getElementById("lName").value    = lrcPending.customer_name || "";
+  document.getElementById("lName").value    = (lrcPending.customer_name || "").toUpperCase();
   document.getElementById("lAddress").value = lrcPending.address || "";
   dismissLeadRepeat();
 }
@@ -2975,6 +3001,128 @@ async function deleteLead(id) {
     showToast("❌ Network error");
   }
 }
+</script>
+
+<script>
+/* ── Ledger Picker (Sundry Debtors from Tally) ── */
+let ledgerFuse = null;
+let ledgerNames = [];
+
+async function loadLedgers() {
+  try {
+    const res = await fetch("http://127.0.0.1:5005/api/ledgers");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    ledgerNames = data.ledgers || [];
+    ledgerFuse = new Fuse(ledgerNames, { threshold: 0.3 });
+    console.log("📋 Ledger picker: " + ledgerNames.length + " customers loaded");
+  } catch (e) {
+    console.warn("⚠️ Ledger API unavailable:", e.message);
+  }
+}
+
+function setupLedgerPicker(inputId, dropdownId) {
+  const input = document.getElementById(inputId);
+  const drop  = document.getElementById(dropdownId);
+  if (!input || !drop) return;
+  let activeIdx = -1;
+
+  function show(items) {
+    if (!items.length) { drop.style.display = "none"; return; }
+    drop.innerHTML = items.map(function(n, i) {
+      if (n.indexOf("__ADD_NEW__") === 0) {
+        var name = n.replace("__ADD_NEW__", "");
+        return '<div data-idx="' + i + '" data-action="addnew" data-name="' + esc(name).replace(/"/g,"&quot;") + '" class="' + (i === activeIdx ? "active add-new-item" : "add-new-item") + '">+ Add &quot;' + esc(name) + '&quot; as new customer</div>';
+      }
+      return '<div data-idx="' + i + '" class="' + (i === activeIdx ? "active" : "") + '">' + esc(n) + '</div>';
+    }).join("");
+    drop.style.display = "block";
+  }
+
+  function doSearch(q) {
+    activeIdx = -1;
+    if (!q) { show(ledgerNames.slice(0, 80)); return; }
+    var results = ledgerFuse.search(q).map(function(r) { return r.item; });
+    var exactMatch = ledgerNames.some(function(n) { return n.toLowerCase() === q.toLowerCase(); });
+    if (!exactMatch && q.trim().length >= 2) {
+      results.push("__ADD_NEW__" + q.trim().toUpperCase());
+    }
+    show(results);
+  }
+
+  function doSelect(idx) {
+    var els = drop.querySelectorAll("div");
+    if (idx >= 0 && idx < els.length) {
+      input.value = els[idx].textContent;
+      drop.style.display = "none";
+    }
+  }
+
+  function selectAddNew(name) {
+    input.value = name;
+    drop.style.display = "none";
+  }
+
+  input.addEventListener("input", function() {
+    input.value = input.value.toUpperCase();
+    if (ledgerFuse) doSearch(input.value);
+  });
+
+  input.addEventListener("focus", function() {
+    if (!ledgerFuse) return;
+    if (input.value) doSearch(input.value);
+    else show(ledgerNames.slice(0, 80));
+  });
+
+  input.addEventListener("keydown", function(e) {
+    var els = drop.querySelectorAll("div");
+    if (!els.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, els.length - 1);
+      els.forEach(function(el, i) { el.classList.toggle("active", i === activeIdx); });
+      if (els[activeIdx]) els[activeIdx].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      els.forEach(function(el, i) { el.classList.toggle("active", i === activeIdx); });
+      if (els[activeIdx]) els[activeIdx].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIdx >= 0 && activeIdx < els.length) {
+        if (els[activeIdx].dataset.action === "addnew") {
+          selectAddNew(els[activeIdx].dataset.name);
+        } else {
+          doSelect(activeIdx);
+        }
+      }
+    } else if (e.key === "Escape") {
+      drop.style.display = "none";
+    }
+  });
+
+  input.addEventListener("blur", function() { setTimeout(function() { drop.style.display = "none"; }, 200); });
+  drop.addEventListener("mousedown", function(e) {
+    var d = e.target.closest("div[data-idx]");
+    if (!d) return;
+    if (d.dataset.action === "addnew") {
+      selectAddNew(d.dataset.name);
+    } else {
+      doSelect(parseInt(d.dataset.idx));
+    }
+  });
+}
+
+/* ── Toggle Tally search in ticket form ── */
+function togglePtTallySearch() {
+  var checked = document.getElementById("ptTallySearch").checked;
+  document.getElementById("ptManualFields").style.display = checked ? "none" : "";
+  document.getElementById("ptTallyFields").style.display = checked ? "" : "none";
+}
+
+loadLedgers();
+setupLedgerPicker("lName", "lNameDropdown");
+setupLedgerPicker("ptTallyName", "ptTallyDropdown");
 </script>
 
 <script>

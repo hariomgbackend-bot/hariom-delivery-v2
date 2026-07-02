@@ -501,9 +501,25 @@
     .pg-btn.active { background: linear-gradient(135deg,var(--tertiary-container),var(--tertiary)); border-color: transparent; color: #002113; font-weight: 700; }
     .pg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .pg-info { font-size: 12px; color: var(--on-surface-variant); font-weight: 600; padding: 0 6px; }
+
+    /* ── COMBOBOX (Ledger Picker) ── */
+    .combobox-wrap { position: relative; }
+    .combobox-dropdown {
+      position: absolute; top: calc(100% - 12px); left: 0; right: 0; z-index: 50;
+      background: var(--surface-container-highest); border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3); max-height: 200px; overflow-y: auto;
+      margin-top: 3px; display: none;
+    }
+    .combobox-dropdown div {
+      padding: 9px 12px; font-size: 13px; cursor: pointer; color: var(--on-surface);
+      text-transform: uppercase; transition: background 0.1s;
+    }
+    .combobox-dropdown div:hover,
+    .combobox-dropdown div.active { background: var(--surface-container-high); }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
 </head>
 <body>
 
@@ -688,7 +704,12 @@
     </div>
 
     <div id="ctCustomerFields">
-    <!-- Split name -->
+    <label class="ct-tally-toggle" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;">
+      <input type="checkbox" id="ctTallySearch" onchange="toggleCtTallySearch()">
+      Search from Tally
+    </label>
+
+    <div id="ctManualFields">
     <div style="display:grid;gap:8px;margin-bottom:10px;" class="form-grid-3">
       <div class="form-field" style="margin:0">
         <label>First Name *</label>
@@ -701,6 +722,14 @@
       <div class="form-field" style="margin:0">
         <label>Last Name</label>
         <input class="form-input" id="ctLastName" placeholder="Last">
+      </div>
+    </div>
+    </div>
+
+    <div id="ctTallyFields" style="display:none;">
+      <div class="combobox-wrap" style="margin-bottom:10px;">
+        <input class="form-input" id="ctTallyName" placeholder="Search customer from Tally…" style="margin-bottom:0;" autocomplete="off">
+        <div class="combobox-dropdown" id="ctTallyDropdown"></div>
       </div>
     </div>
 
@@ -1595,8 +1624,11 @@ function onCtPinInput(val) {
 
 function openCreateTicketPopup(prefill = {}) {
   // Reset all fields
+  document.getElementById("ctTallySearch").checked = false;
+  document.getElementById("ctManualFields").style.display = "";
+  document.getElementById("ctTallyFields").style.display = "none";
   ["ctFirstName","ctMiddleName","ctLastName","ctPhone","ctAltPhone",
-   "ctPincode","ctState","ctCity","ctAddr1","ctAddr2","ctProduct","ctSerial","ctPurchaseDate"].forEach(id => {
+   "ctPincode","ctState","ctCity","ctAddr1","ctAddr2","ctProduct","ctSerial","ctPurchaseDate","ctTallyName"].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ""; el.readOnly = false; }
   });
@@ -1812,9 +1844,9 @@ async function submitCreateTicket() {
       body: JSON.stringify({
         type,
         linked_delivery_id: document.getElementById("ctLinkedDeliveryId").value || null,
-        first_name:   document.getElementById("ctFirstName").value.trim(),
-        middle_name:  document.getElementById("ctMiddleName").value.trim(),
-        last_name:    document.getElementById("ctLastName").value.trim(),
+        first_name:   useTally ? document.getElementById("ctTallyName").value.trim().toUpperCase() : document.getElementById("ctFirstName").value.trim(),
+        middle_name:  useTally ? "" : document.getElementById("ctMiddleName").value.trim(),
+        last_name:    useTally ? "" : document.getElementById("ctLastName").value.trim(),
         phone,
         alternate_phone: document.getElementById("ctAltPhone").value.trim(),
         pincode, state, city, area, addr1, addr2,
@@ -1835,9 +1867,10 @@ async function submitCreateTicket() {
     msg.style.color = "var(--tertiary)"; msg.textContent = "Ticket created!";
     btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
     // Build local ticket from form data
-    const firstName = document.getElementById("ctFirstName").value.trim();
-    const middleName = document.getElementById("ctMiddleName").value.trim();
-    const lastName = document.getElementById("ctLastName").value.trim();
+    const useTally = document.getElementById("ctTallySearch")?.checked;
+    const firstName = useTally ? document.getElementById("ctTallyName").value.trim().toUpperCase() : document.getElementById("ctFirstName").value.trim();
+    const middleName = useTally ? "" : document.getElementById("ctMiddleName").value.trim();
+    const lastName = useTally ? "" : document.getElementById("ctLastName").value.trim();
     const localName = [firstName, middleName, lastName].filter(Boolean).join(" ");
     const localAddr = [addr1, addr2, area, city, state && pincode ? state + " - " + pincode : (state || pincode)].filter(Boolean).join(", ");
     const localTicket = {
@@ -2202,6 +2235,96 @@ function getBrandTrackingAlarmHtml(ticket) {
       </div>
     </div>`;
 }
+
+/* ── Ledger Picker (Sundry Debtors from Tally) ── */
+let ledgerFuse = null;
+let ledgerNames = [];
+
+async function loadLedgers() {
+  try {
+    const res = await fetch("http://127.0.0.1:5005/api/ledgers");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    ledgerNames = data.ledgers || [];
+    ledgerFuse = new Fuse(ledgerNames, { threshold: 0.3 });
+    console.log("Ledger picker: " + ledgerNames.length + " customers loaded");
+  } catch (e) {
+    console.warn("Ledger API unavailable:", e.message);
+  }
+}
+
+function setupLedgerPicker(inputId, dropdownId) {
+  const input = document.getElementById(inputId);
+  const drop  = document.getElementById(dropdownId);
+  if (!input || !drop) return;
+  let activeIdx = -1;
+
+  function show(items) {
+    if (!items.length) { drop.style.display = "none"; return; }
+    drop.innerHTML = items.map(function(n, i) {
+      return '<div data-idx="' + i + '" class="' + (i === activeIdx ? "active" : "") + '">' + esc(n) + '</div>';
+    }).join("");
+    drop.style.display = "block";
+  }
+
+  function doSearch(q) {
+    activeIdx = -1;
+    if (!q) { show(ledgerNames.slice(0, 80)); return; }
+    show(ledgerFuse.search(q).map(function(r) { return r.item; }));
+  }
+
+  function doSelect(idx) {
+    var els = drop.querySelectorAll("div");
+    if (idx >= 0 && idx < els.length) {
+      input.value = els[idx].textContent;
+      drop.style.display = "none";
+    }
+  }
+
+  input.addEventListener("input", function() {
+    input.value = input.value.toUpperCase();
+    if (ledgerFuse) doSearch(input.value);
+  });
+
+  input.addEventListener("focus", function() {
+    if (ledgerFuse && !input.value) show(ledgerNames.slice(0, 80));
+  });
+
+  input.addEventListener("keydown", function(e) {
+    var els = drop.querySelectorAll("div");
+    if (!els.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, els.length - 1);
+      els.forEach(function(el, i) { el.classList.toggle("active", i === activeIdx); });
+      if (els[activeIdx]) els[activeIdx].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      els.forEach(function(el, i) { el.classList.toggle("active", i === activeIdx); });
+      if (els[activeIdx]) els[activeIdx].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+      e.preventDefault(); doSelect(activeIdx);
+    } else if (e.key === "Escape") {
+      drop.style.display = "none";
+    }
+  });
+
+  input.addEventListener("blur", function() { setTimeout(function() { drop.style.display = "none"; }, 200); });
+  drop.addEventListener("mousedown", function(e) {
+    var d = e.target.closest("div[data-idx]");
+    if (d) doSelect(parseInt(d.dataset.idx));
+  });
+}
+
+function toggleCtTallySearch() {
+  var checked = document.getElementById("ctTallySearch").checked;
+  document.getElementById("ctManualFields").style.display = checked ? "none" : "";
+  document.getElementById("ctTallyFields").style.display = checked ? "" : "none";
+}
+
+loadLedgers();
+setupLedgerPicker("ctTallyName", "ctTallyDropdown");
 </script>
 </body>
 </html>
