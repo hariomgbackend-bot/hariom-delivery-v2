@@ -785,33 +785,32 @@ app.post(
   },
   async (req, res) => {
     const xmlEscape = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const xmlRes = (statusCode, body) => {
-      res.status(statusCode);
-      res.set("Content-Type", "text/xml");
-      return res.send(body);
-    };
 
     try {
       const TALLY_PUSH_KEY = process.env.TALLY_PUSH_KEY;
       if (TALLY_PUSH_KEY) {
         const provided = req.headers["x-tally-key"] || req.body?.api_key;
         if (provided !== TALLY_PUSH_KEY) {
-          return xmlRes(401, `<RESPONSE>
-<STATUS>0</STATUS>
-<MESSAGE>Invalid API key</MESSAGE>
-</RESPONSE>
-`);
+          res.set("Content-Type", "text/xml");
+          return res.send(`
+  <RESPONSE>
+  <STATUS>0</STATUS>
+  <MESSAGE>Invalid API key</MESSAGE>
+  </RESPONSE>
+  `);
         }
       }
 
       _tallyDebugCapture(req.body, { route: "/tally/ticket" });
 
       if (!req.body?._raw_xml_or_text_body) {
-        return xmlRes(400, `<RESPONSE>
-<STATUS>0</STATUS>
-<MESSAGE>Expected raw XML body from Tally HTTP Post</MESSAGE>
-</RESPONSE>
-`);
+        res.set("Content-Type", "text/xml");
+        return res.send(`
+  <RESPONSE>
+  <STATUS>0</STATUS>
+  <MESSAGE>Expected raw XML body from Tally HTTP Post</MESSAGE>
+  </RESPONSE>
+  `);
       }
 
       const xml = req.body._raw_xml_or_text_body;
@@ -849,11 +848,13 @@ app.post(
       if (!["normal", "high"].includes(priority)) priority = "normal";
 
       if (!voucher_number) {
-        return xmlRes(400, `<RESPONSE>
-<STATUS>0</STATUS>
-<MESSAGE>Voucher Number Missing</MESSAGE>
-</RESPONSE>
-`);
+        res.set("Content-Type", "text/xml");
+        return res.send(`
+  <RESPONSE>
+  <STATUS>0</STATUS>
+  <MESSAGE>Voucher Number Missing</MESSAGE>
+  </RESPONSE>
+  `);
       }
 
       const dupeSnap = await getDocs(query(
@@ -871,11 +872,13 @@ app.post(
       });
       if (recentDuplicate) {
         console.log("[tally/ticket] recent duplicate push ignored:", voucher_number);
-        return xmlRes(200, `<RESPONSE>
-<STATUS>1</STATUS>
-<MESSAGE>Recent Duplicate Ticket</MESSAGE>
-</RESPONSE>
-`);
+        res.set("Content-Type", "text/xml");
+        return res.send(`
+  <RESPONSE>
+  <STATUS>1</STATUS>
+  <MESSAGE>Recent Duplicate Ticket</MESSAGE>
+  </RESPONSE>
+  `);
       }
 
       const docRef = await addDoc(collection(db, "service_tickets"), {
@@ -921,19 +924,23 @@ app.post(
         } catch (e) { console.warn("[tally/ticket push]", e.message); }
       })();
 
-      return xmlRes(200, `<RESPONSE>
-<STATUS>1</STATUS>
-<MESSAGE>Service Ticket Created</MESSAGE>
-</RESPONSE>
-`);
+      res.set("Content-Type", "text/xml");
+      return res.send(`
+  <RESPONSE>
+  <STATUS>1</STATUS>
+  <MESSAGE>Service Ticket Created</MESSAGE>
+  </RESPONSE>
+  `);
 
     } catch (err) {
       console.error("[tally/ticket]", err.message);
-      return xmlRes(500, `<RESPONSE>
-<STATUS>0</STATUS>
-<MESSAGE>${xmlEscape(err.message || "Service Ticket Failed")}</MESSAGE>
-</RESPONSE>
-`);
+      res.set("Content-Type", "text/xml");
+      return res.send(`
+  <RESPONSE>
+  <STATUS>0</STATUS>
+  <MESSAGE>${xmlEscape(err.message || "Service Ticket Failed")}</MESSAGE>
+  </RESPONSE>
+  `);
     }
   }
 );
