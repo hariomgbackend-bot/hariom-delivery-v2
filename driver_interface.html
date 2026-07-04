@@ -3924,12 +3924,16 @@ async function loadDispatcherDeliveries() {
   if (!container) return;
 
   try {
+    const headers = {};
+    if (driverSessionToken) headers["Authorization"] = "Bearer " + driverSessionToken;
     const [delivRes, driverRes] = await Promise.all([
-      fetch(`${BASE_URL}/deliveries`),
+      fetch(`${BASE_URL}/deliveries`, { headers }),
       fetch(`${BASE_URL}/driver-list-public`)
     ]);
     const allDeliveries = await delivRes.json();
     const allDrivers    = await driverRes.json();
+    if (!delivRes.ok || !Array.isArray(allDeliveries)) throw new Error(allDeliveries?.error || "Deliveries request failed");
+    if (!driverRes.ok || !Array.isArray(allDrivers)) throw new Error(allDrivers?.error || "Drivers request failed");
 
     // Cache driver list (exclude the "Unassigned" driver itself)
     dispatcherDriverList = allDrivers.filter(d => d.driver_name.trim().toLowerCase() !== "unassigned");
