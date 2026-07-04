@@ -520,6 +520,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
+  <script src="/shared.js"></script>
 </head>
 <body>
 
@@ -698,8 +699,6 @@
       <label>Store</label>
       <select class="form-select" id="ctStore" onchange="onCtStoreChange()">
         <option value="">— Select store —</option>
-        <option value="alandi">Hari Om Electronics - Alandi</option>
-        <option value="dhanore">Hari Om Electronics - Dhanore</option>
       </select>
     </div>
 
@@ -870,12 +869,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("darkToggleBtn").textContent = isDark ? "☀️" : "🌙";
 });
 
-/* ── TOAST ── */
-function showToast(msg, ms = 2800) {
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), ms);
-}
+/* showToast shared via /shared.js */
 
 /* ── OFFLINE DETECTION ── */
 window.addEventListener("online", () => {
@@ -911,13 +905,8 @@ function isExpired(token) {
   try { const p = JSON.parse(atob(token.split(".")[1])); return Date.now() >= p.exp * 1000; }
   catch { return true; }
 }
-async function authFetch(url, opts = {}) {
-  const token = getToken();
-  if (!token || isExpired(token)) { doLogout(); throw new Error("expired"); }
-  const res = await fetch(url, { ...opts, headers: { ...(opts.headers||{}), Authorization: "Bearer "+token } });
-  if (res.status === 401) { doLogout(); throw new Error("401"); }
-  return res;
-}
+window.authGetToken = getToken;
+window.authOnError = doLogout;
 
 /* ── RESTORE SESSION ── */
 (function restoreSession() {
@@ -1686,20 +1675,30 @@ function onCtTypeChange() {
 }
 
 /* ── IN STOCK STORE SELECT ── */
-const STORES = {
-  alandi: {
-    name: "Hari Om Electronics - Alandi",
-    address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",
-    phone: "8177896218",
-    altPhone: "9822632095"
-  },
-  dhanore: {
-    name: "Hari Om Electronics - Dhanore",
-    address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105",
-    phone: "8177896218",
-    altPhone: "9822632095"
+let STORES = {};
+async function loadStores() {
+  try {
+    const res = await authFetch(`${BASE_URL}/api/stores`);
+    if (res.ok) {
+      const list = await res.json();
+      STORES = {};
+      const sel = document.getElementById("ctStore");
+      if (sel) {
+        sel.innerHTML = '<option value="">— Select store —</option>';
+        list.forEach(s => {
+          STORES[s.key] = { name: s.name, address: s.address, phone: s.phone, altPhone: s.altPhone };
+          const opt = document.createElement("option");
+          opt.value = s.key;
+          opt.textContent = s.name;
+          sel.appendChild(opt);
+        });
+      }
+    }
+  } catch(e) {
+    console.warn("loadStores failed:", e);
   }
-};
+}
+document.addEventListener('DOMContentLoaded', loadStores);
 
 function clearCustomerFields() {
   ["ctFirstName","ctMiddleName","ctLastName","ctPhone","ctAltPhone",
@@ -1838,6 +1837,7 @@ async function submitCreateTicket() {
   msg.style.color = "var(--primary)"; msg.textContent = "Saving...";
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span> Saving...';
+  const useTally = document.getElementById("ctTallySearch")?.checked;
   try {
     const res = await authFetch(`${BASE_URL}/service/ticket`, {
       method: "POST", headers: {"Content-Type":"application/json"},
@@ -1867,7 +1867,6 @@ async function submitCreateTicket() {
     msg.style.color = "var(--tertiary)"; msg.textContent = "Ticket created!";
     btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
     // Build local ticket from form data
-    const useTally = document.getElementById("ctTallySearch")?.checked;
     const firstName = useTally ? document.getElementById("ctTallyName").value.trim().toUpperCase() : document.getElementById("ctFirstName").value.trim();
     const middleName = useTally ? "" : document.getElementById("ctMiddleName").value.trim();
     const lastName = useTally ? "" : document.getElementById("ctLastName").value.trim();
@@ -1891,7 +1890,8 @@ async function submitCreateTicket() {
     renderTickets();
     updateStats();
   } catch(e) {
-    msg.style.color = "var(--error)"; msg.textContent = "Network error.";
+    console.error("submitCreateTicket error:", e);
+    msg.style.color = "var(--error)"; msg.textContent = e.message || "Network error.";
     btn.disabled = false;
     btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
   }

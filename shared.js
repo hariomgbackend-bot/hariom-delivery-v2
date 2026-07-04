@@ -75,8 +75,15 @@ async function authFetch(url, options = {}) {
       Authorization: "Bearer " + token
     }
   };
-  const res = await fetch(url, opts);
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (e) {
+    console.error("authFetch network error:", url, e);
+    throw e;
+  }
   if (res.status === 401) {
+    console.warn("authFetch 401:", url);
     if (typeof window.authOnError === "function") window.authOnError();
     throw new Error("401");
   }
