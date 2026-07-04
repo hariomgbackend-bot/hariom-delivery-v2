@@ -1352,6 +1352,7 @@ async function sendPushToToken(token, title, body, docRef = null, tokenField = n
   try {
     const response = await admin.messaging().send({
       token,
+      notification: { title: String(title), body: String(body) },
       data: { title: String(title), body: String(body) }
     });
     console.log("Push sent:", response);

@@ -2211,8 +2211,9 @@ async function registerServicePush() {
     console.log("[service push] Token saved ✅");
 
     _svcMessaging.onMessage(payload => {
-      const { title, body } = payload.notification || {};
-      showToast(`🔔 ${title}: ${body}`);
+      const title = payload.data?.title || payload.notification?.title || "";
+      const body = payload.data?.body || payload.notification?.body || "";
+      if (title || body) showToast(`🔔 ${title}: ${body}`);
     });
 
   } catch(e) { console.warn("[service push] Registration failed:", e.message); }
