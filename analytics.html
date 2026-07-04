@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/shared.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 
   <style>
@@ -62,6 +63,7 @@
       z-index: 100; display: flex; flex-direction: column;
       padding: 0 0 24px;
       box-shadow: 48px 0 48px rgba(0,0,0,0.06);
+      transition: transform 0.3s ease;
     }
     .sidebar-brand {
       padding: 28px 24px 24px; display: flex; align-items: center; gap: 10px;
@@ -85,6 +87,45 @@
     .sidebar-divider { height: 1px; background: var(--border); margin: 8px 12px; }
     .sidebar-section-label { font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--outline); padding: 8px 26px 4px; }
 
+    /* Sidebar close button (mobile only) */
+    .sidebar-close {
+      display: none;
+      position: absolute;
+      top: 12px; right: 12px;
+      background: var(--surface-container-high);
+      border: none;
+      border-radius: 8px;
+      width: 36px; height: 36px;
+      color: var(--on-surface-variant);
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+
+    /* Sidebar overlay */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-overlay.visible { display: block; }
+
+    /* Hamburger (mobile only) */
+    .hamburger {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--on-surface);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+    }
+    .hamburger:hover { background: var(--surface-container); }
+
     /* ── MAIN ── */
     .main-wrap { margin-left: var(--sidebar-w); display: flex; flex-direction: column; min-height: 100vh; }
 
@@ -96,6 +137,7 @@
       display: flex; align-items: center; justify-content: space-between; padding: 0 28px;
     }
     .topbar-title { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
     .topbar-right { display: flex; align-items: center; gap: 14px; }
 
     /* Date range picker */
@@ -317,7 +359,18 @@
       .chart-grid.wide   { grid-template-columns: 1fr; }
     }
     @media (max-width: 768px) {
-      .sidebar { display: none; }
+      :root { --sidebar-w: 0px; }
+      .sidebar {
+        width: 260px;
+        transform: translateX(-100%);
+        box-shadow: none;
+      }
+      .sidebar.open {
+        transform: translateX(0);
+        box-shadow: 4px 0 32px rgba(0,0,0,0.4);
+      }
+      .sidebar-close { display: flex; }
+      .hamburger { display: flex; }
       .main-wrap { margin-left: 0; }
       .content { padding: 14px; }
       .chart-grid, .chart-grid.thirds, .chart-grid.wide { grid-template-columns: 1fr; }
@@ -350,8 +403,14 @@
 </head>
 <body>
 
+<!-- Sidebar overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
 <!-- SIDEBAR -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
+  <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">
+    <span class="material-symbols-outlined">close</span>
+  </button>
   <div class="sidebar-brand">
     <img src="/icons/icon-72x72.png" class="sidebar-logo" alt="" onerror="this.style.display='none'">
     <div>
@@ -404,18 +463,22 @@
 
   <!-- TOPBAR -->
   <header class="topbar">
-    <div>
-      <div class="topbar-title">Mission Control — Analytics</div>
+    <div class="topbar-left">
+      <button class="hamburger" id="hamburgerBtn" aria-label="Open menu">
+        <span class="material-symbols-outlined">menu</span>
+      </button>
+      <div>
+        <div class="topbar-title">Mission Control — Analytics</div>
+      </div>
     </div>
     <div class="topbar-right">
       <!-- Date range -->
       <div class="date-range-bar">
-        <button class="range-btn" onclick="setRange(7)">7D</button>
-        <button class="range-btn active" id="rangeBtn30" onclick="setRange(30)">30D</button>
-        <button class="range-btn" onclick="setRange(90)">90D</button>
-        <button class="range-btn" onclick="setRange(365)">1Y</button>
-        <div class="range-divider"></div>
-        <button class="range-btn" onclick="setRange(0)">All</button>
+<button class="range-btn" onclick="setRange(7,this)">7D</button>
+<button class="range-btn active" id="rangeBtn30" onclick="setRange(30,this)">30D</button>
+<button class="range-btn" onclick="setRange(90,this)">90D</button>
+<button class="range-btn" onclick="setRange(365,this)">1Y</button>
+<button class="range-btn" onclick="setRange(0,this)">All</button>
       </div>
       <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()">🌙</button>
     </div>
@@ -746,12 +809,8 @@ function redirectToLogin() {
 if (!getAdminToken() || isTokenExpired()) redirectToLogin();
 document.addEventListener("visibilitychange", () => { if (document.visibilityState==="visible" && isTokenExpired()) redirectToLogin(); });
 
-async function authFetch(url, opts={}) {
-  if (isTokenExpired()) { redirectToLogin(); throw new Error("expired"); }
-  const r = await fetch(url, { ...opts, headers: { ...(opts.headers||{}), Authorization: "Bearer "+getAdminToken() } });
-  if (r.status === 401) { redirectToLogin(); throw new Error("401"); }
-  return r;
-}
+window.authGetToken = getAdminToken;
+window.authOnError = redirectToLogin;
 
 function toggleDarkMode() {
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
@@ -771,12 +830,10 @@ let _rangeDays = 30;
 let _analytics  = null;
 const _charts   = {};
 
-function setRange(days) {
+function setRange(days, btn) {
   _rangeDays = days;
   document.querySelectorAll(".range-btn").forEach(b => b.classList.remove("active"));
-  const labels = { 7:"rangeBtn7", 30:"rangeBtn30", 90:"rangeBtn90", 365:"rangeBtn365", 0:"rangeBtnAll" };
-  // Just mark active based on click
-  event.target.classList.add("active");
+  if (btn) btn.classList.add("active");
   const lbl = document.getElementById("dateRangeLabel");
   if (lbl) lbl.textContent = days === 0 ? "All time" : `Last ${days} days`;
   if (_analytics) renderDashboard(_analytics, days);
@@ -861,33 +918,6 @@ function getCategory(name) {
   // Small appliances
   if (n.includes("IRON") || n.includes("TRIMMER") || n.includes("HAIR DRYER") || n.includes("VACUUM")) return "Personal Care";
   return "Other";
-}
-
-// ── getBrand: extract brand from product name ──
-function getBrand(name) {
-  const n = (name || "").toUpperCase().trim();
-  // Remove category prefix then get first word
-  const stripped = n.replace(/^(WM|LED|REF|AC|A\/C|P-FAN|E-GEYSER|IC|TV|FAN|COOLER|GEYSER)\s+/,"").trim();
-  const brandMap = [
-    ["SAMSUNG"],["WHIRLPOOL"],["HAIER"],["LG"],["BOSCH"],["IFB"],
-    ["VOLTAS"],["DAIKIN"],["HITACHI"],["CARRIER"],["BLUE STAR","BLUESTAR"],
-    ["GODREJ"],["VIDEOCON"],["PANASONIC"],["SONY"],["PHILIPS"],
-    ["BAJAJ"],["ORIENT"],["HAVELLS"],["USHA"],["CROMPTON"],
-    ["LIVPURE"],["SYMPHONY"],["HINDWARE"],["RACOLD"],["AO SMITH","AOSMITH"],
-    ["LLOYD"],["ONIDA"],["MICROMAX"],["TCL"],["HISENSE"],
-    ["REALME"],["MI","XIAOMI"],["VU"],["MOTOROLA"],["ZEBRONICS"],
-    ["KENT"],["PUREIT"],["EUREKA FORBES","EUREKAFORBES"],
-  ];
-  for (const aliases of brandMap) {
-    for (const alias of aliases) {
-      if (stripped.startsWith(alias) || n.includes(" "+alias+" ") || n.includes(" "+alias)) {
-        return aliases[0]; // canonical name is first alias
-      }
-    }
-  }
-  // Fallback: first word of stripped name
-  const first = stripped.split(/\s+/)[0];
-  return first && first.length > 1 ? first : "Other";
 }
 
 function tsToDate(ts) {
@@ -1882,6 +1912,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
 /* ── INIT ── */
 document.addEventListener("DOMContentLoaded", loadAnalytics);
+
+/* ── SIDEBAR TOGGLE (mobile) ── */
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('visible');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('visible');
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('hamburgerBtn')?.addEventListener('click', openSidebar);
+  document.getElementById('sidebarClose')?.addEventListener('click', closeSidebar);
+  document.getElementById('sidebarOverlay')?.addEventListener('click', closeSidebar);
+});
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </body>

@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="/shared.js"></script>
 
   <style>
     /* ════════════════════════════════════════════════
@@ -94,6 +95,7 @@
       flex-direction: column;
       padding: 0 0 24px;
       box-shadow: 48px 0 48px rgba(0,0,0,0.06);
+      transition: transform 0.3s ease;
     }
 
     .sidebar-brand {
@@ -180,6 +182,45 @@
       color: var(--outline);
       padding: 8px 26px 4px;
     }
+
+    /* Sidebar close button (mobile only) */
+    .sidebar-close {
+      display: none;
+      position: absolute;
+      top: 12px; right: 12px;
+      background: var(--surface-container-high);
+      border: none;
+      border-radius: 8px;
+      width: 36px; height: 36px;
+      color: var(--on-surface-variant);
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+
+    /* Sidebar overlay */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-overlay.visible { display: block; }
+
+    /* Hamburger (mobile only) */
+    .hamburger {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--on-surface);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+    }
+    .hamburger:hover { background: var(--surface-container); }
 
     /* ════ MAIN LAYOUT ════ */
     .main-wrap {
@@ -624,9 +665,20 @@
     /* ════ MOBILE CARDS ════ */
     .mob-cards { display: none; }
     @media (max-width: 900px) {
+      :root { --sidebar-w: 0px; }
       .mob-cards { display: block; }
       .table-wrap { display: none !important; }
-      .sidebar { display: none; }
+      .sidebar {
+        width: 260px;
+        transform: translateX(-100%);
+        box-shadow: none;
+      }
+      .sidebar.open {
+        transform: translateX(0);
+        box-shadow: 4px 0 32px rgba(0,0,0,0.4);
+      }
+      .sidebar-close { display: flex; }
+      .hamburger { display: flex; }
       .main-wrap { margin-left: 0; }
       .content { padding: 14px; }
       .summary-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -666,6 +718,31 @@
       background: var(--mc-bg, rgba(173,198,255,0.04));
     }
     .mob-batch-grp .mob-delivery-card:last-child { border-radius: 0 0 12px 12px; }
+
+    /* ════ LOADING / EMPTY STATES ════ */
+    .loading-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--on-surface-variant);
+    }
+    .loading-state .spinner {
+      display: inline-block;
+      width: 24px; height: 24px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--on-surface-variant);
+    }
+    .empty-state .empty-icon { font-size: 36px; margin-bottom: 10px; }
+    .empty-state p { font-weight: 700; font-size: 14px; margin: 0 0 4px; color: var(--on-surface); }
+    .empty-state small { font-size: 12px; color: var(--on-surface-variant); }
 
     /* ════ COLLAPSIBLE PANELS (Storage / Payout) ════ */
     /* These are Kinetic-styled versions of the original collapsible panels */
@@ -1413,8 +1490,14 @@
 <div id="toast"></div>
 <div id="offlineBanner">📡 You're offline — changes will sync when reconnected</div>
 
+<!-- Sidebar overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
 <!-- ════ SIDEBAR ════ -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
+  <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">
+    <span class="material-symbols-outlined">close</span>
+  </button>
   <div class="sidebar-brand">
     <img src="/icons/icon-72x72.png" class="sidebar-logo" alt="" onerror="this.style.display='none'">
     <div>
@@ -1547,6 +1630,9 @@
   <!-- TOP BAR -->
   <header class="topbar">
     <div class="topbar-left">
+      <button class="hamburger" id="hamburgerBtn" aria-label="Open menu">
+        <span class="material-symbols-outlined">menu</span>
+      </button>
       <div>
         <div class="topbar-title">Mission Control</div>
         <div class="topbar-subtitle" id="topbarViewLabel">Delivery Operations</div>
@@ -2753,7 +2839,7 @@
 function openTagPrint(e) {
   e.preventDefault();
   const token = localStorage.getItem('adminToken');
-  if (!token) { alert('Please log in first'); return; }
+  if (!token) { showToast('Please log in first', 'info'); return; }
   const printWindow = window.open('https://hariom-delivery.web.app/', '_blank');
   if (printWindow) {
     printWindow.addEventListener('load', () => {
@@ -2849,7 +2935,7 @@ function sharePanel(path, label) {
   if (choice) {
     window.open(waUrl, '_blank');
   } else {
-    navigator.clipboard?.writeText(url).then(() => alert('Link copied!')).catch(() => {
+    navigator.clipboard?.writeText(url).then(() => showToast('Link copied!', 'success')).catch(() => {
       prompt('Copy this link:', url);
     });
   }
@@ -3193,10 +3279,6 @@ function renderProductGroups() {
   }).join('');
 }
 
-function escHtml(s) {
-  return String(s||'').replace(/&#x2F;/g,'/').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 function selectCanonical(gi, name, container) {
   _pnGroups[gi].selected = name;
   // Re-highlight all labels in this group
@@ -3217,7 +3299,7 @@ async function applyCanonical(gi) {
   const toRename  = group.variants.filter(v => v !== canonical);
 
   if (!toRename.length) {
-    alert('All variants are already the same name.');
+    showToast('All variants are already the same name.', 'info');
     return;
   }
 
@@ -3249,10 +3331,10 @@ Continue?`;
 
 • ${data.deliveries_updated} deliveries renamed
 • tally_products updated`;
-    alert(summary);
+    showToast(summary, 'success');
     await loadProductNormalizer();
   } catch(e) {
-    alert('Error: ' + e.message);
+    showToast('Error: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Merge → Apply'; }
   }
 }
@@ -3456,17 +3538,17 @@ async function loadStaff(){
 }
 async function toggleStaffActive(id,active){
   try{await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:!active})});loadStaff();}
-  catch(e){alert('Failed.');}
+  catch(e){showToast('Failed.', 'error');}
 }
 async function resetStaffCredential(id,role){
   if(role==='staff'){
     const pin=prompt('New 6-digit PIN:');
-    if(!pin||!/^\d{6}$/.test(pin)){alert('6 digits required.');return;}
-    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});if(r.ok)alert('PIN updated!');}catch(e){alert('Error.');}
+    if(!pin||!/^\d{6}$/.test(pin)){showToast('6 digits required.', 'info');return;}
+    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});if(r.ok)showToast('PIN updated!', 'success');}catch(e){showToast('Error.', 'error');}
   }else{
     const pw=prompt('New password (min 6):');
-    if(!pw||pw.length<6){alert('Min 6 chars.');return;}
-    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});if(r.ok)alert('Password updated!');}catch(e){alert('Error.');}
+    if(!pw||pw.length<6){showToast('Min 6 chars.', 'info');return;}
+    try{const r=await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});if(r.ok)showToast('Password updated!', 'success');}catch(e){showToast('Error.', 'error');}
   }
 }
 
@@ -3474,10 +3556,10 @@ async function deleteStaff(id, name){
   if(!confirm(`Delete staff member "${name}"?\n\nThis cannot be undone. All their data (leads, tickets) will remain but will no longer be linked to an active account.`)) return;
   try{
     const res = await authFetch(`${BASE_URL}/staff/${id}`, { method: 'DELETE' });
-    if(!res.ok){ const d=await res.json(); alert(d.error||'Failed to delete.'); return; }
-    alert(`✅ "${name}" deleted.`);
+    if(!res.ok){ const d=await res.json(); showToast(d.error||'Failed to delete.', 'error'); return; }
+    showToast(`✅ "${name}" deleted.`, 'success');
     loadStaff();
-  }catch(e){ alert('Network error.'); }
+  }catch(e){ showToast('Network error.', 'error'); }
 }
 
 // Helper: called from the delete button; reads staff name from a sibling cell to avoid escaping
@@ -3560,26 +3642,26 @@ async function editBrand(id){
     document.getElementById('bNotes').value=b.notes||'';document.getElementById('brandFormMsg').textContent='';
     onBrandMethodChange();document.getElementById('brandForm').style.display='';
     document.getElementById('brandForm').scrollIntoView({behavior:'smooth'});
-  }catch(e){alert('Failed to load brand.');}
+  }catch(e){showToast('Failed to load brand.', 'error');}
 }
 async function deleteBrand(id,name){
   if(!confirm(`Delete brand "${name}"?`))return;
-  try{await authFetch(`${BASE_URL}/brands/${id}`,{method:'DELETE'});loadBrands();}catch(e){alert('Failed.');}
+  try{await authFetch(`${BASE_URL}/brands/${id}`,{method:'DELETE'});loadBrands();}catch(e){showToast('Failed.', 'error');}
 }
 
 /* RAISE SERVICE TICKET + WA SHARE FROM ADMIN */
 async function raiseServiceTicket(deliveryId,type){
   let desc='';
-  if(type==='complaint'){desc=prompt('Describe the complaint:');if(!desc||!desc.trim()){alert('Description required.');return;}}
+  if(type==='complaint'){desc=prompt('Describe the complaint:');if(!desc||!desc.trim()){showToast('Description required.', 'info');return;}}
   try{
     const dr=await authFetch(`${BASE_URL}/delivery/${deliveryId}`);const d=await dr.json();
     const res=await authFetch(`${BASE_URL}/service/ticket`,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({type,linked_delivery_id:deliveryId,customer_name:d.customer_name,phone:d.phone,
         address:d.address,product_name:d.product_name,serial_number:d.product_serial_number,description:desc||''})});
     const data=await res.json();
-    if(!res.ok){alert(data.error||'Failed.');return;}
-    alert((type==='installation'?'Installation':'Complaint')+' ticket raised!');
-  }catch(e){alert('Network error.');}
+    if(!res.ok){showToast(data.error||'Failed.', 'error');return;}
+    showToast((type==='installation'?'Installation':'Complaint')+' ticket raised!', 'success');
+  }catch(e){showToast('Network error.', 'error');}
 }
 function shareDeliveryWA(deliveryId){
   authFetch(`${BASE_URL}/delivery/${deliveryId}`).then(r=>r.json()).then(d=>{
@@ -3588,21 +3670,28 @@ function shareDeliveryWA(deliveryId){
     const ed=d.delivered_timestamp?.seconds?new Date(d.delivered_timestamp.seconds*1000+yr*365.25*24*3600*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'--';
     const m=encodeURIComponent(`Hariom Electronics\n---\nCustomer: ${d.customer_name||'--'}\nPhone: ${d.phone||'--'}\nAddress: ${d.address||'--'}\nProduct: ${d.product_name||'--'}\nSerial: ${d.product_serial_number||'--'}\nDelivered: ${dd}\nWarranty till: ${ed}\n---\nHariom Electronics, Pune`);
     window.open('https://wa.me/?text='+m,'_blank');
-  }).catch(()=>alert('Failed.'));
+  }).catch(()=>showToast('Failed.', 'error'));
 }
 
 </script>
 
 <script>
 const BASE_URL = window.location.origin;
+let _stores = [];
 
-/* ── TOAST NOTIFICATION ── */
-function showToast(msg, type = "") {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.className = "show " + type;
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove("show"), 3000);
+/* ── LOAD STORES ── */
+async function loadStores() {
+  if (!window.authGetToken) { setTimeout(loadStores, 200); return; }
+  try {
+    const res = await authFetch(`${BASE_URL}/api/stores`);
+    if (res.ok) _stores = await res.json();
+  } catch {}
+}
+function storeOptionsHtml(selected) {
+  const sel = selected || "";
+  return '<option value="">—</option>' + _stores.map(s =>
+    `<option value="${escHtml(s.name)}" ${sel === s.name ? "selected" : ""}>${escHtml(s.name)}</option>`
+  ).join('');
 }
 
 /* ── OFFLINE DETECTION ── */
@@ -3682,20 +3771,9 @@ setInterval(() => {
   if (isTokenExpired()) redirectToLogin("expired");
 }, 60_000);
 
-// Central authenticated fetch — redirects on 401 or expired token
-async function authFetch(url, options = {}) {
-  if (isTokenExpired()) { redirectToLogin("expired"); throw new Error("expired"); }
-  const opts = {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: "Bearer " + getAdminToken()
-    }
-  };
-  const res = await fetch(url, opts);
-  if (res.status === 401) { redirectToLogin("expired"); throw new Error("401"); }
-  return res;
-}
+window.authGetToken = getAdminToken;
+window.authOnError = () => redirectToLogin("expired");
+setTimeout(loadStores, 0);
 
 let selectedAdminDate = null;
 let currentFilter = "all";
@@ -4012,15 +4090,6 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
   if (!container) return;
   container.innerHTML = "";
 
-  function ratingBadge(d) {
-    if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "";
-    const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000;
-    if (diff<=-10) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early</span>`;
-    if (diff<= 10) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
-    if (diff<= 30) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late</span>`;
-    return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;">🔴 VLate</span>`;
-  }
-
   function fmtETA(v) {
     if (!v) return "—";
     const dt = new Date(v);
@@ -4250,9 +4319,7 @@ function enableEdit() {
         <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${escHtml(d.product_serial_number || "")}"></div>
         <div class="edit-field"><label>Point of Sale</label>
           <select id="edit_point_of_sale" style="width:100%;padding:9px 12px;border:1px solid rgba(173,198,255,0.15);border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;outline:none;background:var(--surface-container-high);color:var(--on-surface);">
-            <option value="">—</option>
-            <option value="Alandi" ${d.point_of_sale === "Alandi" ? "selected" : ""}>Alandi</option>
-            <option value="Dhanore" ${d.point_of_sale === "Dhanore" ? "selected" : ""}>Dhanore</option>
+            ${storeOptionsHtml(d.point_of_sale)}
           </select>
         </div>
         <div class="edit-field"><label>Pickup From</label><input id="edit_pickup_from" value="${escHtml(d.pickup_from || "")}"></div>
@@ -4341,7 +4408,7 @@ async function updateDelivery(id) {
     });
     if (!res.ok) {
       const e = await res.json();
-      alert("⚠ " + (e.error || "Update failed"));
+      showToast("⚠ " + (e.error || "Update failed"), 'error');
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; }
       return;
     }
@@ -4361,14 +4428,14 @@ async function updateDelivery(id) {
       });
       if (!photoRes.ok) {
         const e = await photoRes.json();
-        alert("⚠ Text fields saved but photo update failed: " + (e.error || "Unknown error"));
+        showToast("⚠ Text fields saved but photo update failed: " + (e.error || "Unknown error"), 'error');
       }
     }
 
     document.getElementById("popup").classList.remove("is-open");
     loadAdmin();
   } catch (e) {
-    alert("⚠ Network error. Please try again.");
+    showToast("⚠ Network error. Please try again.", 'error');
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; }
   }
 }
@@ -4380,10 +4447,10 @@ async function deleteDelivery(id) {
     const res = await authFetch(`${BASE_URL}/delivery/${id}`, {
       method: "DELETE"
     });
-    if (!res.ok) { const e = await res.json(); alert("⚠ " + (e.error || "Delete failed")); return; }
+    if (!res.ok) { const e = await res.json(); showToast("⚠ " + (e.error || "Delete failed"), 'error'); return; }
     document.getElementById("popup").classList.remove("is-open");
     loadAdmin();
-  } catch (e) { alert("⚠ Network error. Please try again."); }
+  } catch (e) { showToast("⚠ Network error. Please try again.", 'error'); }
 }
 
 /* ── ADMIN CORRECT DELIVERY (Feature 2) ── */
@@ -4457,7 +4524,7 @@ async function saveAdminCorrect(deliveryId, field) {
     formData.append("serial_number", val);
   } else {
     const file = inputEl.files?.[0];
-    if (!file) { alert("Please select a photo file"); return; }
+    if (!file) { showToast("Please select a photo file", 'info'); return; }
     formData.append(field, file);
   }
 
@@ -4473,7 +4540,7 @@ async function saveAdminCorrect(deliveryId, field) {
     const data = await res.json();
 
     if (!res.ok) {
-      alert("⚠ " + (data.error || "Update failed"));
+      showToast("⚠ " + (data.error || "Update failed"), 'error');
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = field === "sr" ? "💾 Save" : "📤 Upload & Replace"; }
       return;
     }
@@ -4499,13 +4566,13 @@ async function saveAdminCorrect(deliveryId, field) {
     if (msgEl) msgEl.innerHTML = "";
     loadAdmin();
   } catch (e) {
-    alert("⚠ Network error. Please try again.");
+    showToast("⚠ Network error. Please try again.", 'error');
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = field === "sr" ? "💾 Save" : "📤 Upload & Replace"; }
   }
 }
 
 function downloadCSV() {
-  if (!currentDisplayedData.length) { alert("No data to export"); return; }
+  if (!currentDisplayedData.length) { showToast("No data to export", 'info'); return; }
 
   let csv = "Delivery ID,Customer,Phone,Alt Phone,Address,Product,Serial,Invoice,Priority,Status,ETA,Driver ID,Driver,Instructions,Freight,Freight Amount,Created,Loaded,Delivered,Loaded Location,Delivered Location,Loaded Photo,Delivered Photo\n";
 
@@ -4621,8 +4688,8 @@ async function loadPayout() {
   const markAllWrap  = document.getElementById("payoutMarkAllWrap");
   const allSettled   = document.getElementById("payoutAllSettled");
 
-  if (!driverId) { alert("Please select a driver"); return; }
-  if (!date)     { alert("Please select a date"); return; }
+  if (!driverId) { showToast("Please select a driver", 'info'); return; }
+  if (!date)     { showToast("Please select a date", 'info'); return; }
 
   chips.style.display = "none"; tableWrap.style.display = "none";
   empty.style.display = "none"; markAllWrap.style.display = "none"; allSettled.style.display = "none";
@@ -4631,14 +4698,14 @@ async function loadPayout() {
   try {
     const res  = await authFetch(`${BASE_URL}/driver-payout?driver_id=${driverId}&date=${date}`);
     const data = await res.json();
-    if (!res.ok) { alert("\u26a0 Payout error: " + (data.error || "Server error")); return; }
+    if (!res.ok) { showToast("\u26a0 Payout error: " + (data.error || "Server error"), 'error'); return; }
     if (!data.deliveries?.length) { empty.style.display = "block"; return; }
 
     currentPayoutDeliveries = data.deliveries;
     currentPayoutDriverId   = driverId;
     currentPayoutDate       = date;
     renderPayoutTable(data);
-  } catch (e) { alert("Failed to load payout data. Please try again."); }
+  } catch (e) { showToast("Failed to load payout data. Please try again.", 'error'); }
 }
 
 function renderPayoutTable(data) {
@@ -4720,7 +4787,7 @@ async function markOneFreightPaid(deliveryId, customerName, amount) {
   try {
     const res = await authFetch(`${BASE_URL}/markFreightPaid/${deliveryId}`, {method:"POST"});
     const data = await res.json();
-    if (!res.ok) { alert("Error: " + (data.error||"Failed")); return; }
+    if (!res.ok) { showToast("Error: " + (data.error||"Failed"), 'error'); return; }
     const d = currentPayoutDeliveries.find(x => x.id === deliveryId);
     if (d) d.freight_paid = true;
     const row = document.getElementById(`payout-row-${deliveryId}`);
@@ -4746,12 +4813,12 @@ async function markOneFreightPaid(deliveryId, customerName, amount) {
     refreshPayoutChips();
     checkAllSettled();
     if (document.getElementById("outstandingDriver").value === currentPayoutDriverId) loadOutstanding();
-  } catch (e) { alert("Failed to mark paid. Please try again."); }
+  } catch (e) { showToast("Failed to mark paid. Please try again.", 'error'); }
 }
 
 async function markAllFreightPaid() {
   const unpaid = currentPayoutDeliveries.filter(d => !d.freight_paid);
-  if (!unpaid.length) { alert("No unpaid deliveries."); return; }
+  if (!unpaid.length) { showToast("No unpaid deliveries.", 'info'); return; }
   const total = unpaid.reduce((s,d) => s + parseFloat(d.freight_amount||0), 0);
   const names = unpaid.map(d => `\u2022 ${d.customer_name||"\u2014"} \u2014 \u20b9${parseFloat(d.freight_amount||0).toLocaleString("en-IN")}`).join("\n");
   if (!confirm(`Are you sure you want to mark the following ${unpaid.length} deliveries paid and settle?\n\n${names}\n\nTotal: \u20b9${total.toLocaleString("en-IN")}`)) return;
@@ -4775,7 +4842,7 @@ async function markAllFreightPaid() {
   refreshPayoutChips();
   checkAllSettled();
   if (document.getElementById("outstandingDriver").value === currentPayoutDriverId) loadOutstanding();
-  if (failed) alert(`${failed} item(s) could not be marked. Please reload and try again.`);
+  if (failed) showToast(`${failed} item(s) could not be marked. Please reload and try again.`, 'error');
 }
 
 function refreshPayoutChips() {
@@ -5015,7 +5082,7 @@ function deletePhotosStep1() {
   // Confirm 3 — must type phrase
   const typed = prompt(`⚠️ STEP 3 of 3 — FINAL CONFIRMATION\n\nType exactly:   DELETE ALL PHOTOS\n\nto permanently delete ${rangeLabel}`);
   if (typed !== "DELETE ALL PHOTOS") {
-    alert("❌ Text didn't match. Deletion cancelled."); return;
+    showToast("❌ Text didn't match. Deletion cancelled.", 'info'); return;
   }
   executeDeletePhotos();
 }
@@ -5720,7 +5787,7 @@ function confirmDeleteSCTicket(id) {
   const label = `${t.customer_name || t.phone} — ${t.product_name || t.type}`;
   if (!confirm(`Delete ticket for ${label}?`)) return;
   const reason = prompt("Reason for deleting this ticket:");
-  if (!reason || !reason.trim()) { alert("Reason required."); return; }
+  if (!reason || !reason.trim()) { showToast("Reason required.", 'info'); return; }
   (async () => {
     try {
       const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
@@ -5728,10 +5795,10 @@ function confirmDeleteSCTicket(id) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: reason.trim() })
       });
-      if (!res.ok) { const d = await res.json(); alert(d.error || "Failed"); return; }
+      if (!res.ok) { const d = await res.json(); showToast(d.error || "Failed", 'error'); return; }
       showToast("🗑 Ticket deleted");
       loadServiceCount();
-    } catch (e) { alert("Network error."); }
+    } catch (e) { showToast("Network error.", 'error'); }
   })();
 }
 
@@ -5741,11 +5808,11 @@ async function deleteLead(id, name, event) {
   if (!confirm(`Delete lead for "${name}"?\n\nThis cannot be undone.`)) return;
   try {
     const res = await authFetch(`${BASE_URL}/leads/${id}`, { method: 'DELETE' });
-    if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to delete.'); return; }
+    if (!res.ok) { const d = await res.json(); showToast(d.error || 'Failed to delete.', 'error'); return; }
     // Close popup if open
     closeLeadAdminPopup();
     await loadLeadsAdmin();
-  } catch(e) { alert('Network error.'); }
+  } catch(e) { showToast('Network error.', 'error'); }
 }
 
 /* ════════════════════════════════════════════════
@@ -5995,12 +6062,6 @@ function sortIncTable(field) {
     incSortDir = -1;
   }
   renderIncTable();
-}
-
-function escHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str || '';
-  return div.innerHTML;
 }
 
 /* ════ SALES ANALYTICS ════ */
@@ -6455,7 +6516,7 @@ async function pgSaveChanges() {
 
 function pgDelete(oid, name) {
   if (!confirm(`Delete "${name}"?`)) return;
-  authFetch(`${BASE_URL}/price-guide/${oid}`, { method: 'DELETE' }).then(r => { if (r.ok) pgLoadData(); else alert('Delete failed'); }).catch(e => alert('Delete failed: ' + e.message));
+  authFetch(`${BASE_URL}/price-guide/${oid}`, { method: 'DELETE' }).then(r => { if (r.ok) pgLoadData(); else showToast('Delete failed', 'error'); }).catch(e => showToast('Delete failed: ' + e.message, 'error'));
 }
 
 async function pgToggleMsp() {
@@ -6464,9 +6525,9 @@ async function pgToggleMsp() {
   toggle.classList.toggle('on', newVal);
   try {
     const res = await authFetch(`${BASE_URL}/price-guide/msp-global`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mspGlobalEnabled: newVal }) });
-    if (!res.ok) { toggle.classList.toggle('on', !newVal); alert('Failed to update'); }
+    if (!res.ok) { toggle.classList.toggle('on', !newVal); showToast('Failed to update', 'error'); }
     else pgState.mspGlobal = newVal;
-  } catch(e) { toggle.classList.toggle('on', !newVal); alert('Error: ' + e.message); }
+  } catch(e) { toggle.classList.toggle('on', !newVal); showToast('Error: ' + e.message, 'error'); }
 }
 
 function pgToggleMassEdit() {
@@ -6548,7 +6609,7 @@ function pgCloseAddModal() {
 async function pgSubmitAdd() {
   const name = document.getElementById('pgAddName').value.trim();
   const mrp = parseFloat(document.getElementById('pgAddMrp').value);
-  if (!name || !mrp) { alert('Product name and MRP are required'); return; }
+  if (!name || !mrp) { showToast('Product name and MRP are required', 'info'); return; }
   const payload = {
     productName: name, mrp,
     mop: parseFloat(document.getElementById('pgAddMop').value) || 0,
@@ -6560,13 +6621,13 @@ async function pgSubmitAdd() {
     const res = await authFetch(`${BASE_URL}/price-guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) throw new Error(await res.text());
     pgCloseAddModal(); pgLoadData();
-  } catch(e) { alert('Add failed: ' + e.message); }
+  } catch(e) { showToast('Add failed: ' + e.message, 'error'); }
 }
 
 async function pgHandleExcel() {
   const fileInput = document.getElementById('pgExcelInput');
   const file = fileInput.files?.[0];
-  if (!file) { alert('Select an Excel file first'); return; }
+  if (!file) { showToast('Select an Excel file first', 'info'); return; }
   const btn = document.getElementById('pgExcelBtn');
   btn.disabled = true; btn.textContent = 'Parsing…';
   const preview = document.getElementById('pgExcelPreview');
@@ -6576,7 +6637,7 @@ async function pgHandleExcel() {
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-    if (!rows.length) { alert('No rows found in sheet'); btn.disabled = false; btn.textContent = 'Parse & Preview'; return; }
+    if (!rows.length) { showToast('No rows found in sheet', 'info'); btn.disabled = false; btn.textContent = 'Parse & Preview'; return; }
     const headers = Object.keys(rows[0]);
     const map = h => {
       const l = h.toLowerCase().replace(/[\s_-]+/g,'');
@@ -6588,7 +6649,7 @@ async function pgHandleExcel() {
     };
     const colMap = {};
     headers.forEach(h => { const m = map(h); if (m) colMap[m] = h; });
-    if (!colMap.productName) { alert('Could not find a product name column'); btn.disabled = false; btn.textContent = 'Parse & Preview'; return; }
+    if (!colMap.productName) { showToast('Could not find a product name column', 'info'); btn.disabled = false; btn.textContent = 'Parse & Preview'; return; }
     const existing = pgState.items;
     let matched = 0, newItems = 0, unchanged = 0;
     let html = '<div class="diff-item" style="font-weight:700;border-bottom:2px solid var(--outline-variant);color:var(--on-surface);">Excel rows: ' + rows.length + '</div>';
@@ -6613,7 +6674,7 @@ async function pgHandleExcel() {
       <button onclick="pgConfirmSync()" class="pg-btn pg-btn-primary">Sync ${matched + newItems} changes</button>
     </div>`;
     preview.innerHTML = html; preview.style.display = '';
-  } catch(e) { alert('Parse error: ' + e.message); }
+  } catch(e) { showToast('Parse error: ' + e.message, 'error'); }
   btn.disabled = false; btn.textContent = 'Parse & Preview';
 }
 
@@ -6644,7 +6705,7 @@ async function pgConfirmSync() {
   pgState._excelData = null;
   document.getElementById('pgExcelPreview').style.display = 'none';
   document.getElementById('pgExcelInput').value = '';
-  if (fail) alert(`Synced ${ok} rows, ${fail} failed`); else alert(`All ${ok} rows synced successfully`);
+  if (fail) showToast(`Synced ${ok} rows, ${fail} failed`, 'info'); else showToast(`All ${ok} rows synced successfully`, 'success');
   pgLoadData();
 }
 
@@ -6706,13 +6767,13 @@ function slHideForm() {
 
 async function slSave() {
   const name = document.getElementById('slFormName').value.trim();
-  if (!name) { alert('Slab name required'); return; }
+  if (!name) { showToast('Slab name required', 'info'); return; }
   const desc = document.getElementById('slFormDesc').value.trim();
   try {
     const res = await authFetch(`${BASE_URL}/slabs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slabName: name, description: desc }) });
     if (!res.ok) throw new Error(await res.text());
     slHideForm(); slLoadData();
-  } catch(e) { alert('Save failed: ' + e.message); }
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
 }
 
 function slEdit(id) {
@@ -6729,18 +6790,18 @@ function slCancelEdit(id) {
 
 async function slSaveEdit(id) {
   const name = document.getElementById('slEditName_' + id).value.trim();
-  if (!name) { alert('Slab name required'); return; }
+  if (!name) { showToast('Slab name required', 'info'); return; }
   const desc = document.getElementById('slEditDesc_' + id).value.trim();
   try {
     const res = await authFetch(`${BASE_URL}/slabs/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slabName: name, description: desc }) });
     if (!res.ok) throw new Error(await res.text());
     slLoadData();
-  } catch(e) { alert('Edit failed: ' + e.message); }
+  } catch(e) { showToast('Edit failed: ' + e.message, 'error'); }
 }
 
 function slDelete(id, name) {
   if (!confirm(`Delete slab "${name}"? This will not remove the slab reference from products.`)) return;
-  authFetch(`${BASE_URL}/slabs/${id}`, { method: 'DELETE' }).then(r => { if (r.ok) slLoadData(); else alert('Delete failed'); }).catch(e => alert('Delete failed: ' + e.message));
+  authFetch(`${BASE_URL}/slabs/${id}`, { method: 'DELETE' }).then(r => { if (r.ok) slLoadData(); else showToast('Delete failed', 'error'); }).catch(e => showToast('Delete failed: ' + e.message, 'error'));
 }
 
 /* keyboard navigation for price guide spreadsheet */
@@ -6830,7 +6891,7 @@ function catHideForm() {
 
 async function catSave() {
   const name = document.getElementById('catFormName').value.trim().toUpperCase();
-  if (!name) { alert('Category name required'); return; }
+  if (!name) { showToast('Category name required', 'info'); return; }
   try {
     if (catEditId) {
       await authFetch(`${BASE_URL}/categories/${catEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
@@ -6838,7 +6899,7 @@ async function catSave() {
       await authFetch(`${BASE_URL}/categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
     }
     catHideForm(); catLoadData();
-  } catch(e) { alert('Save failed: ' + e.message); }
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
 }
 
 function catEdit(id, name) {
@@ -6854,7 +6915,7 @@ async function catDelete(id, name) {
     const res = await authFetch(`${BASE_URL}/categories/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await res.text());
     catLoadData();
-  } catch(e) { alert('Delete failed: ' + e.message); }
+  } catch(e) { showToast('Delete failed: ' + e.message, 'error'); }
 }
 
 // ── Admin Calendar ──
@@ -7004,7 +7065,7 @@ function adCalPrevMonth() { adCalViewDate.setMonth(adCalViewDate.getMonth() - 1)
 function adCalNextMonth() { adCalViewDate.setMonth(adCalViewDate.getMonth() + 1); adCalRender(); }
 
 function adCalOpenAgenda() {
-  if (!adCalSelectedDate) { alert('Select a date first'); return; }
+  if (!adCalSelectedDate) { showToast('Select a date first', 'info'); return; }
   document.getElementById('adCalAgaDate').value = adCalSelectedDate;
   document.getElementById('adCalAgaDate').min = new Date().toISOString().slice(0,10);
   document.getElementById('adCalAgaTitle').value = '';
@@ -7029,14 +7090,14 @@ async function adCalSubmitAgenda() {
     });
     const data = res.ok ? null : await res.json();
     if (!res.ok) { msg.style.color = 'var(--error)'; msg.textContent = (data && data.error) || 'Failed.'; return; }
-    alert('Agenda saved!');
+    showToast('Agenda saved!', 'success');
     adCalCloseAgenda();
     await adCalLoadData();
   } catch(e) { msg.style.color = 'var(--error)'; msg.textContent = 'Network error.'; }
 }
 
 function adCalOpenNote() {
-  if (!adCalSelectedDate) { alert('Select a date first'); return; }
+  if (!adCalSelectedDate) { showToast('Select a date first', 'info'); return; }
   document.getElementById('adCalNoteDate').value = adCalSelectedDate;
   document.getElementById('adCalNoteDate').min = new Date().toISOString().slice(0,10);
   document.getElementById('adCalNoteTitle').value = '';
@@ -7075,7 +7136,7 @@ async function adCalSubmitNote() {
     });
     const data = res.ok ? null : await res.json();
     if (!res.ok) { msg.style.color = 'var(--error)'; msg.textContent = (data && data.error) || 'Failed.'; return; }
-    alert('Note saved!');
+    showToast('Note saved!', 'success');
     adCalCloseNote();
     await adCalLoadData();
   } catch(e) { msg.style.color = 'var(--error)'; msg.textContent = 'Network error.'; }
@@ -7085,10 +7146,25 @@ async function adCalDeleteEvent(id) {
   if (!confirm('Delete this event?')) return;
   try {
     const res = await authFetch(BASE_URL + '/calendar-events/' + id, { method: 'DELETE' });
-    if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed'); return; }
+    if (!res.ok) { const d = await res.json(); showToast(d.error || 'Failed', 'error'); return; }
     await adCalLoadData();
-  } catch(e) { alert('Error: ' + e.message); }
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
+
+/* ── SIDEBAR TOGGLE (mobile) ── */
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('visible');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('visible');
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('hamburgerBtn')?.addEventListener('click', openSidebar);
+  document.getElementById('sidebarClose')?.addEventListener('click', closeSidebar);
+  document.getElementById('sidebarOverlay')?.addEventListener('click', closeSidebar);
+});
 </script>
 </body>
 </html>

@@ -1532,6 +1532,7 @@
   </div><!-- .content -->
 </div><!-- .main-wrap -->
 
+<script src="/shared.js"></script>
 <script>
 /* ──────────────────────────────────────────
    CONFIGURATION
@@ -1639,16 +1640,7 @@ function badge(text, classOverride) {
   return `<span class="badge badge-${cls}">${esc(text)}</span>`;
 }
 
-let toastTimer = null;
-/** Show a toast notification */
-function showToast(msg, type = 'default') {
-  const t = document.getElementById('toast');
-  if (!t) return;
-  clearTimeout(toastTimer);
-  t.textContent = msg;
-  t.className = 'show' + (type !== 'default' ? ' ' + type : '');
-  toastTimer = setTimeout(() => { t.className = ''; }, 4000);
-}
+/* showToast shared via /shared.js */
 
 /**
  * Normalize product key — consistent matching across XML, serials, products.
@@ -3022,12 +3014,12 @@ function toggleTheme() {
   html.setAttribute('data-theme', isDark ? 'light' : 'dark');
   const icon = document.getElementById('themeIcon');
   if (icon) icon.textContent = isDark ? 'dark_mode' : 'light_mode';
-  try { localStorage.setItem('stock-theme', isDark ? 'light' : 'dark'); } catch(e) {}
+  try { localStorage.setItem('hariom_theme', isDark ? 'light' : 'dark'); } catch(e) {}
 }
 
 function applyStoredTheme() {
   try {
-    const saved = localStorage.getItem('stock-theme');
+    const saved = localStorage.getItem('hariom_theme');
     if (saved === 'light') {
       document.documentElement.setAttribute('data-theme', 'light');
       const icon = document.getElementById('themeIcon');

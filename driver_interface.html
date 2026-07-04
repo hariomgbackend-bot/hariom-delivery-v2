@@ -1485,6 +1485,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+<script src="/shared.js"></script>
 
 <script>
 
@@ -2464,12 +2465,12 @@ async function openDelivery(id) {
       ${d.point_of_sale ? `
       <div class="detail-row">
         <span class="detail-label">Point of Sale</span>
-        <span class="detail-value">${escHtmlDisp(d.point_of_sale)}</span>
+        <span class="detail-value">${escHtml(d.point_of_sale)}</span>
       </div>` : ""}
       ${d.pickup_from ? `
       <div class="detail-row">
         <span class="detail-label">Pickup From</span>
-        <span class="detail-value">${escHtmlDisp(d.pickup_from)}</span>
+        <span class="detail-value">${escHtml(d.pickup_from)}</span>
       </div>` : ""}
       <div class="detail-row">
         <span class="detail-label">ETA</span>
@@ -2483,7 +2484,7 @@ async function openDelivery(id) {
     ${d.driver_instructions && d.driver_instructions !== "none" ? `
     <div class="info-box-instructions">
       <strong>📝 Delivery Instructions</strong>
-      <div class="instr-text">${escHtmlDisp(d.driver_instructions)}</div>
+      <div class="instr-text">${escHtml(d.driver_instructions)}</div>
     </div>
     ${currentStatus === "loaded" ? `
     <div class="instructions-confirm">
@@ -2832,7 +2833,11 @@ async function updateDelivery() {
 
     const endpoint = currentStatus === "pending" ? `/markLoaded/${currentDeliveryId}` : `/markDelivered/${currentDeliveryId}`;
 
-    fetch(`${BASE_URL}${endpoint}`, { method: "POST", body: formData })
+    const fetchOpts = { method: "POST", body: formData };
+    if (driverSessionToken) {
+      fetchOpts.headers = { "Authorization": "Bearer " + driverSessionToken };
+    }
+    fetch(`${BASE_URL}${endpoint}`, fetchOpts)
       .then(res => {
         isProcessingAction = false;
         if (!res.ok) { showToast("⚠ Update failed. Try again."); if(widget) widget.style.pointerEvents="auto"; return; }
@@ -2931,8 +2936,11 @@ async function submitFailure() {
   }
 
   try {
+    const failHeaders = {};
+    if (driverSessionToken) failHeaders["Authorization"] = "Bearer " + driverSessionToken;
     const res = await fetch(`${BASE_URL}/markFailed/${currentDeliveryId}`, {
       method: "POST",
+      headers: failHeaders,
       body: formData
     });
     if (!res.ok) {
@@ -3931,7 +3939,7 @@ async function loadDispatcherDeliveries() {
     if (bulkDriverSel) {
       let opts = '<option value="">— Driver —</option>';
       dispatcherDriverList.forEach(function(dr) {
-        opts += '<option value="' + dr.id + '">' + escHtmlDisp(dr.driver_name) + '</option>';
+        opts += '<option value="' + dr.id + '">' + escHtml(dr.driver_name) + '</option>';
       });
       bulkDriverSel.innerHTML = opts;
     }
@@ -4042,7 +4050,7 @@ function buildDispatcherCard(d) {
   const selectId  = "assignSel_" + d.id;
   const detailId  = "ddetail_" + d.id;
   const driverOptions = dispatcherDriverList.map(dr =>
-    `<option value="${dr.id}" data-name="${escHtmlDisp(dr.driver_name)}">${escHtmlDisp(dr.driver_name)}</option>`
+    `<option value="${dr.id}" data-name="${escHtml(dr.driver_name)}">${escHtml(dr.driver_name)}</option>`
   ).join("");
 
   const etaStr = d.estimated_delivery_time
@@ -4084,8 +4092,8 @@ function buildDispatcherCard(d) {
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;">
             <div style="flex:1;min-width:0;">
-              <div style="font-weight:700;font-size:15px;line-height:1.3;">${escHtmlDisp(d.customer_name)}${urgentBadge}${prevFail}</div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtmlDisp(d.product_name)}</div>
+              <div style="font-weight:700;font-size:15px;line-height:1.3;">${escHtml(d.customer_name)}${urgentBadge}${prevFail}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(d.product_name)}</div>
             </div>
             <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${sc.bg};color:${sc.text};white-space:nowrap;flex-shrink:0;">${d.status}</span>
           </div>
@@ -4094,7 +4102,7 @@ function buildDispatcherCard(d) {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:12px;color:var(--muted);margin-top:8px;margin-bottom:10px;">
             <div>📞 <a href="tel:${d.phone}" onclick="event.stopPropagation()" style="color:var(--accent);font-weight:600;">${d.phone}</a></div>
             <div>⏱ ${etaStr}</div>
-            <div style="grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍 ${escHtmlDisp(d.address || "—")}</div>
+            <div style="grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍 ${escHtml(d.address || "—")}</div>
           </div>
 
           <!-- View details toggle — hidden in selection mode to avoid accidental expand -->
@@ -4110,14 +4118,14 @@ function buildDispatcherCard(d) {
         ${d.driver_instructions && d.driver_instructions !== "none" ? `
           <div style="margin-bottom:8px;padding:8px 10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:8px;">
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#fbbf24;margin-bottom:2px;">📋 Instructions</div>
-            <div style="color:var(--on-surface);font-weight:500;">${escHtmlDisp(d.driver_instructions)}</div>
+            <div style="color:var(--on-surface);font-weight:500;">${escHtml(d.driver_instructions)}</div>
           </div>` : ""}
         <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;">
-          <span style="color:var(--on-surface-variant);font-size:12px;">Serial</span><span style="font-weight:500;">${escHtmlDisp(d.product_serial_number || "—")}</span>
-          <span style="color:var(--muted);font-size:12px;">Invoice</span><span style="font-weight:500;">${escHtmlDisp(d.invoice_number || "—")}</span>
+          <span style="color:var(--on-surface-variant);font-size:12px;">Serial</span><span style="font-weight:500;">${escHtml(d.product_serial_number || "—")}</span>
+          <span style="color:var(--muted);font-size:12px;">Invoice</span><span style="font-weight:500;">${escHtml(d.invoice_number || "—")}</span>
           <span style="color:var(--muted);font-size:12px;">Alt Phone</span><span>${d.alternate_phone ? `<a href="tel:${d.alternate_phone}" style="color:var(--accent);font-weight:600;">${d.alternate_phone}</a>` : "—"}</span>
           <span style="color:var(--muted);font-size:12px;">Freight</span><span style="font-weight:500;">${d.freight_charged ? "₹" + (d.freight_amount || "?") + " (customer pays)" : "None"}</span>
-          ${d.previous_failures > 0 ? `<span style="color:var(--muted);font-size:12px;">Prev. Fail</span><span style="color:#dc2626;font-weight:500;">${escHtmlDisp(d.failure_reason || "—")}</span>` : ""}
+          ${d.previous_failures > 0 ? `<span style="color:var(--muted);font-size:12px;">Prev. Fail</span><span style="color:#dc2626;font-weight:500;">${escHtml(d.failure_reason || "—")}</span>` : ""}
         </div>
       </div>
 
@@ -4142,7 +4150,7 @@ function buildDispatcherCard(d) {
                 </button>
               </div>
             ` : `
-              <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Serial: <strong style="color:var(--text);">${escHtmlDisp(d.product_serial_number)}</strong></div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Serial: <strong style="color:var(--text);">${escHtml(d.product_serial_number)}</strong></div>
             `}
             <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Proof Photo *</label>
             <input type="file" id="sp_photo_${d.id}" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
@@ -4389,9 +4397,7 @@ async function bulkAssignDispatch() {
   loadDispatcherDeliveries();
 }
 
-function escHtmlDisp(s) {
-  return String(s || "").replace(/&#x2F;/g,"/").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
+/* escHtml shared via /shared.js */
 
 // When dispatcher changes a driver dropdown, mirror it to all selected cards
 function onDispatchSelectChange(deliveryId, selectId) {

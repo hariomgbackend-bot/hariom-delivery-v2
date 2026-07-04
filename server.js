@@ -574,8 +574,7 @@ return res.send(`
       (async () => {
         try {
           if (phone) {
-            await sendWhatsapp(phone, `Hello ${customer_name}, your delivery is scheduled at ${estimated_delivery_time}`);
-            await sendSMS(phone, `Hariom Delivery: Your delivery is scheduled at ${estimated_delivery_time}`);
+            // WhatsApp/SMS stubs removed
           }
           await sendAccountantPush(
             "🧾 New DO from Tally",
@@ -657,7 +656,7 @@ return res.send(`
         status:                  statusForETA(estimated_delivery_time)
       });
 
-      console.log("[tally/voucher TDL JSON-new] DO created:", voucher_number, "|", customer_name);
+      console.log("[tally/voucher TDL JSON-new] DO created:", voucher_number);
 
       (async () => {
         try {
@@ -754,7 +753,7 @@ return res.send(`
     };
 
     _tallyPendingStore.set(invoice_number, { data: mapped, ts: Date.now() });
-    console.log("[tally/voucher JSON] stored:", invoice_number, "|", name, "|", products.length, "item(s)");
+    console.log("[tally/voucher JSON] stored:", invoice_number, "|", products.length, "item(s)");
     res.json({ ok: true, invoice_number, customer: name, items: products.length });
 
   } catch (err) {
@@ -1087,6 +1086,19 @@ async function runStartupMigration() {
       }
       console.log(`[SEED] Added ${SEED_DATA.length} price guide items`);
     }
+
+    // ── Part 4: Seed default stores if empty ──
+    const storeSnap = await getDocs(collection(db, "stores"));
+    if (storeSnap.empty) {
+      const defaultStores = [
+        { key: "alandi",  name: "Hari Om Electronics - Alandi",  address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",  phone: "8177896218",  altPhone: "9822632095", created_at: Timestamp.now() },
+        { key: "dhanore", name: "Hari Om Electronics - Dhanore", address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105", phone: "8177896218", altPhone: "9822632095", created_at: Timestamp.now() }
+      ];
+      for (const s of defaultStores) {
+        await addDoc(collection(db, "stores"), s);
+      }
+      console.log(`[SEED] Added ${defaultStores.length} default stores`);
+    }
   } catch (err) {
     console.error("[MIGRATION] error:", err.message);
   }
@@ -1187,7 +1199,7 @@ app.post("/transliterate", async (req, res) => {
    Body: { driver_id, driver_name }
    Updates assigned driver + sends push to new driver
 ════════════════════════════════════════════════ */
-app.post("/assignDelivery/:id", async (req, res) => {
+app.post("/assignDelivery/:id", authenticate, async (req, res) => {
   try {
     const { driver_id, driver_name } = req.body;
     if (!driver_id || !driver_name) return res.status(400).json({ error: "driver_id and driver_name required" });
@@ -1479,7 +1491,7 @@ app.post("/models", async (req, res) => {
    Blocks identical customer+phone+product within 60 seconds
 ════════════════════════════════════════════════ */
 
-app.post("/createDelivery", writeLimiter, async (req, res) => {
+app.post("/createDelivery", writeLimiter, authenticate, async (req, res) => {
   try {
     const data = req.body;
 
@@ -1514,13 +1526,6 @@ app.post("/createDelivery", writeLimiter, async (req, res) => {
       status: statusForETA(data.estimated_delivery_time)
     });
 
-    await sendWhatsapp(data.phone,
-      `Hello ${data.customer_name}, your delivery is scheduled at ${data.estimated_delivery_time}`
-    );
-    await sendSMS(data.phone,
-      `Hariom Delivery: Your delivery scheduled at ${data.estimated_delivery_time}`
-    );
-
     // Push to assigned driver
     if (data.assigned_driver_id) {
       const driverSnap = await getDoc(doc(db, "drivers", data.assigned_driver_id));
@@ -1548,7 +1553,7 @@ app.post("/createDelivery", writeLimiter, async (req, res) => {
 /* ════════════════════════════════════════════════
    CREATE MULTIPLE DELIVERIES (batch from one form)
 ════════════════════════════════════════════════ */
-app.post("/createDeliveries", writeLimiter, async (req, res) => {
+app.post("/createDeliveries", writeLimiter, authenticate, async (req, res) => {
   try {
     const { shared, products, requestId } = req.body;
 
@@ -1633,13 +1638,6 @@ app.post("/createDeliveries", writeLimiter, async (req, res) => {
     // Background notifications — failures here don't affect the client
     (async () => {
       try {
-        await sendWhatsapp(shared.phone,
-          `Hello ${shared.customer_name}, your ${products.length > 1 ? products.length + " deliveries are" : "delivery is"} scheduled at ${shared.estimated_delivery_time}`
-        );
-        await sendSMS(shared.phone,
-          `Hariom Delivery: Your ${products.length > 1 ? products.length + " items are" : "delivery is"} scheduled at ${shared.estimated_delivery_time}`
-        );
-
         if (shared.assigned_driver_id) {
           const driverSnap = await getDoc(doc(db, "drivers", shared.assigned_driver_id));
           if (driverSnap.exists()) {
@@ -1740,7 +1738,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
    GET DELIVERIES
 ════════════════════════════════════════════════ */
 
-app.get("/deliveries", readLimiter, async (req, res) => {
+app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
   try {
     const { startDate, endDate, force, page, pageSize, search, status, priority, selfPickup, route, driver } = req.query;
     const hasDateRange = startDate || endDate;
@@ -1804,14 +1802,14 @@ app.get("/deliveries", readLimiter, async (req, res) => {
       } catch (_) { /* fall back to deliveries.length */ }
     }
 
-    // For paginated single-status queries, add limit to avoid fetching all docs.
+    // For paginated single-status queries, add orderBy + limit to avoid fetching all docs.
     // Multi-status (0 or 2+ status values) need ALL matching docs for the
     // in-memory interleave sort — no limit applied.
     // Text search excluded (narrow scope, no limit needed).
     if (isPaginated && !search) {
       const statuses = status ? status.split(",").map(s => s.trim()).filter(Boolean) : [];
       if (statuses.length === 1) {
-        q = query(q, limit(p * ps));
+        q = query(q, orderBy("created_timestamp", "desc"), limit(p * ps));
       }
     }
 
@@ -1914,7 +1912,7 @@ app.get("/deliveries", readLimiter, async (req, res) => {
   }
 });
 
-app.get("/delivery/:id", async (req, res) => {
+app.get("/delivery/:id", authenticate, async (req, res) => {
   try {
     const snap = await getDoc(doc(db, "deliveries", req.params.id));
     if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
@@ -1924,7 +1922,7 @@ app.get("/delivery/:id", async (req, res) => {
   }
 });
 
-app.put("/delivery/:id", async (req, res) => {
+app.put("/delivery/:id", authenticate, async (req, res) => {
   const refDoc = doc(db, "deliveries", req.params.id);
   const snap = await getDoc(refDoc);
   if (!snap.exists()) return res.status(404).json({ error: "Not found" });
@@ -1932,14 +1930,26 @@ app.put("/delivery/:id", async (req, res) => {
   if (delivery.status !== "pending" && delivery.status !== "booked") {
     return res.status(400).json({ error: "Only pending or booked deliveries can be edited" });
   }
+  const ALLOWED = [
+    "customer_name", "phone", "address", "area", "product_name",
+    "product_serial_number", "invoice_number", "priority",
+    "driver_instructions", "assigned_driver_id", "assigned_driver_name",
+    "is_self_pickup", "pickup_from", "point_of_sale", "sale_price",
+    "sold_by_name", "freight_charged", "freight_amount"
+  ];
+  const update = {};
+  for (const field of ALLOWED) {
+    if (req.body[field] !== undefined) update[field] = req.body[field];
+  }
   if (req.body.estimated_delivery_time) {
     if (new Date(req.body.estimated_delivery_time) < new Date()) {
       return res.status(400).json({ error: "ETA cannot be in the past" });
     }
-    // Re-evaluate booked/pending status based on new ETA
-    req.body.status = statusForETA(req.body.estimated_delivery_time);
+    update.estimated_delivery_time = req.body.estimated_delivery_time;
+    update.status = statusForETA(req.body.estimated_delivery_time);
   }
-  await updateDoc(refDoc, req.body);
+  if (Object.keys(update).length === 0) return res.status(400).json({ error: "No valid fields to update" });
+  await updateDoc(refDoc, update);
   invalidateDeliveriesCache();
   res.json({ success: true });
 });
@@ -1972,7 +1982,7 @@ app.post("/deleteFailedDelivery/:id", authenticate, authorize(["accountant", "ad
     }
 
     // Soft audit: log the deletion before deleting
-    console.log(`[DELETE] Failed delivery ${req.params.id} deleted by accountant. Reason: ${reason.trim()}. Customer: ${delivery.customer_name}, Product: ${delivery.product_name}`);
+    console.log(`[DELETE] Failed delivery ${req.params.id} deleted by accountant. Reason: ${reason.trim()}`);
 
     await deleteDoc(refDoc);
     invalidateDeliveriesCache();
@@ -1987,7 +1997,7 @@ app.post("/deleteFailedDelivery/:id", authenticate, authorize(["accountant", "ad
    MARK LOADED
 ═══════════════════════════════════════════════ */
 
-app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
+app.post("/markLoaded/:id", authenticate, upload.single("photo"), async (req, res) => {
   try {
     const refDoc = doc(db, "deliveries", req.params.id);
     const snap   = await getDoc(refDoc);
@@ -2047,7 +2057,7 @@ app.post("/markLoaded/:id", upload.single("photo"), async (req, res) => {
    MARK DELIVERED
 ═══════════════════════════════════════════════ */
 
-app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
+app.post("/markDelivered/:id", authenticate, upload.single("photo"), async (req, res) => {
   try {
     if (!req.file?.buffer) return res.status(400).json({ error: "Photo required" });
 
@@ -2155,8 +2165,6 @@ app.post("/markDelivered/:id", upload.single("photo"), async (req, res) => {
         const snap = await getDoc(refDoc);
         const d    = snap.data();
         await sendAccountantPush("✅ Delivery Delivered", `${d.customer_name} - ${d.address}`);
-        await sendWhatsapp(d.phone, `Hello ${d.customer_name}, your order has been DELIVERED successfully.`);
-        await sendSMS(d.phone, "Hariom Delivery: Your order has been delivered successfully.");
 
         // Auto-create installation ticket if product requires it
         await autoCreateServiceTicket(d, refDoc.id).catch(e =>
@@ -2425,7 +2433,7 @@ app.get("/driver-payout", authenticate, authorize(["admin"]), async (req, res) =
    Fields: reason, photo (required for damage only)
 ════════════════════════════════════════════════ */
 
-app.post("/markFailed/:id", upload.single("photo"), async (req, res) => {
+app.post("/markFailed/:id", authenticate, upload.single("photo"), async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -2604,7 +2612,7 @@ app.post("/reverseDelivery/:id", authenticate, authorize(["admin", "accountant"]
       original_delivered_timestamp: delivery.delivered_timestamp || null
     });
 
-    console.log(`[reverseDelivery] ${req.params.id} reversed. Reason: ${reason}. Customer: ${delivery.customer_name}`);
+    console.log(`[reverseDelivery] ${req.params.id} reversed. Reason: ${reason}`);
     invalidateDeliveriesCache();
     res.json({ success: true });
 
@@ -3319,7 +3327,7 @@ app.post("/parse-invoice", authenticate, authorize(["accountant", "admin"]), upl
       // Expose both `name` (new standard) and `customer_name` (legacy compat)
       parsedResult.customer_name = parsedResult.name;
 
-      console.log(`[parse-invoice] PDF extracted: name="${parsedResult.name}", phone="${parsedResult.phone}", alt="${parsedResult.alt_phone}", addr="${parsedResult.address}", inv="${parsedResult.invoice_number}", products=${parsedResult.products.length}`);
+      console.log(`[parse-invoice] PDF extracted: inv="${parsedResult.invoice_number}", products=${parsedResult.products.length}`);
       return res.json({ source: "pdf", ...parsedResult });
     }
 
@@ -4485,13 +4493,89 @@ app.delete("/brands/:id", authenticate, authorize(["admin"]), async (req, res) =
 });
 
 /* ════════════════════════════════════════════════
+   STORES / BRANCHES
+   GET /api/stores — list all stores
+   POST /api/stores — add a store
+   PUT /api/stores/:id — update a store
+   DELETE /api/stores/:id — delete a store
+   POST /api/stores/seed — seed default stores (admin only)
+════════════════════════════════════════════════ */
+app.get("/api/stores", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "stores"));
+    res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/stores", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { key, name, address, phone, altPhone } = req.body;
+    if (!key || !name) return res.status(400).json({ error: "Store key and name required" });
+    const docRef = await addDoc(collection(db, "stores"), {
+      key: key.toLowerCase().trim(),
+      name: name.trim(),
+      address: address || "",
+      phone: phone || "",
+      altPhone: altPhone || "",
+      created_at: Timestamp.now()
+    });
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/stores/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const refDoc = doc(db, "stores", req.params.id);
+    const snap = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Store not found" });
+    const allowed = ["key", "name", "address", "phone", "altPhone"];
+    const updates = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    await updateDoc(refDoc, updates);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/stores/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    await deleteDoc(doc(db, "stores", req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/stores/seed", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const defaults = [
+      { key: "alandi",  name: "Hari Om Electronics - Alandi",  address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",  phone: "8177896218",  altPhone: "9822632095" },
+      { key: "dhanore", name: "Hari Om Electronics - Dhanore", address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105", phone: "8177896218", altPhone: "9822632095" }
+    ];
+    const snap = await getDocs(collection(db, "stores"));
+    if (snap.size > 0) return res.json({ success: true, message: "Stores already exist" });
+    for (const s of defaults) {
+      await addDoc(collection(db, "stores"), { ...s, created_at: Timestamp.now() });
+    }
+    res.json({ success: true, message: "Default stores seeded" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
    SELF-PICKUP CONFIRM
    POST /markSelfPickup/:id  (multipart/form-data)
    Fields: serial (if not set), photo
    Skips loaded step — marks directly as delivered.
    Only works on is_self_pickup === true deliveries.
 ════════════════════════════════════════════════ */
-app.post("/markSelfPickup/:id", upload.single("photo"), async (req, res) => {
+app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req, res) => {
   try {
     if (!req.file?.buffer) return res.status(400).json({ error: "Photo required" });
 
@@ -4534,7 +4618,6 @@ app.post("/markSelfPickup/:id", upload.single("photo"), async (req, res) => {
         const freshSnap = await getDoc(refDoc);
         const d         = freshSnap.data();
         await sendAccountantPush("🏪 Self Pickup Confirmed", `${d.customer_name} - ${d.product_name}`);
-        await sendWhatsapp(d.phone, `Hello ${d.customer_name}, your order has been picked up successfully.`);
         await autoCreateServiceTicket(d, refDoc.id);
       } catch (bgErr) {
         console.warn("[markSelfPickup] bg error:", bgErr.message);
@@ -4893,7 +4976,7 @@ async function extractWithGroqVision(imageBuffer, mimeType) {
   return JSON.parse(raw);
 }
 
-app.post("/api/extract-invoice", upload.single("file"), async (req, res) => {
+app.post("/api/extract-invoice", authenticate, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -5088,7 +5171,7 @@ app.get("/sync-tally", authenticate, authorize(["admin", "accountant"]), async (
   }
 });
 
-app.post("/add-serial", async (req, res) => {
+app.post("/add-serial", authenticate, async (req, res) => {
   try {
     const { serials, product, location } = req.body;
 
@@ -5149,7 +5232,7 @@ app.post("/add-serial", async (req, res) => {
   }
 });
 
-app.post("/transfer-serial", async (req, res) => {
+app.post("/transfer-serial", authenticate, async (req, res) => {
   try {
     const { serials, location } = req.body;
 
@@ -5212,7 +5295,7 @@ app.post("/transfer-serial", async (req, res) => {
   }
 });
 
-app.get("/inventory", async (req, res) => {
+app.get("/inventory", authenticate, async (req, res) => {
   try {
     const snapshot = await getDocs(collection(db, "inventory_serials"));
     const serials = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -5229,7 +5312,7 @@ app.get("/inventory", async (req, res) => {
    Used by accountant dropdown to show "PRODUCT — (qty)".
    Only counts serials with status "available".
 ════════════════════════════════════════════════ */
-app.get("/inventory/stock-summary", async (req, res) => {
+app.get("/inventory/stock-summary", authenticate, async (req, res) => {
   try {
     const snapshot = await getDocs(
       query(collection(db, "inventory_serials"), where("status", "==", "available"))
@@ -5246,7 +5329,7 @@ app.get("/inventory/stock-summary", async (req, res) => {
   }
 });
 
-app.get("/inventory/anomalies", async (req, res) => {
+app.get("/inventory/anomalies", authenticate, async (req, res) => {
   try {
     const [serialsSnap, productsSnap] = await Promise.all([
       getDocs(collection(db, "inventory_serials")),
@@ -5300,7 +5383,7 @@ app.get("/inventory/anomalies", async (req, res) => {
   }
 });
 
-app.get("/inventory/locations", async (req, res) => {
+app.get("/inventory/locations", authenticate, async (req, res) => {
   try {
     const snap = await getDocs(collection(db, "inventory_locations"));
     const locations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -5321,7 +5404,7 @@ app.get("/inventory/locations", async (req, res) => {
   }
 });
 
-app.post("/inventory/locations", async (req, res) => {
+app.post("/inventory/locations", authenticate, async (req, res) => {
   try {
     const { name } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: "Location name required" });
@@ -5340,7 +5423,7 @@ app.post("/inventory/locations", async (req, res) => {
   }
 });
 
-app.delete("/inventory/locations/:id", async (req, res) => {
+app.delete("/inventory/locations/:id", authenticate, async (req, res) => {
   try {
     await deleteDoc(doc(db, "inventory_locations", req.params.id));
     res.json({ success: true });

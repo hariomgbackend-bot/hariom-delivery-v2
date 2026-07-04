@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <title>Purchase Ingestion</title>
 <script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.js"></script>
+<script src="/shared.js"></script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -213,7 +214,7 @@ input.tally-select { background: var(--surface2); border: 1px solid var(--border
     <input type="file" id="xmlFileInput" accept=".xml" hidden>
     <button class="icon-btn" id="historyBtn" onclick="openHistory()" title="History">📜</button>
     <span class="auth-badge" id="authBadge">🔐 Not logged in</span>
-    <button class="icon-btn" id="darkToggle" onclick="toggleDark()">☀️</button>
+    <button class="icon-btn" id="darkToggle" onclick="toggleDarkMode()">☀️</button>
   </div>
 </header>
 
@@ -412,13 +413,13 @@ function log(msg, type = "info") {
 function clearLog() { document.getElementById("consoleLog").innerHTML = ""; }
 
 (function() {
-  const s = localStorage.getItem("purchase_theme");
+  const s = localStorage.getItem("hariom_theme");
   if (s === "light") document.documentElement.setAttribute("data-theme", "light");
 })();
-function toggleDark() {
+function toggleDarkMode() {
   const isDark = document.documentElement.getAttribute("data-theme") !== "light";
   document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
-  localStorage.setItem("purchase_theme", isDark ? "light" : "dark");
+  localStorage.setItem("hariom_theme", isDark ? "light" : "dark");
   document.getElementById("darkToggle").textContent = isDark ? "🌙" : "☀️";
 }
 
@@ -775,14 +776,7 @@ function handleLogout() {
 /* ════════════════════════════════════════════════
    Toast
    ════════════════════════════════════════════════ */
-function showToast(msg, type) {
-  const container = document.getElementById("toast");
-  const el = document.createElement("div");
-  el.className = "toast toast-" + (type || "info");
-  el.textContent = msg;
-  container.appendChild(el);
-  setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .3s"; setTimeout(() => el.remove(), 300); }, 3000);
-}
+/* showToast shared via /shared.js */
 
 /* ════════════════════════════════════════════════
    Products from Firestore
@@ -926,7 +920,9 @@ async function handleFile(file) {
   try {
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch("/api/extract-invoice", { method: "POST", body: formData });
+    const headers = {};
+    if (sessionToken) headers["Authorization"] = "Bearer " + sessionToken;
+    const response = await fetch("/api/extract-invoice", { method: "POST", headers, body: formData });
 
     const rawText = await response.text();
     if (!response.ok) throw new Error(rawText);

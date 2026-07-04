@@ -636,6 +636,31 @@
     }
     @media (min-width: 768px) { .mobile-cards { display: none; } }
 
+    /* ════ LOADING / EMPTY STATES ════ */
+    .loading-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--on-surface-variant);
+    }
+    .loading-state .spinner {
+      display: inline-block;
+      width: 24px; height: 24px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--on-surface-variant);
+    }
+    .empty-state .empty-icon { font-size: 36px; margin-bottom: 10px; }
+    .empty-state p { font-weight: 700; font-size: 14px; margin: 0 0 4px; color: var(--on-surface); }
+    .empty-state small { font-size: 12px; color: var(--on-surface-variant); }
+
     .delivery-mob-card {
       background: var(--surface-container-low);
       border-radius: 16px;
@@ -1490,6 +1515,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+<script src="/shared.js"></script>
 
 <script>
 
@@ -1515,15 +1541,26 @@ document.addEventListener("DOMContentLoaded", function() {
 AUTH — accountant login gate
 ══════════════════════════════════ */
 const BASE_URL = window.location.origin;
+let _stores = [];
+
+/* ── LOAD STORES ── */
+async function loadStores() {
+  if (!window.authGetToken) { setTimeout(loadStores, 200); return; }
+  try {
+    const res = await authFetch(`${BASE_URL}/api/stores`);
+    if (res.ok) _stores = await res.json();
+    const sel = document.getElementById("point_of_sale");
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">— Select —</option>' + _stores.map(s =>
+        `<option value="${escHtml(s.name)}" ${cur === s.name ? "selected" : ""}>${escHtml(s.name)}</option>`
+      ).join('');
+    }
+  } catch {}
+}
 
 /* ── TOAST NOTIFICATION ── */
-function showToast(msg, type = "") {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.className = "show " + type;
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove("show"), 3000);
-}
+/* showToast, escHtml, tagAll, ratingBadge shared via /shared.js */
 
 /* ── OFFLINE DETECTION ── */
 window.addEventListener("online", () => {
@@ -1624,20 +1661,9 @@ function accountantLogout() {
   showLoginScreen();
 }
 
-// Central authenticated fetch — checks token before every request
-async function authFetch(url, options = {}) {
-  if (isTokenExpired()) { handleAuthError(); throw new Error("expired"); }
-  const opts = {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: "Bearer " + getToken()
-    }
-  };
-  const res = await fetch(url, opts);
-  if (res.status === 401) { handleAuthError(); throw new Error("401"); }
-  return res;
-}
+window.authGetToken = getToken;
+window.authOnError = handleAuthError;
+setTimeout(loadStores, 0);
 
 // Guard on every tab focus
 document.addEventListener("visibilitychange", () => {
@@ -2118,11 +2144,7 @@ async function handleInvoiceImport(input) {
     const extractedData = await parseInvoicePDF(file);
     openImportPreviewModal(extractedData);
   } catch (e) {
-    if (typeof showToast === "function") {
-      showToast("\u26a0 Import failed: " + e.message, "error");
-    } else {
-      alert("Error importing invoice: " + e.message);
-    }
+    showToast("Error importing invoice: " + e.message, "error");
     console.error("[handleInvoiceImport]", e);
   } finally {
     if (btn) { btn.innerHTML = origText; btn.disabled = false; }
@@ -2134,11 +2156,6 @@ async function handleInvoiceImport(input) {
    Supports: PDF (server parse) + XML (Tally Day Book, client-side)
    Flow: Pick file → detect type → parse → preview modal → OK → fill form
 ══════════════════════════════════════════════════════════════════ */
-
-/* ── Customer DB for XML fallback enrichment ── */
-const customerDB = {
-  /* Example: "KAMBALE SANTOSH M.": { phone: "9876543210", address: "123 Main St, Bhosari" } */
-};
 
 /* ── Recent invoices memory (last 10) ── */
 let _recentInvoices = [];
@@ -2172,15 +2189,6 @@ async function handleTallyFile(input) {
       extracted = await parseInvoicePDF(file);
     }
 
-    // Enrich XML data from customerDB if phone/address missing
-    if (extracted.source === "xml" && (!extracted.phone || !extracted.address)) {
-      const dbEntry = customerDB[extracted.name] || customerDB[(extracted.name || "").toUpperCase()];
-      if (dbEntry) {
-        if (!extracted.phone && dbEntry.phone) extracted.phone = dbEntry.phone;
-        if (!extracted.address && dbEntry.address) extracted.address = dbEntry.address;
-      }
-    }
-
     openImportPreviewModal(extracted);
   } catch (err) {
     showToast("⚠ Import failed: " + err.message, "error");
@@ -2205,14 +2213,6 @@ async function _parseXMLForUnifiedImport(file) {
     const m = t.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"));
     return m ? m[1].trim() : null;
   };
-  const tagAll = (name, t) => {
-    const re = new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "gi");
-    const results = [];
-    let m;
-    while ((m = re.exec(t)) !== null) results.push(m[1].trim());
-    return results;
-  };
-
   // Customer name
   const name = tag("PARTYLEDGERNAME", text) || "Unknown Customer";
 
@@ -2698,10 +2698,6 @@ function buildSelectOptions(arr, selectedVal) {
   return html;
 }
 
-function escHtml(s) {
-  return String(s||"").replace(/&#x2F;/g,"/").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-
 function populateItemSelects(idx) {
   const item = document.querySelector(`.product-item[data-idx="${idx}"]`);
   if (!item) return;
@@ -2859,7 +2855,7 @@ async function saveItemNew(idx, field) {
   // Force uppercase for product names; title-case for make/model
   const raw   = input.value.trim();
   const value = field === "product" ? raw.toUpperCase() : raw;
-  if (!value) { alert("Enter a value first"); return; }
+  if (!value) { showToast("Enter a value first", "info"); return; }
 
   const res = await fetch(`${BASE_URL}/${field}s`, {
     method: "POST",
@@ -2867,7 +2863,7 @@ async function saveItemNew(idx, field) {
     body: JSON.stringify({ name: value })
   });
   const result = await res.json();
-  if (result.exists) { alert("Already exists"); }
+  if (result.exists) { showToast("Already exists", "info"); }
 
   // Add to master list + all existing selects
   if (!masterProducts.includes(value) && field === "product") masterProducts.unshift(value);
@@ -3158,7 +3154,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const res  = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
       const data = await res.json();
 
-      if (data[0].Status === "Success") {
+      if (data[0].Status === "Success" && data[0].PostOffice?.length > 0) {
         const offices = data[0].PostOffice;
         const po      = offices[0];
 
@@ -3362,23 +3358,23 @@ async function createDelivery() {
   const isSelfPickup = document.getElementById("is_self_pickup").checked;
 
   if (!firstNameEl.value.trim()) {
-    alert("First name is required"); return;
+    showToast("First name is required", "info"); return;
   }
   if (!phoneEl.value || phoneEl.value.length !== 10) {
-    alert("Valid 10-digit phone number is required"); return;
+    showToast("Valid 10-digit phone number is required", "info"); return;
   }
   if (!addr1El.value.trim()) {
-    alert("Address Line 1 is required"); return;
+    showToast("Address Line 1 is required", "info"); return;
   }
   if (!isSelfPickup) {
     if (!driverEl.value) {
-      alert("Please assign a driver"); return;
+      showToast("Please assign a driver", "info"); return;
     }
     if (!etaEl.value) {
-      alert("Estimated delivery time is required"); return;
+      showToast("Estimated delivery time is required", "info"); return;
     }
     if (new Date(etaEl.value) < new Date()) {
-      alert("Estimated delivery time cannot be in the past"); return;
+      showToast("Estimated delivery time cannot be in the past", "error"); return;
     }
   }
 
@@ -3399,7 +3395,7 @@ async function createDelivery() {
       const tallyInput = item.querySelector(`[data-field="tally_input"]`);
       productName = tallyInput ? tallyInput.value.trim().toUpperCase() : "";
       if (!productName) {
-        alert(`Please select a product from Tally for item #${idx}`); return;
+        showToast(`Please select a product from Tally for item #${idx}`, "info"); return;
       }
     } else {
       // ── Normal mode — product + make + model ──
@@ -3426,11 +3422,11 @@ async function createDelivery() {
         makeVal    = await resolveItemField("make");
         modelVal   = await resolveItemField("model");
       } catch(e) {
-        alert(e.message); return;
+        showToast(e.message, "error"); return;
       }
 
       if (!productVal) {
-        alert(`Please select a product for item #${idx}`); return;
+        showToast(`Please select a product for item #${idx}`, "info"); return;
       }
 
       productName = [productVal, makeVal, modelVal].filter(x => x).join(" ").toUpperCase();
@@ -3447,7 +3443,7 @@ async function createDelivery() {
   }
 
   if (products.length === 0) {
-    alert("Add at least one product"); return;
+    showToast("Add at least one product", "info"); return;
   }
 
   btn.disabled = true;
@@ -3509,7 +3505,7 @@ async function createDelivery() {
 
     if (!response.ok) {
       const err = await response.json();
-      alert(err.error || "Something went wrong. Deliveries not created.");
+      showToast(err.error || "Something went wrong. Deliveries not created.", "error");
       btn.disabled = false;
       updateProductCount();
       return;
@@ -3571,7 +3567,7 @@ async function createDelivery() {
     // Network error AFTER the server may have already written to Firestore.
     // The requestId ensures that if the accountant retries, the server will
     // detect the duplicate and return the original result safely.
-    alert("⚠ Network error — the delivery may have already been created. Please check the table before retrying to avoid duplicates. If it's not there, you can safely try again.");
+    showToast("Network error — the delivery may have already been created. Please check the table before retrying to avoid duplicates. If it's not there, you can safely try again.", "error");
     btn.disabled = false;
     updateProductCount();
     loadDeliveries(); // Refresh table so accountant can see if it was created
@@ -3736,7 +3732,7 @@ async function _doLoadDeliveries() {
     if (currentRoute !== "all") url += `&route=${encodeURIComponent(currentRoute)}`;
     if (currentDriverFilter !== "all") url += `&driver=${encodeURIComponent(currentDriverFilter)}`;
 
-    const res = await fetch(url);
+    const res = await authFetch(url);
     if (res.status === 429) { _deliveriesInflight = false; return; }
     const result = await res.json();
 
@@ -3919,15 +3915,6 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
   const container = document.getElementById("mobileCards");
   if (!container) return;
   container.innerHTML = "";
-
-  function ratingBadge(d) {
-    if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "";
-    const diff = (new Date(d.delivered_timestamp.seconds * 1000) - new Date(d.estimated_delivery_time)) / 60000;
-    if (diff <= -10) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early</span>`;
-    if (diff <=  10) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
-    if (diff <=  30) return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late</span>`;
-    return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">🔴 VLate</span>`;
-  }
 
   function makeMobCard(d, palette) {
     const card = document.createElement("div");
@@ -4287,12 +4274,12 @@ async function submitInstallTicket(deliveryId) {
       })
     });
     const data = await res.json();
-    if (!res.ok) { alert(data.error || "Failed to raise ticket."); if (btn) { btn.disabled=false; btn.textContent="✅ Confirm Raise"; } return; }
-    alert("✅ Installation ticket raised successfully!");
+    if (!res.ok) { showToast(data.error || "Failed to raise ticket.", "error"); if (btn) { btn.disabled=false; btn.textContent="✅ Confirm Raise"; } return; }
+    showToast("Installation ticket raised successfully!", "success");
     await loadDeliveries();
     openViewPopup(deliveryId);
   } catch (e) {
-    alert("Network error. Please try again.");
+    showToast("Network error. Please try again.", "error");
     if (btn) { btn.disabled=false; btn.textContent="✅ Confirm Raise"; }
   }
 }
@@ -4305,7 +4292,7 @@ async function submitComplaintTicket(deliveryId) {
   const newVal    = document.getElementById("viewIssueNew")?.value.trim() || "";
   const description = newVal || selVal;
   if (!description) {
-    alert("Please select or enter an issue description.");
+    showToast("Please select or enter an issue description.", "info");
     document.getElementById("viewIssueSelect")?.focus();
     return;
   }
@@ -4330,12 +4317,12 @@ async function submitComplaintTicket(deliveryId) {
       })
     });
     const data = await res.json();
-    if (!res.ok) { alert(data.error || "Failed to raise ticket."); if (btn) { btn.disabled=false; btn.textContent="✅ Raise Complaint"; } return; }
-    alert("✅ Complaint ticket raised successfully!");
+    if (!res.ok) { showToast(data.error || "Failed to raise ticket.", "error"); if (btn) { btn.disabled=false; btn.textContent="✅ Raise Complaint"; } return; }
+    showToast("Complaint ticket raised successfully!", "success");
     await loadDeliveries();
     openViewPopup(deliveryId);
   } catch (e) {
-    alert("Network error. Please try again.");
+    showToast("Network error. Please try again.", "error");
     if (btn) { btn.disabled=false; btn.textContent="✅ Raise Complaint"; }
   }
 }
@@ -4419,7 +4406,7 @@ async function confirmReverseDelivery(id) {
   if (!reason) {
     const sel = document.getElementById("reverseReason");
     if (sel) sel.style.borderColor = "#dc2626";
-    alert("⚠ Please select a reason before proceeding.");
+    showToast("Please select a reason before proceeding.", "error");
     return;
   }
 
@@ -4435,7 +4422,7 @@ async function confirmReverseDelivery(id) {
     const data = await res.json();
 
     if (!res.ok) {
-      alert("⚠ " + (data.error || "Reverse failed"));
+      showToast(data.error || "Reverse failed", "error");
       if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "↩ Confirm Reverse"; }
       return;
     }
@@ -4451,7 +4438,7 @@ async function confirmReverseDelivery(id) {
       }
     }, 200);
   } catch (e) {
-    alert("⚠ Network error. Please try again.");
+    showToast("Network error. Please try again.", "error");
     if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "↩ Confirm Reverse"; }
   }
 }
@@ -4518,7 +4505,7 @@ async function confirmInlineDriverChange(deliveryId, selectId) {
     });
     if (!res.ok) {
       const err = await res.json();
-      alert("⚠ " + (err.error || "Failed to update driver")); return;
+      showToast(err.error || "Failed to update driver", "error"); return;
     }
     // Update display inline
     const nameDisplay = document.getElementById("driverNameDisplay");
@@ -4529,7 +4516,7 @@ async function confirmInlineDriverChange(deliveryId, selectId) {
     if (d) { d.assigned_driver_id = driverId; d.assigned_driver_name = driverName; }
     loadDeliveries();
   } catch (e) {
-    alert("⚠ Network error. Try again.");
+    showToast("Network error. Try again.", "error");
   }
 }
 
@@ -4540,12 +4527,12 @@ async function markReturned(id) {
     const res = await authFetch(`${BASE_URL}/markReturned/${id}`, { method: "POST" });
     const data = await res.json();
     if (!res.ok) {
-      alert("⚠ " + (data.error || "Failed")); return;
+      showToast(data.error || "Failed", "error"); return;
     }
     closeViewPopup();
     loadDeliveries();
   } catch (e) {
-    alert("⚠ Network error. Try again.");
+    showToast("Network error. Try again.", "error");
   }
 }
 
@@ -4587,8 +4574,8 @@ async function openReschedule(id) {
 /* ── SAVE RESCHEDULE ── */
 async function saveReschedule(id) {
   const eta = document.getElementById("reschedule_eta")?.value;
-  if (!eta) { alert("Please set a new delivery time"); return; }
-  if (new Date(eta) < new Date()) { alert("ETA must be in the future"); return; }
+  if (!eta) { showToast("Please set a new delivery time", "info"); return; }
+  if (new Date(eta) < new Date()) { showToast("ETA must be in the future", "error"); return; }
 
   const driverSel = document.getElementById("reschedule_driver");
   const driverId = driverSel?.value;
@@ -4605,12 +4592,12 @@ async function saveReschedule(id) {
     });
     const data = await res.json();
     if (!res.ok) {
-      alert("⚠ " + (data.error || "Reschedule failed")); return;
+      showToast(data.error || "Reschedule failed", "error"); return;
     }
     closeViewPopup();
     loadDeliveries();
   } catch (e) {
-    alert("⚠ Network error. Try again.");
+    showToast("Network error. Try again.", "error");
   }
 }
 
@@ -4748,13 +4735,13 @@ async function saveDelivery(id) {
     });
     if (!res.ok) {
       const err = await res.json();
-      alert("⚠ " + (err.error || "Edit failed"));
+      showToast(err.error || "Edit failed", "error");
       return;
     }
     closeViewPopup();
     loadDeliveries();
   } catch (e) {
-    alert("⚠ Network error. Please try again.");
+    showToast("Network error. Please try again.", "error");
   }
 }
 
@@ -4801,7 +4788,7 @@ async function confirmDeleteFailed(id) {
     // Highlight the textarea red
     const ta = document.getElementById("deleteReason");
     if (ta) { ta.style.borderColor = "#dc2626"; ta.focus(); }
-    alert("⚠ Please enter a reason for deletion before proceeding.");
+    showToast("Please enter a reason for deletion before proceeding.", "error");
     return;
   }
 
@@ -4817,7 +4804,7 @@ async function confirmDeleteFailed(id) {
 
     if (!res.ok) {
       const err = await res.json();
-      alert("⚠ " + (err.error || "Delete failed"));
+      showToast(err.error || "Delete failed", "error");
       if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "🗑 Confirm Delete"; }
       return;
     }
@@ -4827,14 +4814,14 @@ async function confirmDeleteFailed(id) {
     document.getElementById("formMessage").innerHTML = `<span style='color:#dc2626;'>🗑 Delivery deleted successfully.</span>`;
     setTimeout(() => { document.getElementById("formMessage").innerHTML = ""; }, 4000);
   } catch (e) {
-    alert("⚠ Network error. Please try again.");
+    showToast("Network error. Please try again.", "error");
     if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "🗑 Confirm Delete"; }
   }
 }
 
 /* ── CSV EXPORT ── */
 function exportToCSV() {
-  if (!currentAccountantData.length) { alert("No data to export"); return; }
+  if (!currentAccountantData.length) { showToast("No data to export", "info"); return; }
 
   const headers = ["Customer","Phone","Alt Phone","Address","Product","Serial","Invoice","Priority","Status","Rating","Batch","ETA","Driver","Instructions","Freight","Freight Amount","Created","Loaded At","Delivered At"];
   const rows = currentAccountantData.map(d => {
