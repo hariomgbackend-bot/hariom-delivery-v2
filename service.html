@@ -1021,17 +1021,17 @@ async function getDelivery(id) {
 /* ── STATS ── */
 function updateStats() {
   const todayStr = new Date().toDateString();
-  document.getElementById("statOpen").textContent =
-    allTickets.filter(t => t.status === "new").length;
-  document.getElementById("statInProgress").textContent =
-    allTickets.filter(t => t.status === "logged").length;
-  document.getElementById("statTodayInstall").textContent =
-    allTickets.filter(t => t.type === "installation" &&
-      t.created_at?.seconds &&
-      new Date(t.created_at.seconds * 1000).toDateString() === todayStr
-    ).length;
-  document.getElementById("statComplaints").textContent =
-    allTickets.filter(t => t.type === "complaint" && t.status !== "logged").length;
+  const elOpen = document.getElementById("statOpen");
+  if (elOpen) elOpen.textContent = allTickets.filter(t => t.status === "new").length;
+  const elProgress = document.getElementById("statInProgress");
+  if (elProgress) elProgress.textContent = allTickets.filter(t => t.status === "logged").length;
+  const elToday = document.getElementById("statTodayInstall");
+  if (elToday) elToday.textContent = allTickets.filter(t => t.type === "installation" &&
+    t.created_at?.seconds &&
+    new Date(t.created_at.seconds * 1000).toDateString() === todayStr
+  ).length;
+  const elComplaints = document.getElementById("statComplaints");
+  if (elComplaints) elComplaints.textContent = allTickets.filter(t => t.type === "complaint" && t.status !== "logged").length;
 
   // Filter counts
   const counts = {};
@@ -1887,8 +1887,8 @@ async function submitCreateTicket() {
     allTickets.push(localTicket);
     _searchCache.clear();
     closeCreateTicketPopup();
-    renderTickets();
-    updateStats();
+    try { renderTickets(); } catch(e) { console.error("renderTickets error:", e); }
+    try { updateStats(); } catch(e) { console.error("updateStats error:", e); }
   } catch(e) {
     console.error("submitCreateTicket error:", e);
     msg.style.color = "var(--error)"; msg.textContent = e.message || "Network error.";
@@ -2214,6 +2214,7 @@ async function registerServicePush() {
       const title = payload.data?.title || payload.notification?.title || "";
       const body = payload.data?.body || payload.notification?.body || "";
       if (title || body) showToast(`🔔 ${title}: ${body}`);
+      loadTickets();
     });
 
   } catch(e) { console.warn("[service push] Registration failed:", e.message); }
