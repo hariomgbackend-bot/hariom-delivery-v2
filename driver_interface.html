@@ -4581,10 +4581,9 @@ async function confirmSelfPickup(deliveryId) {
       formData.append("serial", serialInput.value.trim());
     }
 
-    const res  = await fetch(`${BASE_URL}/markSelfPickup/${deliveryId}`, {
-      method: "POST",
-      body: formData
-    });
+    const fetchOpts = { method: "POST", body: formData };
+    if (driverSessionToken) fetchOpts.headers = { "Authorization": "Bearer " + driverSessionToken };
+    const res  = await fetch(`${BASE_URL}/markSelfPickup/${deliveryId}`, fetchOpts);
     const data = await res.json();
 
     if (!res.ok) {
