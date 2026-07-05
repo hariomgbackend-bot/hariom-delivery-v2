@@ -757,6 +757,7 @@
     .combobox-dropdown div.active { background: var(--surface-container-high); }
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
+<script src="/shared.js"></script>
 </head>
 <body>
 
@@ -1318,12 +1319,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("darkToggleBtn").textContent = isDark ? "☀️" : "🌙";
 });
 
-/* ── TOAST ── */
-function showToast(msg, duration = 2600) {
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), duration);
-}
+/* showToast shared via /shared.js */
 
 /* ── AUTH ── */
 
@@ -1336,16 +1332,8 @@ function isTokenExpired(token) {
   } catch { return true; }
 }
 
-async function authFetch(url, opts = {}) {
-  const token = getToken();
-  if (!token || isTokenExpired(token)) { doLogout(); throw new Error("expired"); }
-  const res = await fetch(url, {
-    ...opts,
-    headers: { ...(opts.headers || {}), Authorization: "Bearer " + token }
-  });
-  if (res.status === 401) { doLogout(); throw new Error("401"); }
-  return res;
-}
+window.authGetToken = getToken;
+window.authOnError = doLogout;
 
 /* ── LOAD STAFF LIST ── */
 async function loadStaffList() {
@@ -1555,7 +1543,7 @@ function renderDeliveries(data) {
     <div class="delivery-card" onclick="openDelivPopup('${esc(d.id)}')">
       <div class="card-top">
         <div>
-          <div class="card-name">${esc(d.customer_name)}</div>
+          <div class="card-name">${esc(d.customer_name)}${d.point_of_sale?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(d.point_of_sale)}</span>`:""}</div>
           <div class="card-product">${esc(d.product_name)}</div>
         </div>
         <div class="card-badges">
@@ -1607,7 +1595,7 @@ function openDelivPopup(id) {
         ${warranty ? warranty : ""}
         ${d.is_self_pickup ? `<span class="badge badge-selfpickup" style="background:rgba(22,163,74,0.15);color:#16a34a;border:1px solid rgba(22,163,74,0.3);">🏪 Self Pickup</span>` : ""}
       </div>
-      <div class="popup-name">${esc(d.customer_name)}</div>
+      <div class="popup-name">${esc(d.customer_name)}${d.point_of_sale?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(d.point_of_sale)}</span>`:""}</div>
     </div>
     <div class="popup-body">
       <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${esc(d.phone)}">${esc(d.phone)}</a></span></div>

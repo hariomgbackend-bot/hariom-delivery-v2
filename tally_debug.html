@@ -411,6 +411,12 @@
     return `<div class="meta-chip"><span class="icon">${icon}</span>${label}: <strong>${value}</strong></div>`;
   }
 
+  function routeLabel(route) {
+    if (route === "/tally/ticket") return "Service Ticket";
+    if (route === "/tally/voucher") return "Delivery Order";
+    return route || "Unknown";
+  }
+
   /* ═══════════════════════════════════════════
      Render latest
   ═══════════════════════════════════════════ */
@@ -422,11 +428,13 @@
 
     // Stats
     document.getElementById("stat-invoice").textContent  = data.invoice_number || "—";
-    document.getElementById("stat-customer").textContent = data.customer_name   || "—";
+    document.getElementById("stat-customer").textContent = data.customer_name || routeLabel(data.route);
     document.getElementById("stat-size").textContent     = formatBytes(data.payload_bytes);
     document.getElementById("stat-time").textContent     = formatISO(data.received_at);
     document.getElementById("stat-items").textContent    =
-      data.item_count != null ? `${data.item_count} line item(s)` : "Item count unknown";
+      data.item_count != null
+        ? `${data.item_count} line item(s)`
+        : [routeLabel(data.route), data.ticket_type, data.priority].filter(Boolean).join(" • ") || "Item count unknown";
 
     if (!data.payload) { emptyEl.style.display = ""; cardEl.style.display = "none"; return; }
 
@@ -434,10 +442,14 @@
     cardEl.style.display  = "";
 
     metaEl.innerHTML = [
+      metaChip("🧭", "Route",     routeLabel(data.route)),
       metaChip("🕐", "Received",  formatISO(data.received_at)),
       metaChip("⚡", "Invoice",   data.invoice_number),
       metaChip("👤", "Customer",  data.customer_name),
       metaChip("📦", "Items",     data.item_count),
+      metaChip("🎫", "Ticket",    data.ticket_type),
+      metaChip("‼", "Priority",   data.priority),
+      metaChip("🔢", "Serial",     data.serial_number),
       metaChip("📏", "Size",      formatBytes(data.payload_bytes)),
     ].join("");
 
@@ -475,9 +487,12 @@
             <div class="seq-badge${isLatest ? " latest" : ""}">${history.length - i}</div>
             <div class="history-item-meta">
               <div class="hi-field">🕐 <strong>${formatISO(entry.received_at)}</strong></div>
+              <div class="hi-field">🧭 <strong>${routeLabel(entry.route)}</strong></div>
               ${entry.invoice_number ? `<div class="hi-field">⚡ Invoice: <strong>${entry.invoice_number}</strong></div>` : ""}
               ${entry.customer_name  ? `<div class="hi-field">👤 <strong>${entry.customer_name}</strong></div>` : ""}
               ${entry.item_count != null ? `<div class="hi-field">📦 <strong>${entry.item_count}</strong> item(s)</div>` : ""}
+              ${entry.ticket_type ? `<div class="hi-field">🎫 <strong>${entry.ticket_type}</strong></div>` : ""}
+              ${entry.priority ? `<div class="hi-field">‼ <strong>${entry.priority}</strong></div>` : ""}
               <div class="hi-field">📏 <strong>${formatBytes(entry.payload_bytes)}</strong></div>
               ${isLatest ? `<span class="badge green">Latest</span>` : ""}
             </div>

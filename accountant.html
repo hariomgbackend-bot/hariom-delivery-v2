@@ -74,119 +74,6 @@
     }
 
     /* ════ LOGIN SCREEN ════ */
-    #loginScreen {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: var(--surface-container-lowest);
-      z-index: 999;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    #loginScreen.active { display: flex; }
-
-    .login-card {
-      background: var(--surface-container-low);
-      border-radius: 28px;
-      padding: 44px 36px;
-      width: 100%;
-      max-width: 400px;
-      text-align: center;
-      border: 1px solid rgba(173,198,255,0.08);
-      box-shadow: 0 48px 80px rgba(0,0,0,0.5);
-      animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
-    }
-    @keyframes slideUp {
-      from { opacity:0; transform:translateY(24px); }
-      to   { opacity:1; transform:translateY(0); }
-    }
-
-    .login-brand {
-      margin-bottom: 32px;
-    }
-    .login-icon {
-      width: 72px; height: 72px;
-      background: linear-gradient(135deg, var(--primary-container), var(--primary));
-      border-radius: 20px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 32px;
-      margin-bottom: 16px;
-      box-shadow: 0 12px 32px rgba(77,142,255,0.3);
-    }
-    .login-brand h2 {
-      font-size: 22px;
-      font-weight: 900;
-      color: var(--on-surface);
-      letter-spacing: -0.5px;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
-    .login-brand p {
-      font-size: 12px;
-      color: var(--on-surface-variant);
-      font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-
-    .login-field { margin-bottom: 16px; text-align: left; }
-    .login-field label {
-      display: block;
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.2px;
-      color: var(--on-surface-variant);
-      margin-bottom: 8px;
-    }
-    .login-field input {
-      width: 100%;
-      height: 52px;
-      background: var(--surface-container-highest);
-      border: none;
-      border-radius: 14px;
-      padding: 0 18px;
-      font-family: 'Inter', sans-serif;
-      font-size: 15px;
-      color: var(--on-surface);
-      text-align: center;
-      letter-spacing: 0.3em;
-      outline: none;
-      transition: box-shadow 0.2s;
-    }
-    .login-field input:focus { box-shadow: 0 0 0 2px var(--primary); }
-    .login-field input::placeholder { color: rgba(194,198,214,0.4); letter-spacing: normal; font-size: 14px; }
-
-    .login-btn {
-      width: 100%;
-      height: 52px;
-      background: linear-gradient(135deg, var(--primary-container), var(--primary));
-      color: var(--on-primary-container);
-      border: none;
-      border-radius: 14px;
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      cursor: pointer;
-      margin-top: 4px;
-      transition: opacity 0.2s, transform 0.15s;
-    }
-    .login-btn:hover { opacity: 0.9; transform: translateY(-1px); }
-    .login-btn:active { transform: scale(0.98); }
-
-    .login-error {
-      text-align: center;
-      font-size: 13px;
-      color: var(--error);
-      margin-top: 12px;
-      min-height: 18px;
-      font-weight: 500;
-    }
-
     /* ════ GLASSMORPHIC HEADER ════ */
     .header {
       background: rgba(11,19,38,0.65);
@@ -1097,9 +984,6 @@
     [data-theme="light"] .btn-gray   { background: #f1f5f9; color: #64748b; }
     [data-theme="light"] #xlitToggleBtn { background: white !important; border-color: #dde3ed !important; color: #64748b !important; }
     [data-theme="light"] input[readonly] { background: rgba(22,163,74,0.06) !important; }
-    [data-theme="light"] .login-card { background: white; }
-    [data-theme="light"] .login-icon { box-shadow: 0 12px 32px rgba(37,99,235,0.2); }
-    [data-theme="light"] .login-field input { background: #f1f5f9; color: #1e293b; }
     [data-theme="light"] .kinetic-bottom-nav { background: rgba(255,255,255,0.80); }
     [data-theme="light"] .kinetic-nav-btn { color: rgba(30,41,59,0.4); }
     [data-theme="light"] .kinetic-nav-btn.active { color: #2563eb; background: rgba(37,99,235,0.08); }
@@ -1111,23 +995,6 @@
 <!-- ══ TOAST + OFFLINE INDICATOR ══ -->
 <div id="toast"></div>
 <div id="offlineBanner">📡 You're offline — changes will sync when reconnected</div>
-
-<!-- ══ LOGIN SCREEN ══ -->
-<div id="loginScreen">
-  <div class="login-card">
-    <div class="login-brand">
-      <div class="login-icon">🧾</div>
-      <h2>Hariom Electronics</h2>
-      <p>Accountant Panel</p>
-    </div>
-    <div class="login-field">
-      <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password">
-    </div>
-    <button class="login-btn" onclick="doAccountantLogin()">Authorize Access</button>
-    <div class="login-error" id="loginError"></div>
-  </div>
-</div>
 
 <!-- ══ MAIN APP ══ -->
 <div id="appShell" style="display:none;">
@@ -1142,7 +1009,6 @@
     <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
     <span id="lastUpdated"></span>
     <span id="pushIndicator"></span>
-    <a href="driver_interface.html">🚚 Driver View</a>
     <button onclick="accountantLogout()" class="header-logout-btn">Logout</button>
   </nav>
 </div>
@@ -1198,8 +1064,14 @@
       <button class="filter-btn" style="padding:4px 10px;font-size:11px;color:var(--error);" onclick="resetDateRange()">✕ Reset</button>
     </div>
 
-    <!-- DRIVER & ROUTE FILTERS (combined row) -->
+    <!-- STORE, DRIVER & ROUTE FILTERS -->
     <div class="filter-bar" id="driverRouteBar" style="margin-top:4px;gap:8px;">
+      <select id="storeFilterSelect" onchange="setStoreFilter(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:700;">
+        <option value="own">🏪 My Store</option>
+        <option value="all">🏪 All Stores</option>
+        <option value="Alandi">🏪 Alandi</option>
+        <option value="Dhanore">🏪 Dhanore</option>
+      </select>
       <select id="driverFilterSelect" onchange="setDriverFilter(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--surface-container-high);color:var(--on-surface);outline:none;">
         <option value="all">All Drivers</option>
       </select>
@@ -1219,6 +1091,7 @@
       <table>
         <thead>
           <tr>
+            <th style="width:44px;text-align:center;">St</th>
             <th>Customer</th>
             <th>Phone</th>
             <th>Product</th>
@@ -1226,8 +1099,7 @@
             <th>Driver</th>
             <th>ETA</th>
             <th>Status</th>
-            <th>Rating</th>
-            <th>Action</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="list"></tbody>
@@ -1560,7 +1432,7 @@ async function loadStores() {
 }
 
 /* ── TOAST NOTIFICATION ── */
-/* showToast, escHtml, tagAll, ratingBadge shared via /shared.js */
+/* showToast, escHtml, tagAll shared via /shared.js */
 
 /* ── OFFLINE DETECTION ── */
 window.addEventListener("online", () => {
@@ -1592,6 +1464,7 @@ let swRegistration      = null;
 let currentFilter       = "all";
 let currentRoute        = "all";
 let currentDriverFilter = "all";
+let selectedStore      = "";  // "" = user's own store, "all" = all stores, "Alandi"/"Dhanore" = specific
 let dateRangeStart      = "";
 let dateRangeEnd        = "";
 let searchQuery         = "";
@@ -1636,7 +1509,7 @@ const BATCH_PALETTES = _isDark() ? [
 /* ══════════════════════════════════════════
    AUTH — single source of truth
 ══════════════════════════════════════════ */
-function getToken() { return localStorage.getItem("accountantToken"); }
+function getToken() { return localStorage.getItem("accountantToken") || localStorage.getItem("adminToken"); }
 
 function isTokenExpired() {
   const t = getToken();
@@ -1647,22 +1520,41 @@ function isTokenExpired() {
   } catch { return true; }
 }
 
+function redirectToLogin() {
+  window.location.href = "login.html";
+}
+
 function handleAuthError() {
+  localStorage.removeItem("adminToken");
   localStorage.removeItem("accountantToken");
-  showLoginScreen();
-  setTimeout(() => {
-    const el = document.getElementById("loginError");
-    if (el) el.innerText = "⚠ Session expired. Please sign in again.";
-  }, 100);
+  redirectToLogin();
 }
 
 function accountantLogout() {
+  localStorage.removeItem("adminToken");
   localStorage.removeItem("accountantToken");
-  showLoginScreen();
+  redirectToLogin();
 }
 
 window.authGetToken = getToken;
 window.authOnError = handleAuthError;
+
+function getUserStoreFromToken() {
+  const t = getToken();
+  if (!t) return "";
+  try {
+    const payload = JSON.parse(atob(t.split(".")[1]));
+    return payload.storeName || "";
+  } catch { return ""; }
+}
+
+function setStoreFilter(val) {
+  selectedStore = val;
+  const sel = document.getElementById("storeFilterSelect");
+  if (sel) sel.value = val;
+  loadDeliveryCounts().then(() => loadDeliveries());
+}
+
 setTimeout(loadStores, 0);
 
 // Guard on every tab focus
@@ -1677,54 +1569,24 @@ setInterval(() => {
   if (isTokenExpired()) handleAuthError();
 }, 60_000);
 
-function showLoginScreen() {
-  document.getElementById("loginScreen").classList.add("active");
-  document.getElementById("appShell").style.display = "none";
-}
-
 function showApp() {
-  document.getElementById("loginScreen").classList.remove("active");
   document.getElementById("appShell").style.display = "block";
+  selectedStore = getUserStoreFromToken();
+  const sel = document.getElementById("storeFilterSelect");
+  if (sel) sel.value = selectedStore || "own";
 }
-
-async function doAccountantLogin() {
-  const password = document.getElementById("loginPassword").value;
-  const err = document.getElementById("loginError");
-  err.innerText = "";
-  if (!password) { err.innerText = "Password required"; return; }
-
-  const res = await fetch(`${BASE_URL}/accountant/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password })
-  });
-  const data = await res.json();
-  if (!res.ok) { err.innerText = data.error || "Invalid password"; return; }
-
-  localStorage.setItem("accountantToken", data.token);
-  showApp();
-  initApp();
-}
-
-document.getElementById("loginPassword").addEventListener("keydown", e => {
-  if (e.key === "Enter") doAccountantLogin();
-});
 
 // On page load — check for existing token AND that it hasn't expired
-const existingToken = localStorage.getItem("accountantToken");
+const existingToken = getToken();
 if (existingToken && !isTokenExpired()) {
   showApp();
   initApp();
 } else {
-  if (existingToken) localStorage.removeItem("accountantToken"); // clear stale token
-  showLoginScreen();
   if (existingToken) {
-    // Token existed but was expired — show message
-    setTimeout(() => {
-      const el = document.getElementById("loginError");
-      if (el) el.innerText = "⚠ Session expired. Please sign in again.";
-    }, 100);
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("accountantToken");
   }
+  redirectToLogin();
 }
 
 /* ══════════════════════════════════════════
@@ -3695,7 +3557,8 @@ async function loadDeliveries() {
 
 async function loadDeliveryCounts() {
   try {
-    const res = await authFetch(`${BASE_URL}/delivery-counts`);
+    const storeParam = selectedStore && selectedStore !== "own" ? `?store=${encodeURIComponent(selectedStore)}` : "";
+    const res = await authFetch(`${BASE_URL}/delivery-counts${storeParam}`);
     if (!res.ok) return null;
     return await res.json();
   } catch (e) {
@@ -3731,6 +3594,7 @@ async function _doLoadDeliveries() {
     // Send route and driver filters to server (so pagination works correctly)
     if (currentRoute !== "all") url += `&route=${encodeURIComponent(currentRoute)}`;
     if (currentDriverFilter !== "all") url += `&driver=${encodeURIComponent(currentDriverFilter)}`;
+    if (selectedStore && selectedStore !== "own") url += `&store=${encodeURIComponent(selectedStore)}`;
 
     const res = await authFetch(url);
     if (res.status === 429) { _deliveriesInflight = false; return; }
@@ -3830,18 +3694,14 @@ async function _doLoadDeliveries() {
       if (d.status==="booked") tr.style.background=_isDark()?"rgba(99,102,241,0.08)":"#eef2ff";
       if (d.status==="failed") tr.style.background=_isDark()?"rgba(255,180,171,0.06)":"#fff1f2";
 
-      function gr(d2) {
-        if (d2.status!=="delivered"||!d2.delivered_timestamp||!d2.estimated_delivery_time) return "";
-        const dm = new Date(d2.delivered_timestamp.seconds*1000).getTime();
-        const em = new Date(d2.estimated_delivery_time).getTime();
-        const df = (dm-em)/60000;
-        if (df<=-10) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early</span>`;
-        if (df<=10) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
-        if (df<=30) return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late</span>`;
-        return `<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">🔴 Very Late</span>`;
-      }
+      const storeCircle = d.point_of_sale === "Alandi"
+        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.15);vertical-align:middle;">A</span>`
+        : d.point_of_sale === "Dhanore"
+        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.15);vertical-align:middle;">D</span>`
+        : `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:12px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
 
       tr.innerHTML = `
+        <td style="text-align:center;">${storeCircle}</td>
         <td>${escHtml(d.customer_name)}${batchTag}${d.previous_failures>0?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>`:""}</td>
         <td><a class='phone-link' href='tel:${escHtml(d.phone)}'>${escHtml(d.phone)}</a></td>
         <td>${escHtml(d.product_name)}</td>
@@ -3854,7 +3714,6 @@ async function _doLoadDeliveries() {
           ${(d.status!=="delivered"&&d.status!=="failed"&&d.status!=="booked"&&d.estimated_delivery_time&&new Date(d.estimated_delivery_time)<new Date())?`<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>`:""}
           ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
         </td>
-        <td>${gr(d)}</td>
         <td><button class="btn ${d.status==='failed'?'btn-danger':'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status==="failed"?"⚠ Action":"View"}</button></td>
       `;
       list.appendChild(tr);
@@ -3924,13 +3783,12 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
     card.innerHTML = `
       <div class="mob-card-header">
         <div>
-          <div class="mob-card-name">${escHtml(d.customer_name)}${palette ? `<span style="margin-left:6px;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};">🔗 B${batchNumberMap[d.phone]}</span>` : ""}</div>
+          <div class="mob-card-name">${escHtml(d.customer_name)}${d.point_of_sale?`<span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${escHtml(d.point_of_sale)}</span>`:""}${palette ? `<span style="margin-left:6px;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};">🔗 B${batchNumberMap[d.phone]}</span>` : ""}</div>
           <div style="font-size:12px;color:var(--muted);margin-top:2px;">${escHtml(d.product_name)}</div>
         </div>
         <div class="mob-card-badges">
           <span class="badge badge-${d.status}">${d.status}</span>
           ${d.priority === "urgent" ? `<span class="badge" style="background:rgba(255,180,171,0.15);color:var(--error);">🔥</span>` : ""}
-          ${ratingBadge(d)}
         </div>
       </div>
       <div class="mob-card-meta">
@@ -3983,18 +3841,6 @@ function openViewPopup(id) {
     popupBatchRow = `<div class="detail-row"><b>Batch</b><span><span style="padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};">🔗 Batch ${bNum} — ${phoneCounts[delivery.phone]} items for this customer</span></span></div>`;
   }
 
-  // Rating
-  let ratingRow = "";
-  if (delivery.status === "delivered" && delivery.delivered_timestamp && delivery.estimated_delivery_time) {
-    const diffMin = (new Date(delivery.delivered_timestamp.seconds * 1000) - new Date(delivery.estimated_delivery_time)) / 60000;
-    let ratingHtml = "";
-    if      (diffMin <= -10) ratingHtml = `<span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">⚡ Early (${Math.abs(Math.round(diffMin))}m before ETA)</span>`;
-    else if (diffMin <=  10) ratingHtml = `<span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">✅ On Time</span>`;
-    else if (diffMin <=  30) ratingHtml = `<span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">🕐 Late (${Math.round(diffMin)}m after ETA)</span>`;
-    else                      ratingHtml = `<span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">🔴 Very Late (${Math.round(diffMin)}m after ETA)</span>`;
-    ratingRow = `<div class="detail-row"><b>Rating</b><span>${ratingHtml}</span></div>`;
-  }
-
   content.innerHTML = `
     <div class="section-title">Customer Details</div>
     <div class="detail-row"><b>Name</b><span>${escHtml(delivery.customer_name)}</span></div>
@@ -4027,7 +3873,6 @@ function openViewPopup(id) {
     <div class="detail-row"><b>Driver</b><span style="color:#f59e0b;font-weight:600;">🏪 Self Pickup — No driver needed</span></div>
     `}
     <div class="detail-row"><b>ETA</b><span>${formatDate(delivery.estimated_delivery_time)}</span></div>
-    ${ratingRow}
     <div class="detail-row"><b>Instruction</b><span>${escHtml(delivery.driver_instructions) || "—"}</span></div>
     <div class="detail-row"><b>Point of Sale</b><span>${escHtml(delivery.point_of_sale) || "—"}</span></div>
     <div class="detail-row"><b>Pickup From</b><span>${escHtml(delivery.pickup_from) || "—"}</span></div>
@@ -6150,7 +5995,8 @@ let _allSaleLeads = [];
 
 async function openSalesPopup() {
   try {
-    const res = await authFetch(`${BASE_URL}/leads`);
+    const storeQ = selectedStore && selectedStore !== "own" ? `store=${encodeURIComponent(selectedStore)}` : "";
+    const res = await authFetch(`${BASE_URL}/leads${storeQ ? "?"+storeQ : ""}`);
     if (!res.ok) { showToast("⚠ Failed to load sales"); return; }
     const allLeads = await res.json();
     _allSaleLeads = allLeads.filter(l => l.status === "sale");
@@ -6191,7 +6037,7 @@ function renderSalesList() {
       : "—";
     html += `
     <tr>
-      <td style="font-weight:500;">${escHtml(l.customer_name || l.phone)}</td>
+      <td style="font-weight:500;">${escHtml(l.customer_name || l.phone)}${l.point_of_sale?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${escHtml(l.point_of_sale)}</span>`:""}</td>
       <td><a class="phone-link" href="tel:${escHtml(l.phone)}">${escHtml(l.phone)}</a></td>
       <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(prodSummary||'').replace(/"/g,'&quot;')}">${escHtml(prodSummary)}</td>
       <td style="font-weight:600;white-space:nowrap;color:var(--tertiary);">${priceDisplay}</td>

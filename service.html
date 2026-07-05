@@ -1119,7 +1119,7 @@ function renderTicketsTable(tickets) {
   tbody.innerHTML = tickets.map(t => `
     <tr class="clickable" onclick="openTicketDetail('${t.id}')">
       <td><span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span></td>
-      <td style="font-weight:700;">${esc(t.customer_name)||"—"}</td>
+      <td style="font-weight:700;">${esc(t.customer_name)||"—"}${t.point_of_sale?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(t.point_of_sale)}</span>`:""}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.product_name)||"—"}</td>
       <td><a class="phone-link" href="tel:${esc(t.phone)}" onclick="event.stopPropagation()">${esc(t.phone)||"—"}</a></td>
       <td><span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace("_"," ")}</span></td>
@@ -1142,7 +1142,7 @@ function renderTicketsMob(tickets) {
     <div class="mob-ticket-card" onclick="openTicketDetail('${t.id}')">
       <div class="mob-card-row">
         <div>
-          <div class="mob-card-name">${esc(t.customer_name)||"—"}</div>
+          <div class="mob-card-name">${esc(t.customer_name)||"—"}${t.point_of_sale?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(t.point_of_sale)}</span>`:""}</div>
           <div class="mob-card-product">${esc(t.product_name)||"—"}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -1288,6 +1288,7 @@ function openTicketDetail(id) {
     <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span>
       ${esc(t.customer_name) || "—"}
+      ${t.point_of_sale?`<span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(t.point_of_sale)}</span>`:""}
     </h3>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">

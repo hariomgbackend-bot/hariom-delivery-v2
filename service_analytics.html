@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/shared.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -284,11 +285,8 @@ function isExpired(token) {
   try { const p = JSON.parse(atob(token.split(".")[1])); return Date.now() >= p.exp * 1000; }
   catch { return true; }
 }
-function authFetch(url, opts={}) {
-  const token = getToken();
-  if (!token || isExpired(token)) { window.location.href = getBackUrl(); throw new Error("expired"); }
-  return fetch(url, { ...opts, headers: { ...(opts.headers||{}), Authorization: "Bearer "+token } });
-}
+window.authGetToken = getToken;
+window.authOnError = () => { window.location.href = getBackUrl(); };
 
 // Check auth on load
 (function() {
@@ -314,26 +312,6 @@ function filterByRange(tickets, days) {
     const ms = tsMs(t.created_at);
     return ms && ms >= cutoff;
   });
-}
-
-function getBrand(productName) {
-  const n = (productName || "").toUpperCase().trim();
-  const stripped = n.replace(/^(WM|LED|REF|AC|A\/C|P-FAN|E-GEYSER|IC|TV|FAN|COOLER|GEYSER)\s+/, "").trim();
-  const brandMap = [
-    ["SAMSUNG"],["WHIRLPOOL"],["HAIER"],["LG"],["BOSCH"],["IFB"],
-    ["VOLTAS"],["DAIKIN"],["HITACHI"],["CARRIER"],["BLUE STAR","BLUESTAR"],
-    ["GODREJ"],["VIDEOCON"],["PANASONIC"],["SONY"],["PHILIPS"],
-    ["BAJAJ"],["ORIENT"],["HAVELLS"],["USHA"],["CROMPTON"],
-    ["LIVPURE"],["SYMPHONY"],["HINDWARE"],["RACOLD"],["AO SMITH","AOSMITH"],
-    ["LLOYD"],["ONIDA"],["MICROMAX"],["TCL"],["HISENSE"],
-  ];
-  for (const aliases of brandMap) {
-    for (const alias of aliases) {
-      if (stripped.startsWith(alias) || n.includes(" "+alias+" ") || n.includes(" "+alias)) return aliases[0];
-    }
-  }
-  const first = stripped.split(/\s+/)[0];
-  return first && first.length > 1 ? first : "Other";
 }
 
 function makeChart(id, config) {

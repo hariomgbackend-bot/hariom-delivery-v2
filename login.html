@@ -11,69 +11,32 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
   <meta name="theme-color" content="#0b1326">
-  <title>Admin Login — Hariom Electronics</title>
+  <title>Login — Hariom Electronics</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
   <script id="tailwind-config">
     tailwind.config = {
       darkMode: "class",
       theme: {
         extend: {
           colors: {
-            "on-surface-variant": "#c2c6d6",
-            "outline": "#8c909f",
-            "surface-dim": "#0b1326",
-            "primary-container": "#4d8eff",
-            "error": "#ffb4ab",
-            "on-primary": "#002e6a",
-            "surface": "#0b1326",
-            "surface-container-highest": "#2d3449",
-            "on-secondary-fixed": "#111c2d",
-            "on-secondary-container": "#aeb9d0",
-            "on-primary-fixed-variant": "#004395",
-            "tertiary-fixed": "#6ffbbe",
-            "on-tertiary-fixed-variant": "#005236",
-            "on-error": "#690005",
-            "on-surface": "#dae2fd",
-            "secondary": "#bcc7de",
-            "on-primary-container": "#00285d",
-            "on-error-container": "#ffdad6",
-            "tertiary-fixed-dim": "#4edea3",
-            "surface-container-high": "#222a3d",
-            "secondary-fixed-dim": "#bcc7de",
-            "on-tertiary-fixed": "#002113",
-            "error-container": "#93000a",
-            "primary-fixed-dim": "#adc6ff",
-            "surface-bright": "#31394d",
-            "on-primary-fixed": "#001a42",
-            "tertiary-container": "#00a572",
-            "outline-variant": "#424754",
-            "surface-variant": "#2d3449",
-            "primary": "#adc6ff",
-            "inverse-surface": "#dae2fd",
-            "inverse-primary": "#005ac2",
-            "inverse-on-surface": "#283044",
-            "surface-container-lowest": "#060e20",
-            "on-secondary": "#263143",
-            "secondary-container": "#3e495d",
-            "primary-fixed": "#d8e2ff",
-            "surface-container-low": "#131b2e",
-            "tertiary": "#4edea3",
-            "secondary-fixed": "#d8e3fb",
-            "background": "#0b1326",
-            "surface-tint": "#adc6ff",
-            "on-secondary-fixed-variant": "#3c475a",
-            "on-tertiary": "#003824",
-            "on-background": "#dae2fd",
+            "on-surface-variant": "#c2c6d6", "outline": "#8c909f", "surface-dim": "#0b1326",
+            "primary-container": "#4d8eff", "error": "#ffb4ab", "on-primary": "#002e6a",
+            "surface": "#0b1326", "surface-container-highest": "#2d3449",
+            "on-secondary-container": "#aeb9d0", "on-surface": "#dae2fd",
+            "secondary": "#bcc7de", "on-error-container": "#ffdad6",
+            "surface-container-high": "#222a3d", "error-container": "#93000a",
+            "surface-bright": "#31394d", "outline-variant": "#424754",
+            "surface-variant": "#2d3449", "primary": "#adc6ff",
+            "inverse-surface": "#dae2fd", "inverse-primary": "#005ac2",
+            "secondary-container": "#3e495d", "surface-container-low": "#131b2e",
+            "tertiary": "#4edea3", "background": "#0b1326",
             "surface-container": "#171f33",
-            "on-tertiary-container": "#00311f"
           },
-          fontFamily: {
-            "headline": ["Inter"],
-            "body": ["Inter"],
-            "label": ["Inter"]
-          },
+          fontFamily: { "headline": ["Inter"], "body": ["Inter"], "label": ["Inter"] },
           borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" },
         },
       },
@@ -93,81 +56,53 @@
       position: relative;
     }
     .kinetic-light {
-      position: absolute;
-      width: 600px;
-      height: 600px;
+      position: absolute; width: 600px; height: 600px;
       background: radial-gradient(circle, rgba(77, 142, 255, 0.05) 0%, transparent 70%);
-      top: -200px;
-      right: -100px;
-      pointer-events: none;
+      top: -200px; right: -100px; pointer-events: none;
     }
-    .glow-focus:focus-within {
-      box-shadow: 0 0 20px rgba(173, 198, 255, 0.15);
-      background: #222a3d;
-    }
-
-    /* ── LIGHT MODE OVERRIDES ─────────────────────────────── */
-    html:not(.dark) body {
-      background: #f0f4ff !important;
-      color: #0b1326 !important;
-    }
-    html:not(.dark) .kinetic-bg {
-      background: radial-gradient(circle at 50% 50%, #dde8ff 0%, #f0f4ff 100%) !important;
-    }
-    html:not(.dark) .kinetic-light {
-      background: radial-gradient(circle, rgba(77, 142, 255, 0.08) 0%, transparent 70%) !important;
-    }
-    html:not(.dark) header {
-      background: rgba(240, 244, 255, 0.7) !important;
-      border-bottom: 1px solid rgba(77, 142, 255, 0.15) !important;
-    }
-    html:not(.dark) .glass-panel {
-      background: rgba(255, 255, 255, 0.75) !important;
-      border: 1px solid rgba(77, 142, 255, 0.15) !important;
-      box-shadow: 0 8px 40px rgba(11, 19, 38, 0.1) !important;
-    }
-    html:not(.dark) .glass-panel input {
-      background: #f0f4ff !important;
-      color: #0b1326 !important;
-    }
-    html:not(.dark) .glass-panel input::placeholder { color: #8c909f !important; }
+    .glow-focus:focus-within { box-shadow: 0 0 20px rgba(173, 198, 255, 0.15); background: #222a3d; }
+    html:not(.dark) body { background: #f0f4ff !important; color: #0b1326 !important; }
+    html:not(.dark) .kinetic-bg { background: radial-gradient(circle at 50% 50%, #dde8ff 0%, #f0f4ff 100%) !important; }
+    html:not(.dark) .glass-panel { background: rgba(255, 255, 255, 0.75) !important; border: 1px solid rgba(77, 142, 255, 0.15) !important; }
+    html:not(.dark) .glass-panel input { background: #f0f4ff !important; color: #0b1326 !important; }
+    html:not(.dark) .glass-panel select { background: #f0f4ff !important; color: #0b1326 !important; }
     html:not(.dark) .glow-focus { background: #f0f4ff !important; }
     html:not(.dark) .glow-focus:focus-within { background: #e4eaff !important; }
-    html:not(.dark) h1, html:not(.dark) h2 { color: #0b1326 !important; }
-    html:not(.dark) .text-on-surface { color: #0b1326 !important; }
-    html:not(.dark) footer p, html:not(.dark) footer a { color: #4d8eff !important; opacity: 1 !important; }
+    .role-tab { cursor: pointer; padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .role-tab.active { background: #adc6ff; color: #002e6a; }
+    .role-tab:not(.active) { background: #222a3d; color: #8c909f; }
+    html:not(.dark) .role-tab:not(.active) { background: #dde8ff; color: #5a6080; }
   </style>
 </head>
 <body class="bg-surface text-on-surface min-h-screen flex flex-col kinetic-bg">
 
-  <!-- Top Navigation Bar -->
   <header class="fixed top-0 w-full bg-[#0b1326]/60 backdrop-blur-xl flex justify-between items-center px-6 py-4 z-50 shadow-[0_48px_48px_rgba(0,0,0,0.06)]">
     <div class="flex items-center gap-3">
       <span class="material-symbols-outlined text-[#adc6ff]">shield_lock</span>
-      <h1 class="font-['Inter'] tracking-tight font-black uppercase text-xl tracking-tighter text-[#adc6ff]">HARIOM ELECTRONICS</h1>
+      <h1 class="font-black uppercase text-xl tracking-tighter text-[#adc6ff]">HARIOM ELECTRONICS</h1>
     </div>
-    <button class="p-2 rounded-full hover:opacity-80 transition-opacity active:scale-95 duration-200" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">
+    <button class="p-2 rounded-full hover:opacity-80 transition-opacity active:scale-95 duration-200" onclick="toggleDarkMode()">
       <span class="material-symbols-outlined text-[#dae2fd]" id="darkToggleIcon">dark_mode</span>
     </button>
   </header>
 
   <div class="kinetic-light"></div>
 
-  <!-- Main Login Canvas -->
   <main class="flex-grow flex items-center justify-center px-4 py-20">
     <div class="w-full max-w-md">
-
-      <!-- Branding -->
       <div class="text-center mb-10">
         <span class="text-xs font-bold tracking-[0.4em] text-primary uppercase opacity-60">Delivery Management System</span>
         <h2 class="text-4xl font-extrabold tracking-tighter mt-2 text-on-surface">Secure Portal</h2>
       </div>
 
-      <!-- Glass Login Card -->
       <div class="glass-panel p-8 md:p-10 rounded-lg shadow-2xl border border-outline-variant/10">
-        <form class="space-y-6" onsubmit="event.preventDefault(); login();">
+        <!-- Role Tabs -->
+        <div class="flex gap-2 justify-center mb-6">
+          <div class="role-tab active" data-role="admin" onclick="switchRole('admin')">Admin</div>
+          <div class="role-tab" data-role="accountant" onclick="switchRole('accountant')">Accountant</div>
+        </div>
 
-          <!-- Email Field -->
+        <form class="space-y-6" onsubmit="event.preventDefault(); login();">
           <div class="space-y-2">
             <label class="block text-[10px] font-bold tracking-[0.1em] text-on-surface-variant uppercase ml-1" for="email">Email</label>
             <div class="relative flex items-center glow-focus transition-all duration-300 bg-surface-container-low rounded-md overflow-hidden">
@@ -177,7 +112,6 @@
             </div>
           </div>
 
-          <!-- Password Field -->
           <div class="space-y-2">
             <label class="block text-[10px] font-bold tracking-[0.1em] text-on-surface-variant uppercase ml-1" for="password">Password</label>
             <div class="relative flex items-center glow-focus transition-all duration-300 bg-surface-container-low rounded-md overflow-hidden">
@@ -187,128 +121,215 @@
             </div>
           </div>
 
-          <!-- Feedback Message -->
+          <!-- Store selector (shown only for accountants with no storeId) -->
+          <div id="storeSelector" class="hidden space-y-2">
+            <label class="block text-[10px] font-bold tracking-[0.1em] text-on-surface-variant uppercase ml-1">Select Store</label>
+            <select id="storeSelect" class="w-full bg-surface-container-low border-none py-4 px-4 rounded-md text-on-surface focus:ring-0">
+              <option value="">Loading stores…</option>
+            </select>
+          </div>
+
           <div class="text-sm font-medium min-h-[20px] transition-all text-center" id="message"></div>
 
-          <!-- Sign In Button -->
           <button type="submit"
             class="w-full h-14 bg-gradient-to-br from-primary to-primary-container rounded-md text-on-primary font-bold tracking-tight text-lg shadow-[0_8px_32px_rgba(77,142,255,0.3)] hover:scale-[1.02] active:scale-95 transition-all duration-200 flex items-center justify-center gap-2">
             <span>SIGN IN</span>
             <span class="material-symbols-outlined">arrow_forward</span>
           </button>
+
+          <div class="text-center mt-4">
+            <a href="forgot-password.html" class="text-sm text-primary opacity-70 hover:opacity-100 transition-opacity">Forgot Password?</a>
+          </div>
         </form>
       </div>
 
-      <!-- Security Badge -->
       <div class="mt-8 flex items-center justify-center gap-2 opacity-40">
         <span class="material-symbols-outlined text-sm">verified_user</span>
-        <span class="text-[10px] font-medium tracking-[0.2em] uppercase">AES-256 Cloud Security Active</span>
+        <span class="text-[10px] font-medium tracking-[0.2em] uppercase">Firebase Auth + AES-256 Cloud Security</span>
       </div>
     </div>
   </main>
 
-  <!-- Footer -->
   <footer class="fixed bottom-8 w-full flex flex-col md:flex-row gap-4 justify-center items-center px-8 opacity-60">
-    <p class="font-['Inter'] text-[10px] uppercase tracking-[0.2em] font-medium text-[#4d8eff]">© 2024 HARIOM ELECTRONICS. SECURED INTERFACE.</p>
+    <p class="text-[10px] uppercase tracking-[0.2em] font-medium text-[#4d8eff]">© 2024 HARIOM ELECTRONICS. SECURED INTERFACE.</p>
     <div class="flex gap-6">
-      <a class="font-['Inter'] text-[10px] uppercase tracking-[0.2em] font-medium text-[#dae2fd]/50 hover:text-[#4edea3] transition-colors" href="#">Privacy</a>
-      <a class="font-['Inter'] text-[10px] uppercase tracking-[0.2em] font-medium text-[#dae2fd]/50 hover:text-[#4edea3] transition-colors" href="#">Support</a>
+      <a class="text-[10px] uppercase tracking-[0.2em] font-medium text-[#dae2fd]/50 hover:text-[#4edea3] transition-colors" href="#">Privacy</a>
+      <a class="text-[10px] uppercase tracking-[0.2em] font-medium text-[#dae2fd]/50 hover:text-[#4edea3] transition-colors" href="#">Support</a>
     </div>
   </footer>
 
   <script>
-    const BASE_URL = window.location.origin;
+    const firebaseConfig = {
+      apiKey: "AIzaSyBfQlLpHbuRsZ7YKIFBj8Fa5o-HMo0SBrU",
+      authDomain: "hariom-delivery.firebaseapp.com",
+      projectId: "hariom-delivery",
+      storageBucket: "hariom-delivery.firebasestorage.app",
+      messagingSenderId: "60300951507",
+      appId: "1:60300951507:web:e5d55d0d18dc2000b47926"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
 
-    /* ── DARK MODE ───────────────────────────────────────── */
+    const BASE_URL = window.location.origin;
+    let selectedRole = "admin";
+
+    /* ── DARK MODE ── */
     (function () {
       const saved = localStorage.getItem("hariom_theme");
-      const html = document.documentElement;
-      if (saved === "light") {
-        html.classList.remove("dark");
-      } else {
-        html.classList.add("dark"); // default: dark
-      }
+      if (saved === "light") document.documentElement.classList.remove("dark");
     })();
 
     function toggleDarkMode() {
       const html = document.documentElement;
       const icon = document.getElementById("darkToggleIcon");
-      const isDark = html.classList.contains("dark");
-      if (isDark) {
-        html.classList.remove("dark");
-        localStorage.setItem("hariom_theme", "light");
-        if (icon) icon.textContent = "light_mode";
-      } else {
-        html.classList.add("dark");
+      if (html.classList.toggle("dark")) {
         localStorage.setItem("hariom_theme", "dark");
         if (icon) icon.textContent = "dark_mode";
+      } else {
+        localStorage.setItem("hariom_theme", "light");
+        if (icon) icon.textContent = "light_mode";
       }
     }
 
     document.addEventListener("DOMContentLoaded", function () {
       const icon = document.getElementById("darkToggleIcon");
-      if (icon) {
-        icon.textContent = document.documentElement.classList.contains("dark") ? "dark_mode" : "light_mode";
-      }
+      if (icon) icon.textContent = document.documentElement.classList.contains("dark") ? "dark_mode" : "light_mode";
     });
-    /* ── END DARK MODE ───────────────────────────────────── */
 
-    /* ── SESSION EXPIRED MESSAGE ─────────────────────────── */
+    /* ── ROLE SWITCHER ── */
+    function switchRole(role) {
+      selectedRole = role;
+      document.querySelectorAll(".role-tab").forEach(t => t.classList.toggle("active", t.dataset.role === role));
+      document.getElementById("storeSelector").classList.add("hidden");
+      document.getElementById("email").placeholder = role === "admin" ? "admin@example.com" : "accountant@store.com";
+    }
+
+    /* ── SESSION EXPIRED ── */
     (function () {
       const params = new URLSearchParams(window.location.search);
       if (params.get("reason") === "expired") {
         const msg = document.getElementById("message");
-        if (msg) {
-          msg.style.color = "#ffb4ab";
-          msg.innerText = "⚠ Your session has expired. Please sign in again.";
-        }
+        if (msg) { msg.style.color = "#ffb4ab"; msg.innerText = "⚠ Your session has expired. Please sign in again."; }
       }
     })();
-    /* ── END SESSION EXPIRED ─────────────────────────────── */
 
-    /* ── LOGIN LOGIC ─────────────────────────────────────── */
+    /* ── LOAD STORES (for accountant store selector) ── */
+    let storeList = [];
+    async function loadStores() {
+      try {
+        const res = await fetch(`${BASE_URL}/api/stores`);
+        storeList = await res.json();
+        const sel = document.getElementById("storeSelect");
+        sel.innerHTML = '<option value="">— Select Store —</option>';
+        storeList.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.name;
+          sel.appendChild(opt);
+        });
+      } catch { /* stores unavailable */ }
+    }
+    loadStores();
+
+    /* ── LOGIN ── */
     async function login() {
       const email    = document.getElementById("email").value;
       const password = document.getElementById("password").value;
       const msg      = document.getElementById("message");
 
       if (!email || !password) {
-        msg.style.color = "#ffb4ab";
-        msg.innerText = "Please enter email and password.";
-        return;
+        msg.style.color = "#ffb4ab"; msg.innerText = "Please enter email and password."; return;
       }
 
-      msg.style.color = "#adc6ff";
-      msg.innerText = "Authenticating…";
+      msg.style.color = "#adc6ff"; msg.innerText = "Authenticating…";
 
       try {
-        const res  = await fetch(`${BASE_URL}/admin/login`, {
-          method:  "POST",
+        // Firebase Auth sign in
+        const userCred = await firebase.auth().signInWithEmailAndPassword(email, password);
+        const idToken  = await userCred.user.getIdToken();
+
+        // Verify with backend
+        const res = await fetch(`${BASE_URL}/api/verify-firebase-token`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ email, password }),
+          body: JSON.stringify({ idToken })
         });
 
         const data = await res.json();
 
         if (!res.ok) {
-          msg.style.color = "#ffb4ab";
-          msg.innerText = data.error || "Login failed. Access denied.";
+          msg.style.color = "#ffb4ab"; msg.innerText = data.error || "Login failed.";
+          await firebase.auth().signOut();
           return;
         }
 
-        localStorage.setItem("adminToken", data.token);
-        msg.style.color = "#4edea3";
-        msg.innerText = "Authentication successful. Redirecting…";
-        window.location.href = "admin.html";
+        // Store our JWT — separate keys per role
+        if (data.role === "admin") {
+          localStorage.setItem("adminToken", data.token);
+        } else {
+          localStorage.setItem("accountantToken", data.token);
+        }
 
+        // Handle role-based redirect
+        if (data.role === "admin") {
+          msg.style.color = "#4edea3"; msg.innerText = "Welcome Admin! Redirecting…";
+          window.location.href = "admin.html";
+          return;
+        }
+
+        if (data.role === "accountant") {
+          if (data.storeId) {
+            // Accountant has a store — redirect directly
+            msg.style.color = "#4edea3"; msg.innerText = "Welcome! Redirecting to dashboard…";
+            window.location.href = "accountant.html";
+          } else {
+            // No store assigned — show store selector
+            const selector = document.getElementById("storeSelector");
+            selector.classList.remove("hidden");
+            msg.style.color = "#adc6ff"; msg.innerText = "Please select your store to continue.";
+            // Override button to self-assign store on first login
+            const btn = document.querySelector("button[type=submit]");
+            btn.innerHTML = '<span>CONFIRM STORE</span><span class="material-symbols-outlined">store</span>';
+            btn.onclick = async function assignStore() {
+              const selectedStoreId = document.getElementById("storeSelect").value;
+              if (!selectedStoreId) { msg.style.color = "#ffb4ab"; msg.innerText = "Please select a store."; return; }
+              msg.style.color = "#adc6ff"; msg.innerText = "Assigning store…";
+              try {
+                const assignRes = await fetch(`${BASE_URL}/api/verify-firebase-token`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ idToken: await firebase.auth().currentUser.getIdToken(), storeId: selectedStoreId })
+                });
+                const assignData = await assignRes.json();
+                if (!assignRes.ok) { throw new Error(assignData.error || "Failed to assign store"); }
+                localStorage.setItem("accountantToken", assignData.token);
+                msg.style.color = "#4edea3"; msg.innerText = "Store assigned! Redirecting…";
+                window.location.href = "accountant.html";
+              } catch (e) {
+                msg.style.color = "#ffb4ab"; msg.innerText = "Failed to assign store: " + e.message;
+                btn.innerHTML = '<span>SIGN IN</span><span class="material-symbols-outlined">arrow_forward</span>';
+                btn.onclick = login;
+              }
+            };
+          }
+        }
       } catch (err) {
         msg.style.color = "#ffb4ab";
-        msg.innerText = "Network error. Please try again.";
+        if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+          msg.innerText = "Invalid email or password.";
+        } else if (err.code === "auth/too-many-requests") {
+          msg.innerText = "Too many attempts. Account temporarily locked. Try again later.";
+        } else if (err.code === "auth/invalid-email") {
+          msg.innerText = "Invalid email format.";
+        } else if (err.code === "auth/network-request-failed") {
+          msg.innerText = "Network error. Check your connection.";
+        } else {
+          msg.innerText = err.message || "Login failed.";
+        }
       }
     }
-    /* ── END LOGIN LOGIC ─────────────────────────────────── */
 
-    /* ── ENTER KEY ───────────────────────────────────────── */
+    /* ── ENTER KEY ── */
     document.addEventListener("keydown", e => {
       if (e.key === "Enter") login();
     });

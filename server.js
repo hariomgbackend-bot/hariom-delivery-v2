@@ -26,8 +26,12 @@ import Groq from "groq-sdk";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-//const serviceAccount = require("./firebase-service-account.json");
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+let serviceAccount;
+try {
+  serviceAccount = require("./firebase-service-account.json");
+} catch (e) {
+  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+}
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -1341,6 +1345,30 @@ function authorize(allowedRoles) {
   };
 }
 
+// ── Multi-store middleware & helpers ──
+
+function requireStoreAccess(req, res, next) {
+  if (req.user.isSuperAdmin) return next();
+  if (req.user.storeId) return next();
+  return res.status(403).json({ error: "No store access" });
+}
+
+function addStoreFilter(constraints, user, fieldName = "point_of_sale", req) {
+  if (user.isSuperAdmin) return;
+  const storeOverride = req?.query?.store;
+  if (storeOverride === "all" || storeOverride === "") return;
+  const storeName = storeOverride === "own" ? user.storeName : (storeOverride || user.storeName);
+  if (storeName) constraints.push(where(fieldName, "==", storeName));
+}
+
+async function resolveStoreName(storeId) {
+  if (!storeId) return null;
+  try {
+    const snap = await getDoc(doc(db, "stores", storeId));
+    return snap.exists() ? snap.data().name : null;
+  } catch { return null; }
+}
+
 /* ════════════════════════════════════════════════
    WHATSAPP — disabled (not in use)
 ════════════════════════════════════════════════ */
@@ -1404,31 +1432,264 @@ async function sendAccountantPush(title, body) {
 }
 
 /* ════════════════════════════════════════════════
-   ADMIN LOGIN
+   ADMIN LOGIN — Firebase Auth with env-var fallback
 ════════════════════════════════════════════════ */
 
 app.post("/admin/login", adminLoginLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: "Email and password required" });
-  if (email !== process.env.ADMIN_EMAIL || password !== process.env.ADMIN_PASSWORD) {
+  try {
+    // Try Firebase Auth first (migrated admin)
+    const staffSnap = await getDocs(query(
+      collection(db, "staff_users"),
+      where("email", "==", email.toLowerCase().trim()),
+      where("role", "==", "admin")
+    ));
+    if (!staffSnap.empty) {
+      const staffData = staffSnap.docs[0].data();
+      if (staffData.active === false) return res.status(403).json({ error: "Account deactivated" });
+      const token = jwt.sign(
+        { role: "admin", isSuperAdmin: true, email: email.toLowerCase().trim() },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRY }
+      );
+      return res.json({ success: true, token, role: "admin", isSuperAdmin: true });
+    }
+    // Fallback: env-var auth (pre-migration)
+    if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
+      const token = jwt.sign(
+        { role: "admin", isSuperAdmin: true, email: email.toLowerCase().trim() },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRY }
+      );
+      return res.json({ success: true, token, role: "admin", isSuperAdmin: true });
+    }
     return res.status(401).json({ error: "Invalid credentials" });
+  } catch (err) {
+    console.error("/admin/login error:", err.message);
+    res.status(500).json({ error: "Login failed" });
   }
-  const token = jwt.sign({ role: "admin" }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-  res.json({ success: true, token });
 });
 
 /* ════════════════════════════════════════════════
-   ACCOUNTANT LOGIN
+   VERIFY FIREBASE TOKEN
+════════════════════════════════════════════════ */
+
+app.post("/api/verify-firebase-token", async (req, res) => {
+  try {
+    const { idToken, storeId } = req.body;
+    if (!idToken) return res.status(400).json({ error: "idToken required" });
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const email = decoded.email?.toLowerCase().trim();
+    if (!email) return res.status(401).json({ error: "No email in token" });
+    const staffSnap = await getDocs(query(
+      collection(db, "staff_users"),
+      where("email", "==", email)
+    ));
+    if (staffSnap.empty) return res.status(401).json({ error: "User not found" });
+    const staffDoc = staffSnap.docs[0];
+    const staffData = staffDoc.data();
+    if (staffData.active === false) return res.status(403).json({ error: "Account deactivated" });
+    if (!["admin", "accountant"].includes(staffData.role)) {
+      return res.status(403).json({ error: "Invalid role" });
+    }
+    // Self-assign store for unassigned accountant
+    let effectiveStoreId = staffData.storeId || "";
+    if (staffData.role === "accountant" && !effectiveStoreId && storeId) {
+      await updateDoc(doc(db, "staff_users", staffDoc.id), { storeId });
+      effectiveStoreId = storeId;
+    }
+    const payload = {
+      role: staffData.role,
+      email,
+      staffId: staffDoc.id,
+      name: staffData.name || ""
+    };
+    if (staffData.role === "admin") {
+      payload.isSuperAdmin = true;
+    } else {
+      const storeName = effectiveStoreId ? await resolveStoreName(effectiveStoreId) : null;
+      payload.storeId = effectiveStoreId || "";
+      payload.storeName = storeName || "";
+    }
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+    res.json({
+      success: true,
+      token,
+      role: staffData.role,
+      isSuperAdmin: payload.isSuperAdmin || false,
+      storeId: payload.storeId || "",
+      storeName: payload.storeName || "",
+      name: staffData.name || ""
+    });
+  } catch (err) {
+    console.error("/api/verify-firebase-token error:", err.message);
+    res.status(401).json({ error: "Invalid token" });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   STORES — public list
+════════════════════════════════════════════════ */
+
+app.get("/api/stores", async (req, res) => {
+  try {
+    const snap = await getDocs(collection(db, "stores"));
+    res.json(snap.docs.map(d => ({ id: d.id, key: d.data().key || "", name: d.data().name })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   ACCOUNTANT LOGIN — Firebase Auth with env-var fallback
 ════════════════════════════════════════════════ */
 
 app.post("/accountant/login", adminLoginLimiter, async (req, res) => {
-  const { password } = req.body;
-  if (!password) return res.status(400).json({ error: "Password required" });
-  if (password !== process.env.ACCOUNTANT_PASSWORD) {
-    return res.status(401).json({ error: "Invalid password" });
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+  try {
+    // Try Firestore first (migrated accountant)
+    const staffSnap = await getDocs(query(
+      collection(db, "staff_users"),
+      where("email", "==", email.toLowerCase().trim()),
+      where("role", "==", "accountant")
+    ));
+    if (!staffSnap.empty) {
+      const staffDoc = staffSnap.docs[0];
+      const staffData = staffDoc.data();
+      if (staffData.active === false) return res.status(403).json({ error: "Account deactivated" });
+      const storeName = staffData.storeId ? await resolveStoreName(staffData.storeId) : null;
+      const token = jwt.sign(
+        {
+          role: "accountant",
+          storeId: staffData.storeId || "",
+          storeName: storeName || "",
+          email: email.toLowerCase().trim(),
+          staffId: staffDoc.id,
+          name: staffData.name || ""
+        },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRY }
+      );
+      return res.json({ success: true, token, role: "accountant", storeId: staffData.storeId || "", storeName: storeName || "", name: staffData.name || "" });
+    }
+    // Fallback: env-var auth (pre-migration)
+    if (password === process.env.ACCOUNTANT_PASSWORD) {
+      const token = jwt.sign({ role: "accountant", isSuperAdmin: false, storeId: "", storeName: "" }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+      return res.json({ success: true, token, role: "accountant", storeId: "", storeName: "" });
+    }
+    return res.status(401).json({ error: "Invalid credentials" });
+  } catch (err) {
+    console.error("/accountant/login error:", err.message);
+    res.status(500).json({ error: "Login failed" });
   }
-  const token = jwt.sign({ role: "accountant" }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-  res.json({ success: true, token });
+});
+
+/* ════════════════════════════════════════════════
+   ACCOUNTANT CRUD — admin only
+   GET    /admin/accountants
+   POST   /admin/create-accountant
+   PUT    /admin/accountant/:id
+   DELETE /admin/accountant/:id
+   PUT    /admin/transfer-user
+════════════════════════════════════════════════ */
+
+app.get("/admin/accountants", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const snap = await getDocs(query(
+      collection(db, "staff_users"),
+      where("role", "==", "accountant")
+    ));
+    res.json(snap.docs.map(d => {
+      const { passwordHash, ...safe } = d.data();
+      return { id: d.id, ...safe };
+    }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/admin/create-accountant", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { name, email, password, storeId } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ error: "Name, email, and password required" });
+    const existingSnap = await getDocs(query(
+      collection(db, "staff_users"),
+      where("email", "==", email.toLowerCase().trim())
+    ));
+    if (!existingSnap.empty) return res.status(409).json({ error: "Email already in use" });
+    const userRecord = await admin.auth().createUser({
+      email: email.toLowerCase().trim(),
+      password,
+      displayName: name
+    });
+    const docRef = await addDoc(collection(db, "staff_users"), {
+      name,
+      email: email.toLowerCase().trim(),
+      role: "accountant",
+      storeId: storeId || "",
+      active: true,
+      firebaseUid: userRecord.uid,
+      created_at: Timestamp.now()
+    });
+    res.json({ success: true, id: docRef.id, firebaseUid: userRecord.uid });
+  } catch (err) {
+    console.error("/admin/create-accountant error:", err.message);
+    if (err.code === "auth/email-already-exists") return res.status(409).json({ error: "Firebase account already exists" });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/admin/accountant/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const ref = doc(db, "staff_users", req.params.id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return res.status(404).json({ error: "Accountant not found" });
+    const { name, storeId, active } = req.body;
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (storeId !== undefined) updates.storeId = storeId;
+    if (active !== undefined) updates.active = active;
+    if (Object.keys(updates).length === 0) return res.status(400).json({ error: "No fields to update" });
+    await updateDoc(ref, updates);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/admin/accountant/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const ref = doc(db, "staff_users", req.params.id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return res.status(404).json({ error: "Accountant not found" });
+    await updateDoc(ref, { active: false });
+    res.json({ success: true, message: "Accountant deactivated" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/admin/transfer-user", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { userId, userRole, newStoreId } = req.body;
+    if (!userId || !newStoreId) return res.status(400).json({ error: "userId and newStoreId required" });
+    const storeSnap = await getDoc(doc(db, "stores", newStoreId));
+    if (!storeSnap.exists()) return res.status(404).json({ error: "Store not found" });
+    let ref;
+    if (userRole === "driver") {
+      ref = doc(db, "drivers", userId);
+    } else {
+      ref = doc(db, "staff_users", userId);
+    }
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return res.status(404).json({ error: "User not found" });
+    await updateDoc(ref, { storeId: newStoreId });
+    res.json({ success: true, storeId: newStoreId, storeName: storeSnap.data().name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* ════════════════════════════════════════════════
@@ -1442,7 +1703,7 @@ app.post("/verify-token", (req, res) => {
     if (!["admin", "accountant"].includes(decoded.role)) {
       return res.json({ valid: false, error: "Insufficient role" });
     }
-    res.json({ valid: true, role: decoded.role });
+    res.json({ valid: true, role: decoded.role, isSuperAdmin: decoded.isSuperAdmin || false, storeId: decoded.storeId || "", storeName: decoded.storeName || "" });
   } catch (err) {
     res.json({ valid: false, error: "Invalid or expired token" });
   }
@@ -1526,6 +1787,12 @@ app.post("/createDelivery", writeLimiter, authenticate, async (req, res) => {
       }
     }
 
+    // Auto-set point_of_sale from user's store if not provided
+    if (!data.point_of_sale && req.user.storeId && !req.user.isSuperAdmin) {
+      const storeDoc = await getDoc(doc(db, "stores", req.user.storeId));
+      if (storeDoc.exists()) data.point_of_sale = storeDoc.data().name;
+    }
+
     const docRef = await addDoc(collection(db, "deliveries"), {
       ...data,
       priority: data.priority || "normal",
@@ -1592,6 +1859,12 @@ app.post("/createDeliveries", writeLimiter, authenticate, async (req, res) => {
       );
       shared.assigned_driver_id   = unassignedDoc ? unassignedDoc.id : "self_pickup";
       shared.assigned_driver_name = "Unassigned";
+    }
+
+    // Auto-set point_of_sale from user's store if not provided
+    if (!shared.point_of_sale && req.user.storeId && !req.user.isSuperAdmin) {
+      const storeDoc = await getDoc(doc(db, "stores", req.user.storeId));
+      if (storeDoc.exists()) shared.point_of_sale = storeDoc.data().name;
     }
 
     // ── Idempotency check ──────────────────────────────────────────────────
@@ -1702,17 +1975,19 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
   try {
     const deliveriesRef = collection(db, "deliveries");
     const todayStart = startOfTodayISTTimestamp();
+    const storeCond = [];
+    addStoreFilter(storeCond, req.user, "point_of_sale", req);
     const [
       total, booked, pending, loaded, delivered, failed, urgent, todaySnap
     ] = await Promise.all([
-      countQuery(query(deliveriesRef)),
-      countQuery(query(deliveriesRef, where("status", "==", "booked"))),
-      countQuery(query(deliveriesRef, where("status", "==", "pending"))),
-      countQuery(query(deliveriesRef, where("status", "==", "loaded"))),
-      countQuery(query(deliveriesRef, where("status", "==", "delivered"))),
-      countQuery(query(deliveriesRef, where("status", "==", "failed"))),
-      countQuery(query(deliveriesRef, where("priority", "==", "urgent"))),
-      getDocs(query(deliveriesRef, where("created_timestamp", ">=", todayStart)))
+      countQuery(query(deliveriesRef, ...storeCond)),
+      countQuery(query(deliveriesRef, where("status", "==", "booked"), ...storeCond)),
+      countQuery(query(deliveriesRef, where("status", "==", "pending"), ...storeCond)),
+      countQuery(query(deliveriesRef, where("status", "==", "loaded"), ...storeCond)),
+      countQuery(query(deliveriesRef, where("status", "==", "delivered"), ...storeCond)),
+      countQuery(query(deliveriesRef, where("status", "==", "failed"), ...storeCond)),
+      countQuery(query(deliveriesRef, where("priority", "==", "urgent"), ...storeCond)),
+      getDocs(query(deliveriesRef, where("created_timestamp", ">=", todayStart), ...storeCond))
     ]);
     const sourceToday = { manual: 0, tally_tdl: 0, import_file: 0 };
     todaySnap.docs.forEach(d => {
@@ -1764,6 +2039,7 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
     // Build Firestore query with optional filters
     let q = collection(db, "deliveries");
     const constraints = [];
+    addStoreFilter(constraints, req.user, "point_of_sale", req);
 
     if (hasDateRange) {
       if (startDate) {
@@ -2194,7 +2470,7 @@ app.post("/markDelivered/:id", authenticate, upload.single("photo"), async (req,
 ════════════════════════════════════════════════ */
 
 app.post("/addDriver", authenticate, authorize(["admin"]), async (req, res) => {
-  const { driver_name, phone, vehicle_number, vehicle_make, vehicle_model, pin } = req.body;
+  const { driver_name, phone, vehicle_number, vehicle_make, vehicle_model, pin, storeId } = req.body;
   if (!driver_name) return res.status(400).json({ error: "Driver name required" });
   if (!pin || !/^\d{6}$/.test(pin)) return res.status(400).json({ error: "PIN must be exactly 6 digits" });
 
@@ -2205,6 +2481,7 @@ app.post("/addDriver", authenticate, authorize(["admin"]), async (req, res) => {
     vehicle_number: vehicle_number || "",
     vehicle_make: vehicle_make || "",
     vehicle_model: vehicle_model || "",
+    storeId: storeId || "",
     pinHash,
     created_timestamp: Timestamp.now()
   });
@@ -2304,7 +2581,7 @@ app.post("/driverDeliveries", pinLimiter, async (req, res) => {
 
   // Issue a short-lived session token so background refreshes don't need PIN
   const sessionToken = jwt.sign(
-    { role: "driver", driver_id },
+    { role: "driver", driver_id, storeId: driverData.storeId || "" },
     JWT_SECRET,
     { expiresIn: "12h" }
   );
@@ -3662,12 +3939,13 @@ app.post("/staff/login", pinLimiter, async (req, res) => {
     await updateDoc(staffRef, { failedPinAttempts: 0, pinLockedUntil: null });
 
     const token = jwt.sign(
-      { role: "staff", staff_id, name: staffData.name },
+      { role: "staff", staff_id, name: staffData.name, storeId: staffData.storeId || "" },
       JWT_SECRET,
       { expiresIn: "12h" }
     );
     res.json({
       success: true, token, name: staffData.name,
+      storeId: staffData.storeId || "",
       weekly_off: staffData.weekly_off || "",
       color: staffData.color || ""
     });
@@ -3721,7 +3999,7 @@ app.post("/service/login", adminLoginLimiter, async (req, res) => {
 ════════════════════════════════════════════════ */
 app.post("/addStaff", authenticate, authorize(["admin"]), async (req, res) => {
   try {
-    const { name, role, pin, email, password, phone, weekly_off, color } = req.body;
+    const { name, role, pin, email, password, phone, weekly_off, color, storeId } = req.body;
     if (!name)   return res.status(400).json({ error: "Name required" });
     if (!role || !["staff", "service"].includes(role))
                  return res.status(400).json({ error: "Role must be 'staff' or 'service'" });
@@ -3731,6 +4009,7 @@ app.post("/addStaff", authenticate, authorize(["admin"]), async (req, res) => {
       role,
       phone:      phone || "",
       active:     true,
+      storeId:    storeId || "",
       weekly_off: weekly_off || "",
       color:      color || "",
       created_at: Timestamp.now()
@@ -3822,7 +4101,10 @@ app.delete("/staff/:id", authenticate, authorize(["admin"]), async (req, res) =>
 ════════════════════════════════════════════════ */
 app.get("/leads", authenticate, authorize(["admin", "accountant", "staff", "service"]), async (req, res) => {
   try {
-    const snap  = await getDocs(collection(db, "leads"));
+    const leadsConstraints = [];
+    addStoreFilter(leadsConstraints, req.user, "point_of_sale", req);
+    const q = leadsConstraints.length > 0 ? query(collection(db, "leads"), ...leadsConstraints) : collection(db, "leads");
+    const snap  = await getDocs(q);
     let leads   = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     // Staff can only see their own leads
@@ -3849,7 +4131,7 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
     const {
       customer_name, phone, alternate_phone,
       product_interest, quoted_price, remarks, status,
-      address,
+      address, point_of_sale,
       products   // new: array of { product_name, quoted_price }
     } = req.body;
     if (!phone || phone.length !== 10 || !/^\d+$/.test(phone)) return res.status(400).json({ error: "Valid 10-digit phone required" });
@@ -3866,10 +4148,17 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
 
     if (!productsArray.length) return res.status(400).json({ error: "At least one product required" });
 
+    let finalPos = point_of_sale;
+    if (!finalPos && req.user.storeId && !req.user.isSuperAdmin) {
+      const storeDoc = await getDoc(doc(db, "stores", req.user.storeId));
+      if (storeDoc.exists()) finalPos = storeDoc.data().name;
+    }
+
     const now     = Timestamp.now();
     const expires = Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const docRef = await addDoc(collection(db, "leads"), {
+      point_of_sale:    finalPos || "",
       customer_name:    customer_name   || "",
       phone:            phone,
       alternate_phone:  alternate_phone || "",
@@ -3978,7 +4267,10 @@ app.delete("/leads/:id", authenticate, authorize(["admin"]), async (req, res) =>
 ════════════════════════════════════════════════ */
 app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
-    const snap   = await getDocs(collection(db, "service_tickets"));
+    const ticketConstraints = [];
+    addStoreFilter(ticketConstraints, req.user, "point_of_sale", req);
+    const q = ticketConstraints.length > 0 ? query(collection(db, "service_tickets"), ...ticketConstraints) : collection(db, "service_tickets");
+    const snap   = await getDocs(q);
     let tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     // Optional filters via query params
@@ -3998,7 +4290,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       type, linked_delivery_id,
       first_name, middle_name, last_name,
       customer_name: raw_customer_name,
-      phone, alternate_phone, address,
+      phone, alternate_phone, address, point_of_sale: ticketPos,
       pincode, state, city, area, addr1, addr2,
       product_name, serial_number, description,
       purchase_date
@@ -4055,7 +4347,14 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       }
     }
 
+    let finalTicketPos = ticketPos;
+    if (!finalTicketPos && req.user.storeId && !req.user.isSuperAdmin) {
+      const storeDoc = await getDoc(doc(db, "stores", req.user.storeId));
+      if (storeDoc.exists()) finalTicketPos = storeDoc.data().name;
+    }
+
     const docRef = await addDoc(collection(db, "service_tickets"), {
+      point_of_sale:      finalTicketPos || "",
       type,
       status:             "open",
       linked_delivery_id: linked_delivery_id || null,
@@ -4562,8 +4861,8 @@ app.delete("/api/stores/:id", authenticate, authorize(["admin"]), async (req, re
 app.post("/api/stores/seed", authenticate, authorize(["admin"]), async (req, res) => {
   try {
     const defaults = [
-      { key: "alandi",  name: "Hari Om Electronics - Alandi",  address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",  phone: "8177896218",  altPhone: "9822632095" },
-      { key: "dhanore", name: "Hari Om Electronics - Dhanore", address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105", phone: "8177896218", altPhone: "9822632095" }
+      { key: "alandi",  name: "Alandi",  address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",  phone: "8177896218",  altPhone: "9822632095" },
+      { key: "dhanore", name: "Dhanore", address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105", phone: "8177896218", altPhone: "9822632095" }
     ];
     const snap = await getDocs(collection(db, "stores"));
     if (snap.size > 0) return res.json({ success: true, message: "Stores already exist" });

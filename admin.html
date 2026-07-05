@@ -1641,6 +1641,7 @@
     <div class="topbar-right">
       <span id="lastUpdated"></span>
       <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
+      <button onclick="adminLogout()" style="padding:6px 12px;border:none;border-radius:8px;background:var(--error-container);color:var(--on-error-container);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.3px;">LOGOUT</button>
     </div>
   </header>
 
@@ -1671,6 +1672,11 @@
         <button class="filter-btn"        id="btn-delivered" onclick="setFilter('delivered')">Delivered<span class="filter-count" id="cnt-delivered"></span></button>
         <button class="filter-btn"        id="btn-failed"    onclick="setFilter('failed')" style="color:var(--error);border-color:rgba(255,180,171,0.3);">❌ Failed<span class="filter-count count-red" id="cnt-failed"></span></button>
         <button class="filter-btn"        id="btn-urgent"    onclick="setFilter('urgent')">🔥 Urgent<span class="filter-count" id="cnt-urgent"></span></button>
+        <select id="adminStoreFilter" onchange="setAdminStoreFilter(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;">
+          <option value="all">🏪 All Stores</option>
+          <option value="Alandi">🏪 Alandi</option>
+          <option value="Dhanore">🏪 Dhanore</option>
+        </select>
         <div class="toolbar-right">
           <div class="search-wrap">
             <input type="text" id="adminSearch" placeholder="Name, phone, product…" oninput="onSearch()" autocomplete="off">
@@ -1684,6 +1690,7 @@
             <tr>
               <th style="width:22px;"></th>
               <th>Customer</th>
+              <th style="width:38px;text-align:center;">St</th>
               <th>Driver</th>
               <th>Product</th>
               <th>Status</th>
@@ -1796,6 +1803,7 @@
                 <tr>
                   <th style="background:var(--surface-container-highest);color:var(--on-surface-variant);padding:10px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">#</th>
                   <th style="background:var(--surface-container-highest);color:var(--on-surface-variant);padding:10px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Customer</th>
+                  <th style="background:var(--surface-container-highest);color:var(--on-surface-variant);padding:10px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Store</th>
                   <th style="background:var(--surface-container-highest);color:var(--on-surface-variant);padding:10px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Address</th>
                   <th style="background:var(--surface-container-highest);color:var(--on-surface-variant);padding:10px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Delivered At</th>
                   <th style="background:var(--surface-container-highest);color:var(--on-surface-variant);padding:10px 12px;text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Freight (₹)</th>
@@ -1925,6 +1933,11 @@
         <button class="filter-btn" onclick="setSCFilter('logged',this)">Logged</button>
         <button class="filter-btn" onclick="setSCFilter('complaint',this)">Complaints</button>
         <button class="filter-btn" onclick="setSCFilter('installation',this)">Demo-Installations</button>
+        <select id="scStoreFilter" onchange="setSCStoreFilter(this.value)" style="margin-left:auto;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;">
+          <option value="all">🏪 All Stores</option>
+          <option value="Alandi">🏪 Alandi</option>
+          <option value="Dhanore">🏪 Dhanore</option>
+        </select>
       </div>
 
       <!-- Table -->
@@ -1934,6 +1947,7 @@
             <tr>
               <th>Type</th>
               <th>Customer</th>
+              <th style="width:38px;text-align:center;">St</th>
               <th>Product</th>
               <th>Date</th>
               <th>Brand Tracking#</th>
@@ -2053,6 +2067,12 @@
             <input type="hidden" id="sColor" value="">
           </div>
         </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Store Assignment</label>
+          <select id="sStore" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;">
+            <option value="">— Not assigned —</option>
+          </select>
+        </div>
         <div id="staffPinFields">
           <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">6-Digit PIN *</label>
           <input id="sPin" placeholder="6 digits" maxlength="6" inputmode="numeric" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:12px;">
@@ -2078,8 +2098,8 @@
 
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Email</th><th>Status</th><th>Created</th><th>Leads</th><th>Tickets Raised</th><th>Tickets Logged</th><th></th></tr></thead>
-          <tbody id="staffTableBody"><tr><td colspan="10" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
+          <thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Store</th><th>Email</th><th>Status</th><th>Created</th><th>Leads</th><th>Tickets Raised</th><th>Tickets Logged</th><th></th></tr></thead>
+          <tbody id="staffTableBody"><tr><td colspan="11" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -2268,6 +2288,11 @@
           <button class="filter-btn" onclick="setLeadFilter('sale',this)">Sale</button>
           <button class="filter-btn" onclick="setLeadFilter('lost',this)">Lost</button>
           <button class="filter-btn" onclick="setLeadFilter('expiring',this)">⚠ Expiring</button>
+          <select id="leadStoreFilter" onchange="setLeadStoreFilter(this.value)" style="margin-left:auto;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;">
+            <option value="all">🏪 All Stores</option>
+            <option value="Alandi">🏪 Alandi</option>
+            <option value="Dhanore">🏪 Dhanore</option>
+          </select>
         </div>
       </div>
 
@@ -2276,7 +2301,7 @@
         <table>
           <thead>
             <tr>
-              <th>Customer</th><th>Phone</th><th>Products</th><th>Admin Quote</th>
+              <th>Customer</th><th style="width:38px;text-align:center;">St</th><th>Phone</th><th>Products</th><th>Admin Quote</th>
               <th>Status</th><th>Expiry</th><th>By</th><th>Follow-up</th><th></th>
             </tr>
           </thead>
@@ -3348,7 +3373,26 @@ function closePNBulkBar() {
 /* STAFF MANAGEMENT */
 let editingStaffId = null;
 let staffList = [];
+let _stores = [];
+let _storeNameById = {};
 const STAFF_COLORS = ['#f59e0b','#3b82f6','#10b981','#f43f5e','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+
+async function loadStores() {
+  if (!window.authGetToken) { setTimeout(loadStores, 200); return; }
+  try {
+    const res = await authFetch(`${BASE_URL}/api/stores`);
+    if (!res.ok) return;
+    _stores = await res.json();
+    _storeNameById = {};
+    _stores.forEach(s => { _storeNameById[s.id] = s.name; });
+    const sel = document.getElementById("sStore");
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">— Not assigned —</option>' +
+        _stores.map(s => `<option value="${escHtml(s.id)}" ${cur===s.id?"selected":""}>${escHtml(s.name)}</option>`).join('');
+    }
+  } catch {}
+}
 
 function renderColorSwatches(containerId, selected) {
   const el = document.getElementById(containerId);
@@ -3371,6 +3415,7 @@ function openAddStaffModal(){
   document.getElementById('sRole').value='staff';
   document.getElementById('sRole').disabled=false;
   document.getElementById('sWeeklyOff').value='';
+  loadStores();
   renderColorSwatches('sColorSwatches','');
   document.querySelector('#addStaffForm > div:first-child').textContent='New Staff Member';
   document.getElementById('staffFormSaveBtn').textContent='Save';
@@ -3389,6 +3434,9 @@ function openEditStaff(id){
   document.getElementById('sRole').value = s.role || 'staff';
   document.getElementById('sRole').disabled = true;
   document.getElementById('sWeeklyOff').value = s.weekly_off || '';
+  loadStores().then(() => {
+    if (s.storeId) document.getElementById('sStore').value = s.storeId;
+  });
   renderColorSwatches('sColorSwatches', s.color || '');
   document.getElementById('sPin').value = '';
   document.getElementById('sEmail').value = s.email || '';
@@ -3416,7 +3464,7 @@ async function submitAddStaff(){
   if(!name){msg.style.color='var(--error)';msg.textContent='Name required.';return;}
 
   if (editingStaffId) {
-    const p={name,phone,weekly_off:weeklyOff,color};
+    const p={name,phone,weekly_off:weeklyOff,color,storeId:document.getElementById('sStore')?.value||''};
     if (role==='staff') {
       const pin=document.getElementById('sPin').value.trim();
       if (pin) {
@@ -3443,7 +3491,7 @@ async function submitAddStaff(){
     return;
   }
 
-  const p={name,role,phone,weekly_off:weeklyOff,color};
+  const p={name,role,phone,weekly_off:weeklyOff,color,storeId:document.getElementById('sStore')?.value||''};
   if(role==='staff'){
     const pin=document.getElementById('sPin').value.trim();
     if(!/^\d{6}$/.test(pin)){msg.style.color='var(--error)';msg.textContent='PIN must be 6 digits.';return;}
@@ -3466,7 +3514,7 @@ async function submitAddStaff(){
 }
 async function loadStaff(){
   const tb=document.getElementById('staffTableBody');if(!tb)return;
-  tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
+  tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
   try{
     // Fetch staff, leads and service tickets in parallel for activity counters
     const [staffRes, leadsRes, ticketsRes] = await Promise.all([
@@ -3478,7 +3526,7 @@ async function loadStaff(){
     const leads   = await leadsRes.json();
     const tickets = await ticketsRes.json();
 
-    if(!staff.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No staff members yet</td></tr>';staffList=[];return;}
+    if(!staff.length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No staff members yet</td></tr>';staffList=[];return;}
     staffList = staff;
 
     // Build lookup maps: staff_id → counts
@@ -3517,10 +3565,20 @@ async function loadStaff(){
         ? `<span style="font-weight:700;color:${color};">${val}</span>`
         : `<span style="color:var(--on-surface-variant);">—</span>`;
 
+      const storeName = _storeNameById[s.storeId] || '';
+      const storeBadge = storeName === "Alandi"
+        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;margin-right:4px;">A</span><span style="font-size:12px;">Alandi</span>`
+        : storeName === "Dhanore"
+        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;margin-right:4px;">D</span><span style="font-size:12px;">Dhanore</span>`
+        : storeName
+        ? `<span style="font-size:12px;color:var(--on-surface-variant);">${escHtml(storeName)}</span>`
+        : `<span style="font-size:12px;color:var(--outline);">—</span>`;
+
       return `<tr>
         <td style="font-weight:700;">${escHtml(s.name)}</td>
         <td style="font-size:12px;color:var(--on-surface-variant);">${escHtml(s.phone||'--')}</td>
         <td>${rb}</td>
+        <td style="white-space:nowrap;">${storeBadge}</td>
         <td style="font-size:12px;color:var(--on-surface-variant);">${escHtml(s.email||'--')}</td>
         <td>${ab}</td>
         <td style="font-size:12px;color:var(--on-surface-variant);">${dt}</td>
@@ -3534,7 +3592,7 @@ async function loadStaff(){
           <button onclick="staffDeleteBtn(this)" data-sid="${escHtml(s.id)}" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(147,0,10,0.5);color:var(--error);">Delete</button>
         </td></tr>`;
     }).join('');
-  }catch(e){tb.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>`;}
+  }catch(e){tb.innerHTML=`<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>`;}
 }
 async function toggleStaffActive(id,active){
   try{await authFetch(`${BASE_URL}/staff/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:!active})});loadStaff();}
@@ -3677,16 +3735,7 @@ function shareDeliveryWA(deliveryId){
 
 <script>
 const BASE_URL = window.location.origin;
-let _stores = [];
 
-/* ── LOAD STORES ── */
-async function loadStores() {
-  if (!window.authGetToken) { setTimeout(loadStores, 200); return; }
-  try {
-    const res = await authFetch(`${BASE_URL}/api/stores`);
-    if (res.ok) _stores = await res.json();
-  } catch {}
-}
 function storeOptionsHtml(selected) {
   const sel = selected || "";
   return '<option value="">—</option>' + _stores.map(s =>
@@ -3746,8 +3795,24 @@ function isTokenExpired() {
   } catch { return true; }
 }
 
+function isAdminRole() {
+  const t = getAdminToken();
+  if (!t) return false;
+  try {
+    const payload = JSON.parse(atob(t.split(".")[1]));
+    return payload.role === "admin";
+  } catch { return false; }
+}
+
+function adminLogout() {
+  localStorage.removeItem("adminToken");
+  localStorage.removeItem("accountantToken");
+  window.location.href = "login.html";
+}
+
 function redirectToLogin(reason) {
   localStorage.removeItem("adminToken");
+  localStorage.removeItem("accountantToken");
   const url = reason
     ? `login.html?reason=${encodeURIComponent(reason)}`
     : "login.html";
@@ -3755,20 +3820,20 @@ function redirectToLogin(reason) {
 }
 
 // Guard on page load — before anything renders
-if (!getAdminToken() || isTokenExpired()) {
-  redirectToLogin(isTokenExpired() ? "expired" : null);
+if (!getAdminToken() || isTokenExpired() || !isAdminRole()) {
+  redirectToLogin(!isAdminRole() ? "not_admin" : isTokenExpired() ? "expired" : null);
 }
 
 // Guard on every tab focus
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && isTokenExpired()) {
+  if (document.visibilityState === "visible" && (isTokenExpired() || !isAdminRole())) {
     redirectToLogin("expired");
   }
 });
 
 // Background watchdog — checks every 60s regardless of user activity
 setInterval(() => {
-  if (isTokenExpired()) redirectToLogin("expired");
+  if (isTokenExpired() || !isAdminRole()) redirectToLogin("expired");
 }, 60_000);
 
 window.authGetToken = getAdminToken;
@@ -3777,6 +3842,7 @@ setTimeout(loadStores, 0);
 
 let selectedAdminDate = null;
 let currentFilter = "all";
+let adminStoreFilter = "all";
 let currentDeliveryObj = null;
 let currentDisplayedData = [];
 let allDeliveryData = [];
@@ -3799,6 +3865,14 @@ function setFilter(f) {
   currentPage = 1;
   if (f !== "date") document.getElementById("adminDate").style.display = "none";
   highlightActiveButton(f);
+  loadAdmin();
+}
+
+function setAdminStoreFilter(val) {
+  adminStoreFilter = val;
+  const sel = document.getElementById("adminStoreFilter");
+  if (sel) sel.value = val;
+  currentPage = 1;
   loadAdmin();
 }
 
@@ -3837,6 +3911,7 @@ async function loadAdmin() {
   // Build server-side URL with filters
   let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
 
+  if (adminStoreFilter && adminStoreFilter !== "all") url += `&store=${encodeURIComponent(adminStoreFilter)}`;
   const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
   if (statusMap[currentFilter])          url += `&status=${statusMap[currentFilter]}`;
   if (currentFilter === "urgent")        url += `&priority=urgent`;
@@ -3954,6 +4029,12 @@ async function loadAdmin() {
     }
 
     row.className = ("main-row " + rowExtraClass).trim();
+    const stCircle = d.point_of_sale === "Alandi"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">A</span>`
+      : d.point_of_sale === "Dhanore"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">D</span>`
+      : `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
+
     row.innerHTML = `
       <td><span class="row-chevron">▶</span></td>
       <td>
@@ -3961,6 +4042,7 @@ async function loadAdmin() {
         ${d.phone ? `<div style="margin-top:2px;"><a href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">📞 ${escHtml(d.phone)}</a></div>` : ""}
         ${d.status === "failed" ? `<div style="font-size:11px;color:#dc2626;margin-top:2px;">${escHtml(d.failure_reason || "")}</div>` : ""}
       </td>
+      <td style="text-align:center;">${stCircle}</td>
       <td style="color:var(--muted)">${escHtml(d.assigned_driver_name || "—")}</td>
       <td>${escHtml(d.product_name || "")}</td>
       <td>
@@ -3986,7 +4068,7 @@ async function loadAdmin() {
 
     const ratingHtml = getDeliveryRating(d) || "—";
 
-    expandRow.innerHTML = `<td colspan="7">
+    expandRow.innerHTML = `<td colspan="8">
       <div class="detail-expand-inner">
         <div class="detail-expand-item">
           <span class="detail-expand-label">Priority</span>
@@ -4104,11 +4186,16 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
       card.style.setProperty("--mc-bg",     palette.bg);
     }
     card.onclick = () => viewDetails(d);
+    const mkStorePill = pos => pos === "Alandi"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:9px;font-weight:800;vertical-align:middle;margin-right:4px;">A</span>`
+      : pos === "Dhanore"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:9px;font-weight:800;vertical-align:middle;margin-right:4px;">D</span>`
+      : "";
     const batchPill = palette ? `<span style="margin-left:5px;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};">🔗 B${batchNumberMap[d.phone]}</span>` : "";
     card.innerHTML = `
       <div class="mob-dc-header">
         <div>
-          <div class="mob-dc-name">${escHtml(d.customer_name || "")}${batchPill}</div>
+          <div class="mob-dc-name">${mkStorePill(d.point_of_sale)}${escHtml(d.customer_name || "")}${batchPill}</div>
           <div style="font-size:12px;color:var(--muted);margin-top:2px;">${escHtml(d.product_name || "")}</div>
         </div>
         <div class="mob-dc-badges">
@@ -4757,9 +4844,15 @@ function renderPayoutTable(data) {
         : `<button onclick="markOneFreightPaid('${d.id}','${custSafe}',${amt})" style="padding:4px 10px;background:#dc2626;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Mark Paid</button>`;
 
     const rowStyle = isPaid ? "background:rgba(74,222,128,0.05);opacity:0.7;" : "";
+    const pStCircle = d.point_of_sale === "Alandi"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:10px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">A</span>`
+      : d.point_of_sale === "Dhanore"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:10px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">D</span>`
+      : `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:10px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
     return `<tr style="border-bottom:1px solid var(--border);${rowStyle}" id="payout-row-${escHtml(d.id)}">
       <td style="padding:10px 12px;color:var(--muted);font-size:12px;">${i+1}</td>
       <td style="padding:10px 12px;font-weight:600;">${escHtml(d.customer_name||"\u2014")}</td>
+      <td style="padding:10px 12px;text-align:center;">${pStCircle}</td>
       <td style="padding:10px 12px;color:var(--muted);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(d.address||"")}">${escHtml(d.address||"\u2014")}</td>
       <td style="padding:10px 12px;white-space:nowrap;">${delivTime}</td>
       <td style="padding:10px 12px;text-align:right;">${freightCell}</td>
@@ -4770,7 +4863,7 @@ function renderPayoutTable(data) {
 
   document.getElementById("payoutFoot").innerHTML = `
     <tr style="background:#fef9f0;border-top:2px solid var(--border);">
-      <td colspan="4" style="padding:12px;font-weight:700;font-size:13px;">
+      <td colspan="5" style="padding:12px;font-weight:700;font-size:13px;">
         Total \u2014 ${data.count} deliveries
         <span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--muted);">Unpaid driver freight in red</span>
       </td>
@@ -5502,10 +5595,17 @@ async function savePermissions() {
 /* LEADS ADMIN */
 let allLeadsAdmin = [];
 let leadAdminFilter = 'all';
+let leadStoreFilter = 'all';
+
+function setLeadStoreFilter(val) {
+  leadStoreFilter = val;
+  loadLeadsAdmin();
+}
 
 async function loadLeadsAdmin() {
   try {
-    const res = await authFetch(`${BASE_URL}/leads`);
+    const storeQ = leadStoreFilter && leadStoreFilter !== "all" ? `?store=${encodeURIComponent(leadStoreFilter)}` : "";
+    const res = await authFetch(`${BASE_URL}/leads${storeQ}`);
     allLeadsAdmin = await res.json();
     renderLeadsAdmin();
   } catch(e) { console.error('loadLeadsAdmin:', e.message); }
@@ -5543,7 +5643,7 @@ function renderLeadsAdmin() {
   });
 
   if (!leads.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No leads found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No leads found</td></tr>';
     return;
   }
 
@@ -5558,8 +5658,14 @@ function renderLeadsAdmin() {
     const exp  = days===null?'--':days<0?`<span style="color:var(--error)">Expired</span>`
                : days<=2?`<span style="color:var(--amber)">⚠ ${days}d</span>` : days+'d';
     const s = ss[l.status]||{bg:'transparent',cl:'var(--on-surface)'};
+    const stCircle = l.point_of_sale === "Alandi"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">A</span>`
+      : l.point_of_sale === "Dhanore"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">D</span>`
+      : `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
     return `<tr style="cursor:pointer;" onclick="openLeadAdminPopup('${escHtml(l.id)}')">
       <td style="font-weight:700;">${escHtml(l.customer_name||'--')}</td>
+      <td style="text-align:center;">${stCircle}</td>
       <td style="font-size:12px;">${escHtml(l.phone||'--')}</td>
       <td style="font-size:12px;">${prodSummary}</td>
       <td>${adminPrice}</td>
@@ -5681,18 +5787,25 @@ document.addEventListener('click', e => {
 /* ════ SERVICE TICKETS COUNT VIEW ════ */
 let allServiceTickets = [];
 let scFilter = 'all';
+let scStoreFilter = 'all';
+
+function setSCStoreFilter(val) {
+  scStoreFilter = val;
+  loadServiceCount();
+}
 
 async function loadServiceCount() {
   const tbody = document.getElementById('scTableBody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading…</td></tr>';
   try {
-    const res  = await authFetch(`${BASE_URL}/service/tickets`);
+    const storeQ = scStoreFilter && scStoreFilter !== "all" ? `?store=${encodeURIComponent(scStoreFilter)}` : "";
+    const res  = await authFetch(`${BASE_URL}/service/tickets${storeQ}`);
     allServiceTickets = await res.json();
     updateSCStats();
     renderSCTable();
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>';
   }
 }
 
@@ -5751,7 +5864,7 @@ function renderSCTable() {
   });
 
     if (!tickets.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</td></tr>';
     return;
   }
 
@@ -5768,9 +5881,16 @@ function renderSCTable() {
     const priorityBadge = t.priority === 'urgent'
       ? `<span style="margin-left:4px;padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;background:rgba(255,180,171,0.2);color:var(--error);">🔴 Urgent</span>`
       : '';
+    const stCircle = t.point_of_sale === "Alandi"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">A</span>`
+      : t.point_of_sale === "Dhanore"
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">D</span>`
+      : `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
+
     return `<tr>
       <td><span style="padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${tbg};color:${tcl};">${escHtml(displayType)}</span>${priorityBadge}</td>
       <td style="font-weight:700;">${escHtml(t.customer_name || '—')}</td>
+      <td style="text-align:center;">${stCircle}</td>
       <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t.product_name || '—')}</td>
       <td style="font-size:12px;color:var(--on-surface-variant);white-space:nowrap;">${dateStr}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px;">${t.brand_tracking_number ? escHtml(t.brand_tracking_number) : '<span style="color:var(--on-surface-variant);">—</span>'}</td>

@@ -514,7 +514,7 @@ async function deleteDriver() {
   });
 
   const result = await res.json();
-  if (result.error) { alert(result.error); return; }
+  if (result.error) { showToast("⚠ " + result.error, "#dc2626"); return; }
 
   closeDriverPopup();
   loadDrivers();
