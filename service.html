@@ -516,6 +516,39 @@
     }
     .combobox-dropdown div:hover,
     .combobox-dropdown div.active { background: var(--surface-container-high); }
+
+    /* ════ ONCE-PER-DAY WELCOME ════ */
+    .welcome-overlay {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(2px);
+      z-index: 9999;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+    .welcome-overlay.show { opacity: 1; pointer-events: auto; }
+    .welcome-card {
+      background: rgba(11,19,38,0.80);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(173,198,255,0.12);
+      border-radius: 24px;
+      padding: 40px 48px;
+      text-align: center;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+      animation: welcomeIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+      max-width: 400px;
+    }
+    .welcome-card .greeting { font-size: 28px; font-weight: 800; }
+    .welcome-card .sub { margin-top: 8px; font-size: 14px; color: var(--on-surface-variant); }
+    .welcome-card .stat-row { margin-top: 20px; display: flex; gap: 20px; justify-content: center; }
+    .welcome-card .stat-item { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
+    .welcome-card .stat-item b { color: var(--on-surface); font-size: 18px; display: block; }
+    @keyframes welcomeIn {
+      from { opacity: 0; transform: translateY(40px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
@@ -552,6 +585,18 @@
 
 <!-- ══ APP SHELL ══ -->
 <div id="appShell" style="display:none;">
+
+  <!-- WELCOME OVERLAY (once/day) -->
+  <div id="welcomeOverlay" class="welcome-overlay">
+    <div class="welcome-card">
+      <div class="greeting" id="welcomeGreeting">👋 Welcome!</div>
+      <div class="sub" id="welcomeSub">—</div>
+      <div class="stat-row">
+        <div class="stat-item">📦 Deliveries<br><b id="welcomeDlvCount">—</b></div>
+        <div class="stat-item">🎯 Today<br><b id="welcomeTodayCount">—</b></div>
+      </div>
+    </div>
+  </div>
 
   <!-- HEADER -->
   <header class="header">
@@ -630,6 +675,9 @@
         <button class="filter-btn" data-filter="logged"      onclick="setFilter('logged',this)">Logged <span class="filter-count" id="fc-logged"></span></button>
         <button class="filter-btn" data-filter="installation" onclick="setFilter('installation',this)">Demo-Installation <span class="filter-count" id="fc-installation"></span></button>
         <button class="filter-btn" data-filter="complaint"   onclick="setFilter('complaint',this)">Complaints <span class="filter-count" id="fc-complaint"></span></button>
+        <select id="ticketStoreFilter" onchange="onTicketStoreFilter()" style="margin-left:auto;padding:4px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;cursor:pointer;">
+          <option value="all">All Stores</option>
+        </select>
       </div>
 
       <!-- Desktop table -->
@@ -894,6 +942,7 @@ let serviceName  = "";
 let allTickets   = [];
 let allDeliveries = [];
 let currentFilter = "all";
+let currentStoreFilter = "all";
 let currentPage   = 1;
 const PAGE_SIZE   = 15;
 let _svcMessaging = null;
@@ -907,6 +956,41 @@ function isExpired(token) {
 }
 window.authGetToken = getToken;
 window.authOnError = doLogout;
+
+function getUserNameFromToken() {
+  const t = getToken();
+  if (!t) return "";
+  try { const p = JSON.parse(atob(t.split(".")[1])); return p.name || ""; } catch { return ""; }
+}
+function getUserStoreFromToken() {
+  const t = getToken();
+  if (!t) return "";
+  try { const p = JSON.parse(atob(t.split(".")[1])); return p.storeName || ""; } catch { return ""; }
+}
+function showWelcomeOnce() {
+  const today = new Date().toDateString();
+  if (localStorage.getItem("welcomeDateService") === today) return;
+  const name = getUserNameFromToken();
+  const el = document.getElementById("welcomeOverlay");
+  const greeting = document.getElementById("welcomeGreeting");
+  const sub = document.getElementById("welcomeSub");
+  if (!el) return;
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+  greeting.textContent = `👋 ${timeGreeting}${name ? ", " + name : ""}!`;
+  const storeName = getUserStoreFromToken();
+  if (storeName) {
+    const short = storeName.replace(/^Hari Om Electronics - /, '');
+    const cls = short.toLowerCase() === "alandi" ? "chip-alandi" : "chip-dhanore";
+    sub.innerHTML = `<span class="store-chip ${cls}"><span class="chip-dot"></span>${escHtml(short)}</span>`;
+  } else {
+    sub.textContent = "🔧 Service Panel";
+  }
+  el.classList.add("show");
+  localStorage.setItem("welcomeDateService", today);
+  setTimeout(() => el.classList.remove("show"), 3800);
+  el.onclick = () => el.classList.remove("show");
+}
 
 /* ── RESTORE SESSION ── */
 (function restoreSession() {
@@ -968,6 +1052,7 @@ function showApp() {
   // Push registration deferred — never blocks UI interaction
   // Runs after Firebase scripts have loaded and page is idle
   _deferPushRegistration();
+  setTimeout(showWelcomeOnce, 600);
 }
 
 /* ── LOAD EVERYTHING ── */
@@ -1054,13 +1139,22 @@ function setFilter(f, btn) {
   renderTickets();
 }
 
+function onTicketStoreFilter() {
+  currentStoreFilter = document.getElementById("ticketStoreFilter").value;
+  currentPage = 1;
+  renderTickets();
+}
+
 function getFilteredTickets() {
-  if (currentFilter === "all") return allTickets;
+  let filtered = allTickets;
+  if (currentStoreFilter !== "all")
+    filtered = filtered.filter(t => t.storeId === currentStoreFilter);
+  if (currentFilter === "all") return filtered;
   if (["new","logged"].includes(currentFilter))
-    return allTickets.filter(t => t.status === currentFilter);
+    return filtered.filter(t => t.status === currentFilter);
   if (["installation","complaint"].includes(currentFilter))
-    return allTickets.filter(t => t.type === currentFilter);
-  return allTickets;
+    return filtered.filter(t => t.type === currentFilter);
+  return filtered;
 }
 
 /* ── RENDER TICKETS with pagination ── */
@@ -1119,7 +1213,7 @@ function renderTicketsTable(tickets) {
   tbody.innerHTML = tickets.map(t => `
     <tr class="clickable" onclick="openTicketDetail('${t.id}')">
       <td><span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span></td>
-      <td style="font-weight:700;">${esc(t.customer_name)||"—"}${t.point_of_sale?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(t.point_of_sale)}</span>`:""}</td>
+      <td style="font-weight:700;">${esc(t.customer_name)||"—"}${storeDisplayName(t.storeId)?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(storeDisplayName(t.storeId))}</span>`:""}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.product_name)||"—"}</td>
       <td><a class="phone-link" href="tel:${esc(t.phone)}" onclick="event.stopPropagation()">${esc(t.phone)||"—"}</a></td>
       <td><span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace("_"," ")}</span></td>
@@ -1142,7 +1236,7 @@ function renderTicketsMob(tickets) {
     <div class="mob-ticket-card" onclick="openTicketDetail('${t.id}')">
       <div class="mob-card-row">
         <div>
-          <div class="mob-card-name">${esc(t.customer_name)||"—"}${t.point_of_sale?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(t.point_of_sale)}</span>`:""}</div>
+          <div class="mob-card-name">${esc(t.customer_name)||"—"}${storeDisplayName(t.storeId)?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(storeDisplayName(t.storeId))}</span>`:""}</div>
           <div class="mob-card-product">${esc(t.product_name)||"—"}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -1288,7 +1382,7 @@ function openTicketDetail(id) {
     <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span>
       ${esc(t.customer_name) || "—"}
-      ${t.point_of_sale?`<span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(t.point_of_sale)}</span>`:""}
+      ${storeDisplayName(t.storeId)?`<span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(storeDisplayName(t.storeId))}</span>`:""}
     </h3>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
@@ -1687,12 +1781,19 @@ async function loadStores() {
       if (sel) {
         sel.innerHTML = '<option value="">— Select store —</option>';
         list.forEach(s => {
-          STORES[s.key] = { name: s.name, address: s.address, phone: s.phone, altPhone: s.altPhone };
+          STORES[s.id] = { name: s.name, address: s.address, phone: s.phone, altPhone: s.altPhone };
           const opt = document.createElement("option");
-          opt.value = s.key;
+          opt.value = s.id;
           opt.textContent = s.name;
           sel.appendChild(opt);
         });
+      }
+      const tsf = document.getElementById("ticketStoreFilter");
+      if (tsf) {
+        const cur = tsf.value;
+        tsf.innerHTML = (list.length > 1 ? '<option value="all">All Stores</option>' : '') +
+          list.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('');
+        tsf.value = cur || (list.length === 1 ? list[0].id : 'all');
       }
     }
   } catch(e) {
@@ -1851,6 +1952,7 @@ async function submitCreateTicket() {
         phone,
         alternate_phone: document.getElementById("ctAltPhone").value.trim(),
         pincode, state, city, area, addr1, addr2,
+        storeId:           document.getElementById("ctStore").value || "",
         product_name:  productName,
         serial_number: document.getElementById("ctSerial").value.trim(),
         description:   desc,
@@ -2034,6 +2136,12 @@ function openEditTicket(id) {
       <input class="form-input" type="date" id="et_purchase_date" value="${t.purchase_date?.seconds ? new Date(t.purchase_date.seconds*1000).toISOString().slice(0,10) : ''}">
     </div>
     <div class="form-field">
+      <label>Store</label>
+      <select class="form-input" id="etStore">
+        <option value="">— Select —</option>
+      </select>
+    </div>
+    <div class="form-field">
       <label>Description</label>
       <textarea class="form-input" id="et_desc" rows="3" style="resize:vertical;">${t.description || ""}</textarea>
     </div>
@@ -2044,6 +2152,19 @@ function openEditTicket(id) {
       </button>
       <button class="btn btn-gray" onclick="openTicketDetail('${t.id}')">Cancel</button>
     </div>`;
+
+  // Populate store dropdown
+  const etStore = document.getElementById("etStore");
+  if (etStore) {
+    etStore.innerHTML = '<option value="">— Select —</option>';
+    Object.keys(STORES).forEach(id => {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = STORES[id].name;
+      if (id === t.storeId) opt.selected = true;
+      etStore.appendChild(opt);
+    });
+  }
 }
 
 async function submitEditTicket(id) {
@@ -2057,6 +2178,7 @@ async function submitEditTicket(id) {
     serial_number:   document.getElementById("et_serial").value.trim(),
     description:     document.getElementById("et_desc").value.trim(),
     purchase_date:   document.getElementById("et_purchase_date").value || null,
+    storeId:         document.getElementById("etStore").value || "",
   };
   if (!updates.phone || updates.phone.length !== 10) {
     msg.style.color = "var(--error)"; msg.textContent = "Valid 10-digit phone required."; return;

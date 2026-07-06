@@ -289,6 +289,7 @@
       <div class="field"><label>Vehicle Number</label><input id="vehicle_number" placeholder="e.g. MH12AB1234"></div>
       <div class="field"><label>Vehicle Make</label><input id="vehicle_make" placeholder="e.g. Tata"></div>
       <div class="field"><label>Vehicle Model</label><input id="vehicle_model" placeholder="e.g. Ace"></div>
+      <div class="field"><label>Store</label><select id="storeId"><option value="">— Not assigned —</option></select></div>
       <div class="field"><label>6-Digit PIN *</label><input id="pin" placeholder="Set login PIN" maxlength="6" type="password"></div>
     </div>
     <button class="btn btn-primary btn-add" onclick="addDriver()">+ Add Driver</button>
@@ -296,11 +297,17 @@
 
   <div class="card">
     <h3>Driver List</h3>
-    <input
-      id="driverSearch"
-      class="search-input"
-      placeholder="🔍 Search by name or phone…"
-      oninput="filterDrivers()">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <input
+        id="driverSearch"
+        class="search-input"
+        style="width:auto;flex:1;min-width:160px;margin-bottom:0;"
+        placeholder="🔍 Search by name or phone…"
+        oninput="filterDrivers()">
+      <select id="driverStoreFilter" onchange="filterDrivers()" style="padding:9px 14px;border:1.5px solid var(--border);border-radius:9px;font-family:var(--font-body);font-size:14px;background:#f8fafc;color:var(--text);outline:none;">
+        <option value="">All Stores</option>
+      </select>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -310,6 +317,7 @@
             <th>Vehicle No.</th>
             <th>Make</th>
             <th>Model</th>
+            <th>Store</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -330,6 +338,7 @@
       <div class="field"><label>Vehicle Number</label><input id="edit_vehicle_number" disabled></div>
       <div class="field"><label>Vehicle Make</label><input id="edit_vehicle_make" disabled></div>
       <div class="field"><label>Vehicle Model</label><input id="edit_vehicle_model" disabled></div>
+      <div class="field"><label>Store</label><select id="edit_storeId" disabled><option value="">— Not assigned —</option></select></div>
       <div class="field"><label>New PIN (leave blank to keep)</label><input id="edit_pin" disabled maxlength="6" type="password"></div>
     </div>
     <div class="popup-actions">
@@ -370,6 +379,7 @@ if (!token) window.location.href = "login.html";
 
 let driverCache = [];
 let currentDriverId = null;
+const STORE_NAMES = {};
 
 document.getElementById("phone").addEventListener("input", function () {
   this.value = this.value.replace(/\D/g, "");
@@ -384,12 +394,28 @@ function showToast(msg, color) {
   setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.style.display = "none", 300); }, 3000);
 }
 
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function loadDriverStores() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/stores`, { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) return;
+    const stores = await res.json();
+    stores.forEach(s => { STORE_NAMES[s.id] = s.name; });
+    const addSel = document.getElementById('storeId');
+    if (addSel) addSel.innerHTML = '<option value="">— Not assigned —</option>' + stores.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('');
+    const filSel = document.getElementById('driverStoreFilter');
+    if (filSel) filSel.innerHTML = '<option value="">All Stores</option>' + stores.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('');
+  } catch {}
+}
+
 async function addDriver() {
   const name = document.getElementById("name").value.trim();
   const phone = document.getElementById("phone").value.trim();
   const vehicle_number = document.getElementById("vehicle_number").value.trim();
   const vehicle_make = document.getElementById("vehicle_make").value.trim();
   const vehicle_model = document.getElementById("vehicle_model").value.trim();
+  const storeId = document.getElementById("storeId").value;
   const pin = document.getElementById("pin").value.trim();
 
   if (!name) { showToast("⚠ Driver name required", "#dc2626"); return; }
@@ -403,7 +429,7 @@ async function addDriver() {
     const res = await fetch(`${BASE_URL}/addDriver`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-      body: JSON.stringify({ driver_name: name, phone, vehicle_number, vehicle_make, vehicle_model, pin })
+      body: JSON.stringify({ driver_name: name, phone, vehicle_number, vehicle_make, vehicle_model, pin, storeId })
     });
     const result = await res.json();
     if (!res.ok) { showToast("⚠ " + (result.error || "Failed to add driver"), "#dc2626"); btn.disabled = false; btn.innerText = "+ Add Driver"; return; }
@@ -425,13 +451,17 @@ async function loadDrivers() {
   list.innerHTML = "";
 
   data.forEach(d => {
+    const storeName = STORE_NAMES[d.storeId] || d.storeId || '';
+    const storeBadge = storeName ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;background:${storeName==='Alandi'?'rgba(79,70,229,0.15)':'rgba(5,150,105,0.15)'};color:${storeName==='Alandi'?'#818cf8':'#34d399'};">${storeName==='Alandi'?'A':'D'} ${storeName}</span>` : '—';
     const tr = document.createElement("tr");
+    tr.setAttribute('data-store', d.storeId || '');
     tr.innerHTML = `
       <td>${d.driver_name}</td>
       <td>${d.phone || "—"}</td>
       <td>${d.vehicle_number || "—"}</td>
       <td>${d.vehicle_make || "—"}</td>
       <td>${d.vehicle_model || "—"}</td>
+      <td>${storeBadge}</td>
       <td><button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="openDriverPopup('${d.id}')">View</button></td>
     `;
     list.appendChild(tr);
@@ -449,6 +479,12 @@ function openDriverPopup(id) {
   document.getElementById("edit_vehicle_make").value = d.vehicle_make || "";
   document.getElementById("edit_vehicle_model").value = d.vehicle_model || "";
   document.getElementById("edit_pin").value = "";
+  const editStore = document.getElementById("edit_storeId");
+  if (editStore) {
+    const cur = d.storeId || '';
+    editStore.innerHTML = '<option value="">— Not assigned —</option>' + Object.entries(STORE_NAMES).map(([k,v]) => `<option value="${escHtml(k)}" ${k===cur?'selected':''}>${escHtml(v)}</option>`).join('');
+    editStore.value = cur;
+  }
 
   disableEdit();
   document.getElementById("driverPopup").classList.add("show");
@@ -460,15 +496,15 @@ function closeDriverPopup() {
 }
 
 function enableEdit() {
-  ["edit_name", "edit_phone", "edit_vehicle_number", "edit_vehicle_make", "edit_vehicle_model", "edit_pin"]
-    .forEach(id => document.getElementById(id).disabled = false);
+  ["edit_name", "edit_phone", "edit_vehicle_number", "edit_vehicle_make", "edit_vehicle_model", "edit_storeId", "edit_pin"]
+    .forEach(id => { const e = document.getElementById(id); if (e) e.disabled = false; });
   document.getElementById("editBtn").style.display = "none";
   document.getElementById("saveBtn").style.display = "inline-flex";
 }
 
 function disableEdit() {
-  ["edit_name", "edit_phone", "edit_vehicle_number", "edit_vehicle_make", "edit_vehicle_model", "edit_pin"]
-    .forEach(id => document.getElementById(id).disabled = true);
+  ["edit_name", "edit_phone", "edit_vehicle_number", "edit_vehicle_make", "edit_vehicle_model", "edit_storeId", "edit_pin"]
+    .forEach(id => { const e = document.getElementById(id); if (e) e.disabled = true; });
   document.getElementById("editBtn").style.display = "inline-flex";
   document.getElementById("saveBtn").style.display = "none";
 }
@@ -479,7 +515,8 @@ async function saveDriver() {
     phone: document.getElementById("edit_phone").value.trim(),
     vehicle_number: document.getElementById("edit_vehicle_number").value.trim(),
     vehicle_make: document.getElementById("edit_vehicle_make").value.trim(),
-    vehicle_model: document.getElementById("edit_vehicle_model").value.trim()
+    vehicle_model: document.getElementById("edit_vehicle_model").value.trim(),
+    storeId: document.getElementById("edit_storeId").value
   };
 
   const newPin = document.getElementById("edit_pin").value.trim();
@@ -522,12 +559,16 @@ async function deleteDriver() {
 
 function filterDrivers() {
   const q = document.getElementById("driverSearch").value.toLowerCase();
+  const storeFilter = document.getElementById("driverStoreFilter").value;
   document.querySelectorAll("#list tr").forEach(tr => {
     const text = tr.innerText.toLowerCase();
-    tr.style.display = q && !text.includes(q) ? "none" : "";
+    const matchSearch = !q || text.includes(q);
+    const matchStore = !storeFilter || tr.getAttribute('data-store') === storeFilter;
+    tr.style.display = matchSearch && matchStore ? "" : "none";
   });
 }
 
+loadDriverStores();
 loadDrivers();
 </script>
 </body>

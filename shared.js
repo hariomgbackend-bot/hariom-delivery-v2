@@ -2,6 +2,48 @@
    SHARED UTILITIES — loaded by all frontend pages
 ════════════════════════════════════════════════ */
 
+/* ── Store ID → display name ── */
+function storeDisplayName(id) {
+  if (!id || id === "all") return "";
+  try {
+    if (typeof _stores !== "undefined" && _stores) {
+      const found = _stores.find(s => s.id === id);
+      if (found) return found.name;
+    }
+  } catch {}
+  try {
+    if (window._stores) {
+      const found = window._stores.find(s => s.id === id);
+      if (found) return found.name;
+    }
+  } catch {}
+  const KNOWN = { store_a: "Alandi", store_b: "Dhanore" };
+  return KNOWN[id] || id;
+}
+
+/* ── Store badge (colored circle with first letter) ── */
+function mkStoreBadge(storeId, size = 22) {
+  if (!storeId) return "";
+  const name = storeDisplayName(storeId);
+  if (!name) return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:${Math.round(size*0.5)}px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
+  const letter = name.charAt(0).toUpperCase();
+  const fs = Math.round(size * 0.5);
+  const GRADIENTS = {
+    store_a: ["#4f46e5","#818cf8"],
+    store_b: ["#059669","#34d399"],
+  };
+  let c1, c2;
+  if (GRADIENTS[storeId]) {
+    [c1,c2] = GRADIENTS[storeId];
+  } else {
+    const hash = [...storeId].reduce((h,c)=>((h<<5)-h+c.charCodeAt(0))|0,0);
+    const hue = ((hash % 360) + 360) % 360;
+    c1 = `hsl(${hue},70%,50%)`;
+    c2 = `hsl(${(hue+40)%360},70%,65%)`;
+  }
+  return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:linear-gradient(135deg,${c1},${c2});color:#fff;font-size:${fs}px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">${letter}</span>`;
+}
+
 /* ── HTML escape ── */
 function escHtml(s) {
   return String(s||"").replace(/&#x2F;/g,"/").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");

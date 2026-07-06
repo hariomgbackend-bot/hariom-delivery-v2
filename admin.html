@@ -2040,6 +2040,7 @@
             <select id="sRole" onchange="onStaffRoleChange()" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;">
               <option value="staff">Staff (PIN login)</option>
               <option value="service">Service (Email login)</option>
+              <option value="accountant">Accountant (Email login)</option>
             </select>
           </div>
         </div>
@@ -2092,15 +2093,23 @@
         <div id="staffFormMsg" style="font-size:12px;font-weight:600;min-height:16px;margin-bottom:10px;"></div>
         <div style="display:flex;gap:10px;">
           <button id="staffFormSaveBtn" onclick="submitAddStaff()" style="padding:9px 20px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Save</button>
-          <button onclick="editingStaffId=null;document.getElementById('addStaffForm').style.display='none'" style="padding:9px 16px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+          <button onclick="editingStaffId=null;document.getElementById('addStaffForm').style.display='none';const tc=document.getElementById('staffTableContainer');if(tc)tc.style.display=''" style="padding:9px 16px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
         </div>
       </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Store</th><th>Email</th><th>Status</th><th>Created</th><th>Leads</th><th>Tickets Raised</th><th>Tickets Logged</th><th></th></tr></thead>
-          <tbody id="staffTableBody"><tr><td colspan="11" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
-        </table>
+      <div id="staffTableContainer">
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+          <button class="staff-filter-chip active" data-role="all" onclick="setStaffRoleFilter('all')" style="padding:5px 14px;border:1px solid var(--outline-variant);border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:var(--surface-container-high);color:var(--on-surface);">All</button>
+          <button class="staff-filter-chip" data-role="staff" onclick="setStaffRoleFilter('staff')" style="padding:5px 14px;border:1px solid var(--outline-variant);border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:var(--surface-container-high);color:var(--on-surface);">Staff</button>
+          <button class="staff-filter-chip" data-role="service" onclick="setStaffRoleFilter('service')" style="padding:5px 14px;border:1px solid var(--outline-variant);border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:var(--surface-container-high);color:var(--on-surface);">Service</button>
+          <button class="staff-filter-chip" data-role="accountant" onclick="setStaffRoleFilter('accountant')" style="padding:5px 14px;border:1px solid var(--outline-variant);border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:var(--surface-container-high);color:var(--on-surface);">Accountant</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Store</th><th>Email</th><th>Status</th><th>Created</th><th>Leads</th><th>Tickets Raised</th><th>Tickets Logged</th><th></th></tr></thead>
+            <tbody id="staffTableBody"><tr><td colspan="11" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -2110,6 +2119,9 @@
         <button class="cal-nav-btn" onclick="adCalPrevMonth()">‹</button>
         <span class="cal-nav-title" id="adCalTitle">June 2026</span>
         <button class="cal-nav-btn" onclick="adCalNextMonth()">›</button>
+        <select id="adCalStoreFilter" onchange="adCalSetStoreFilter(this.value)" style="margin-left:auto;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;">
+          <option value="all">🏪 All Stores</option>
+        </select>
       </div>
       <div class="cal-layout">
         <div class="cal-grid" id="adCalGrid"></div>
@@ -2142,7 +2154,10 @@
         </div>
         <input type="date" id="adCalAgaDate" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:14px;">
         <input id="adCalAgaTitle" placeholder="Title *" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:12px;">
-        <input id="adCalAgaDesc" placeholder="Description (optional)" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:14px;">
+        <input id="adCalAgaDesc" placeholder="Description (optional)" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:12px;">
+        <select id="adCalAgaStore" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:14px;-webkit-appearance:none;">
+          <option value="">🏪 All Stores</option>
+        </select>
         <div id="adCalAgaMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:12px;text-align:center;"></div>
         <div style="display:flex;gap:10px;">
           <button class="cal-day-btn cal-day-btn-aga" style="flex:1;padding:10px 0;" onclick="adCalSubmitAgenda()">Save Agenda</button>
@@ -2160,16 +2175,23 @@
         </div>
         <input type="date" id="adCalNoteDate" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:14px;">
         <input id="adCalNoteTitle" placeholder="Title *" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:12px;">
-        <input id="adCalNoteDesc" placeholder="Description (optional)" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:14px;">
-        <div style="display:flex;gap:10px;margin-bottom:14px;">
-          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface-container-low);border-radius:10px;cursor:pointer;border:2px solid var(--primary);font-size:13px;font-weight:600;color:var(--on-surface);" id="adCalNoteVisPub">
-            <input type="radio" name="adCalNoteVis" value="public" checked onchange="adCalNoteVisChange()" style="accent-color:var(--primary);"> Public
+        <input id="adCalNoteDesc" placeholder="Description (optional)" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:12px;">
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          <label style="flex:1;display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--surface-container-low);border-radius:10px;cursor:pointer;border:2px solid var(--primary);font-size:12px;font-weight:600;color:var(--on-surface);min-width:100px;" id="adCalNoteVisAll">
+            <input type="radio" name="adCalNoteVis" value="all_stores" checked onchange="adCalNoteVisChange()" style="accent-color:var(--primary);"> All Stores
           </label>
-          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface-container-low);border-radius:10px;cursor:pointer;border:2px solid transparent;font-size:13px;font-weight:600;color:var(--on-surface);" id="adCalNoteVisStaff">
+          <label style="flex:1;display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--surface-container-low);border-radius:10px;cursor:pointer;border:2px solid transparent;font-size:12px;font-weight:600;color:var(--on-surface);min-width:100px;" id="adCalNoteVisStore">
+            <input type="radio" name="adCalNoteVis" value="store_only" onchange="adCalNoteVisChange()" style="accent-color:var(--primary);"> Specific Store
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--surface-container-low);border-radius:10px;cursor:pointer;border:2px solid transparent;font-size:12px;font-weight:600;color:var(--on-surface);min-width:100px;" id="adCalNoteVisStaff">
             <input type="radio" name="adCalNoteVis" value="staff_only" onchange="adCalNoteVisChange()" style="accent-color:var(--primary);"> Specific Staff
           </label>
         </div>
-        <div id="adCalNoteStaffWrap" style="display:none;margin-bottom:14px;">
+        <div id="adCalNoteStoreWrap" style="display:none;margin-bottom:12px;">
+          <select id="adCalNoteStore" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;">
+          </select>
+        </div>
+        <div id="adCalNoteStaffWrap" style="display:none;margin-bottom:12px;">
           <select class="cal-target-select" id="adCalNoteStaff" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;"><option value="">Select staff...</option></select>
         </div>
         <div id="adCalNoteMsg" style="font-size:13px;font-weight:600;min-height:18px;margin-bottom:12px;text-align:center;"></div>
@@ -2697,6 +2719,7 @@
             <option value="90">Last 90 Days</option>
             <option value="0">All Time</option>
           </select>
+          <select id="saStoreFilter" onchange="loadSalesAnalytics()" style="background:var(--surface-container-low);color:var(--on-surface);border:1px solid var(--outline-variant);border-radius:10px;padding:8px 12px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;"></select>
         </div>
       </div>
 
@@ -3375,7 +3398,28 @@ let editingStaffId = null;
 let staffList = [];
 let _stores = [];
 let _storeNameById = {};
+let staffRoleFilter = 'all';
 const STAFF_COLORS = ['#f59e0b','#3b82f6','#10b981','#f43f5e','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+
+function populateStoreFilterSelects() {
+  if (!window._stores || !_stores.length) return;
+  const ids = ['adminStoreFilter', 'scStoreFilter', 'leadStoreFilter', 'adCalStoreFilter', 'adCalAgaStore'];
+  ids.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = (_stores.length > 1 ? '<option value="all">All Stores</option>' : '') +
+      _stores.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('');
+    sel.value = cur || (_stores.length === 1 ? _stores[0].id : 'all');
+  });
+  // adCalNoteStore always requires a specific store — no "all" option
+  const noteSel = document.getElementById('adCalNoteStore');
+  if (noteSel) {
+    const cur = noteSel.value;
+    noteSel.innerHTML = _stores.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('');
+    noteSel.value = cur;
+  }
+}
 
 async function loadStores() {
   if (!window.authGetToken) { setTimeout(loadStores, 200); return; }
@@ -3391,6 +3435,7 @@ async function loadStores() {
       sel.innerHTML = '<option value="">— Not assigned —</option>' +
         _stores.map(s => `<option value="${escHtml(s.id)}" ${cur===s.id?"selected":""}>${escHtml(s.name)}</option>`).join('');
     }
+    populateStoreFilterSelects();
   } catch {}
 }
 
@@ -3423,6 +3468,8 @@ function openAddStaffModal(){
   document.getElementById('staffFormMsg').style.color='';
   onStaffRoleChange();
   document.getElementById('addStaffForm').style.display='';
+  const tc = document.getElementById('staffTableContainer');
+  if (tc) tc.style.display = 'none';
   document.getElementById('sName').focus();
 }
 function openEditStaff(id){
@@ -3447,12 +3494,14 @@ function openEditStaff(id){
   document.getElementById('staffFormMsg').textContent='';
   document.getElementById('staffFormMsg').style.color='';
   document.getElementById('addStaffForm').style.display='';
+  const tc = document.getElementById('staffTableContainer');
+  if (tc) tc.style.display = 'none';
   document.getElementById('sName').focus();
 }
 function onStaffRoleChange(){
   const r=document.getElementById('sRole').value;
   document.getElementById('staffPinFields').style.display=r==='staff'?'':'none';
-  document.getElementById('staffEmailFields').style.display=r==='service'?'':'none';
+  document.getElementById('staffEmailFields').style.display=(r==='service'||r==='accountant')?'':'none';
 }
 async function submitAddStaff(){
   const msg=document.getElementById('staffFormMsg');
@@ -3505,22 +3554,33 @@ async function submitAddStaff(){
   }
   msg.style.color='var(--primary)';msg.textContent='Saving...';
   try{
-    const res=await authFetch(`${BASE_URL}/addStaff`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+    const url = role==='accountant' ? `${BASE_URL}/admin/create-accountant` : `${BASE_URL}/addStaff`;
+    const res=await authFetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
     const data=await res.json();
     if(!res.ok){msg.style.color='var(--error)';msg.textContent=data.error||'Failed.';return;}
-    msg.style.color='var(--tertiary)';msg.textContent='Staff added!';
+    msg.style.color='var(--tertiary)';msg.textContent=role==='accountant'?'Accountant created!':'Staff added!';
     setTimeout(()=>{document.getElementById('addStaffForm').style.display='none';loadStaff();},800);
   }catch(e){msg.style.color='var(--error)';msg.textContent='Network error.';}
 }
+function setStaffRoleFilter(role){
+  staffRoleFilter = role;
+  document.querySelectorAll('.staff-filter-chip').forEach(el => {
+    el.style.background = el.dataset.role === role ? 'var(--primary)' : 'var(--surface-container-high)';
+    el.style.color = el.dataset.role === role ? 'var(--on-primary)' : 'var(--on-surface)';
+  });
+  loadStaff();
+}
 async function loadStaff(){
+  const stc=document.getElementById('staffTableContainer');if(stc)stc.style.display='';
   const tb=document.getElementById('staffTableBody');if(!tb)return;
   tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
   try{
     // Fetch staff, leads and service tickets in parallel for activity counters
+    const sQ = adminStoreFilter && adminStoreFilter !== 'all' ? `?store=${encodeURIComponent(adminStoreFilter)}` : '';
     const [staffRes, leadsRes, ticketsRes] = await Promise.all([
       authFetch(`${BASE_URL}/staff`),
-      authFetch(`${BASE_URL}/leads`),
-      authFetch(`${BASE_URL}/service/tickets`)
+      authFetch(`${BASE_URL}/leads${sQ}`),
+      authFetch(`${BASE_URL}/service/tickets${sQ}`)
     ]);
     const staff   = await staffRes.json();
     const leads   = await leadsRes.json();
@@ -3548,13 +3608,17 @@ async function loadStaff(){
       }
     });
 
-    tb.innerHTML=staff.map(s=>{
+    const filteredStaff = staffRoleFilter === 'all' ? staff : staff.filter(s => s.role === staffRoleFilter);
+    if(!filteredStaff.length){tb.innerHTML=`<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No ${staffRoleFilter==='all'?'staff members':staffRoleFilter+' accounts'} yet</td></tr>`;staffList=staff;return;}
+    tb.innerHTML=filteredStaff.map(s=>{
       const dt=s.created_at?.seconds?new Date(s.created_at.seconds*1000).toLocaleDateString('en-IN'):'--';
       const ab=s.active===false
         ?`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">Inactive</span>`
         :`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.15);color:var(--tertiary);">Active</span>`;
       const rb=s.role==='service'
         ?`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(78,222,163,0.12);color:var(--tertiary);">Service</span>`
+        :s.role==='accountant'
+        ?`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,183,77,0.15);color:#ff9800;">Accountant</span>`
         :`<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.15);color:var(--primary);">Staff</span>`;
 
       const cLeads   = leadsCount[s.id]  || 0;
@@ -3565,13 +3629,8 @@ async function loadStaff(){
         ? `<span style="font-weight:700;color:${color};">${val}</span>`
         : `<span style="color:var(--on-surface-variant);">—</span>`;
 
-      const storeName = _storeNameById[s.storeId] || '';
-      const storeBadge = storeName === "Alandi"
-        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;margin-right:4px;">A</span><span style="font-size:12px;">Alandi</span>`
-        : storeName === "Dhanore"
-        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;margin-right:4px;">D</span><span style="font-size:12px;">Dhanore</span>`
-        : storeName
-        ? `<span style="font-size:12px;color:var(--on-surface-variant);">${escHtml(storeName)}</span>`
+      const storeBadge = s.storeId
+        ? `${mkStoreBadge(s.storeId, 20)}<span style="font-size:12px;margin-left:3px;">${escHtml(_storeNameById[s.storeId] || storeDisplayName(s.storeId) || '—')}</span>`
         : `<span style="font-size:12px;color:var(--outline);">—</span>`;
 
       return `<tr>
@@ -3588,6 +3647,7 @@ async function loadStaff(){
         <td style="white-space:nowrap;">
           <button onclick="openEditStaff('${escHtml(s.id)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:4px;background:rgba(78,222,163,0.12);color:var(--tertiary);">Edit</button>
           <button onclick="toggleStaffActive('${escHtml(s.id)}',${s.active!==false})" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:4px;background:${s.active===false?'rgba(78,222,163,0.12)':'rgba(255,180,171,0.1)'};color:${s.active===false?'var(--tertiary)':'var(--error)'};">${s.active===false?'Activate':'Deactivate'}</button>
+          <button onclick="transferStore('${escHtml(s.id)}','${escHtml(s.name)}','${escHtml(s.role)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:4px;background:rgba(255,183,77,0.12);color:#ff9800;">Store</button>
           <button onclick="resetStaffCredential('${escHtml(s.id)}','${escHtml(s.role)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;margin-right:4px;background:rgba(173,198,255,0.1);color:var(--primary);">Reset</button>
           <button onclick="staffDeleteBtn(this)" data-sid="${escHtml(s.id)}" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(147,0,10,0.5);color:var(--error);">Delete</button>
         </td></tr>`;
@@ -3626,6 +3686,40 @@ function staffDeleteBtn(btn) {
   const name = row ? row.querySelector('td:first-child')?.textContent?.trim() : '';
   const id   = btn.dataset.sid;
   deleteStaff(id, name);
+}
+
+function transferStore(id, name, role){
+  if(!_stores.length){showToast('Stores not loaded yet.', 'info');return;}
+  const cur = _storeNameById[document.querySelector(`#staffTableBody button[data-sid="${id}"]`)?.closest('tr')?.querySelector('td:nth-child(4)')?.textContent?.trim()] || '';
+  const opts = _stores.map(s => `<option value="${escHtml(s.id)}" ${s.name===cur?'selected':''}>${escHtml(s.name)}</option>`).join('');
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `<div style="background:var(--surface-container);border-radius:16px;padding:24px;width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px;color:var(--on-surface);">Transfer Store</div>
+    <div style="font-size:12px;margin-bottom:16px;color:var(--on-surface-variant);">${escHtml(name)} — select new store:</div>
+    <select id="tsStore" style="width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:16px;">${opts}</select>
+    <div style="display:flex;gap:10px;">
+      <button onclick="doTransfer('${escHtml(id)}','${escHtml(role)}')" style="flex:1;padding:10px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Transfer</button>
+      <button onclick="this.closest('div[style]').parentElement.remove()" style="padding:10px 16px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+    </div></div>`;
+  document.body.appendChild(overlay);
+}
+async function doTransfer(userId, userRole){
+  const sel = document.getElementById('tsStore');
+  if(!sel||!sel.value){showToast('Select a store.', 'info');return;}
+  try{
+    const r = await authFetch(`${BASE_URL}/admin/transfer-user`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userId, userRole, newStoreId: sel.value })
+    });
+    const d = await r.json();
+    if(r.ok){
+      showToast(`✅ Transferred to ${d.storeName||sel.options[sel.selectedIndex].text}`, 'success');
+      document.querySelector('div[style*="position:fixed"]')?.remove();
+      loadStaff();
+    } else { showToast(d.error||'Failed.', 'error'); }
+  } catch(e){ showToast('Network error.', 'error'); }
 }
 
 /* BRANDS MANAGEMENT */
@@ -3739,7 +3833,7 @@ const BASE_URL = window.location.origin;
 function storeOptionsHtml(selected) {
   const sel = selected || "";
   return '<option value="">—</option>' + _stores.map(s =>
-    `<option value="${escHtml(s.name)}" ${sel === s.name ? "selected" : ""}>${escHtml(s.name)}</option>`
+    `<option value="${escHtml(s.id)}" ${sel === s.id ? "selected" : ""}>${escHtml(s.name)}</option>`
   ).join('');
 }
 
@@ -3849,9 +3943,10 @@ let allDeliveryData = [];
 let currentPage = 1;
 const PAGE_SIZE = 20;
 
-async function loadDeliveryCounts() {
+async function loadDeliveryCounts(storeFilter) {
   try {
-    const res = await authFetch(`${BASE_URL}/delivery-counts`);
+    const qs = storeFilter && storeFilter !== "all" ? `?store=${encodeURIComponent(storeFilter)}` : '';
+    const res = await authFetch(`${BASE_URL}/delivery-counts${qs}`);
     if (!res.ok) return null;
     return await res.json();
   } catch (e) {
@@ -3906,7 +4001,7 @@ async function loadAdmin() {
   }
 
   const now = new Date();
-  const serverCounts = await loadDeliveryCounts();
+  const serverCounts = await loadDeliveryCounts(adminStoreFilter);
 
   // Build server-side URL with filters
   let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
@@ -4029,11 +4124,7 @@ async function loadAdmin() {
     }
 
     row.className = ("main-row " + rowExtraClass).trim();
-    const stCircle = d.point_of_sale === "Alandi"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">A</span>`
-      : d.point_of_sale === "Dhanore"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">D</span>`
-      : `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
+    const stCircle = mkStoreBadge(d.storeId, 22);
 
     row.innerHTML = `
       <td><span class="row-chevron">▶</span></td>
@@ -4186,16 +4277,11 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
       card.style.setProperty("--mc-bg",     palette.bg);
     }
     card.onclick = () => viewDetails(d);
-    const mkStorePill = pos => pos === "Alandi"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:9px;font-weight:800;vertical-align:middle;margin-right:4px;">A</span>`
-      : pos === "Dhanore"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:9px;font-weight:800;vertical-align:middle;margin-right:4px;">D</span>`
-      : "";
     const batchPill = palette ? `<span style="margin-left:5px;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};">🔗 B${batchNumberMap[d.phone]}</span>` : "";
     card.innerHTML = `
       <div class="mob-dc-header">
         <div>
-          <div class="mob-dc-name">${mkStorePill(d.point_of_sale)}${escHtml(d.customer_name || "")}${batchPill}</div>
+          <div class="mob-dc-name"><span style="margin-right:4px;">${mkStoreBadge(d.storeId, 18)}</span>${escHtml(d.customer_name || "")}${batchPill}</div>
           <div style="font-size:12px;color:var(--muted);margin-top:2px;">${escHtml(d.product_name || "")}</div>
         </div>
         <div class="mob-dc-badges">
@@ -4319,7 +4405,7 @@ function viewDetails(d) {
     <div class="detail-row"><b>Delivery Rating</b><span>${(() => { if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—"; const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000; if (diff<=-10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">\u26a1 Early (' + Math.abs(Math.round(diff)) + 'm early)</span>'; if (diff<=10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">\u2705 On Time</span>'; if (diff<=30) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">\ud83d\udd50 Late (' + Math.round(diff) + 'm)</span>'; return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">\ud83d\udd34 Very Late (' + Math.round(diff) + 'm)</span>'; })()}</span></div>
     <div class="detail-row"><b>Driver</b><span>${escHtml(d.assigned_driver_name || "—")}</span></div>
     <div class="detail-row"><b>Driver Instructions</b><span>${d.driver_instructions && d.driver_instructions !== "none" ? escHtml(d.driver_instructions) : "—"}</span></div>
-    <div class="detail-row"><b>Point of Sale</b><span>${escHtml(d.point_of_sale) || "—"}</span></div>
+    <div class="detail-row"><b>Store</b><span>${escHtml(storeDisplayName(d.storeId)) || "—"}</span></div>
     <div class="detail-row"><b>Pickup From</b><span>${escHtml(d.pickup_from) || "—"}</span></div>
     <div class="detail-row"><b>Freight</b><span>${freightDisplay}</span></div>
     <div class="detail-row"><b>Distance Covered</b><span>${d.distance_km != null ? "<strong style=\"color:#16a34a;\">" + d.distance_km + " km</strong>" : "—"}</span></div>
@@ -4404,9 +4490,9 @@ function enableEdit() {
         </div>
         <div class="edit-field"><label>ETA</label><input id="edit_eta" value="${escHtml(d.estimated_delivery_time || "")}"></div>
         <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${escHtml(d.product_serial_number || "")}"></div>
-        <div class="edit-field"><label>Point of Sale</label>
-          <select id="edit_point_of_sale" style="width:100%;padding:9px 12px;border:1px solid rgba(173,198,255,0.15);border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;outline:none;background:var(--surface-container-high);color:var(--on-surface);">
-            ${storeOptionsHtml(d.point_of_sale)}
+        <div class="edit-field"><label>Store</label>
+          <select id="editStoreId" style="width:100%;padding:9px 12px;border:1px solid rgba(173,198,255,0.15);border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;outline:none;background:var(--surface-container-high);color:var(--on-surface);">
+            ${storeOptionsHtml(d.storeId)}
           </select>
         </div>
         <div class="edit-field"><label>Pickup From</label><input id="edit_pickup_from" value="${escHtml(d.pickup_from || "")}"></div>
@@ -4489,7 +4575,7 @@ async function updateDelivery(id) {
         priority:                document.getElementById("edit_priority").value,
         estimated_delivery_time: document.getElementById("edit_eta").value,
         product_serial_number:   document.getElementById("edit_serial").value,
-        point_of_sale:           document.getElementById("edit_point_of_sale")?.value || "",
+        storeId:           document.getElementById("editStoreId")?.value || "",
         pickup_from:             document.getElementById("edit_pickup_from")?.value?.trim() || ""
       })
     });
@@ -4844,11 +4930,7 @@ function renderPayoutTable(data) {
         : `<button onclick="markOneFreightPaid('${d.id}','${custSafe}',${amt})" style="padding:4px 10px;background:#dc2626;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Mark Paid</button>`;
 
     const rowStyle = isPaid ? "background:rgba(74,222,128,0.05);opacity:0.7;" : "";
-    const pStCircle = d.point_of_sale === "Alandi"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:10px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">A</span>`
-      : d.point_of_sale === "Dhanore"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:10px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">D</span>`
-      : `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:10px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
+    const pStCircle = mkStoreBadge(d.storeId, 20);
     return `<tr style="border-bottom:1px solid var(--border);${rowStyle}" id="payout-row-${escHtml(d.id)}">
       <td style="padding:10px 12px;color:var(--muted);font-size:12px;">${i+1}</td>
       <td style="padding:10px 12px;font-weight:600;">${escHtml(d.customer_name||"\u2014")}</td>
@@ -5658,11 +5740,7 @@ function renderLeadsAdmin() {
     const exp  = days===null?'--':days<0?`<span style="color:var(--error)">Expired</span>`
                : days<=2?`<span style="color:var(--amber)">⚠ ${days}d</span>` : days+'d';
     const s = ss[l.status]||{bg:'transparent',cl:'var(--on-surface)'};
-    const stCircle = l.point_of_sale === "Alandi"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">A</span>`
-      : l.point_of_sale === "Dhanore"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">D</span>`
-      : `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
+    const stCircle = mkStoreBadge(l.storeId, 22);
     return `<tr style="cursor:pointer;" onclick="openLeadAdminPopup('${escHtml(l.id)}')">
       <td style="font-weight:700;">${escHtml(l.customer_name||'--')}</td>
       <td style="text-align:center;">${stCircle}</td>
@@ -5881,11 +5959,7 @@ function renderSCTable() {
     const priorityBadge = t.priority === 'urgent'
       ? `<span style="margin-left:4px;padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;background:rgba(255,180,171,0.2);color:var(--error);">🔴 Urgent</span>`
       : '';
-    const stCircle = t.point_of_sale === "Alandi"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">A</span>`
-      : t.point_of_sale === "Dhanore"
-      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">D</span>`
-      : `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
+    const stCircle = mkStoreBadge(t.storeId, 22);
 
     return `<tr>
       <td><span style="padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${tbg};color:${tcl};">${escHtml(displayType)}</span>${priorityBadge}</td>
@@ -6225,16 +6299,35 @@ function chartDefaults() {
   };
 }
 
+async function populateStoreSelect(selId) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  if (!window._stores || !_stores.length) {
+    try {
+      const res = await authFetch(`${BASE_URL}/api/stores`);
+      if (res.ok) { _stores = await res.json(); _storeNameById = {}; _stores.forEach(s => { _storeNameById[s.id] = s.name; }); }
+    } catch {}
+  }
+  if (_stores && _stores.length) {
+    sel.innerHTML = (_stores.length > 1 ? '<option value="all">All Stores</option>' : '') +
+      _stores.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('');
+    if (!sel.value || sel.value === 'all' && _stores.length === 1) sel.value = _stores[0].id;
+  }
+}
+
 async function loadSalesAnalytics() {
   destroySACharts();
+  await populateStoreSelect('saStoreFilter');
   
   const days = parseInt(document.getElementById('saRange')?.value || '30');
   const now = Date.now();
   const fromTs = days > 0 ? now - days * 24 * 60 * 60 * 1000 : 0;
   
+  const saStore = document.getElementById('saStoreFilter')?.value || 'all';
+  const saQ = saStore && saStore !== 'all' ? `?store=${encodeURIComponent(saStore)}` : '';
   try {
     const [leadsRes, salesRes] = await Promise.all([
-      authFetch(`${BASE_URL}/leads`),
+      authFetch(`${BASE_URL}/leads${saQ}`),
       authFetch(`${BASE_URL}/incentives/sales`)
     ]);
     
@@ -7045,10 +7138,16 @@ let adCalStaffList = [];
 let adCalSelectedDate = null;
 const AD_CAL_DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
+let adCalStoreFilter = 'all';
+function adCalSetStoreFilter(val) {
+  adCalStoreFilter = val;
+  adCalLoadData();
+}
 async function adCalLoadData() {
   try {
+    const url = adCalStoreFilter !== 'all' ? `${BASE_URL}/calendar-events?store=${adCalStoreFilter}` : `${BASE_URL}/calendar-events`;
     const [evtRes, staffRes] = await Promise.all([
-      authFetch(`${BASE_URL}/calendar-events`),
+      authFetch(url),
       authFetch(`${BASE_URL}/staff-weekly-off`)
     ]);
     adCalEvents = evtRes.ok ? await evtRes.json() : [];
@@ -7190,6 +7289,7 @@ function adCalOpenAgenda() {
   document.getElementById('adCalAgaDate').min = new Date().toISOString().slice(0,10);
   document.getElementById('adCalAgaTitle').value = '';
   document.getElementById('adCalAgaDesc').value = '';
+  document.getElementById('adCalAgaStore').value = '';
   document.getElementById('adCalAgaMsg').textContent = '';
   document.getElementById('adCalAgendaPopup').classList.add('is-open');
 }
@@ -7199,14 +7299,16 @@ async function adCalSubmitAgenda() {
   const date = document.getElementById('adCalAgaDate').value;
   const title = document.getElementById('adCalAgaTitle').value.trim();
   const desc = document.getElementById('adCalAgaDesc').value.trim();
+  const storeId = document.getElementById('adCalAgaStore').value;
   const msg = document.getElementById('adCalAgaMsg');
   if (!title) { msg.style.color = 'var(--error)'; msg.textContent = 'Enter a title.'; return; }
   if (date < new Date().toISOString().slice(0,10)) { msg.style.color = 'var(--error)'; msg.textContent = 'Cannot create events in the past.'; return; }
   msg.style.color = 'var(--primary)'; msg.textContent = 'Saving…';
   try {
+    const body = { date, type: 'agenda', title, description: desc, visibility: 'public', storeId };
     const res = await authFetch(BASE_URL + '/calendar-events', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: date, type: 'agenda', title: title, description: desc, visibility: 'public' })
+      body: JSON.stringify(body)
     });
     const data = res.ok ? null : await res.json();
     if (!res.ok) { msg.style.color = 'var(--error)'; msg.textContent = (data && data.error) || 'Failed.'; return; }
@@ -7222,7 +7324,7 @@ function adCalOpenNote() {
   document.getElementById('adCalNoteDate').min = new Date().toISOString().slice(0,10);
   document.getElementById('adCalNoteTitle').value = '';
   document.getElementById('adCalNoteDesc').value = '';
-  document.querySelector('input[name="adCalNoteVis"][value="public"]').checked = true;
+  document.querySelector('input[name="adCalNoteVis"][value="all_stores"]').checked = true;
   adCalNoteVisChange();
   document.getElementById('adCalNoteMsg').textContent = '';
   document.getElementById('adCalNotePopup').classList.add('is-open');
@@ -7231,8 +7333,10 @@ function adCalCloseNote() { document.getElementById('adCalNotePopup').classList.
 
 function adCalNoteVisChange() {
   const val = document.querySelector('input[name="adCalNoteVis"]:checked').value;
-  document.getElementById('adCalNoteVisPub').style.borderColor = val === 'public' ? 'var(--primary)' : 'transparent';
+  document.getElementById('adCalNoteVisAll').style.borderColor = val === 'all_stores' ? 'var(--primary)' : 'transparent';
+  document.getElementById('adCalNoteVisStore').style.borderColor = val === 'store_only' ? 'var(--primary)' : 'transparent';
   document.getElementById('adCalNoteVisStaff').style.borderColor = val === 'staff_only' ? 'var(--primary)' : 'transparent';
+  document.getElementById('adCalNoteStoreWrap').style.display = val === 'store_only' ? '' : 'none';
   document.getElementById('adCalNoteStaffWrap').style.display = val === 'staff_only' ? '' : 'none';
 }
 
@@ -7240,16 +7344,19 @@ async function adCalSubmitNote() {
   const date = document.getElementById('adCalNoteDate').value;
   const title = document.getElementById('adCalNoteTitle').value.trim();
   const desc = document.getElementById('adCalNoteDesc').value.trim();
-  const visibility = document.querySelector('input[name="adCalNoteVis"]:checked').value;
+  const vis = document.querySelector('input[name="adCalNoteVis"]:checked').value;
+  const storeId = document.getElementById('adCalNoteStore').value;
   const targetStaffId = document.getElementById('adCalNoteStaff').value;
   const msg = document.getElementById('adCalNoteMsg');
   if (!title) { msg.style.color = 'var(--error)'; msg.textContent = 'Enter a title.'; return; }
   if (date < new Date().toISOString().slice(0,10)) { msg.style.color = 'var(--error)'; msg.textContent = 'Cannot create events in the past.'; return; }
-  if (visibility === 'staff_only' && !targetStaffId) { msg.style.color = 'var(--error)'; msg.textContent = 'Select a staff member.'; return; }
+  if (vis === 'staff_only' && !targetStaffId) { msg.style.color = 'var(--error)'; msg.textContent = 'Select a staff member.'; return; }
   msg.style.color = 'var(--primary)'; msg.textContent = 'Saving…';
   try {
-    const body = { date: date, type: 'note', title: title, description: desc, visibility: visibility };
-    if (visibility === 'staff_only') body.targetStaffId = targetStaffId;
+    const body = { date, type: 'note', title, description: desc };
+    if (vis === 'all_stores') { body.visibility = 'public'; body.storeId = ''; }
+    else if (vis === 'store_only') { body.visibility = 'public'; body.storeId = storeId; }
+    else { body.visibility = 'staff_only'; body.targetStaffId = targetStaffId; body.storeId = ''; }
     const res = await authFetch(BASE_URL + '/calendar-events', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)

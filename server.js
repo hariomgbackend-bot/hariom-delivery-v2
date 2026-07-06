@@ -532,6 +532,9 @@ return res.send(`
         ? `batch_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
         : null;
 
+      // Resolve storeId from Tally's store_branch (Alandi/Dhanore)
+      const storeId = store_branch ? await resolveStoreId(store_branch) : "";
+
       const createdIds = [];
       for (let i = 0; i < items.length; i++) {
         const rate = parseFloat((amts[i] || "0").replace(/,/g, "")) || 0;
@@ -557,7 +560,7 @@ return res.send(`
           sold_by_name:            "Others",
           sale_price:              rate,
           source:                  "tally_tdl",
-          point_of_sale:           store_branch || "",
+          storeId:                 storeId,
           pickup_from:             godown || "",
           created_timestamp:       Timestamp.now(),
           status:                  statusForETA(estimated_delivery_time)
@@ -633,9 +636,12 @@ return res.send(`
       );
       const assigned_driver_id   = unassignedDoc ? unassignedDoc.id : "unassigned";
       const assigned_driver_name = "Unassigned";
+      const storeBranch = req.body?.store_branch || req.body?.HARIOMFSTOREBRANCH || "";
+      const storeId = storeBranch ? await resolveStoreId(storeBranch) : "store_a";
 
       const docRef = await addDoc(collection(db, "deliveries"), {
         customer_name,
+        storeId,
         phone:                   "",
         alternate_phone:         "",
         address:                 "",
@@ -908,7 +914,7 @@ app.post(
         purchase_date:         null,
         is_auto_created:       true,
         source:                "tally_tdl",
-        point_of_sale:         store_branch || "",
+        storeId:               store_branch ? await resolveStoreId(store_branch) : "",
         tally_voucher_number:  voucher_number,
         brand_tracking_number: null,
         brand_request_status:  null,
@@ -1353,12 +1359,15 @@ function requireStoreAccess(req, res, next) {
   return res.status(403).json({ error: "No store access" });
 }
 
-function addStoreFilter(constraints, user, fieldName = "point_of_sale", req) {
-  if (user.isSuperAdmin) return;
+function addStoreFilter(constraints, user, fieldName = "storeId", req) {
   const storeOverride = req?.query?.store;
   if (storeOverride === "all" || storeOverride === "") return;
-  const storeName = storeOverride === "own" ? user.storeName : (storeOverride || user.storeName);
-  if (storeName) constraints.push(where(fieldName, "==", storeName));
+  if (storeOverride && storeOverride !== "own") {
+    constraints.push(where(fieldName, "==", storeOverride));
+    return;
+  }
+  if (user.isSuperAdmin) return;
+  if (user.storeId) constraints.push(where(fieldName, "==", user.storeId));
 }
 
 async function resolveStoreName(storeId) {
@@ -1366,6 +1375,14 @@ async function resolveStoreName(storeId) {
   try {
     const snap = await getDoc(doc(db, "stores", storeId));
     return snap.exists() ? snap.data().name : null;
+  } catch { return null; }
+}
+
+async function resolveStoreId(tallyStoreName) {
+  if (!tallyStoreName) return null;
+  try {
+    const snap = await getDocs(query(collection(db, "stores"), where("name", "==", tallyStoreName)));
+    return snap.empty ? null : snap.docs[0].id;
   } catch { return null; }
 }
 
@@ -1787,10 +1804,9 @@ app.post("/createDelivery", writeLimiter, authenticate, async (req, res) => {
       }
     }
 
-    // Auto-set point_of_sale from user's store if not provided
-    if (!data.point_of_sale && req.user.storeId && !req.user.isSuperAdmin) {
-      const storeDoc = await getDoc(doc(db, "stores", req.user.storeId));
-      if (storeDoc.exists()) data.point_of_sale = storeDoc.data().name;
+    // Auto-set storeId from user's store if not provided
+    if (!data.storeId && req.user.storeId && !req.user.isSuperAdmin) {
+      data.storeId = req.user.storeId;
     }
 
     const docRef = await addDoc(collection(db, "deliveries"), {
@@ -1861,10 +1877,9 @@ app.post("/createDeliveries", writeLimiter, authenticate, async (req, res) => {
       shared.assigned_driver_name = "Unassigned";
     }
 
-    // Auto-set point_of_sale from user's store if not provided
-    if (!shared.point_of_sale && req.user.storeId && !req.user.isSuperAdmin) {
-      const storeDoc = await getDoc(doc(db, "stores", req.user.storeId));
-      if (storeDoc.exists()) shared.point_of_sale = storeDoc.data().name;
+    // Auto-set storeId from user's store if not provided
+    if (!shared.storeId && req.user.storeId && !req.user.isSuperAdmin) {
+      shared.storeId = req.user.storeId;
     }
 
     // ── Idempotency check ──────────────────────────────────────────────────
@@ -1965,10 +1980,10 @@ async function countQuery(q) {
 }
 
 function startOfTodayISTTimestamp() {
-  const now = new Date();
-  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-  ist.setHours(0, 0, 0, 0);
-  return Timestamp.fromMillis(ist.getTime() - 5.5 * 60 * 60 * 1000);
+  const istOffset = 5.5 * 3600000;
+  const istNow = Date.now() + istOffset;
+  const istMidnight = Math.floor(istNow / 86400000) * 86400000;
+  return Timestamp.fromMillis(istMidnight - istOffset);
 }
 
 app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "accountant"]), async (req, res) => {
@@ -1976,7 +1991,8 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
     const deliveriesRef = collection(db, "deliveries");
     const todayStart = startOfTodayISTTimestamp();
     const storeCond = [];
-    addStoreFilter(storeCond, req.user, "point_of_sale", req);
+    addStoreFilter(storeCond, req.user, undefined, req);
+
     const [
       total, booked, pending, loaded, delivered, failed, urgent, todaySnap
     ] = await Promise.all([
@@ -2039,7 +2055,7 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
     // Build Firestore query with optional filters
     let q = collection(db, "deliveries");
     const constraints = [];
-    addStoreFilter(constraints, req.user, "point_of_sale", req);
+    addStoreFilter(constraints, req.user, undefined, req);
 
     if (hasDateRange) {
       if (startDate) {
@@ -2086,13 +2102,13 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       } catch (_) { /* fall back to deliveries.length */ }
     }
 
-    // For paginated single-status queries, add orderBy + limit to avoid fetching all docs.
-    // Multi-status (0 or 2+ status values) need ALL matching docs for the
+    // For paginated queries with 0 or 1 status, add orderBy + limit to avoid fetching all docs.
+    // Multi-status (2+ status values) need ALL matching docs for the
     // in-memory interleave sort — no limit applied.
     // Text search excluded (narrow scope, no limit needed).
     if (isPaginated && !search) {
       const statuses = status ? status.split(",").map(s => s.trim()).filter(Boolean) : [];
-      if (statuses.length === 1) {
+      if (statuses.length <= 1) {
         q = query(q, orderBy("created_timestamp", "desc"), limit(p * ps));
       }
     }
@@ -2214,11 +2230,14 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
   if (delivery.status !== "pending" && delivery.status !== "booked") {
     return res.status(400).json({ error: "Only pending or booked deliveries can be edited" });
   }
+  if (!req.user.isSuperAdmin && req.user.storeId && delivery.storeId && delivery.storeId !== req.user.storeId) {
+    return res.status(403).json({ error: "Store access denied" });
+  }
   const ALLOWED = [
     "customer_name", "phone", "address", "area", "product_name",
     "product_serial_number", "invoice_number", "priority",
     "driver_instructions", "assigned_driver_id", "assigned_driver_name",
-    "is_self_pickup", "pickup_from", "point_of_sale", "sale_price",
+    "is_self_pickup", "pickup_from", "storeId", "sale_price",
     "sold_by_name", "freight_charged", "freight_amount"
   ];
   const update = {};
@@ -2580,8 +2599,9 @@ app.post("/driverDeliveries", pinLimiter, async (req, res) => {
   await updateDoc(driverRef, { failedPinAttempts: 0, pinLockedUntil: null });
 
   // Issue a short-lived session token so background refreshes don't need PIN
+  const driverStoreName = await resolveStoreName(driverData.storeId);
   const sessionToken = jwt.sign(
-    { role: "driver", driver_id, storeId: driverData.storeId || "" },
+    { role: "driver", driver_id, storeId: driverData.storeId || "", storeName: driverStoreName || "" },
     JWT_SECRET,
     { expiresIn: "12h" }
   );
@@ -3287,7 +3307,9 @@ app.get("/api/sales/today", async (req, res) => {
 
 app.get("/api/sales/today-ui", async (req, res) => {
   try {
-    const snap = await getDocs(collection(db, "leads"));
+    const storeIdFilter = req.query.store;
+    const leadsRef = storeIdFilter ? query(collection(db, "leads"), where("storeId", "==", storeIdFilter)) : collection(db, "leads");
+    const snap = await getDocs(leadsRef);
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
@@ -3938,14 +3960,15 @@ app.post("/staff/login", pinLimiter, async (req, res) => {
 
     await updateDoc(staffRef, { failedPinAttempts: 0, pinLockedUntil: null });
 
+    const staffStoreName = await resolveStoreName(staffData.storeId);
     const token = jwt.sign(
-      { role: "staff", staff_id, name: staffData.name, storeId: staffData.storeId || "" },
+      { role: "staff", staff_id, name: staffData.name, storeId: staffData.storeId || "", storeName: staffStoreName || "" },
       JWT_SECRET,
       { expiresIn: "12h" }
     );
     res.json({
       success: true, token, name: staffData.name,
-      storeId: staffData.storeId || "",
+      storeId: staffData.storeId || "", storeName: staffStoreName || "",
       weekly_off: staffData.weekly_off || "",
       color: staffData.color || ""
     });
@@ -3978,12 +4001,13 @@ app.post("/service/login", adminLoginLimiter, async (req, res) => {
     const match = await bcrypt.compare(password, staffData.passwordHash || "");
     if (!match) return res.status(401).json({ error: "Invalid credentials" });
 
+    const svcStoreName = await resolveStoreName(staffData.storeId);
     const token = jwt.sign(
-      { role: "service", staff_id: staffDoc.id, name: staffData.name },
+      { role: "service", staff_id: staffDoc.id, name: staffData.name, storeId: staffData.storeId || "", storeName: svcStoreName || "" },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRY }
     );
-    res.json({ success: true, token, name: staffData.name });
+    res.json({ success: true, token, name: staffData.name, storeId: staffData.storeId || "", storeName: svcStoreName || "" });
   } catch (err) {
     console.error("/service/login error:", err.message);
     res.status(500).json({ error: err.message });
@@ -4102,7 +4126,7 @@ app.delete("/staff/:id", authenticate, authorize(["admin"]), async (req, res) =>
 app.get("/leads", authenticate, authorize(["admin", "accountant", "staff", "service"]), async (req, res) => {
   try {
     const leadsConstraints = [];
-    addStoreFilter(leadsConstraints, req.user, "point_of_sale", req);
+    addStoreFilter(leadsConstraints, req.user, undefined, req);
     const q = leadsConstraints.length > 0 ? query(collection(db, "leads"), ...leadsConstraints) : collection(db, "leads");
     const snap  = await getDocs(q);
     let leads   = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -4131,7 +4155,7 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
     const {
       customer_name, phone, alternate_phone,
       product_interest, quoted_price, remarks, status,
-      address, point_of_sale,
+      address,
       products   // new: array of { product_name, quoted_price }
     } = req.body;
     if (!phone || phone.length !== 10 || !/^\d+$/.test(phone)) return res.status(400).json({ error: "Valid 10-digit phone required" });
@@ -4148,17 +4172,11 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
 
     if (!productsArray.length) return res.status(400).json({ error: "At least one product required" });
 
-    let finalPos = point_of_sale;
-    if (!finalPos && req.user.storeId && !req.user.isSuperAdmin) {
-      const storeDoc = await getDoc(doc(db, "stores", req.user.storeId));
-      if (storeDoc.exists()) finalPos = storeDoc.data().name;
-    }
-
     const now     = Timestamp.now();
     const expires = Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const docRef = await addDoc(collection(db, "leads"), {
-      point_of_sale:    finalPos || "",
+      storeId:          req.user.storeId || "",
       customer_name:    customer_name   || "",
       phone:            phone,
       alternate_phone:  alternate_phone || "",
@@ -4268,7 +4286,9 @@ app.delete("/leads/:id", authenticate, authorize(["admin"]), async (req, res) =>
 app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
     const ticketConstraints = [];
-    addStoreFilter(ticketConstraints, req.user, "point_of_sale", req);
+    if (req.user.role !== "service") {
+      addStoreFilter(ticketConstraints, req.user, undefined, req);
+    }
     const q = ticketConstraints.length > 0 ? query(collection(db, "service_tickets"), ...ticketConstraints) : collection(db, "service_tickets");
     const snap   = await getDocs(q);
     let tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -4290,7 +4310,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       type, linked_delivery_id,
       first_name, middle_name, last_name,
       customer_name: raw_customer_name,
-      phone, alternate_phone, address, point_of_sale: ticketPos,
+      phone, alternate_phone, address,
       pincode, state, city, area, addr1, addr2,
       product_name, serial_number, description,
       purchase_date
@@ -4347,14 +4367,8 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       }
     }
 
-    let finalTicketPos = ticketPos;
-    if (!finalTicketPos && req.user.storeId && !req.user.isSuperAdmin) {
-      const storeDoc = await getDoc(doc(db, "stores", req.user.storeId));
-      if (storeDoc.exists()) finalTicketPos = storeDoc.data().name;
-    }
-
     const docRef = await addDoc(collection(db, "service_tickets"), {
-      point_of_sale:      finalTicketPos || "",
+      storeId:          req.body.storeId || req.user.storeId || "",
       type,
       status:             "open",
       linked_delivery_id: linked_delivery_id || null,
@@ -4409,7 +4423,8 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
       "status", "assigned_to", "description", "notes",
       "brand_request_status", "brand_tracking_number",
       "customer_name", "phone", "alternate_phone", "address",
-      "product_name", "serial_number", "purchase_date"
+      "product_name", "serial_number", "purchase_date",
+      "storeId"
     ];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
@@ -4715,7 +4730,14 @@ app.get("/service/search", authenticate, authorize(["admin", "accountant", "serv
     const _norm = s => (s || "").toLowerCase().replace(/[.,\-/ ]+/g, "");
     const qNorm = _norm(q);
 
-    const ticketSnap = await getDocs(collection(db, "service_tickets"));
+    // Apply store filter unless the user is a service role
+    const searchConstraints = [];
+    if (req.user.role !== "service") {
+      addStoreFilter(searchConstraints, req.user, undefined, req);
+    }
+    const ticketSnap = searchConstraints.length > 0
+      ? await getDocs(query(collection(db, "service_tickets"), ...searchConstraints))
+      : await getDocs(collection(db, "service_tickets"));
 
     const tickets = ticketSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
@@ -6622,13 +6644,22 @@ app.get("/calendar-events", authenticate, async (req, res) => {
     items.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
     const role = req.user.role;
     const userId = req.user.staff_id || req.user.id || "";
+    const userStoreId = req.user.storeId || "";
     if (role !== "admin" && role !== "accountant") {
       items = items.filter(e => {
-        if (e.visibility === "public") return true;
+        if (e.visibility === "public") {
+          if (e.storeId && e.storeId !== userStoreId) return false;
+          return true;
+        }
         if (e.visibility === "staff_only" && e.targetStaffId === userId) return true;
         if (e.visibility === "admin_only" && e.createdById === userId) return true;
         return false;
       });
+    } else {
+      const storeFilter = req.query.store;
+      if (storeFilter && storeFilter !== "all") {
+        items = items.filter(e => !e.storeId || e.storeId === storeFilter);
+      }
     }
     res.json(items);
   } catch (err) {
@@ -6638,7 +6669,7 @@ app.get("/calendar-events", authenticate, async (req, res) => {
 
 app.post("/calendar-events", authenticate, async (req, res) => {
   try {
-    const { date, type, title, description, visibility, targetStaffId } = req.body;
+    const { date, type, title, description, visibility, targetStaffId, storeId } = req.body;
     if (!date || !type || !title) return res.status(400).json({ error: "date, type, title required" });
     if (!["leave", "note", "agenda"].includes(type)) return res.status(400).json({ error: "Invalid type" });
     if (date < new Date().toISOString().slice(0,10)) return res.status(400).json({ error: "Cannot create events in the past" });
@@ -6652,12 +6683,15 @@ app.post("/calendar-events", authenticate, async (req, res) => {
     const userId = req.user.staff_id || req.user.id || "";
     const finalVisibility = type === "leave" ? "public" : (visibility || "public");
     if (finalVisibility === "staff_only" && !targetStaffId) return res.status(400).json({ error: "targetStaffId required for staff_only visibility" });
+    // Auto-set storeId for non-admin users, or use provided value
+    const finalStoreId = !isAdmin ? (req.user.storeId || "") : (storeId || "");
     const docRef = await addDoc(collection(db, "calendar_events"), {
       date, type, title, description: description || "",
       createdBy: req.user.name || "Admin", createdById: userId,
       createdByRole: req.user.role,
       visibility: finalVisibility,
       targetStaffId: finalVisibility === "staff_only" ? targetStaffId : null,
+      storeId: finalStoreId,
       createdAt: Timestamp.now(), updatedAt: Timestamp.now()
     });
     res.json({ success: true, id: docRef.id });

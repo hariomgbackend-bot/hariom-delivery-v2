@@ -4,7 +4,7 @@
       "collectionGroup": "deliveries",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "point_of_sale", "order": "ASCENDING" },
+        { "fieldPath": "storeId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
       ]
     },
@@ -12,7 +12,7 @@
       "collectionGroup": "deliveries",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "point_of_sale", "order": "ASCENDING" },
+        { "fieldPath": "storeId", "order": "ASCENDING" },
         { "fieldPath": "priority", "order": "ASCENDING" }
       ]
     },
@@ -20,7 +20,7 @@
       "collectionGroup": "deliveries",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "point_of_sale", "order": "ASCENDING" },
+        { "fieldPath": "storeId", "order": "ASCENDING" },
         { "fieldPath": "created_timestamp", "order": "ASCENDING" }
       ]
     },
@@ -28,7 +28,16 @@
       "collectionGroup": "deliveries",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "point_of_sale", "order": "ASCENDING" },
+        { "fieldPath": "storeId", "order": "ASCENDING" },
+        { "fieldPath": "created_timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "deliveries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "storeId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "created_timestamp", "order": "DESCENDING" }
       ]
     },
@@ -56,6 +65,7 @@
         { "fieldPath": "status", "order": "ASCENDING" }
       ]
     },
+
     {
       "collectionGroup": "deliveries",
       "queryScope": "COLLECTION",

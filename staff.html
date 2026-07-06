@@ -755,6 +755,39 @@
     }
     .combobox-dropdown div:hover,
     .combobox-dropdown div.active { background: var(--surface-container-high); }
+
+    /* ════ ONCE-PER-DAY WELCOME ════ */
+    .welcome-overlay {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(2px);
+      z-index: 9999;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+    .welcome-overlay.show { opacity: 1; pointer-events: auto; }
+    .welcome-card {
+      background: rgba(11,19,38,0.80);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(173,198,255,0.12);
+      border-radius: 24px;
+      padding: 40px 48px;
+      text-align: center;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+      animation: welcomeIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+      max-width: 400px;
+    }
+    .welcome-card .greeting { font-size: 28px; font-weight: 800; }
+    .welcome-card .sub { margin-top: 8px; font-size: 14px; color: var(--on-surface-variant); }
+    .welcome-card .stat-row { margin-top: 20px; display: flex; gap: 20px; justify-content: center; }
+    .welcome-card .stat-item { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
+    .welcome-card .stat-item b { color: var(--on-surface); font-size: 18px; display: block; }
+    @keyframes welcomeIn {
+      from { opacity: 0; transform: translateY(40px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
 <script src="/shared.js"></script>
@@ -770,7 +803,7 @@
     <img src="/icons/icon-72x72.png" class="header-logo" alt="Logo" onerror="this.style.display='none'">
     <div>
       <div class="header-title">Hariom</div>
-      <div class="header-sub" id="headerSub">Staff Panel</div>
+      <div class="header-sub" id="headerSub">Staff Panel <span id="staffStoreBadge"></span></div>
     </div>
   </div>
   <div style="display:flex;gap:6px;">
@@ -804,6 +837,18 @@
       </div>
 
       <div class="login-msg" id="loginMsg"></div>
+    </div>
+  </div>
+
+  <!-- ══ WELCOME OVERLAY (once/day) ══ -->
+  <div id="welcomeOverlay" class="welcome-overlay">
+    <div class="welcome-card">
+      <div class="greeting" id="welcomeGreeting">👋 Welcome!</div>
+      <div class="sub" id="welcomeSub">—</div>
+      <div class="stat-row">
+        <div class="stat-item">📦 Deliveries<br><b id="welcomeDlvCount">—</b></div>
+        <div class="stat-item">🎯 Today<br><b id="welcomeTodayCount">—</b></div>
+      </div>
     </div>
   </div>
 
@@ -1236,6 +1281,7 @@ function esc(s) {
 let staffToken       = null;
 let staffId          = null;
 let staffName        = "";
+let staffStoreId     = "";
 let allDeliveries    = [];
 let currentTab       = "deliveries";
 let currentDelivery  = null;
@@ -1335,6 +1381,41 @@ function isTokenExpired(token) {
 window.authGetToken = getToken;
 window.authOnError = doLogout;
 
+function getUserNameFromToken() {
+  const t = getToken();
+  if (!t) return "";
+  try { const p = JSON.parse(atob(t.split(".")[1])); return p.name || ""; } catch { return ""; }
+}
+function getUserStoreFromToken() {
+  const t = getToken();
+  if (!t) return "";
+  try { const p = JSON.parse(atob(t.split(".")[1])); return p.storeName || ""; } catch { return ""; }
+}
+function showWelcomeOnce() {
+  const today = new Date().toDateString();
+  if (localStorage.getItem("welcomeDateStaff") === today) return;
+  const name = getUserNameFromToken();
+  const el = document.getElementById("welcomeOverlay");
+  const greeting = document.getElementById("welcomeGreeting");
+  const sub = document.getElementById("welcomeSub");
+  if (!el) return;
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+  greeting.textContent = `👋 ${timeGreeting}${name ? ", " + name : ""}!`;
+  const storeName = getUserStoreFromToken();
+  if (storeName) {
+    const short = storeName.replace(/^Hari Om Electronics - /, '');
+    const cls = short.toLowerCase() === "alandi" ? "chip-alandi" : "chip-dhanore";
+    sub.innerHTML = `<span class="store-chip ${cls}"><span class="chip-dot"></span>${escHtml(short)}</span>`;
+  } else {
+    sub.textContent = "📋 Service Panel";
+  }
+  el.classList.add("show");
+  localStorage.setItem("welcomeDateStaff", today);
+  setTimeout(() => el.classList.remove("show"), 3800);
+  el.onclick = () => el.classList.remove("show");
+}
+
 /* ── LOAD STAFF LIST ── */
 async function loadStaffList() {
   try {
@@ -1383,11 +1464,13 @@ async function doLogin() {
     staffToken = data.token;
     staffId    = id;
     staffName  = data.name;
+    staffStoreId = data.storeId || "";
     staffWeeklyOff = data.weekly_off || "";
     staffColor = data.color || "";
     localStorage.setItem("staffToken", data.token);
     localStorage.setItem("staffId",    id);
     localStorage.setItem("staffName",  data.name);
+    localStorage.setItem("staffStoreId", staffStoreId);
     localStorage.setItem("staffColor", staffColor);
 
     msg.style.color = "var(--tertiary)"; msg.textContent = "Welcome " + data.name + "!";
@@ -1397,6 +1480,25 @@ async function doLogin() {
   }
 }
 
+let _staffStores = [];
+let _staffStoreNameById = {};
+async function showStaffStoreBadge() {
+  const el = document.getElementById("staffStoreBadge");
+  if (!el || !staffStoreId) { if(el) el.textContent = ""; return; }
+  if (!_staffStores.length) {
+    try {
+      const res = await fetch(`${BASE_URL}/api/stores`);
+      if (res.ok) _staffStores = await res.json();
+      _staffStoreNameById = {};
+      _staffStores.forEach(s => { _staffStoreNameById[s.id] = s.name; });
+    } catch {}
+  }
+  const storeName = _staffStoreNameById[staffStoreId] || storeDisplayName(staffStoreId) || "";
+  if (storeName)
+    el.innerHTML = `${mkStoreBadge(staffStoreId, 20)}<span style="font-size:11px;margin-left:3px;">${esc(storeName)}</span>`;
+  else
+    el.textContent = "";
+}
 /* ── RESTORE SESSION ── */
 (function restoreSession() {
   const token = localStorage.getItem("staffToken");
@@ -1404,6 +1506,7 @@ async function doLogin() {
   const name  = localStorage.getItem("staffName");
   if (token && id && name && !isTokenExpired(token)) {
     staffToken = token; staffId = id; staffName = name;
+    staffStoreId = localStorage.getItem("staffStoreId") || "";
     staffColor = localStorage.getItem("staffColor") || "";
     showMainPanel();
   } else {
@@ -1415,6 +1518,7 @@ function showMainPanel() {
   document.getElementById("loginSection").style.display  = "none";
   document.getElementById("mainPanel").style.display     = "";
   document.getElementById("headerSub").textContent       = staffName;
+  showStaffStoreBadge();
   writeHomeGreeting();
   loadDeliveries();
   loadLeads();
@@ -1435,6 +1539,7 @@ function showMainPanel() {
   }
   const lAltEl = document.getElementById("lAltPhone");
   if (lAltEl) lAltEl.addEventListener("input", function() { this.value = this.value.replace(/\D/g, ""); });
+  setTimeout(showWelcomeOnce, 600);
 }
 
 // Auto-refresh calendar data every 60s so admin color/event edits show up
@@ -1543,7 +1648,7 @@ function renderDeliveries(data) {
     <div class="delivery-card" onclick="openDelivPopup('${esc(d.id)}')">
       <div class="card-top">
         <div>
-          <div class="card-name">${esc(d.customer_name)}${d.point_of_sale?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(d.point_of_sale)}</span>`:""}</div>
+          <div class="card-name">${esc(d.customer_name)}${storeDisplayName(d.storeId)?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(storeDisplayName(d.storeId))}</span>`:""}</div>
           <div class="card-product">${esc(d.product_name)}</div>
         </div>
         <div class="card-badges">
@@ -1595,7 +1700,7 @@ function openDelivPopup(id) {
         ${warranty ? warranty : ""}
         ${d.is_self_pickup ? `<span class="badge badge-selfpickup" style="background:rgba(22,163,74,0.15);color:#16a34a;border:1px solid rgba(22,163,74,0.3);">🏪 Self Pickup</span>` : ""}
       </div>
-      <div class="popup-name">${esc(d.customer_name)}${d.point_of_sale?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(d.point_of_sale)}</span>`:""}</div>
+      <div class="popup-name">${esc(d.customer_name)}${storeDisplayName(d.storeId)?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(storeDisplayName(d.storeId))}</span>`:""}</div>
     </div>
     <div class="popup-body">
       <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${esc(d.phone)}">${esc(d.phone)}</a></span></div>
