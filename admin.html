@@ -1395,6 +1395,8 @@
     .fc .fc-col-header-cell-cushion { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--outline); padding: 8px 0; text-decoration: none; }
     .fc .fc-day-today .fc-daygrid-day-number { color: var(--primary); font-weight: 900; }
     .fc .fc-day-today { background: var(--fc-today-bg-color) !important; }
+    .fc .fc-daygrid-day.fc-day-selected { background: rgba(173,198,255,0.15) !important; }
+    .fc .fc-daygrid-day.fc-day-selected .fc-daygrid-day-number { color: var(--primary); font-weight: 900; }
     .fc .fc-scrollgrid { border-radius: 16px; overflow: hidden; border: 1px solid var(--border); }
     .fc .fc-scrollgrid table { border-collapse: separate; }
     .fc td, .fc th { border-color: var(--border); }
@@ -2092,7 +2094,7 @@
     <!-- ════ VIEW: CALENDAR ════ -->
     <section id="view-calendar" style="display:none;">
       <div style="display:flex;gap:16px;align-items:flex-start;">
-        <div style="flex:1;min-width:0;">
+        <div style="flex:1;min-width:0;max-width:800px;">
           <div id="adCalCalendar"></div>
           <div style="display:flex;justify-content:flex-end;margin:8px 0 0;">
             <select id="adCalStoreFilter" onchange="adCalSetStoreFilter(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;">
@@ -7291,28 +7293,38 @@ function adCalInitCalendar() {
       center: 'title',
       right: 'dayGridMonth,timeGridWeek,timeGridDay'
     },
-    height: 'auto',
+    height: Math.min(520, window.innerHeight - 240),
+    dayMaxEvents: 3,
     firstDay: 1,
     locale: 'en',
     buttonText: { today: 'Today', month: 'Month', week: 'Week', day: 'Day' },
     events: [],
     dateClick: function(info) {
+      document.querySelectorAll('.fc-daygrid-day.fc-day-selected').forEach(function(el) { el.classList.remove('fc-day-selected'); });
+      if (info.dayEl) info.dayEl.classList.add('fc-day-selected');
       adCalSelectedDate = info.dateStr;
       adCalSelectDay(info.dateStr);
     },
     eventClick: function(info) {
-      adCalSelectedDate = info.event.startStr.slice(0, 10);
+      document.querySelectorAll('.fc-daygrid-day.fc-day-selected').forEach(function(el) { el.classList.remove('fc-day-selected'); });
+      var dateStr = info.event.startStr.slice(0, 10);
+      var cell = document.querySelector('.fc-daygrid-day[data-date="' + dateStr + '"]');
+      if (cell) cell.classList.add('fc-day-selected');
+      adCalSelectedDate = dateStr;
       adCalSelectDay(adCalSelectedDate);
     },
     eventDidMount: function(info) {
       var props = info.event.extendedProps;
       if (!props) return;
       var prefix = props.isAdminEvent ? '\u2605' : '';
-      var label = props.type === 'agenda' ? 'A' : 'N';
+      var label = props.type === 'agenda' ? 'A' : props.type === 'leave' ? 'L' : 'N';
       var titleEl = info.el.querySelector('.fc-event-title');
       if (titleEl && titleEl.textContent.indexOf(prefix + label) !== 0) {
         titleEl.textContent = prefix + label + ' ' + titleEl.textContent;
       }
+    },
+    windowResize: function() {
+      this.setOption('height', Math.min(520, window.innerHeight - 240));
     },
     dayCellDidMount: function(info) {
       var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
