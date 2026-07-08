@@ -40,6 +40,7 @@
       font-family:'Inter',sans-serif; background:var(--surface); color:var(--on-surface);
       min-height:100vh; -webkit-font-smoothing:antialiased;
       overscroll-behavior:contain;
+      padding-top: env(safe-area-inset-top, 0px);
     }
     /* ── Login ── */
     #loginSection {
@@ -76,7 +77,7 @@
     #installBanner {
       display:none; align-items:center; gap:10px; padding:12px 16px;
       background:var(--surface-container-high); border-bottom:1px solid var(--border);
-      position:sticky; top:0; z-index:100;
+      position:sticky; top:env(safe-area-inset-top,0px); z-index:100;
     }
     #installBanner.visible { display:flex; }
     #installBanner .install-text { flex:1; font-size:13px; font-weight:500; color:var(--on-surface); line-height:1.4; }
@@ -90,7 +91,7 @@
     /* ── Header ── */
     .header {
       display:flex; align-items:center; justify-content:space-between;
-      padding:14px 16px; background:var(--surface-container); position:sticky; top:0; z-index:50;
+      padding:14px 16px; background:var(--surface-container); position:sticky; top:env(safe-area-inset-top,0px); z-index:50;
       border-bottom:1px solid var(--border);
     }
     .header-left { display:flex; align-items:center; gap:10px; }
@@ -237,6 +238,31 @@
       padding:6px 14px; border:none; border-radius:8px; font-family:'Inter',sans-serif;
       font-size:12px; font-weight:700; cursor:pointer; background:var(--primary); color:#0b1326;
     }
+    .alert-action-btn {
+      padding:4px 10px; border:none; border-radius:6px; font-family:'Inter',sans-serif;
+      font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; flex-shrink:0;
+      background:var(--surface-container-highest); color:var(--primary); margin-left:6px;
+    }
+    .alert-action-btn:active { transform:scale(0.95); }
+    #etaModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:300; align-items:center; justify-content:center; }
+    #etaModal.open { display:flex; }
+    #etaModal .modal-box {
+      background:var(--surface-container); border-radius:16px; padding:24px; width:300px;
+      box-shadow:0 8px 40px rgba(0,0,0,0.3);
+    }
+    #etaModal .modal-title { font-size:16px; font-weight:700; margin-bottom:14px; }
+    #etaModal input {
+      width:100%; padding:12px; border:none; border-radius:10px;
+      background:var(--surface-container-high); color:var(--on-surface);
+      font-family:'Inter',sans-serif; font-size:14px; outline:none;
+    }
+    #etaModal .modal-actions { display:flex; gap:8px; margin-top:14px; }
+    #etaModal .modal-actions button {
+      flex:1; padding:10px; border:none; border-radius:10px;
+      font-family:'Inter',sans-serif; font-size:13px; font-weight:700; cursor:pointer;
+    }
+    #etaModal .btn-save { background:var(--primary); color:#0b1326; }
+    #etaModal .btn-cancel { background:var(--surface-container-high); color:var(--on-surface-variant); }
   </style>
 </head>
 <body>
@@ -353,7 +379,7 @@
       <label class="toggle"><input type="checkbox" data-key="loaded" onchange="saveToggle(this)" checked><span class="slider"></span></label>
     </div>
     <div class="setting-row">
-      <span data-i18n="toggles_booked">📅 Booked Today</span>
+      <span data-i18n="toggles_booked">📅 Booked Deliveries</span>
       <label class="toggle"><input type="checkbox" data-key="booked" onchange="saveToggle(this)" checked><span class="slider"></span></label>
     </div>
     <div class="setting-row">
@@ -372,6 +398,34 @@
       <span data-i18n="toggles_wo">🏖️ Weekly Off</span>
       <label class="toggle"><input type="checkbox" data-key="weeklyOff" onchange="saveToggle(this)" checked><span class="slider"></span></label>
     </div>
+    <div class="setting-row">
+      <span data-i18n="toggles_unassigned">🚚 Unassigned Deliveries</span>
+      <label class="toggle"><input type="checkbox" data-key="unassigned" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span data-i18n="toggles_past_eta">⏰ Past ETA</span>
+      <label class="toggle"><input type="checkbox" data-key="pastEta" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span data-i18n="toggles_new_leads">📋 New Leads Today</span>
+      <label class="toggle"><input type="checkbox" data-key="newLeads" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span data-i18n="toggles_delivery_exceptions">⚠️ Delivery Exceptions</span>
+      <label class="toggle"><input type="checkbox" data-key="deliveryExceptions" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span data-i18n="toggles_upcoming_leave">📅 Upcoming Leave (Tomorrow)</span>
+      <label class="toggle"><input type="checkbox" data-key="upcomingLeave" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span data-i18n="toggles_new_tickets">🎫 New Service Tickets</span>
+      <label class="toggle"><input type="checkbox" data-key="newTickets" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span data-i18n="toggles_on_demand">📞 On-Demand Deliveries</span>
+      <label class="toggle"><input type="checkbox" data-key="onDemand" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
   </div>
 
   <div class="settings-group">
@@ -384,6 +438,17 @@
 
   <button class="settings-action btn-reset" onclick="resetAlerted()" data-i18n="reset_history">🗑️ Reset alerted history</button>
   <button class="settings-action btn-logout" onclick="doLogout()" data-i18n="logout">🚪 Logout</button>
+</div>
+
+<div id="etaModal" onclick="if(event.target===this)closeEtaModal()">
+  <div class="modal-box">
+    <div class="modal-title" data-i18n="set_eta_title">✏️ Set ETA</div>
+    <input type="datetime-local" id="etaInput">
+    <div class="modal-actions">
+      <button class="btn-save" onclick="confirmEta()">Save</button>
+      <button class="btn-cancel" onclick="closeEtaModal()">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -444,11 +509,20 @@ var LANG = {
     toggles_deletions: '\uD83D\uDDD1\uFE0F Deletions',
     toggles_pending: '\uD83D\uDD50 Pending > N hrs',
     toggles_loaded: '\uD83D\uDE9A Loaded > N hrs',
-    toggles_booked: '\uD83D\uDCC5 Booked Today',
+    toggles_booked: '\uD83D\uDCC5 Booked Deliveries',
     toggles_dos: '\uD83D\uDCE6 New DOs',
     toggles_stale: '\uD83C\uDFAB Stale Tickets',
     toggles_leave: '\uD83D\uDCCB Staff on Leave',
     toggles_wo: '\uD83C\uDFD6\uFE0F Weekly Off',
+    toggles_unassigned: '\uD83D\uDE9A Unassigned Deliveries',
+    toggles_past_eta: '\u23F0 Past ETA',
+    toggles_new_leads: '\uD83D\uDCCB New Leads Today',
+    toggles_delivery_exceptions: '\u26A0\uFE0F Delivery Exceptions',
+    toggles_upcoming_leave: '\uD83D\uDCC5 Upcoming Leave (Tomorrow)',
+    toggles_new_tickets: '\uD83C\uDFAB New Service Tickets',
+    toggles_on_demand: '\uD83D\uDCDE On-Demand Deliveries',
+    on_demand_title: 'On-Demand Deliveries',
+    set_eta_title: '\u270F\uFE0F Set ETA',
     notif_header: 'Notifications',
     sound: '\uD83D\uDD08 Sound',
     reset_history: '\uD83D\uDDD1\uFE0F Reset alerted history',
@@ -457,12 +531,18 @@ var LANG = {
     deleted_fmt: '{{who}} deleted {{what}}',
     pending_title: 'Pending > {{hours}}h',
     loaded_title: 'Loaded > {{hours}}h',
-    booked_today: 'Booked Today',
+    booked_today: 'Booked Deliveries',
     new_dos: 'New DOs',
     stale_tickets: 'Stale Tickets (48h+)',
     on_leave_today: 'Staff on Leave Today',
     weekly_off_today: 'Weekly Off Today',
     weekly_off: 'Weekly Off',
+    unassigned_title: 'Unassigned Deliveries',
+    past_eta_title: 'Past ETA',
+    new_leads_title: 'New Leads Today',
+    delivery_exceptions_title: 'Delivery Exceptions',
+    upcoming_leave_title: 'Upcoming Leave (Tomorrow)',
+    new_tickets_title: 'New Service Tickets',
     item: 'item',
     items: 'items',
     someone: 'Someone',
@@ -518,11 +598,20 @@ var LANG = {
     toggles_deletions: '\uD83D\uDDD1\uFE0F \u0939\u091F\u093E\u090F \u0917\u090F',
     toggles_pending: '\uD83D\uDD50 \u0932\u0902\u092C\u093F\u0924 > N \u0918\u0902\u091F\u0947',
     toggles_loaded: '\uD83D\uDE9A \u0932\u094B\u0921 > N \u0918\u0902\u091F\u0947',
-    toggles_booked: '\uD83D\uDCC5 \u0906\u091C \u092C\u0941\u0915',
+    toggles_booked: '\uD83D\uDCC5 \u092C\u0941\u0915 \u0921\u093F\u0932\u0940\u0935\u0930\u0940',
     toggles_dos: '\uD83D\uDCE6 \u0928\u090F DO',
     toggles_stale: '\uD83C\uDFAB \u092A\u0941\u0930\u093E\u0928\u0947 \u091F\u093F\u0915\u091F',
     toggles_leave: '\uD83D\uDCCB \u091B\u0941\u091F\u094D\u091F\u0940 \u092A\u0930 \u0938\u094D\u091F\u093E\u092B',
     toggles_wo: '\uD83C\uDFD6\uFE0F \u0938\u093E\u092A\u094D\u0924\u093E\u0939\u093F\u0915 \u091B\u0941\u091F\u094D\u091F\u0940',
+    toggles_unassigned: '\uD83D\uDE9A \u092C\u093F\u0928\u093E \u0921\u094D\u0930\u093E\u0907\u0935\u0930 \u0921\u093F\u0932\u0940\u0935\u0930\u0940',
+    toggles_past_eta: '\u23F0 \u092A\u093F\u091B\u0932\u093E ETA',
+    toggles_new_leads: '\uD83D\uDCCB \u0906\u091C \u0915\u0947 \u0928\u090F \u0932\u0940\u0921',
+    toggles_delivery_exceptions: '\u26A0\uFE0F \u0921\u093F\u0932\u0940\u0935\u0930\u0940 \u092E\u0947\u0902 \u0938\u092E\u0938\u094D\u092F\u093E',
+    toggles_upcoming_leave: '\uD83D\uDCC5 \u0915\u0932 \u091B\u0941\u091F\u094D\u091F\u0940',
+    toggles_new_tickets: '\uD83C\uDFAB \u0928\u090F \u0938\u0930\u094D\u0935\u093F\u0938 \u091F\u093F\u0915\u091F',
+    toggles_on_demand: '\uD83D\uDCDE \u0911\u0928-\u0921\u093F\u092E\u093E\u0902\u0921 \u0921\u093F\u0932\u0940\u0935\u0930\u0940',
+    on_demand_title: '\u0911\u0928-\u0921\u093F\u092E\u093E\u0902\u0921 \u0921\u093F\u0932\u0940\u0935\u0930\u0940',
+    set_eta_title: '\u270F\uFE0F \u0908\u091F\u093E \u0938\u0947\u091F \u0915\u0930\u0947\u0902',
     notif_header: '\u0938\u0942\u091A\u0928\u093E\u090F\u0902',
     sound: '\uD83D\uDD08 \u0927\u094D\u0935\u0928\u093F',
     reset_history: '\uD83D\uDDD1\uFE0F \u0905\u0932\u0930\u094D\u091F \u0907\u0924\u093F\u0939\u093E\u0938 \u0930\u0940\u0938\u0947\u091F \u0915\u0930\u0947\u0902',
@@ -531,12 +620,18 @@ var LANG = {
     deleted_fmt: '{{who}} \u0928\u0947 {{what}} \u0939\u091F\u093E\u092F\u093E',
     pending_title: '\u0932\u0902\u092C\u093F\u0924 > {{hours}} \u0918\u0902\u091F\u0947',
     loaded_title: '\u0932\u094B\u0921 > {{hours}} \u0918\u0902\u091F\u0947',
-    booked_today: '\u0906\u091C \u092C\u0941\u0915',
+    booked_today: '\u092C\u0941\u0915 \u0921\u093F\u0932\u0940\u0935\u0930\u0940',
     new_dos: '\u0928\u090F DO',
     stale_tickets: '\u092A\u0941\u0930\u093E\u0928\u0947 \u091F\u093F\u0915\u091F (48 \u0918\u0902\u091F\u0947+)',
     on_leave_today: '\u0906\u091C \u091B\u0941\u091F\u094D\u091F\u0940 \u092A\u0930 \u0938\u094D\u091F\u093E\u092B',
     weekly_off_today: '\u0906\u091C \u0938\u093E\u092A\u094D\u0924\u093E\u0939\u093F\u0915 \u091B\u0941\u091F\u094D\u091F\u0940',
     weekly_off: '\u0938\u093E\u092A\u094D\u0924\u093E\u0939\u093F\u0915 \u091B\u0941\u091F\u094D\u091F\u0940',
+    unassigned_title: '\u092C\u093F\u0928\u093E \u0921\u094D\u0930\u093E\u0907\u0935\u0930 \u0921\u093F\u0932\u0940\u0935\u0930\u0940',
+    past_eta_title: '\u092A\u093F\u091B\u0932\u093E ETA',
+    new_leads_title: '\u0906\u091C \u0915\u0947 \u0928\u090F \u0932\u0940\u0921',
+    delivery_exceptions_title: '\u0921\u093F\u0932\u0940\u0935\u0930\u0940 \u092E\u0947\u0902 \u0938\u092E\u0938\u094D\u092F\u093E',
+    upcoming_leave_title: '\u0915\u0932 \u091B\u0941\u091F\u094D\u091F\u0940',
+    new_tickets_title: '\u0928\u090F \u0938\u0930\u094D\u0935\u093F\u0938 \u091F\u093F\u0915\u091F',
     item: '\u0906\u0907\u091F\u092E',
     items: '\u0906\u0907\u091F\u092E',
     someone: '\u0915\u094B\u0908',
@@ -689,6 +784,8 @@ var SETTINGS_DEFAULTS = {
   toggles: {
     deletions: true, pending: true, loaded: true, booked: true,
     dos: true, staleTickets: true, onLeave: true, weeklyOff: true,
+    unassigned: true, pastEta: true, newLeads: true, deliveryExceptions: true,
+    upcomingLeave: true, newTickets: true, onDemand: true,
     sound: true
   }
 };
@@ -744,9 +841,13 @@ var pollTimer = null;
 var lastActivityCheck = null;
 var seenDeliveryIds = new Set();
 var seenDeletionIds = new Set();
+var seenTicketIds = new Set();
+var seenLeadIds = new Set();
 var alertedKeys = new Set();
 var dosInitialized = false;
 var deletionsInitialized = false;
+var ticketsInitialized = false;
+var leadsInitialized = false;
 
 function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -764,15 +865,21 @@ function pollAlerts() {
 function initSeenSets() {
   seenDeliveryIds = new Set();
   seenDeletionIds = new Set();
+  seenTicketIds = new Set();
+  seenLeadIds = new Set();
   alertedKeys = new Set();
   dosInitialized = false;
   deletionsInitialized = false;
+  ticketsInitialized = false;
+  leadsInitialized = false;
 }
 
 function resetAlerted() {
   alertedKeys = new Set();
   dosInitialized = false;
   deletionsInitialized = false;
+  ticketsInitialized = false;
+  leadsInitialized = false;
   showToast(__('alert_history_cleared'), 'info');
   toggleSettings();
 }
@@ -802,7 +909,8 @@ async function checkAllAlerts() {
       authFetch(BASE_URL + '/service/tickets'),
       authFetch(logUrl),
       authFetch(BASE_URL + '/calendar-events'),
-      authFetch(BASE_URL + '/staff-weekly-off')
+      authFetch(BASE_URL + '/staff-weekly-off'),
+      authFetch(BASE_URL + '/leads')
     ]);
 
     var deliveries = results[0].status === 'fulfilled' ? await safeJsonArray(results[0].value) : [];
@@ -810,6 +918,7 @@ async function checkAllAlerts() {
     var activityLog = results[2].status === 'fulfilled' ? await safeJsonArray(results[2].value) : [];
     var calendarEvents = results[3].status === 'fulfilled' ? await safeJsonArray(results[3].value) : [];
     var staffWO = results[4].status === 'fulfilled' ? await safeJsonArray(results[4].value) : [];
+    var leads = results[5].status === 'fulfilled' ? await safeJsonArray(results[5].value) : [];
 
     // Update last check
     lastActivityCheck = new Date().toISOString();
@@ -853,7 +962,7 @@ async function checkAllAlerts() {
           var ts = d.created_timestamp ? (d.created_timestamp.seconds || 0) * 1000 : 0;
           return ts > 0 && (now - ts) > pendThresh;
         })
-        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || __('unknown_name'), detail: d.product_name || '' }; });
+        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || __('unknown_name'), detail: d.product_name || '', action: { key: 'onDemand', label: '\uD83D\uDCDE On-Demand' } }; });
       if (pendItems.length) {
         allAlerts.push({
           key: 'pending', icon: '🕐', title: __('pending_title', { hours: settings.pendingThreshold }),
@@ -882,20 +991,33 @@ async function checkAllAlerts() {
       }
     }
 
-    /* Booked Today */
+    /* Booked Deliveries */
     if (settings.toggles.booked !== false) {
       var bookedItems = deliveries
-        .filter(function(d) { return d.status === 'booked'; })
-        .filter(function(d) {
-          var eta = d.estimated_delivery_time ? d.estimated_delivery_time.slice(0, 10) : '';
-          return eta === todayDate;
-        })
-        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || __('unknown_name'), detail: d.product_name || '' }; });
+        .filter(function(d) { return d.status === 'booked' && d.estimated_delivery_time && d.estimated_delivery_time !== 'On-Demand'; })
+        .map(function(d) {
+          var date = d.estimated_delivery_time ? d.estimated_delivery_time.slice(0, 10) : '';
+          return { id: d.id, label: d.customer_name || d.phone || __('unknown_name'), detail: date || d.product_name || '' };
+        });
       if (bookedItems.length) {
         allAlerts.push({
           key: 'booked', icon: '📅', title: __('booked_today'),
           severity: 'info',
           items: bookedItems
+        });
+      }
+    }
+
+    /* On-Demand Deliveries */
+    if (settings.toggles.onDemand !== false) {
+      var onDemandItems = deliveries
+        .filter(function(d) { return d.status === 'booked' && (!d.estimated_delivery_time || d.estimated_delivery_time === 'On-Demand'); })
+        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || __('unknown_name'), detail: '\uD83D\uDCDE On-Demand', action: { key: 'setEta', label: '\u270F\uFE0F Set ETA' } }; });
+      if (onDemandItems.length) {
+        allAlerts.push({
+          key: 'onDemand', icon: '\uD83D\uDCDE', title: __('on_demand_title'),
+          severity: 'warning',
+          items: onDemandItems
         });
       }
     }
@@ -972,6 +1094,119 @@ async function checkAllAlerts() {
       }
     }
 
+    /* Unassigned Deliveries */
+    if (settings.toggles.unassigned !== false) {
+      var unassignedItems = deliveries
+        .filter(function(d) { return d.status !== 'delivered' && !d.assigned_driver_id; })
+        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || __('unknown_name'), detail: d.product_name || '' }; });
+      if (unassignedItems.length) {
+        allAlerts.push({
+          key: 'unassigned', icon: '\uD83D\uDE9A', title: __('unassigned_title'),
+          severity: 'warning',
+          items: unassignedItems
+        });
+      }
+    }
+
+    /* Past ETA */
+    if (settings.toggles.pastEta !== false) {
+      var pastEtaItems = deliveries
+        .filter(function(d) { return d.status !== 'delivered' && d.estimated_delivery_time; })
+        .filter(function(d) { return d.estimated_delivery_time < new Date().toISOString(); })
+        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || __('unknown_name'), detail: d.product_name || '' }; });
+      if (pastEtaItems.length) {
+        allAlerts.push({
+          key: 'pastEta', icon: '\u23F0', title: __('past_eta_title'),
+          severity: 'critical',
+          items: pastEtaItems
+        });
+      }
+    }
+
+    /* New Leads Today */
+    if (settings.toggles.newLeads !== false) {
+      var newLeadItems = [];
+      if (!leadsInitialized) {
+        leads.forEach(function(l) { seenLeadIds.add(l.id); });
+        leadsInitialized = true;
+      } else {
+        leads
+          .filter(function(l) { return l.status === 'open'; })
+          .forEach(function(l) {
+            if (!seenLeadIds.has(l.id)) {
+              newLeadItems.push({ id: l.id, label: l.customer_name || l.phone || __('unknown_name'), detail: l.product_interest || '' });
+              seenLeadIds.add(l.id);
+            }
+          });
+      }
+      if (newLeadItems.length) {
+        allAlerts.push({
+          key: 'newLeads', icon: '\uD83D\uDCCB', title: __('new_leads_title'),
+          severity: 'info',
+          items: newLeadItems
+        });
+      }
+    }
+
+    /* Delivery Exceptions */
+    if (settings.toggles.deliveryExceptions !== false) {
+      var exceptionItems = deliveries
+        .filter(function(d) { return d.status === 'failed' || d.status === 'reversed'; })
+        .filter(function(d) { return d.updated_timestamp; })
+        .filter(function(d) {
+          var ts = d.updated_timestamp ? (d.updated_timestamp.seconds || 0) * 1000 : 0;
+          return ts > 0 && (todayDate === new Date(ts).toISOString().slice(0, 10));
+        })
+        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || __('unknown_name'), detail: d.product_name || '[' + d.status + ']' }; });
+      if (exceptionItems.length) {
+        allAlerts.push({
+          key: 'deliveryExceptions', icon: '\u26A0\uFE0F', title: __('delivery_exceptions_title'),
+          severity: 'critical',
+          items: exceptionItems
+        });
+      }
+    }
+
+    /* Upcoming Leave (Tomorrow) */
+    if (settings.toggles.upcomingLeave !== false) {
+      var tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      var tomorrowDate = tomorrow.toISOString().slice(0, 10);
+      var upcomingLeaveItems = calendarEvents
+        .filter(function(e) { return e.type === 'leave' && e.date === tomorrowDate; })
+        .map(function(e) { return { id: e.id, label: e.createdBy || e.createdById || __('unknown'), detail: e.title || '' }; });
+      if (upcomingLeaveItems.length) {
+        allAlerts.push({
+          key: 'upcomingLeave', icon: '\uD83D\uDCC5', title: __('upcoming_leave_title'),
+          severity: 'info',
+          items: upcomingLeaveItems
+        });
+      }
+    }
+
+    /* New Service Tickets */
+    if (settings.toggles.newTickets !== false) {
+      var newTicketItems = [];
+      if (!ticketsInitialized) {
+        tickets.forEach(function(t) { seenTicketIds.add(t.id); });
+        ticketsInitialized = true;
+      } else {
+        tickets.forEach(function(t) {
+          if (!seenTicketIds.has(t.id)) {
+            newTicketItems.push({ id: t.id, label: t.customer_name || t.phone || __('unknown_name'), detail: t.product_name || '' });
+            seenTicketIds.add(t.id);
+          }
+        });
+      }
+      if (newTicketItems.length) {
+        allAlerts.push({
+          key: 'newTickets', icon: '\uD83C\uDFAB', title: __('new_tickets_title'),
+          severity: 'info',
+          items: newTicketItems
+        });
+      }
+    }
+
     setStatus('active', __('updated') + ' ' + new Date().toLocaleTimeString());
     renderAlerts(allAlerts);
     fireNotifications(allAlerts);
@@ -997,7 +1232,8 @@ function renderAlerts(alerts) {
     var itemsHtml = a.items.map(function(item) {
       var badge = '<span class="badge" style="background:var(--' + (a.severity === 'critical' ? 'error' : a.severity === 'warning' ? 'warning' : 'primary') + ')"></span>';
       var detail = item.detail ? '<span class="detail">' + escHtml(item.detail) + '</span>' : '';
-      return '<div class="alert-item">' + badge + '<span class="label">' + escHtml(item.label) + '</span>' + detail + '</div>';
+      var actionHtml = item.action ? '<button class="alert-action-btn" data-action="' + item.action.key + '" data-id="' + item.id + '" onclick="event.stopPropagation();handleAlertAction(this)">' + escHtml(item.action.label) + '</button>' : '';
+      return '<div class="alert-item">' + badge + '<span class="label">' + escHtml(item.label) + '</span>' + detail + actionHtml + '</div>';
     }).join('');
 
     return '<div class="alert-card ' + sevClass + '" data-key="' + a.key + '">' +
@@ -1020,7 +1256,53 @@ function toggleCard(headerEl) {
   if (card) card.classList.toggle('open');
 }
 
-/* ── NOTIFICATIONS ── */
+function handleAlertAction(el) {
+  var id = el.getAttribute('data-id');
+  var action = el.getAttribute('data-action');
+  if (action === 'onDemand') markAsOnDemand(id);
+  else if (action === 'setEta') openEtaModal(id);
+}
+
+async function markAsOnDemand(id) {
+  try {
+    var res = await authFetch(BASE_URL + '/markOnDemand/' + id, { method: 'POST' });
+    if (res.ok) { showToast('Marked as On-Demand', 'success'); checkAllAlerts(); }
+    else { var d = await res.json(); showToast(d.error || 'Failed', 'error'); }
+  } catch(e) { showToast('Network error', 'error'); }
+}
+
+function openEtaModal(id) {
+  var d = new Date(Date.now() + 2 * 3600000);
+  var def = d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0') + 'T' +
+    String(d.getHours()).padStart(2, '0') + ':' +
+    String(d.getMinutes()).padStart(2, '0');
+  document.getElementById('etaInput').value = def;
+  document.getElementById('etaInput').dataset.deliveryId = id;
+  document.getElementById('etaModal').classList.add('open');
+}
+
+function closeEtaModal() {
+  document.getElementById('etaModal').classList.remove('open');
+}
+
+async function confirmEta() {
+  var id = document.getElementById('etaInput').dataset.deliveryId;
+  var val = document.getElementById('etaInput').value;
+  if (!val) return;
+  closeEtaModal();
+  try {
+    var res = await authFetch(BASE_URL + '/delivery/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estimated_delivery_time: val })
+    });
+    if (res.ok) { showToast('ETA updated', 'success'); checkAllAlerts(); }
+    else { var d = await res.json(); showToast(d.error || 'Failed', 'error'); }
+  } catch(e) { showToast('Network error', 'error'); }
+}
+
 function requestNotifIfNeeded() {
   if (typeof Notification === 'undefined') return;
   if (Notification.permission === 'default') {

@@ -2182,13 +2182,13 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       } catch (_) { /* fall back to deliveries.length */ }
     }
 
-    // For paginated queries with 0 or 1 status, add orderBy + limit to avoid fetching all docs.
-    // Multi-status (2+ status values) need ALL matching docs for the
+    // For single-status paginated queries, add orderBy + limit to avoid fetching all docs.
+    // Multi-status and "all" queries need ALL matching docs for the
     // in-memory interleave sort — no limit applied.
     // Text search excluded (narrow scope, no limit needed).
     if (isPaginated && !search) {
       const statuses = status ? status.split(",").map(s => s.trim()).filter(Boolean) : [];
-      if (statuses.length <= 1) {
+      if (statuses.length === 1) {
         q = query(q, orderBy("created_timestamp", "desc"), limit(p * ps));
       }
     }
@@ -2233,7 +2233,7 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       totalCount = deliveries.length;
     }
 
-    const statusOrder = { booked: -1, pending: 0, loaded: 1, delivered: 2, failed: 3 };
+    const statusOrder = { booked: -1, pending: 0, loaded: 1, failed: 2, delivered: 3 };
 
     deliveries.sort((a, b) => {
       const statusDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
@@ -2242,7 +2242,7 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       if (a.status === "booked") {
         const eta = d => {
           const v = d.estimated_delivery_time;
-          if (!v) return 0;
+          if (!v || v === "On-Demand") return 0;
           if (v.seconds) return v.seconds * 1000;
           return new Date(v).getTime();
         };
@@ -3033,6 +3033,33 @@ app.post("/reverseDelivery/:id", authenticate, authorize(["admin", "accountant"]
 
 /* ════════════════════════════════════════════════
    REVERT LOADED → PENDING
+   POST /markOnDemand/:id
+   Reverts a pending delivery to booked with ETA="On-Demand"
+   ════════════════════════════════════════════════ */
+app.post("/markOnDemand/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const refDoc = doc(db, "deliveries", id);
+    const snap = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+    const delivery = snap.data();
+    if (delivery.status !== "pending") {
+      return res.status(400).json({ error: "Only pending deliveries can be marked as On-Demand" });
+    }
+    await updateDoc(refDoc, {
+      status: "booked",
+      estimated_delivery_time: "On-Demand"
+    });
+    console.log(`[markOnDemand] ${id} marked as On-Demand`);
+    logActivity({ action: "mark_on_demand", entityType: "delivery", entityId: id, label: delivery.customer_name || delivery.phone || "", details: "Pending → Booked (On-Demand). ETA set to On-Demand.", req });
+    res.json({ success: true, message: "Delivery marked as On-Demand" });
+  } catch (err) {
+    console.error("/markOnDemand error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
    POST /revertLoaded/:id  (admin/accountant only)
    Clears loaded photo, serial, location; sets status to pending
    ════════════════════════════════════════════════ */

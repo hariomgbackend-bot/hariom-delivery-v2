@@ -1223,8 +1223,14 @@
     </div>
 
     <div id="normalDeliveryWrap">
-      <div class="section-title">Estimated Delivery Time</div>
-      <input type="datetime-local" id="estimated_time">
+      <div class="checkbox-row" style="margin-top:10px;">
+        <input type="checkbox" id="is_on_demand" onchange="toggleCreateOnDemand()">
+        <label for="is_on_demand">📞 On-Demand Delivery</label>
+      </div>
+      <div id="createEtaWrap">
+        <div class="section-title">Estimated Delivery Time</div>
+        <input type="datetime-local" id="estimated_time">
+      </div>
 
       <div class="section-title">Assign Driver</div>
       <select id="driver"></select>
@@ -2954,6 +2960,22 @@ function toggleSelfPickup() {
   }
 }
 
+function toggleCreateOnDemand() {
+  const checked = document.getElementById("is_on_demand").checked;
+  document.getElementById("createEtaWrap").style.display = checked ? "none" : "";
+  if (checked) {
+    document.getElementById("driver").value = "";
+  } else {
+    var d = new Date(Date.now() + 2 * 3600000);
+    var def = d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0') + 'T' +
+      String(d.getHours()).padStart(2, '0') + ':' +
+      String(d.getMinutes()).padStart(2, '0');
+    document.getElementById("estimated_time").value = def;
+  }
+}
+
 function toggleFreight() {
   const input = document.getElementById("freight_amount");
   const checked = document.getElementById("freight_charged").checked;
@@ -3276,6 +3298,7 @@ async function createDelivery() {
   const driverEl     = document.getElementById("driver");
   const etaEl        = document.getElementById("estimated_time");
   const isSelfPickup = document.getElementById("is_self_pickup").checked;
+  const isOnDemand   = document.getElementById("is_on_demand").checked;
 
   if (!firstNameEl.value.trim()) {
     showToast("First name is required", "info"); return;
@@ -3286,7 +3309,7 @@ async function createDelivery() {
   if (!addr1El.value.trim()) {
     showToast("Address Line 1 is required", "info"); return;
   }
-  if (!isSelfPickup) {
+  if (!isSelfPickup && !isOnDemand) {
     if (!driverEl.value) {
       showToast("Please assign a driver", "info"); return;
     }
@@ -3400,9 +3423,9 @@ async function createDelivery() {
     alternate_phone:         document.getElementById("alt_phone").value || "",
     address:                 capitalizeWords(fullAddress),
     priority:                document.getElementById("priority").value,
-    estimated_delivery_time: isSelfPickup ? (document.getElementById("pickup_date").value || null) : etaEl.value,
-    assigned_driver_id:      isSelfPickup ? "" : driverSel.value,
-    assigned_driver_name:    isSelfPickup ? "" : driverSel.options[driverSel.selectedIndex].text,
+    estimated_delivery_time: isOnDemand ? "On-Demand" : isSelfPickup ? (document.getElementById("pickup_date").value || null) : etaEl.value,
+    assigned_driver_id:      isOnDemand || isSelfPickup ? "" : driverSel.value,
+    assigned_driver_name:    isOnDemand || isSelfPickup ? "" : driverSel.options[driverSel.selectedIndex].text,
     driver_instructions:     hasInstruction ? document.getElementById("instruction").value.trim() : "none",
     freight_charged:         freightCharged,
     freight_amount:          freightCharged ? document.getElementById("freight_amount").value : "",
@@ -3606,6 +3629,7 @@ function loadDraft() {
 /* ── DATE FORMAT ── */
 function formatDate(dateString) {
   if (!dateString) return "—";
+  if (dateString === "On-Demand") return "📞 On-Demand";
   const d = new Date(dateString);
   return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
@@ -4614,8 +4638,14 @@ async function editDelivery(id) {
     </div>
 
     <div id="editNormalDeliveryWrap" style="display:${delivery.is_self_pickup ? "none" : "block"};">
-      <div class="section-title">Estimated Delivery Time</div>
-      <input type="datetime-local" id="edit_eta" value="${delivery.estimated_delivery_time ? new Date(delivery.estimated_delivery_time).toISOString().slice(0,16) : ""}" style="${inputStyle}">
+      <div class="checkbox-row" style="margin-top:10px;">
+        <input type="checkbox" id="edit_is_on_demand" onchange="toggleEditOnDemand()" ${delivery.estimated_delivery_time === "On-Demand" ? "checked" : ""}>
+        <label for="edit_is_on_demand">📞 On-Demand Delivery</label>
+      </div>
+      <div id="editEtaWrap" style="display:${delivery.estimated_delivery_time === "On-Demand" ? "none" : "block"};">
+        <div class="section-title">Estimated Delivery Time</div>
+        <input type="datetime-local" id="edit_eta" value="${delivery.estimated_delivery_time && delivery.estimated_delivery_time !== "On-Demand" ? new Date(delivery.estimated_delivery_time).toISOString().slice(0,16) : ""}" style="${inputStyle}">
+      </div>
       <div class="section-title">Assign Driver</div>
       <select id="edit_driver" style="${inputStyle}"></select>
     </div>
@@ -4683,11 +4713,26 @@ function toggleEditSelfPickup() {
   document.getElementById("editSelfPickupWrap").style.display = checked ? "block" : "none";
 }
 
+function toggleEditOnDemand() {
+  const checked = document.getElementById("edit_is_on_demand").checked;
+  document.getElementById("editEtaWrap").style.display = checked ? "none" : "block";
+  if (!checked) {
+    var d = new Date(Date.now() + 2 * 3600000);
+    var def = d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0') + 'T' +
+      String(d.getHours()).padStart(2, '0') + ':' +
+      String(d.getMinutes()).padStart(2, '0');
+    document.getElementById("edit_eta").value = def;
+  }
+}
+
 async function saveDelivery(id) {
   const driverSelect      = document.getElementById("edit_driver");
   const hasInstruction    = document.getElementById("edit_has_instruction").checked;
   const freightCharged    = document.getElementById("edit_freight_charged").checked;
   const isSelfPickup      = document.getElementById("edit_is_self_pickup").checked;
+  const isOnDemand        = document.getElementById("edit_is_on_demand").checked;
   const updated = {
     customer_name:           document.getElementById("edit_name").value,
     phone:                   document.getElementById("edit_phone").value,
@@ -4695,11 +4740,11 @@ async function saveDelivery(id) {
     address:                 document.getElementById("edit_address").value,
     product_name:            document.getElementById("edit_product").value.trim().toUpperCase(),
     product_serial_number:   document.getElementById("edit_serial").value,
-    estimated_delivery_time: isSelfPickup
+    estimated_delivery_time: isOnDemand ? "On-Demand" : isSelfPickup
       ? document.getElementById("edit_pickup_date").value
       : document.getElementById("edit_eta").value,
-    assigned_driver_id:      isSelfPickup ? "" : driverSelect.value,
-    assigned_driver_name:    isSelfPickup ? "" : driverSelect.options[driverSelect.selectedIndex].text,
+    assigned_driver_id:      isOnDemand || isSelfPickup ? "" : driverSelect.value,
+    assigned_driver_name:    isOnDemand || isSelfPickup ? "" : driverSelect.options[driverSelect.selectedIndex].text,
     driver_instructions:     hasInstruction ? document.getElementById("edit_instruction").value.trim() : "none",
     freight_charged:         freightCharged,
     freight_amount:          freightCharged ? document.getElementById("edit_freight_amount").value : "",
