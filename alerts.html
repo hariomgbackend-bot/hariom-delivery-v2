@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hariom Alerts">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0b1326">
+  <link rel="manifest" href="/alerts-manifest.json">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <title>Alerts — Hariom Electronics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/design-system.css?v=2">
+  <script src="/shared.js?v=2"></script>
+  <style>
+    :root {
+      --surface: #0b1326;
+      --surface-container: #111b33;
+      --surface-container-low: #0e1730;
+      --surface-container-high: #162141;
+      --surface-container-highest: #1d2a4d;
+      --on-surface: #e8edf5;
+      --on-surface-variant: #99a7c4;
+      --primary: #adc6ff;
+      --primary-container: rgba(173,198,255,0.12);
+      --on-primary-container: #d6e2ff;
+      --outline: #5b6b8a;
+      --outline-variant: #2d3a54;
+      --border: rgba(173,198,255,0.08);
+      --error: #ff6b6b;
+      --success: #4edea3;
+      --warning: #ffb300;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      font-family:'Inter',sans-serif; background:var(--surface); color:var(--on-surface);
+      min-height:100vh; -webkit-font-smoothing:antialiased;
+      overscroll-behavior:contain;
+    }
+    /* ── Login ── */
+    #loginSection {
+      display:flex; align-items:center; justify-content:center;
+      min-height:100vh; padding:24px;
+    }
+    .login-card {
+      background:var(--surface-container); border-radius:24px;
+      padding:40px 28px; width:100%; max-width:360px;
+      box-shadow:0 8px 40px rgba(0,0,0,0.3);
+    }
+    .login-heading { font-size:26px; font-weight:900; color:var(--on-surface); text-align:center; margin-bottom:6px; letter-spacing:-0.5px; }
+    .login-sub { font-size:13px; color:var(--on-surface-variant); text-align:center; margin-bottom:28px; }
+    .login-label { display:block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--outline); margin-bottom:6px; }
+    .login-card input {
+      width:100%; padding:12px 14px; background:var(--surface-container-high);
+      border:none; border-radius:12px; font-family:'Inter',sans-serif;
+      font-size:15px; color:var(--on-surface); outline:none;
+      -webkit-appearance:none; margin-bottom:14px;
+    }
+    .login-card input::placeholder { color:var(--outline); }
+    .login-btn {
+      width:100%; padding:12px; background:linear-gradient(135deg,var(--primary-container),var(--primary));
+      color:var(--on-primary-container); border:none; border-radius:12px;
+      font-family:'Inter',sans-serif; font-size:15px; font-weight:700; cursor:pointer;
+      transition:transform 0.1s; display:flex; align-items:center; justify-content:center; gap:8px;
+    }
+    .login-btn:active { transform:scale(0.98); }
+    .login-btn:disabled { opacity:0.5; pointer-events:none; }
+    .login-msg { font-size:12px; font-weight:600; text-align:center; min-height:18px; margin-top:12px; }
+    .btn-spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 0.5s linear infinite; vertical-align:middle; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    /* ── Install Banner ── */
+    #installBanner {
+      display:none; align-items:center; gap:10px; padding:12px 16px;
+      background:var(--surface-container-high); border-bottom:1px solid var(--border);
+      position:sticky; top:0; z-index:100;
+    }
+    #installBanner.visible { display:flex; }
+    #installBanner .install-text { flex:1; font-size:13px; font-weight:500; color:var(--on-surface); line-height:1.4; }
+    #installBanner .install-text strong { display:block; font-size:14px; font-weight:700; margin-bottom:2px; }
+    #installBanner button {
+      padding:8px 16px; border:none; border-radius:10px; font-family:'Inter',sans-serif;
+      font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;
+    }
+    .install-btn { background:var(--primary); color:#0b1326; }
+    .install-dismiss { background:transparent; color:var(--on-surface-variant); }
+    /* ── Header ── */
+    .header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 16px; background:var(--surface-container); position:sticky; top:0; z-index:50;
+      border-bottom:1px solid var(--border);
+    }
+    .header-left { display:flex; align-items:center; gap:10px; }
+    .header-logo { width:32px; height:32px; border-radius:8px; }
+    .header-title { font-size:18px; font-weight:800; letter-spacing:-0.3px; }
+    .header-sub { font-size:11px; color:var(--on-surface-variant); }
+    .header-right { display:flex; align-items:center; gap:8px; }
+    .status-dot {
+      display:inline-flex; align-items:center; gap:5px;
+      font-size:11px; font-weight:700; padding:5px 10px;
+      border-radius:20px; background:var(--surface-container-high);
+    }
+    .status-dot .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+    .dot-green { background:var(--success); }
+    .dot-red { background:var(--error); }
+    .dot-yellow { background:var(--warning); }
+    .icon-btn {
+      background:var(--surface-container-high); border:none; border-radius:10px;
+      width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+      cursor:pointer; font-size:18px; color:var(--on-surface-variant); transition:background 0.12s;
+    }
+    .icon-btn:active { background:var(--surface-container-highest); }
+    /* ── Alert List ── */
+    #alertList { padding:12px 16px 80px; }
+    .alert-card {
+      background:var(--surface-container); border-radius:16px; margin-bottom:10px;
+      overflow:hidden; border-left:4px solid var(--outline);
+      transition:border-color 0.2s;
+    }
+    .alert-card.critical { border-left-color:var(--error); }
+    .alert-card.warning { border-left-color:var(--warning); }
+    .alert-card.info { border-left-color:var(--primary); }
+    .alert-card-header {
+      display:flex; align-items:center; gap:10px; padding:14px 16px;
+      cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent;
+    }
+    .alert-card-header .icon { font-size:22px; }
+    .alert-card-header .info { flex:1; min-width:0; }
+    .alert-card-header .info .title { font-size:14px; font-weight:700; }
+    .alert-card-header .info .count {
+      font-size:12px; font-weight:600; color:var(--on-surface-variant); margin-top:1px;
+    }
+    .alert-card-header .chevron {
+      font-size:16px; color:var(--outline); transition:transform 0.2s;
+    }
+    .alert-card.open .chevron { transform:rotate(180deg); }
+    .alert-card-body { display:none; padding:0 16px 14px; }
+    .alert-card.open .alert-card-body { display:block; }
+    .alert-item {
+      display:flex; align-items:center; gap:8px; padding:8px 0;
+      border-top:1px solid var(--border); font-size:13px; font-weight:500;
+    }
+    .alert-item:first-child { border-top:none; }
+    .alert-item .badge {
+      width:6px; height:6px; border-radius:50%; flex-shrink:0;
+    }
+    .alert-item .label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .alert-item .detail { font-size:11px; color:var(--on-surface-variant); flex-shrink:0; }
+    .alert-badge-count {
+      display:inline-flex; align-items:center; justify-content:center;
+      min-width:22px; height:22px; border-radius:11px; padding:0 6px;
+      font-size:11px; font-weight:800; color:#fff;
+    }
+    .badge-critical { background:var(--error); }
+    .badge-warning { background:var(--warning); color:#0b1326; }
+    .badge-info { background:var(--primary); color:#0b1326; }
+    /* ── Empty State ── */
+    #emptyState {
+      display:none; text-align:center; padding:60px 24px;
+    }
+    #emptyState svg { opacity:0.3; margin-bottom:16px; }
+    #emptyState p { font-size:16px; font-weight:700; color:var(--on-surface-variant); }
+    #emptyState .sub { font-size:13px; color:var(--outline); margin-top:4px; }
+    /* ── Settings Drawer ── */
+    #settingsOverlay {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5);
+      z-index:200; opacity:0; transition:opacity 0.2s;
+    }
+    #settingsOverlay.open { display:block; opacity:1; }
+    #settingsPanel {
+      position:fixed; top:0; right:-300px; width:280px; height:100%;
+      background:var(--surface-container); z-index:201; overflow-y:auto;
+      transition:right 0.25s; padding:20px 18px;
+      box-shadow:-4px 0 24px rgba(0,0,0,0.3);
+    }
+    #settingsPanel.open { right:0; }
+    #settingsPanel .panel-title {
+      font-size:18px; font-weight:800; margin-bottom:20px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    #settingsPanel .close {
+      background:none; border:none; font-size:22px; cursor:pointer; color:var(--on-surface-variant); padding:4px;
+    }
+    .settings-group { margin-bottom:20px; }
+    .settings-group .group-title {
+      font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px;
+      color:var(--outline); margin-bottom:10px;
+    }
+    .setting-row {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:8px 0; font-size:13px; font-weight:600;
+    }
+    .setting-row input[type="number"] {
+      width:56px; padding:6px 8px; background:var(--surface-container-high);
+      border:none; border-radius:8px; font-family:'Inter',sans-serif;
+      font-size:13px; font-weight:700; color:var(--on-surface); text-align:center; outline:none;
+    }
+    .setting-row select {
+      padding:6px 8px; background:var(--surface-container-high);
+      border:none; border-radius:8px; font-family:'Inter',sans-serif;
+      font-size:13px; font-weight:700; color:var(--on-surface); outline:none; -webkit-appearance:none;
+    }
+    .toggle {
+      position:relative; width:40px; height:22px; flex-shrink:0; cursor:pointer;
+    }
+    .toggle input { opacity:0; width:0; height:0; }
+    .toggle .slider {
+      position:absolute; inset:0; background:var(--surface-container-highest);
+      border-radius:11px; transition:background 0.2s;
+    }
+    .toggle .slider::after {
+      content:''; position:absolute; top:2px; left:2px; width:18px; height:18px;
+      border-radius:50%; background:var(--on-surface-variant); transition:all 0.2s;
+    }
+    .toggle input:checked + .slider { background:var(--primary); }
+    .toggle input:checked + .slider::after { left:20px; background:#0b1326; }
+    .settings-action {
+      width:100%; padding:10px; border:none; border-radius:10px;
+      font-family:'Inter',sans-serif; font-size:13px; font-weight:700; cursor:pointer;
+      margin-bottom:8px; transition:transform 0.1s;
+    }
+    .settings-action:active { transform:scale(0.98); }
+    .btn-logout { background:rgba(255,107,107,0.15); color:var(--error); }
+    .btn-reset { background:var(--surface-container-high); color:var(--on-surface-variant); }
+    /* ── Toast override for mobile ── */
+    #toast { bottom:80px !important; }
+    /* ── Notif permission bar ── */
+    #notifBar {
+      display:none; align-items:center; gap:8px; padding:10px 16px;
+      background:var(--surface-container-high); font-size:12px; font-weight:600;
+      border-bottom:1px solid var(--border);
+    }
+    #notifBar button {
+      padding:6px 14px; border:none; border-radius:8px; font-family:'Inter',sans-serif;
+      font-size:12px; font-weight:700; cursor:pointer; background:var(--primary); color:#0b1326;
+    }
+  </style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- ══ INSTALL BANNER ══ -->
+<div id="installBanner">
+  <div class="install-text"><strong>📲 Install Alerts</strong>Get alerts even when the app is closed</div>
+  <button class="install-btn" onclick="triggerInstall()">Install</button>
+  <button class="install-dismiss" onclick="dismissInstall()">Later</button>
+</div>
+
+<!-- ══ LOGIN SCREEN ══ -->
+<div id="loginSection">
+  <div class="login-card">
+    <div class="login-heading">🔔 Alerts</div>
+    <div class="login-sub">Sign in to receive delivery &amp; service alerts</div>
+    <label class="login-label">Email</label>
+    <input type="email" id="loginEmail" placeholder="admin@hariom.in" autocomplete="email" inputmode="email">
+    <label class="login-label">Password</label>
+    <input type="password" id="loginPassword" placeholder="••••••" autocomplete="current-password">
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">
+      <span class="material-symbols-outlined" style="font-size:18px;">lock_open</span>
+      Sign In
+    </button>
+    <div class="login-msg" id="loginMsg"></div>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD ══ -->
+<div id="dashboard" style="display:none;">
+  <div class="header">
+    <div class="header-left">
+      <img src="/icons/icon-72x72.png" class="header-logo" alt="" onerror="this.style.display='none'">
+      <div>
+        <div class="header-title">Alerts</div>
+        <div class="header-sub" id="headerSub">Monitoring enabled</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="status-dot" id="statusDot"><span class="dot dot-green"></span><span id="statusText">Active</span></span>
+      <button class="icon-btn" onclick="toggleSettings()" title="Settings">⚙️</button>
+    </div>
+  </div>
+
+  <div id="notifBar">
+    <span>🔔 Enable notifications to get alerted</span>
+    <button onclick="requestNotif()">Enable</button>
+  </div>
+
+  <div id="alertList"></div>
+
+  <div id="emptyState">
+    <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+      <circle cx="40" cy="40" r="28" stroke="currentColor" stroke-width="2.5" opacity=".35"/>
+      <path d="M28 40l8 8 16-16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/>
+    </svg>
+    <p>✅ All Clear</p>
+    <div class="sub">No active alerts — monitoring in progress</div>
+  </div>
+</div>
+
+<!-- ══ SETTINGS DRAWER ══ -->
+<div id="settingsOverlay" onclick="toggleSettings()"></div>
+<div id="settingsPanel">
+  <div class="panel-title">
+    ⚙️ Settings
+    <button class="close" onclick="toggleSettings()">&times;</button>
+  </div>
+
+  <div class="settings-group">
+    <div class="group-title">Thresholds</div>
+    <div class="setting-row">
+      <span>Pending &gt;</span>
+      <input type="number" id="sPending" min="1" max="24" onchange="saveSetting('pendingThreshold',+this.value)">
+      <span style="font-size:11px;color:var(--outline);margin-left:4px;">hours</span>
+    </div>
+    <div class="setting-row">
+      <span>Loaded &gt;</span>
+      <input type="number" id="sLoaded" min="1" max="24" onchange="saveSetting('loadedThreshold',+this.value)">
+      <span style="font-size:11px;color:var(--outline);margin-left:4px;">hours</span>
+    </div>
+    <div class="setting-row">
+      <span>Poll interval</span>
+      <select id="sPoll" onchange="saveSetting('pollInterval',+this.value)">
+        <option value="15">15s</option>
+        <option value="30" selected>30s</option>
+        <option value="60">60s</option>
+        <option value="120">2min</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <div class="group-title">Alert Toggles</div>
+    <div class="setting-row">
+      <span>🗑️ Deletions</span>
+      <label class="toggle"><input type="checkbox" data-key="deletions" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span>🕐 Pending &gt; N hrs</span>
+      <label class="toggle"><input type="checkbox" data-key="pending" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span>🚚 Loaded &gt; N hrs</span>
+      <label class="toggle"><input type="checkbox" data-key="loaded" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span>📅 Booked Today</span>
+      <label class="toggle"><input type="checkbox" data-key="booked" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span>📦 New DOs</span>
+      <label class="toggle"><input type="checkbox" data-key="dos" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span>🎫 Stale Tickets</span>
+      <label class="toggle"><input type="checkbox" data-key="staleTickets" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span>📋 Staff on Leave</span>
+      <label class="toggle"><input type="checkbox" data-key="onLeave" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <span>🏖️ Weekly Off</span>
+      <label class="toggle"><input type="checkbox" data-key="weeklyOff" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <div class="group-title">Notifications</div>
+    <div class="setting-row">
+      <span>🔈 Sound</span>
+      <label class="toggle"><input type="checkbox" data-key="sound" onchange="saveToggle(this)" checked><span class="slider"></span></label>
+    </div>
+  </div>
+
+  <button class="settings-action btn-reset" onclick="resetAlerted()">🗑️ Reset alerted history</button>
+  <button class="settings-action btn-logout" onclick="doLogout()">🚪 Logout</button>
+</div>
+
+<script>
+/* ════════════════════════════════════════════
+   Alerts Dashboard — Hariom Electronics
+   ════════════════════════════════════════════ */
+
+/* ── BASE URL ── */
+const BASE_URL = window.location.origin && window.location.origin !== 'null'
+  ? window.location.origin
+  : 'http://localhost:5000';
+
+/* ── AUTH STATE ── */
+let authToken = null;
+let storedEmail = '';
+let storedPassword = '';
+let relogging = false;
+var _alertCtx = null;
+
+function getToken() { return authToken || localStorage.getItem('alertsToken'); }
+function isTokenExpired(token) {
+  try { var p = JSON.parse(atob(token.split('.')[1])); return Date.now() >= p.exp * 1000; }
+  catch { return true; }
+}
+window.authGetToken = getToken;
+window.authOnError = function() { tryAutoRelogin(); };
+
+/* ── LOGIN ── */
+async function doLogin() {
+  var email = document.getElementById('loginEmail').value.trim();
+  var pass = document.getElementById('loginPassword').value.trim();
+  var msg = document.getElementById('loginMsg');
+  var btn = document.getElementById('loginBtn');
+  if (!email || !pass) { msg.style.color = 'var(--error)'; msg.textContent = 'Enter email and password.'; return; }
+  msg.style.color = 'var(--primary)'; msg.textContent = 'Signing in…';
+  btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Signing in…';
+  try {
+    var res = await fetch(BASE_URL + '/admin/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.toLowerCase(), password: pass })
+    });
+    var data = await res.json();
+    if (!res.ok || !data.token) {
+      msg.style.color = 'var(--error)'; msg.textContent = data.error || 'Login failed.';
+      btn.disabled = false; btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">lock_open</span> Sign In';
+      return;
+    }
+    authToken = data.token;
+    localStorage.setItem('alertsToken', data.token);
+    localStorage.setItem('alertsEmail', email.toLowerCase());
+    localStorage.setItem('alertsPassword', pass);
+    storedEmail = email.toLowerCase(); storedPassword = pass;
+    msg.textContent = '';
+    enterDashboard();
+  } catch (e) {
+    msg.style.color = 'var(--error)'; msg.textContent = 'Network error.';
+    btn.disabled = false; btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">lock_open</span> Sign In';
+  }
+}
+
+async function tryAutoRelogin() {
+  if (relogging) return;
+  relogging = true;
+  var email = localStorage.getItem('alertsEmail');
+  var pass = localStorage.getItem('alertsPassword');
+  if (!email || !pass) { relogging = false; showLogin(); return; }
+  try {
+    var res = await fetch(BASE_URL + '/admin/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass })
+    });
+    var data = await res.json();
+    if (!res.ok || !data.token) { relogging = false; showLogin(); return; }
+    authToken = data.token;
+    localStorage.setItem('alertsToken', data.token);
+    setStatus('active', 'Re-connected');
+    relogging = false;
+    pollAlerts();
+  } catch (e) { relogging = false; setStatus('error', 'Re-login failed'); }
+}
+
+function showLogin() {
+  authToken = null;
+  localStorage.removeItem('alertsToken');
+  document.getElementById('loginSection').style.display = '';
+  document.getElementById('dashboard').style.display = 'none';
+  stopPolling();
+}
+
+function enterDashboard() {
+  document.getElementById('loginSection').style.display = 'none';
+  document.getElementById('dashboard').style.display = '';
+  loadSettings();
+  requestNotifIfNeeded();
+  initSeenSets();
+  pollAlerts();
+  registerSW();
+}
+
+/* ── LOGOUT ── */
+function doLogout() {
+  authToken = null;
+  localStorage.removeItem('alertsToken');
+  localStorage.removeItem('alertsEmail');
+  localStorage.removeItem('alertsPassword');
+  stopPolling();
+  showLogin();
+}
+
+/* ── STATUS INDICATOR ── */
+function setStatus(state, text) {
+  var dot = document.querySelector('#statusDot .dot');
+  var label = document.getElementById('statusText');
+  if (state === 'active') { dot.className = 'dot dot-green'; label.textContent = text || 'Active'; }
+  else if (state === 'error') { dot.className = 'dot dot-red'; label.textContent = text || 'Error'; }
+  else { dot.className = 'dot dot-yellow'; label.textContent = text || 'Pending'; }
+}
+
+/* ── SETTINGS ── */
+var SETTINGS_DEFAULTS = {
+  pendingThreshold: 2,
+  loadedThreshold: 2,
+  pollInterval: 30,
+  toggles: {
+    deletions: true, pending: true, loaded: true, booked: true,
+    dos: true, staleTickets: true, onLeave: true, weeklyOff: true,
+    sound: true
+  }
+};
+var settings = {};
+
+function loadSettings() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('alertsSettings'));
+    settings = saved || {};
+  } catch { settings = {}; }
+  // Merge defaults
+  Object.keys(SETTINGS_DEFAULTS).forEach(function(k) {
+    if (settings[k] === undefined) settings[k] = SETTINGS_DEFAULTS[k];
+  });
+  if (typeof settings.toggles !== 'object') settings.toggles = {};
+  Object.keys(SETTINGS_DEFAULTS.toggles).forEach(function(k) {
+    if (settings.toggles[k] === undefined) settings.toggles[k] = true;
+  });
+  // Sync UI
+  document.getElementById('sPending').value = settings.pendingThreshold;
+  document.getElementById('sLoaded').value = settings.loadedThreshold;
+  document.getElementById('sPoll').value = settings.pollInterval;
+  document.querySelectorAll('#settingsPanel input[type="checkbox"]').forEach(function(el) {
+    var key = el.getAttribute('data-key');
+    if (key) el.checked = settings.toggles[key] !== false;
+  });
+}
+
+function saveSetting(key, val) {
+  settings[key] = val;
+  localStorage.setItem('alertsSettings', JSON.stringify(settings));
+  if (key === 'pollInterval') { restartPoll(); }
+}
+
+function saveToggle(el) {
+  var key = el.getAttribute('data-key');
+  if (key) { settings.toggles[key] = el.checked; localStorage.setItem('alertsSettings', JSON.stringify(settings)); }
+}
+
+function toggleSettings() {
+  var panel = document.getElementById('settingsPanel');
+  var overlay = document.getElementById('settingsOverlay');
+  panel.classList.toggle('open');
+  overlay.classList.toggle('open');
+}
+
+/* ── POLL LOOP ── */
+var pollTimer = null;
+var lastActivityCheck = null;
+var seenDeliveryIds = new Set();
+var seenDeletionIds = new Set();
+var alertedKeys = new Set();
+var dosInitialized = false;
+var deletionsInitialized = false;
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+function restartPoll() {
+  stopPolling();
+  pollAlerts();
+}
+function pollAlerts() {
+  checkAllAlerts();
+  var interval = (settings.pollInterval || 30) * 1000;
+  pollTimer = setInterval(checkAllAlerts, interval);
+}
+
+function initSeenSets() {
+  seenDeliveryIds = new Set();
+  seenDeletionIds = new Set();
+  alertedKeys = new Set();
+  dosInitialized = false;
+  deletionsInitialized = false;
+}
+
+function resetAlerted() {
+  alertedKeys = new Set();
+  dosInitialized = false;
+  deletionsInitialized = false;
+  showToast('Alert history cleared', 'info');
+  toggleSettings();
+}
+
+/* ── Safe JSON array parser (handles paginated / error responses) ── */
+async function safeJsonArray(resp) {
+  if (!resp) return [];
+  try {
+    var d = await resp.json();
+    return Array.isArray(d) ? d : (Array.isArray(d && d.data) ? d.data : []);
+  } catch(e) { return []; }
+}
+
+/* ── MAIN CHECK ── */
+async function checkAllAlerts() {
+  try {
+    var token = getToken();
+    if (!token || isTokenExpired(token)) { await tryAutoRelogin(); return; }
+
+    // Fetch all data sources
+    var delUrl = BASE_URL + '/deliveries?status=booked,pending,loaded';
+    var logUrl = BASE_URL + '/activity-log?limit=50';
+    if (lastActivityCheck) logUrl += '&since=' + encodeURIComponent(lastActivityCheck);
+
+    var results = await Promise.allSettled([
+      authFetch(delUrl),
+      authFetch(BASE_URL + '/service/tickets'),
+      authFetch(logUrl),
+      authFetch(BASE_URL + '/calendar-events'),
+      authFetch(BASE_URL + '/staff-weekly-off')
+    ]);
+
+    var deliveries = results[0].status === 'fulfilled' ? await safeJsonArray(results[0].value) : [];
+    var tickets = results[1].status === 'fulfilled' ? await safeJsonArray(results[1].value) : [];
+    var activityLog = results[2].status === 'fulfilled' ? await safeJsonArray(results[2].value) : [];
+    var calendarEvents = results[3].status === 'fulfilled' ? await safeJsonArray(results[3].value) : [];
+    var staffWO = results[4].status === 'fulfilled' ? await safeJsonArray(results[4].value) : [];
+
+    // Update last check
+    lastActivityCheck = new Date().toISOString();
+
+    // Run checks
+    var allAlerts = [];
+    var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var todayName = DAYS[new Date().getDay()];
+    var todayDate = new Date().toISOString().slice(0, 10);
+
+    /* Deletions */
+    if (settings.toggles.deletions !== false) {
+      var dels = activityLog.filter(function(e) { return e.action && e.action.indexOf('delete_') === 0; });
+      if (!deletionsInitialized) {
+        dels.forEach(function(e) { seenDeletionIds.add(e.id); });
+        deletionsInitialized = true;
+      } else {
+        var newDels = dels.filter(function(e) { return !seenDeletionIds.has(e.id); });
+        newDels.forEach(function(e) { seenDeletionIds.add(e.id); });
+        if (newDels.length) {
+          allAlerts.push({
+            key: 'deletions', icon: '🗑️', title: 'Recent Deletions',
+            severity: 'critical',
+            items: newDels.map(function(e) {
+              var who = e.performedByName || 'Someone';
+              var what = e.entityType || 'item';
+              return { id: e.id, label: who + ' deleted ' + what, detail: e.label || e.details || '' };
+            })
+          });
+        }
+      }
+    }
+
+    /* Pending > N hrs */
+    if (settings.toggles.pending !== false) {
+      var pendThresh = (settings.pendingThreshold || 2) * 3600000;
+      var now = Date.now();
+      var pendItems = deliveries
+        .filter(function(d) { return d.status === 'pending'; })
+        .filter(function(d) {
+          var ts = d.created_timestamp ? (d.created_timestamp.seconds || 0) * 1000 : 0;
+          return ts > 0 && (now - ts) > pendThresh;
+        })
+        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || '?', detail: d.product_name || '' }; });
+      if (pendItems.length) {
+        allAlerts.push({
+          key: 'pending', icon: '🕐', title: 'Pending > ' + settings.pendingThreshold + 'h',
+          severity: 'warning',
+          items: pendItems
+        });
+      }
+    }
+
+    /* Loaded > N hrs */
+    if (settings.toggles.loaded !== false) {
+      var loadThresh = (settings.loadedThreshold || 2) * 3600000;
+      var loadItems = deliveries
+        .filter(function(d) { return d.status === 'loaded'; })
+        .filter(function(d) {
+          var ts = d.loaded_timestamp ? (d.loaded_timestamp.seconds || 0) * 1000 : 0;
+          return ts > 0 && (now - ts) > loadThresh;
+        })
+        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || '?', detail: d.product_name || '' }; });
+      if (loadItems.length) {
+        allAlerts.push({
+          key: 'loaded', icon: '🚚', title: 'Loaded > ' + settings.loadedThreshold + 'h',
+          severity: 'warning',
+          items: loadItems
+        });
+      }
+    }
+
+    /* Booked Today */
+    if (settings.toggles.booked !== false) {
+      var bookedItems = deliveries
+        .filter(function(d) { return d.status === 'booked'; })
+        .filter(function(d) {
+          var eta = d.estimated_delivery_time ? d.estimated_delivery_time.slice(0, 10) : '';
+          return eta === todayDate;
+        })
+        .map(function(d) { return { id: d.id, label: d.customer_name || d.phone || '?', detail: d.product_name || '' }; });
+      if (bookedItems.length) {
+        allAlerts.push({
+          key: 'booked', icon: '📅', title: 'Booked Today',
+          severity: 'info',
+          items: bookedItems
+        });
+      }
+    }
+
+    /* New DOs */
+    if (settings.toggles.dos !== false) {
+      // Track delivery IDs seen; alert for new ones
+      var currentIds = new Set(deliveries.map(function(d) { return d.id; }));
+      var newDoItems = [];
+      if (!dosInitialized) {
+        currentIds.forEach(function(id) { seenDeliveryIds.add(id); });
+        dosInitialized = true;
+      } else {
+        deliveries.forEach(function(d) {
+          if (!seenDeliveryIds.has(d.id)) {
+            newDoItems.push({ id: d.id, label: d.customer_name || d.phone || '?', detail: d.product_name || '' });
+            seenDeliveryIds.add(d.id);
+          }
+        });
+      }
+      if (newDoItems.length) {
+        allAlerts.push({
+          key: 'dos', icon: '📦', title: 'New DOs',
+          severity: 'info',
+          items: newDoItems
+        });
+      }
+    }
+
+    /* Stale Tickets */
+    if (settings.toggles.staleTickets !== false) {
+      var staleThresh = 48 * 3600000;
+      var staleItems = tickets
+        .filter(function(t) { return t.status === 'new' || t.status === 'open' || t.status === 'in_progress'; })
+        .filter(function(t) {
+          var ts = t.created_at ? (t.created_at.seconds || 0) * 1000 : 0;
+          return ts > 0 && (now - ts) > staleThresh;
+        })
+        .map(function(t) { return { id: t.id, label: t.customer_name || t.phone || '?', detail: t.product_name || '' }; });
+      if (staleItems.length) {
+        allAlerts.push({
+          key: 'staleTickets', icon: '🎫', title: 'Stale Tickets (48h+)',
+          severity: 'warning',
+          items: staleItems
+        });
+      }
+    }
+
+    /* Staff on Leave */
+    if (settings.toggles.onLeave !== false) {
+      var leaveItems = calendarEvents
+        .filter(function(e) { return e.type === 'leave' && e.date === todayDate; })
+        .map(function(e) { return { id: e.id, label: e.createdBy || e.createdById || 'Unknown', detail: e.title || '' }; });
+      if (leaveItems.length) {
+        allAlerts.push({
+          key: 'onLeave', icon: '📋', title: 'Staff on Leave Today',
+          severity: 'info',
+          items: leaveItems
+        });
+      }
+    }
+
+    /* Weekly Off */
+    if (settings.toggles.weeklyOff !== false) {
+      var woItems = staffWO
+        .filter(function(s) { return s.weekly_off === todayName; })
+        .map(function(s) { return { id: s.id, label: s.name || s.id, detail: 'Weekly Off' }; });
+      if (woItems.length) {
+        allAlerts.push({
+          key: 'weeklyOff', icon: '🏖️', title: 'Weekly Off Today',
+          severity: 'info',
+          items: woItems
+        });
+      }
+    }
+
+    setStatus('active', 'Updated ' + new Date().toLocaleTimeString());
+    renderAlerts(allAlerts);
+    fireNotifications(allAlerts);
+  } catch (e) {
+    console.warn('Alert check failed:', e);
+    setStatus('error', 'Check failed');
+  }
+}
+
+/* ── RENDER ── */
+function renderAlerts(alerts) {
+  var container = document.getElementById('alertList');
+  var empty = document.getElementById('emptyState');
+  if (!alerts.length) {
+    container.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  container.innerHTML = alerts.map(function(a) {
+    var sevClass = a.severity === 'critical' ? 'critical' : a.severity === 'warning' ? 'warning' : 'info';
+    var badgeClass = a.severity === 'critical' ? 'badge-critical' : a.severity === 'warning' ? 'badge-warning' : 'badge-info';
+    var itemsHtml = a.items.map(function(item) {
+      var badge = '<span class="badge" style="background:var(--' + (a.severity === 'critical' ? 'error' : a.severity === 'warning' ? 'warning' : 'primary') + ')"></span>';
+      var detail = item.detail ? '<span class="detail">' + escHtml(item.detail) + '</span>' : '';
+      return '<div class="alert-item">' + badge + '<span class="label">' + escHtml(item.label) + '</span>' + detail + '</div>';
+    }).join('');
+
+    return '<div class="alert-card ' + sevClass + '" data-key="' + a.key + '">' +
+      '<div class="alert-card-header" onclick="toggleCard(this)">' +
+        '<span class="icon">' + a.icon + '</span>' +
+        '<div class="info">' +
+          '<div class="title">' + escHtml(a.title) + '</div>' +
+          '<div class="count">' + a.items.length + ' item' + (a.items.length !== 1 ? 's' : '') + '</div>' +
+        '</div>' +
+        '<span class="alert-badge-count ' + badgeClass + '">' + a.items.length + '</span>' +
+        '<span class="chevron">▼</span>' +
+      '</div>' +
+      '<div class="alert-card-body">' + itemsHtml + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function toggleCard(headerEl) {
+  var card = headerEl.closest('.alert-card');
+  if (card) card.classList.toggle('open');
+}
+
+/* ── NOTIFICATIONS ── */
+function requestNotifIfNeeded() {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission === 'default') {
+    document.getElementById('notifBar').style.display = 'flex';
+  }
+}
+function requestNotif() {
+  if (typeof Notification === 'undefined') { showToast('Notifications not supported on this browser', 'warning'); return; }
+  Notification.requestPermission().then(function(perm) {
+    if (perm === 'granted') {
+      document.getElementById('notifBar').style.display = 'none';
+      showToast('Notifications enabled', 'success');
+      try { new Notification('🔔 Hariom Alerts', { body: 'Notifications are active', icon: '/icons/icon-192x192.png' }); } catch(e) {}
+    } else {
+      showToast('Notifications blocked — enable in browser settings', 'warning');
+    }
+  });
+}
+
+function fireNotifications(alerts) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  var count = 0;
+  alerts.forEach(function(a) {
+    a.items.forEach(function(item) {
+      var alertKey = a.key + ':' + item.id;
+      if (alertedKeys.has(alertKey)) return;
+      alertedKeys.add(alertKey);
+      count++;
+      if (count <= 3) {
+        try {
+          new Notification(a.icon + ' ' + a.title, {
+            body: item.label + (item.detail ? ' — ' + item.detail : ''),
+            icon: '/icons/icon-192x192.png',
+            tag: alertKey,
+            vibrate: [200, 100, 200]
+          });
+        } catch(e) {}
+      }
+    });
+  });
+  if (count > 3) {
+    try {
+      new Notification('🔔 ' + count + ' new alerts', {
+        body: 'Open the app to see details',
+        icon: '/icons/icon-192x192.png'
+      });
+    } catch(e) {}
+  }
+  if (count > 0 && settings.toggles.sound !== false) playAlertSound();
+}
+
+function playAlertSound() {
+  try {
+    if (!_alertCtx) _alertCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_alertCtx.state === 'suspended') _alertCtx.resume();
+    var osc = _alertCtx.createOscillator();
+    var gain = _alertCtx.createGain();
+    osc.connect(gain); gain.connect(_alertCtx.destination);
+    osc.frequency.value = 660;
+    gain.gain.setValueAtTime(0.3, _alertCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, _alertCtx.currentTime + 0.25);
+    osc.start(_alertCtx.currentTime);
+    osc.stop(_alertCtx.currentTime + 0.25);
+    setTimeout(function() {
+      var osc2 = _alertCtx.createOscillator();
+      var gain2 = _alertCtx.createGain();
+      osc2.connect(gain2); gain2.connect(_alertCtx.destination);
+      osc2.frequency.value = 880;
+      gain2.gain.setValueAtTime(0.3, _alertCtx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.01, _alertCtx.currentTime + 0.25);
+      osc2.start(_alertCtx.currentTime);
+      osc2.stop(_alertCtx.currentTime + 0.25);
+    }, 200);
+  } catch(e) {}
+}
+
+/* ── PWA ── */
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (!localStorage.getItem('pwa_install_dismissed_alerts')) {
+    document.getElementById('installBanner').classList.add('visible');
+  }
+});
+
+async function triggerInstall() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  var outcome = await deferredInstallPrompt.userChoice;
+  if (outcome.outcome === 'accepted') { showToast('🎉 App installed!', 'success'); }
+  deferredInstallPrompt = null;
+  document.getElementById('installBanner').classList.remove('visible');
+}
+
+function dismissInstall() {
+  localStorage.setItem('pwa_install_dismissed_alerts', '1');
+  document.getElementById('installBanner').classList.remove('visible');
+}
+
+function registerSW() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js', { scope: '/alerts.html' })
+      .then(function() { console.log('Alerts SW registered'); })
+      .catch(function(err) { console.error('SW failed:', err); });
+  }
+}
+
+/* ── INIT ── */
+(function init() {
+  var savedToken = localStorage.getItem('alertsToken');
+  var savedEmail = localStorage.getItem('alertsEmail');
+  var savedPass = localStorage.getItem('alertsPassword');
+  if (savedToken && savedEmail && savedPass && !isTokenExpired(savedToken)) {
+    authToken = savedToken;
+    storedEmail = savedEmail;
+    storedPassword = savedPass;
+    document.getElementById('loginEmail').value = savedEmail;
+    document.getElementById('loginPassword').value = savedPass;
+    enterDashboard();
+  } else if (savedToken && savedEmail && savedPass) {
+    // Token expired, try re-login
+    storedEmail = savedEmail;
+    storedPassword = savedPass;
+    document.getElementById('loginEmail').value = savedEmail;
+    document.getElementById('loginPassword').value = savedPass;
+    document.getElementById('loginMsg').style.color = 'var(--primary)';
+    document.getElementById('loginMsg').textContent = 'Reconnecting…';
+    tryAutoRelogin();
+  }
+})();
+</script>
+</body>
+</html>

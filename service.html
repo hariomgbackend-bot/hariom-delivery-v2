@@ -16,13 +16,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
 
+  <link rel="stylesheet" href="/design-system.css?v=2">
   <style>
     /* ════════════════════════════════════════════════
        KINETIC LUMINESCENCE *—* SERVICE PANEL
        Design: "The Digital Horizon" / Service Ops
     ════════════════════════════════════════════════ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
       --bg:                       #0b1326;
       --surface:                  #0b1326;
@@ -52,7 +51,6 @@
       --font-body:                'Inter', sans-serif;
     }
 
-    html { height: 100%; }
     body {
       font-family: 'Inter', sans-serif;
       background: var(--bg); color: var(--on-surface);
@@ -79,7 +77,6 @@
       box-shadow: 0 48px 80px rgba(0,0,0,0.5);
       animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
     }
-    @keyframes slideUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
     .login-brand { margin-bottom: 32px; }
     .login-icon {
       width: 72px; height: 72px;
@@ -134,7 +131,6 @@
     }
     .header-btn:hover { background: rgba(173,198,255,0.14); color: var(--primary); }
     .dark-toggle { background: rgba(173,198,255,0.07); border: 1px solid rgba(173,198,255,0.12); color: var(--on-surface-variant); cursor: pointer; border-radius: 8px; padding: 6px 10px; font-size: 15px; line-height: 1; transition: background 0.2s; display: inline-flex; align-items: center; }
-    .dark-toggle:hover { background: rgba(173,198,255,0.14); }
 
     /* ════ CONTAINER ════ */
     .container { max-width: 1300px; margin: 0 auto; padding: 24px 20px; }
@@ -144,9 +140,9 @@
     .stat-card {
       background: var(--surface-container-low); border-radius: 16px;
       padding: 18px 20px; border: 1px solid rgba(173,198,255,0.06);
-      transition: transform 0.2s;
+      transition: transform 0.2s, box-shadow 0.2s;
     }
-    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
     .stat-val { font-size: 32px; font-weight: 900; letter-spacing: -1px; line-height: 1; }
     .stat-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--on-surface-variant); margin-top: 6px; }
     .stat-primary  .stat-val { color: var(--primary); }
@@ -185,8 +181,6 @@
       border-top-color: currentColor; border-radius: 50%;
       animation: btn-spin 0.7s linear infinite;
     }
-    @keyframes btn-spin { to { transform: rotate(360deg); } }
-
     /* ════ FILTER BAR ════ */
     .filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
     .filter-btn {
@@ -227,20 +221,9 @@
       padding: 3px 10px; border-radius: 20px; font-size: 10px;
       font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
     }
-    .badge-open         { background: rgba(173,198,255,0.15); color: var(--primary); }
-    .badge-new          { background: rgba(173,198,255,0.15); color: var(--primary); }
-    .badge-assigned     { background: rgba(245,158,11,0.15);  color: var(--amber); }
-    .badge-in_progress  { background: rgba(129,140,248,0.15); color: #818cf8; }
-    .badge-resolved     { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
-    .badge-logged       { background: rgba(78,222,163,0.15);  color: var(--tertiary); }
-    .badge-installation { background: rgba(78,222,163,0.12);  color: var(--tertiary); }
-    .badge-complaint    { background: rgba(255,180,171,0.12); color: var(--error); }
-    .badge-warranty-ok       { background: rgba(78,222,163,0.12);  color: var(--tertiary); }
-    .badge-warranty-expiring { background: rgba(245,158,11,0.12);  color: var(--amber); }
-    .badge-warranty-expired  { background: rgba(255,180,171,0.12); color: var(--error); }
+    .badge-open::before,.badge-assigned::before,.badge-in_progress::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:middle;animation:pulse 1.4s ease-in-out infinite}
 
     /* ════ TABLE ════ */
-    .table-wrap { overflow-x: auto; border-radius: 14px; background: var(--surface-container-lowest); }
     table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 700px; }
     thead th {
       background: rgba(45,52,73,0.6); color: var(--on-surface-variant);
@@ -319,9 +302,9 @@
     .mob-ticket-card {
       background: var(--surface-container-low); border-radius: 16px;
       padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
-      -webkit-tap-highlight-color: transparent; transition: background 0.12s;
+      -webkit-tap-highlight-color: transparent; transition: background 0.12s, box-shadow 0.12s;
     }
-    .mob-ticket-card:active { background: var(--surface-container); }
+    .mob-ticket-card:active { background: var(--surface-container); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
     .mob-card-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
     .mob-card-name { font-size: 15px; font-weight: 800; color: var(--on-surface); }
     .mob-card-product { font-size: 12px; color: var(--on-surface-variant); margin-top: 2px; }
@@ -428,14 +411,11 @@
       border: 1px solid rgba(173,198,255,0.12);
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.success { border-color: var(--tertiary); }
 
-    /* Offline Indicator */
-    #offlineBanner {
-      display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
-      background: #dc2626; color: white; padding: 10px 16px; font-size: 13px;
-      font-weight: 600; text-align: center;
-    }
-    #offlineBanner.show { display: block; }
+
+
+
 
     /* ════ LIGHT MODE ════ */
     [data-theme="light"] {
@@ -517,43 +497,11 @@
     .combobox-dropdown div:hover,
     .combobox-dropdown div.active { background: var(--surface-container-high); }
 
-    /* ════ ONCE-PER-DAY WELCOME ════ */
-    .welcome-overlay {
-      position: fixed; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.35);
-      backdrop-filter: blur(2px);
-      z-index: 9999;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.4s ease;
-    }
-    .welcome-overlay.show { opacity: 1; pointer-events: auto; }
-    .welcome-card {
-      background: rgba(11,19,38,0.80);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(173,198,255,0.12);
-      border-radius: 24px;
-      padding: 40px 48px;
-      text-align: center;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.4);
-      animation: welcomeIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
-      max-width: 400px;
-    }
-    .welcome-card .greeting { font-size: 28px; font-weight: 800; }
-    .welcome-card .sub { margin-top: 8px; font-size: 14px; color: var(--on-surface-variant); }
-    .welcome-card .stat-row { margin-top: 20px; display: flex; gap: 20px; justify-content: center; }
-    .welcome-card .stat-item { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
-    .welcome-card .stat-item b { color: var(--on-surface); font-size: 18px; display: block; }
-    @keyframes welcomeIn {
-      from { opacity: 0; transform: translateY(40px) scale(0.96); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
-  <script src="/shared.js"></script>
+  <script src="/shared.js?v=2"></script>
 </head>
 <body>
 
@@ -917,7 +865,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("darkToggleBtn").textContent = isDark ? "☀️" : "🌙";
 });
 
-/* showToast shared via /shared.js */
+/* showToast shared via /shared.js?v=2 */
 
 /* ── OFFLINE DETECTION ── */
 window.addEventListener("online", () => {
@@ -1060,21 +1008,18 @@ async function loadAll() {
   await loadTickets(); // deliveries loaded lazily when needed
 }
 
-async function loadTickets() {
-  // Show skeleton immediately so screen isn't blank
+async function loadTickets(showSkeleton = true) {
+  // Show skeleton immediately so screen isn't blank (only on explicit loads, not background polling)
   const tbody = document.getElementById("ticketsTableBody");
-  if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--on-surface-variant);">
-    <div style="display:inline-flex;align-items:center;gap:10px;">
-      <span style="font-size:22px;">⏳</span>
-      <span style="font-size:14px;font-weight:600;">Loading tickets…</span>
-    </div>
-  </td></tr>`;
+  const _sy = window.scrollY;
+  if (showSkeleton && tbody) tbody.innerHTML = skeletons(3, "row");
   try {
     const res   = await authFetch(`${BASE_URL}/service/tickets`);
     allTickets  = await res.json();
     currentPage = 1;
     updateStats();
     renderTickets();
+    window.scrollTo(0, _sy);
   } catch (e) {
     console.error("loadTickets:", e.message);
     if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--error);">
@@ -1082,6 +1027,15 @@ async function loadTickets() {
     </td></tr>`;
   }
 }
+
+// Silent background refresh so another tech's ticket changes appear without a manual reload.
+// Skipped when the tab is hidden or the ticket detail popup is open (avoids scroll loss / discard).
+setInterval(() => {
+  if (document.hidden) return;
+  const dp = document.getElementById("ticketDetailPopup");
+  if (dp && dp.classList.contains("is-open")) return;
+  loadTickets(false);
+}, 30000);
 
 // Deliveries are loaded lazily — only fetch the specific one needed
 // instead of dumping the full collection on login (was causing the slow load)
@@ -1207,7 +1161,7 @@ function fmtDateTime(ts) {
 function renderTicketsTable(tickets) {
   const tbody = document.getElementById("ticketsTableBody");
   if (!tickets.length) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;"><div style="display:flex;flex-direction:column;align-items:center;gap:8px;">${emptyStateSVG('clipboard')}<p style="font-weight:700;font-size:14px;color:var(--on-surface);margin:0;">No tickets found</p></div></td></tr>`;
     return;
   }
   tbody.innerHTML = tickets.map(t => `
@@ -1224,12 +1178,13 @@ function renderTicketsTable(tickets) {
         <button class="btn btn-teal btn-sm" onclick="event.stopPropagation();openTicketDetail('${t.id}')">Open</button>
       </td>
     </tr>`).join("");
+  staggerCards(tbody);
 }
 
 function renderTicketsMob(tickets) {
   const el = document.getElementById("ticketsMobCards");
   if (!tickets.length) {
-    el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</div>`;
+    el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:32px;">${emptyStateSVG('clipboard')}<p style="font-weight:700;font-size:14px;color:var(--on-surface);margin:0;">No tickets found</p></div>`;
     return;
   }
   el.innerHTML = tickets.map(t => `
@@ -1246,6 +1201,7 @@ function renderTicketsMob(tickets) {
       </div>
       <div class="mob-card-meta">${warrantyStr(t)} · ${fmtDate(t.created_at)}</div>
     </div>`).join("");
+  staggerCards(el);
 }
 
 function renderPagination(total, pages) {

@@ -17,72 +17,13 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="/shared.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
+  <script src="/shared.js?v=2"></script>
 
+  <link rel="stylesheet" href="/design-system.css?v=2">
   <style>
-    /* ════════════════════════════════════════════════
-       KINETIC LUMINESCENCE — ADMIN PANEL
-       Design: "The Digital Horizon" / Mission Control
-    ════════════════════════════════════════════════ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      /* Kinetic colour tokens */
-      --bg:                       #0b1326;
-      --surface:                  #0b1326;
-      --surface-container-lowest: #060e20;
-      --surface-container-low:    #131b2e;
-      --surface-container:        #171f33;
-      --surface-container-high:   #222a3d;
-      --surface-container-highest:#2d3449;
-      --primary:                  #adc6ff;
-      --primary-container:        #4d8eff;
-      --on-primary:               #002e6a;
-      --on-primary-container:     #00285d;
-      --tertiary:                 #4edea3;
-      --tertiary-container:       #00a572;
-      --error:                    #ffb4ab;
-      --error-container:          #93000a;
-      --on-surface:               #dae2fd;
-      --on-surface-variant:       #c2c6d6;
-      --outline:                  #8c909f;
-      --outline-variant:          #424754;
-      --amber:                    #f59e0b;
-      /* Functional aliases — used by JS-rendered HTML */
-      --border:     rgba(255,255,255,0.07);
-      --accent:     #adc6ff;
-      --text:       #dae2fd;
-      --muted:      #c2c6d6;
-      --font-mono:  'JetBrains Mono', monospace;
-      --font-body:  'Inter', sans-serif;
-      --font-display: 'Inter', sans-serif;
-      /* Status colours kept for JS badge rendering */
-      --pending:     rgba(245,158,11,0.15);  --pending-text: #fbbf24;
-      --loaded:      rgba(77,142,255,0.15);  --loaded-text:  #adc6ff;
-      --delivered:   rgba(78,222,163,0.15);  --delivered-text: #4edea3;
-      --urgent:      rgba(255,180,171,0.15); --urgent-text:  #ffb4ab;
-      --sidebar-w:   240px;
-    }
-
-    html, body { height: 100%; }
-
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg);
-      color: var(--on-surface);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
-    }
-
-    /* ════ MATERIAL SYMBOLS ════ */
-    .material-symbols-outlined {
-      font-family: 'Material Symbols Outlined';
-      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-      font-size: 20px;
-      line-height: 1;
-      vertical-align: middle;
-    }
+    :root { --sidebar-w: 240px; }
+    body { overflow-x: hidden; }
 
     /* ════ SIDEBAR ════ */
     .sidebar {
@@ -272,13 +213,6 @@
       gap: 16px;
     }
 
-    #lastUpdated {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: rgba(218,226,253,0.3);
-      letter-spacing: 0.5px;
-    }
-
     .dark-toggle {
       background: rgba(173,198,255,0.07);
       border: 1px solid rgba(173,198,255,0.12);
@@ -318,10 +252,10 @@
       position: relative;
       overflow: hidden;
       cursor: default;
-      transition: transform 0.2s;
+      transition: transform 0.2s, box-shadow 0.2s;
       border: 1px solid rgba(255,255,255,0.05);
     }
-    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
     .stat-card::before {
       content: '';
       position: absolute;
@@ -604,14 +538,6 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .badge-pending   { background: rgba(245,158,11,0.15);  color: #fbbf24; }
-    .badge-loaded    { background: rgba(77,142,255,0.15);   color: var(--primary); }
-    .badge-delivered { background: rgba(78,222,163,0.15);   color: var(--tertiary); }
-    .badge-failed    { background: rgba(255,180,171,0.15);  color: var(--error); }
-    .badge-booked    { background: rgba(129,140,248,0.15);  color: #818cf8; }
-    .badge-urgent    { background: rgba(255,180,171,0.12);  color: var(--error); }
-    .badge-normal    { background: rgba(194,198,214,0.1);   color: var(--on-surface-variant); }
-
     .btn-sm {
       padding: 4px 12px;
       background: linear-gradient(135deg, var(--primary-container), var(--primary));
@@ -694,9 +620,9 @@
       margin-bottom: 10px;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
-      transition: background 0.12s;
+      transition: background 0.12s, box-shadow 0.12s;
     }
-    .mob-delivery-card:active { background: var(--surface-container); }
+    .mob-delivery-card:active { background: var(--surface-container); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
     .mob-delivery-card.batch-card { border-left: 3px solid var(--mc-border, var(--primary)); }
     .mob-dc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
     .mob-dc-name { font-size: 15px; font-weight: 700; color: var(--on-surface); }
@@ -1094,14 +1020,10 @@
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     #toast.error { border-color: var(--error); color: var(--error); }
     #toast.success { border-color: var(--tertiary); }
+    #toast.warning { border-color: var(--amber); color: var(--amber); }
+    #toast.info { border-color: var(--primary); color: var(--primary); }
 
     /* ════ OFFLINE INDICATOR ════ */
-    #offlineBanner {
-      display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
-      background: #dc2626; color: white; padding: 10px 16px; font-size: 13px;
-      font-weight: 600; text-align: center;
-    }
-    #offlineBanner.show { display: block; }
 
     .btn-primary {
       padding: 10px 20px;
@@ -1439,31 +1361,58 @@
     .color-swatch:hover { transform:scale(1.15); }
     .color-swatch.active { border-color:var(--on-surface);box-shadow:0 0 0 2px var(--surface-container-low); }
     .color-swatch.active::after { content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.5); }
-    .cal-nav { display:flex;align-items:center;justify-content:space-between;margin-bottom:14px; }
-    .cal-nav-title { font-size:18px;font-weight:800;color:var(--on-surface);letter-spacing:-0.3px; }
-    .cal-nav-btn { background:var(--surface-container-high);border:none;border-radius:10px;padding:8px 12px;font-size:16px;cursor:pointer;color:var(--on-surface);font-family:'Inter',sans-serif;font-weight:600;transition:background 0.12s; }
-    .cal-nav-btn:active { background:var(--surface-container-highest); }
-    .cal-layout { display:flex;gap:16px;align-items:flex-start; }
-    .cal-layout .cal-grid { flex:1 1 0;min-width:0; }
-    .cal-grid { display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:var(--surface-container);border-radius:16px;overflow:hidden;margin-bottom:0; }
-    .cal-weekday { padding:6px 0;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--outline);background:var(--surface-container-low); }
-    .cal-day { display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--on-surface);background:transparent;cursor:pointer;border:none;font-family:'Inter',sans-serif;position:relative;transition:background 0.1s;border-radius:4px;height:36px;min-height:36px; }
-    .cal-day:hover { background:var(--surface-container-high); }
-    .cal-day.other-month { color:var(--outline);opacity:0.4; }
-    .cal-day.today { font-weight:900;color:var(--primary);background:rgba(173,198,255,0.08); }
-    .cal-day.weekly-off { opacity:0.5; }
-    .cal-pins { display:flex;align-items:center;justify-content:center;height:16px;margin-top:1px; }
-    .pin-dot { width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#fff;line-height:1;flex-shrink:0;border:2px solid var(--surface-container);margin-left:-5px; }
-    .pin-dot:first-child, .pin-star:first-child { margin-left:0; }
-    .pin-star { display:inline-flex;align-items:center;justify-content:center;position:relative;width:22px;height:22px;flex-shrink:0;margin-left:-5px;color:#f59e0b;font-size:20px;line-height:1; }
-    .pin-star .label { position:absolute;font-size:9px;font-weight:800;color:#fff;top:50%;left:50%;transform:translate(-50%,-40%);line-height:1;z-index:1; }
-    .cal-event { margin-bottom:10px; }
-    .cal-event-card { background:var(--surface-container-low);border-radius:14px;padding:12px 14px;display:flex;gap:11px;align-items:flex-start;border-left:4px solid var(--border); }
-    .cal-event-body { flex:1;min-width:0; }
-    .cal-event-meta { font-size:11px;font-weight:600;color:var(--on-surface-variant);margin-bottom:2px; }
-    .cal-event-title { font-size:14px;font-weight:700;color:var(--on-surface); }
-    .cal-event-desc { font-size:12px;color:var(--on-surface-variant);margin-top:3px; }
-    .cal-event-vis-badge { display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.08);margin-left:6px; }
+    /* ── FullCalendar Dark Theme ── */
+    :root {
+      --fc-page-bg-color: var(--surface-container-low);
+      --fc-neutral-bg-color: var(--surface-container);
+      --fc-border-color: var(--border);
+      --fc-button-text-color: var(--on-surface);
+      --fc-button-bg-color: var(--surface-container-high);
+      --fc-button-border-color: var(--outline-variant);
+      --fc-button-hover-bg-color: var(--surface-container-highest);
+      --fc-button-hover-border-color: var(--outline);
+      --fc-button-active-bg-color: var(--primary-container);
+      --fc-button-active-border-color: var(--primary);
+      --fc-today-bg-color: rgba(173,198,255,0.08);
+      --fc-event-bg-color: var(--primary-container);
+      --fc-event-border-color: var(--primary);
+      --fc-event-text-color: var(--on-surface);
+      --fc-more-link-bg-color: var(--surface-container-high);
+      --fc-more-link-text-color: var(--primary);
+      --fc-more-link-hover-bg-color: var(--surface-container-highest);
+      --fc-highlight-color: rgba(173,198,255,0.06);
+      --fc-non-business-color: transparent;
+      --fc-neutral-text-color: var(--on-surface-variant);
+      --fc-list-event-hover-bg-color: var(--surface-container);
+    }
+    .fc { font-family: 'Inter', sans-serif; }
+    .fc .fc-toolbar-title { font-size: 1.15em !important; font-weight: 800; color: var(--on-surface); }
+    .fc .fc-button { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 13px; border-radius: 10px; padding: 6px 14px; }
+    .fc .fc-button-primary:not(:disabled).fc-button-active { background: var(--fc-button-active-bg-color); }
+    .fc .fc-daygrid-day { cursor: pointer; }
+    .fc .fc-daygrid-day-number { font-size: 13px; font-weight: 600; color: var(--on-surface); padding: 4px 6px; }
+    .fc .fc-day-other .fc-daygrid-day-number { color: var(--outline); opacity: 0.5; }
+    .fc .fc-col-header-cell-cushion { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--outline); padding: 8px 0; text-decoration: none; }
+    .fc .fc-day-today .fc-daygrid-day-number { color: var(--primary); font-weight: 900; }
+    .fc .fc-day-today { background: var(--fc-today-bg-color) !important; }
+    .fc .fc-scrollgrid { border-radius: 16px; overflow: hidden; border: 1px solid var(--border); }
+    .fc .fc-scrollgrid table { border-collapse: separate; }
+    .fc td, .fc th { border-color: var(--border); }
+    .fc .fc-daygrid-day-events { min-height: 0; }
+    .fc .fc-daygrid-event { border-radius: 6px; padding: 1px 4px; margin: 0 3px 2px; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fc .fc-daygrid-more-link { font-size: 10px; font-weight: 700; color: var(--primary); padding: 0 4px; }
+    .fc .fc-popover { background: var(--surface-container-high); border: 1px solid var(--outline-variant); border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .fc .fc-popover-header { background: var(--surface-container); padding: 8px 12px; border-radius: 12px 12px 0 0; font-weight: 700; color: var(--on-surface); }
+    .fc .fc-popover-body .fc-daygrid-event { margin: 3px 6px; }
+
+    /* Light mode overrides for FullCalendar */
+    [data-theme="light"] { --fc-page-bg-color: var(--surface); --fc-neutral-bg-color: var(--surface-container-low); --fc-border-color: rgba(0,0,0,0.08); --fc-button-bg-color: var(--surface-container-high); --fc-button-text-color: #1a2540; --fc-button-hover-bg-color: var(--surface-container-highest); --fc-button-active-bg-color: var(--primary-container); --fc-event-text-color: #1a2540; --fc-more-link-text-color: #2563eb; }
+    [data-theme="light"] .fc .fc-col-header-cell-cushion { color: #64748b; }
+    [data-theme="light"] .fc .fc-daygrid-day-number { color: #1a2540; }
+    [data-theme="light"] .fc .fc-day-today .fc-daygrid-day-number { color: #2563eb; }
+    [data-theme="light"] .fc .fc-scrollgrid { border-color: rgba(0,0,0,0.08); }
+
+    /* Day panel */
     #adCalDayPanel { flex:0 0 300px;max-height:calc(100vh - 200px);overflow-y:auto;position:sticky;top:0; }
     .cal-day-header { font-size:18px;font-weight:800;color:var(--on-surface);margin-bottom:4px; }
     .cal-day-sub { font-size:12px;color:var(--on-surface-variant);margin-bottom:14px; }
@@ -1475,13 +1424,25 @@
     .cal-day-btn-aga { background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container); }
     .cal-day-btn-note { background:var(--surface-container-high);color:var(--on-surface); }
     .cal-day-btn .material-symbols-outlined { font-size:18px; }
+    .cal-event { margin-bottom:10px; }
+    .cal-event-card { background:var(--surface-container-low);border-radius:14px;padding:12px 14px;display:flex;gap:11px;align-items:flex-start;border-left:4px solid var(--border); }
+    .cal-event-body { flex:1;min-width:0; }
+    .cal-event-meta { font-size:11px;font-weight:600;color:var(--on-surface-variant);margin-bottom:2px; }
+    .cal-event-title { font-size:14px;font-weight:700;color:var(--on-surface); }
+    .cal-event-desc { font-size:12px;color:var(--on-surface-variant);margin-top:3px; }
+    .cal-event-vis-badge { display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.08);margin-left:6px; }
     .cal-event-del { background:none;border:none;cursor:pointer;color:var(--error);font-size:18px;padding:2px;opacity:0.4;transition:opacity 0.12s; }
     .cal-event-del:hover { opacity:1; }
+    .pin-dot { width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#fff;line-height:1;flex-shrink:0;border:2px solid var(--surface-container);margin-left:-5px; }
+    .pin-dot:first-child, .pin-star:first-child { margin-left:0; }
+    .pin-star { display:inline-flex;align-items:center;justify-content:center;position:relative;width:22px;height:22px;flex-shrink:0;margin-left:-5px;color:#f59e0b;font-size:20px;line-height:1; }
+    .pin-star .label { position:absolute;font-size:9px;font-weight:800;color:#fff;top:50%;left:50%;transform:translate(-50%,-40%);line-height:1;z-index:1; }
     .cal-weekoff-list { margin-top:14px;padding:14px;background:var(--surface-container-low);border-radius:12px; }
     .cal-weekoff-list .title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--outline);margin-bottom:8px; }
     .cal-weekoff-item { display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--on-surface);padding:3px 0; }
     .cal-weekoff-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0; }
     .cal-target-select { width:100%;padding:10px 14px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none; }
+
   </style>
 </head>
 <body>
@@ -1557,6 +1518,15 @@
       Price Guide
     </button>
 
+    <button class="sidebar-item" id="nav-categories" onclick="gotoPriceGuide('categories')">
+      <span class="material-symbols-outlined">category</span>
+      Categories
+    </button>
+    <button class="sidebar-item" id="nav-models" onclick="gotoPriceGuide('models')">
+      <span class="material-symbols-outlined">precision_manufacturing</span>
+      Models
+    </button>
+
     <button class="sidebar-item" id="nav-slabs" onclick="showView('slabs')">
       <span class="material-symbols-outlined">layers</span>
       Slabs
@@ -1620,6 +1590,14 @@
     <button class="sidebar-item" id="nav-links" onclick="showView('links')">
       <span class="material-symbols-outlined">link</span>
       Panel Links
+    </button>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Monitor</div>
+
+    <button class="sidebar-item" id="nav-activity-log" onclick="showView('activity-log')">
+      <span class="material-symbols-outlined">history</span>
+      Activity Log
     </button>
   </nav>
 </aside>
@@ -1955,9 +1933,7 @@
               <th>Action</th>
             </tr>
           </thead>
-          <tbody id="scTableBody">
-            <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading…</td></tr>
-          </tbody>
+          <tbody id="scTableBody"><tr><td colspan="7" style="padding:0;border:none;"><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div></td></tr></tbody>
         </table>
       </div>
     </section>
@@ -2107,7 +2083,7 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Store</th><th>Email</th><th>Status</th><th>Created</th><th>Leads</th><th>Tickets Raised</th><th>Tickets Logged</th><th></th></tr></thead>
-            <tbody id="staffTableBody"><tr><td colspan="11" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
+            <tbody id="staffTableBody"><tr><td colspan="11" style="padding:0;border:none;"><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2115,17 +2091,16 @@
 
     <!-- ════ VIEW: CALENDAR ════ -->
     <section id="view-calendar" style="display:none;">
-      <div class="cal-nav">
-        <button class="cal-nav-btn" onclick="adCalPrevMonth()">‹</button>
-        <span class="cal-nav-title" id="adCalTitle">June 2026</span>
-        <button class="cal-nav-btn" onclick="adCalNextMonth()">›</button>
-        <select id="adCalStoreFilter" onchange="adCalSetStoreFilter(this.value)" style="margin-left:auto;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;">
-          <option value="all">🏪 All Stores</option>
-        </select>
-      </div>
-      <div class="cal-layout">
-        <div class="cal-grid" id="adCalGrid"></div>
-        <div id="adCalDayPanel" style="display:none;">
+      <div style="display:flex;gap:16px;align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+          <div id="adCalCalendar"></div>
+          <div style="display:flex;justify-content:flex-end;margin:8px 0 0;">
+            <select id="adCalStoreFilter" onchange="adCalSetStoreFilter(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;">
+              <option value="all">🏪 All Stores</option>
+            </select>
+          </div>
+        </div>
+        <div id="adCalDayPanel" style="display:none;flex:0 0 300px;max-height:calc(100vh - 200px);overflow-y:auto;position:sticky;top:0;">
           <div class="cal-day-header" id="adCalDayHeader"></div>
           <div class="cal-day-sub" id="adCalDaySub"></div>
           <div class="cal-day-btns">
@@ -2260,7 +2235,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr><th>Brand</th><th>Method</th><th>Contact / URL</th><th>Template</th><th>Notes</th><th></th></tr></thead>
-          <tbody id="brandsTableBody"><tr><td colspan="6" style="text-align:center;padding:32px;color:var(--on-surface-variant);">Loading...</td></tr></tbody>
+          <tbody id="brandsTableBody"><tr><td colspan="6" style="padding:0;border:none;"><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div></td></tr></tbody>
         </table>
       </div>
     </section>
@@ -2547,7 +2522,7 @@
         <div class="pg-excel-preview" id="pgExcelPreview"></div>
       </div>
 
-      <div class="pg-excel-card">
+      <div class="pg-excel-card" id="pgCategoriesCard">
         <div class="title">Manage Categories</div>
         <p style="font-size:11px;color:var(--outline);margin:0 0 10px;">Define categories for staff filtering. Category is auto-detected from the first word of the product name.</p>
         <button class="pg-btn pg-btn-outline" onclick="catShowForm()" style="margin-bottom:10px;">+ Add Category</button>
@@ -2729,25 +2704,25 @@
           <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--primary-container),var(--primary));"></div>
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:10px;">Total Leads</div>
           <div id="saLeadsCount" style="font-family:var(--font-mono);font-size:28px;font-weight:700;letter-spacing:-1px;color:var(--primary);">—</div>
-          <div id="saLeadsSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;">Loading…</div>
+          <div id="saLeadsSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;"><div class="skeleton-line" style="height:11px;width:80px;"></div></div>
         </div>
         <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(78,222,163,0.06);position:relative;overflow:hidden;">
           <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--tertiary-container),var(--tertiary));"></div>
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:10px;">Total Sales</div>
           <div id="saSalesCount" style="font-family:var(--font-mono);font-size:28px;font-weight:700;letter-spacing:-1px;color:var(--tertiary);">—</div>
-          <div id="saSalesSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;">Loading…</div>
+          <div id="saSalesSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;"><div class="skeleton-line" style="height:11px;width:80px;"></div></div>
         </div>
         <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(245,158,11,0.06);position:relative;overflow:hidden;">
           <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#d97706,#fbbf24);"></div>
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:10px;">Total Revenue</div>
           <div id="saRevenue" style="font-family:var(--font-mono);font-size:28px;font-weight:700;letter-spacing:-1px;color:var(--amber);">—</div>
-          <div id="saRevenueSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;">Loading…</div>
+          <div id="saRevenueSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;"><div class="skeleton-line" style="height:11px;width:80px;"></div></div>
         </div>
         <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(192,132,252,0.06);position:relative;overflow:hidden;">
           <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#7c3aed,#c084fc);"></div>
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:10px;">Incentives Paid</div>
           <div id="saIncentives" style="font-family:var(--font-mono);font-size:28px;font-weight:700;letter-spacing:-1px;color:#c084fc;">—</div>
-          <div id="saIncentivesSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;">Loading…</div>
+          <div id="saIncentivesSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;"><div class="skeleton-line" style="height:11px;width:80px;"></div></div>
         </div>
       </div>
 
@@ -2820,9 +2795,9 @@
           <span style="display:inline-block;width:3px;height:14px;border-radius:2px;background:var(--sky,#38bdf8);"></span>
           Staff Leaderboard
         </div>
-        <div id="saStaffTable" style="overflow-x:auto;">
-          <div style="text-align:center;padding:40px;color:var(--outline);">Loading staff data…</div>
-        </div>
+          <div id="saStaffTable" style="overflow-x:auto;">
+            <div style="padding:20px;"><div class="skeleton-card"><div class="skeleton-line" style="height:18px;width:50%;"></div><div class="skeleton-line" style="height:13px;width:30%;"></div></div></div>
+          </div>
       </div>
 
       <!-- Recent Activity Table -->
@@ -2846,6 +2821,34 @@
             <tbody id="saRecentSales"></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- ════ VIEW: ACTIVITY LOG ════ -->
+    <section id="view-activity-log" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Activity Log</div>
+          <div class="section-subtitle">Track deletions, reversions, and system changes</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button onclick="loadActivityLog()" style="padding:8px 14px;background:var(--surface-container-highest);color:var(--on-surface);border:none;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;">🔄 Refresh</button>
+        </div>
+      </div>
+      <div id="activityLogWrap" style="background:var(--surface-container-lowest);border-radius:16px;padding:16px;max-width:100%;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr>
+              <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);white-space:nowrap;">Action</th>
+              <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);white-space:nowrap;">Entity</th>
+              <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);white-space:nowrap;">Details</th>
+              <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);white-space:nowrap;">By</th>
+              <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--outline);white-space:nowrap;">When</th>
+            </tr>
+          </thead>
+          <tbody id="activityLogBody"></tbody>
+        </table>
+        <div id="activityLogEmpty" style="display:none;text-align:center;padding:40px 20px;color:var(--on-surface-variant);font-size:14px;">No activity recorded yet.</div>
       </div>
     </section>
 
@@ -2913,13 +2916,20 @@ const VIEW_LABELS = {
   'product-normalizer': 'Product Name Cleanup',
   'incentive':     'Incentive Calculator',
   'sales-analytics': 'Sales Analytics',
-  'links': 'Panel Links'
+  'links': 'Panel Links',
+  'activity-log': 'Activity Log'
 };
 
+let currentAdminView = 'deliveries';
 function showView(view) {
-  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','permissions','leads-admin','product-normalizer','incentive','sales-analytics','links'].forEach(v => {
+  currentAdminView = view;
+  ['categories','models'].forEach(k => { const n = document.getElementById('nav-' + k); if (n) n.classList.remove('active'); });
+  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','permissions','leads-admin','product-normalizer','incentive','sales-analytics','links','activity-log'].forEach(v => {
     const el = document.getElementById('view-' + v);
-    if (el) el.style.display = v === view ? '' : 'none';
+    if (el) {
+      el.style.display = v === view ? '' : 'none';
+      if (v === view) { el.classList.remove('panel-enter'); void el.offsetWidth; el.classList.add('panel-enter'); }
+    }
     const nav = document.getElementById('nav-' + v);
     if (nav) nav.classList.toggle('active', v === view);
   });
@@ -2944,6 +2954,24 @@ function showView(view) {
   const summaryCards = document.getElementById('summaryCards');
   if (summaryCards) summaryCards.style.display = view === 'deliveries' ? '' : 'none';
   if (view === 'links')               { _initLinkUrls(); }
+  if (view === 'activity-log')        { loadActivityLog(); }
+}
+
+/* Jump to a section inside Price Guide (Categories / Models) from the sidebar */
+function gotoPriceGuide(section) {
+  showView('price-guide');
+  setTimeout(() => {
+    const el = section === 'categories'
+      ? document.getElementById('pgCategoriesCard')
+      : document.getElementById('pgSpreadsheet');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (section === 'models') { const s = document.getElementById('pgSearch'); if (s) s.focus(); }
+    }
+    document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+    const nav = document.getElementById(section === 'categories' ? 'nav-categories' : 'nav-models');
+    if (nav) nav.classList.add('active');
+  }, 80);
 }
 /* ── PANEL LINKS ── */
 const PANEL_BASE = 'https://hariom-delivery-v2.onrender.com';
@@ -2990,6 +3018,42 @@ function sharePanel(path, label) {
 }
 
 
+/* ── ACTIVITY LOG ── */
+async function loadActivityLog() {
+  const tbody = document.getElementById('activityLogBody');
+  const empty = document.getElementById('activityLogEmpty');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--on-surface-variant);">Loading...</td></tr>';
+  try {
+    const res = await authFetch(`${BASE_URL}/activity-log?limit=100`);
+    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--error);">Failed to load</td></tr>'; return; }
+    const entries = await res.json();
+    if (!entries.length) {
+      tbody.innerHTML = '';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+    const ICONS = { revert_loaded:'↩', reverse_delivery:'↩', delete_failed_delivery:'🗑', delete_delivery:'🗑', delete_service_ticket:'🗑', delete_lead:'🗑', delete_driver:'🗑', delete_staff:'🗑' };
+    const LABELS = { revert_loaded:'Revert Loaded', reverse_delivery:'Reverse Delivery', delete_failed_delivery:'Delete Failed', delete_delivery:'Delete Delivery', delete_service_ticket:'Delete Ticket', delete_lead:'Delete Lead', delete_driver:'Delete Driver', delete_staff:'Delete Staff' };
+    tbody.innerHTML = entries.map(e => {
+      const icon = ICONS[e.action] || '•';
+      const label = LABELS[e.action] || e.action;
+      const time = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
+      const who = e.performedByName || e.performedBy || '—';
+      return `<tr>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;"><span style="font-size:16px;margin-right:6px;">${icon}</span>${label}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(e.label)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--on-surface-variant);font-size:12px;">${escHtml(e.details)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;font-weight:600;">${escHtml(who)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;color:var(--on-surface-variant);font-size:12px;">${time}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--error);">Error loading activity log</td></tr>';
+  }
+}
+
 
 /* ════════════════════════════════════════════════
    PRODUCT NAME CLEANUP / NORMALIZER
@@ -3011,7 +3075,7 @@ let _pnFilter      = 'all';
 /* ── Load ── */
 async function loadProductNormalizer() {
   const list = document.getElementById('pnGroupsList');
-  list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--on-surface-variant);">⏳ Loading product data…</div>';
+  list.innerHTML = skeletons(3);
 
   try {
     // Fetch deliveries and tally products in parallel
@@ -3402,7 +3466,7 @@ let staffRoleFilter = 'all';
 const STAFF_COLORS = ['#f59e0b','#3b82f6','#10b981','#f43f5e','#8b5cf6','#06b6d4','#f97316','#ec4899'];
 
 function populateStoreFilterSelects() {
-  if (!window._stores || !_stores.length) return;
+  if (!_stores || !_stores.length) return;
   const ids = ['adminStoreFilter', 'scStoreFilter', 'leadStoreFilter', 'adCalStoreFilter', 'adCalAgaStore'];
   ids.forEach(id => {
     const sel = document.getElementById(id);
@@ -3573,7 +3637,7 @@ function setStaffRoleFilter(role){
 async function loadStaff(){
   const stc=document.getElementById('staffTableContainer');if(stc)stc.style.display='';
   const tb=document.getElementById('staffTableBody');if(!tb)return;
-  tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
+  tb.innerHTML=skeletons(4, "row");
   try{
     // Fetch staff, leads and service tickets in parallel for activity counters
     const sQ = adminStoreFilter && adminStoreFilter !== 'all' ? `?store=${encodeURIComponent(adminStoreFilter)}` : '';
@@ -3764,7 +3828,7 @@ async function submitBrandForm(){
 }
 async function loadBrands(){
   const tb=document.getElementById('brandsTableBody');if(!tb)return;
-  tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading...</td></tr>';
+  tb.innerHTML=skeletons(3, "row");
   try{
     const res=await authFetch(`${BASE_URL}/brands`);
     const brands=await res.json();
@@ -3809,7 +3873,7 @@ async function raiseServiceTicket(deliveryId,type){
     const dr=await authFetch(`${BASE_URL}/delivery/${deliveryId}`);const d=await dr.json();
     const res=await authFetch(`${BASE_URL}/service/ticket`,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({type,linked_delivery_id:deliveryId,customer_name:d.customer_name,phone:d.phone,
-        address:d.address,product_name:d.product_name,serial_number:d.product_serial_number,description:desc||''})});
+        address:d.address,product_name:d.product_name,serial_number:d.product_serial_number,description:desc||'',storeId:d.storeId||''})});
     const data=await res.json();
     if(!res.ok){showToast(data.error||'Failed.', 'error');return;}
     showToast((type==='installation'?'Installation':'Complaint')+' ticket raised!', 'success');
@@ -4020,8 +4084,15 @@ async function loadAdmin() {
   const searchTerm = (document.getElementById("adminSearch")?.value || "").trim().toLowerCase();
   if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
 
-  const res = await authFetch(url);
-  const result = await res.json();
+  let result;
+  try {
+    const res = await authFetch(url);
+    result = await res.json();
+  } catch (e) {
+    const table = document.getElementById("adminTable");
+    if (table) table.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--error);">Failed to load deliveries — <button onclick="loadAdmin()" style="margin-top:8px;padding:8px 18px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">↻ Retry</button></td></tr>`;
+    return;
+  }
 
   let data, total, totalPages;
   if (result && result.data !== undefined) {
@@ -4043,6 +4114,7 @@ async function loadAdmin() {
   const pageData = data;
 
   const table = document.getElementById("adminTable");
+  const _sy = window.scrollY;
   table.innerHTML = "";
 
   // ── Helpers ──
@@ -4207,6 +4279,7 @@ async function loadAdmin() {
     table.appendChild(row);
     table.appendChild(expandRow);
   });
+  staggerCards(table);
 
   // Last updated
   const luEl = document.getElementById("lastUpdated");
@@ -4217,6 +4290,7 @@ async function loadAdmin() {
 
   // Mobile cards
   renderAdminMobCards(pageData, batchPhones, batchNumberMap, BATCH_PALETTES);
+  window.scrollTo(0, _sy);
 }
 
 function renderPagination(total, totalPages) {
@@ -4323,6 +4397,7 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
       container.appendChild(makeMobCard(d, null));
     }
   });
+  staggerCards(container);
 }
 
 function updateSummaryCards(data, serverCounts = null) {
@@ -4809,7 +4884,11 @@ function onSearch() {
   loadAdmin();
 }
 
-setInterval(loadAdmin, 30000);
+setInterval(() => {
+  if (document.hidden) return;
+  if (currentAdminView !== 'deliveries') return;
+  loadAdmin();
+}, 30000);
 loadAdmin();
 
 // ── PAYOUT TOGGLE ──────────────────────────────
@@ -5042,7 +5121,7 @@ async function loadOutstanding() {
   const to       = document.getElementById("outstandingTo").value   || istToday();
   const result   = document.getElementById("outstandingResult");
   if (!driverId) return;
-  result.innerHTML = `<div style="color:var(--muted);font-size:13px;">Loading\u2026</div>`;
+  result.innerHTML = `<div class="skeleton-line" style="height:13px;width:120px;"></div>`;
   result.style.display = "block";
   try {
     const res  = await authFetch(`${BASE_URL}/driver-outstanding?driver_id=${driverId}&from=${from}&to=${to}`);
@@ -5875,7 +5954,7 @@ function setSCStoreFilter(val) {
 async function loadServiceCount() {
   const tbody = document.getElementById('scTableBody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--on-surface-variant);">Loading…</td></tr>';
+  tbody.innerHTML = skeletons(3, "row");
   try {
     const storeQ = scStoreFilter && scStoreFilter !== "all" ? `?store=${encodeURIComponent(scStoreFilter)}` : "";
     const res  = await authFetch(`${BASE_URL}/service/tickets${storeQ}`);
@@ -5942,7 +6021,7 @@ function renderSCTable() {
   });
 
     if (!tickets.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No tickets found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;"><div style="display:flex;flex-direction:column;align-items:center;gap:8px;">'+emptyStateSVG('clipboard')+'<p style="font-weight:700;font-size:14px;color:var(--on-surface);margin:0;">No tickets found</p></div></td></tr>';
     return;
   }
 
@@ -6266,6 +6345,22 @@ function destroySACharts() {
   saCharts = {};
 }
 
+/* Reuse chart instances across view opens (avoid destroy/recreate flicker) */
+function saChart(key, canvasId, config) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const existing = saCharts[key];
+  if (existing) {
+    try {
+      existing.data = config.data;
+      existing.options = config.options;
+      existing.update();
+      return;
+    } catch (e) { try { existing.destroy(); } catch (_) {} }
+  }
+  saCharts[key] = new Chart(canvas, config);
+}
+
 function chartDefaults() {
   return {
     responsive: true,
@@ -6302,7 +6397,7 @@ function chartDefaults() {
 async function populateStoreSelect(selId) {
   const sel = document.getElementById(selId);
   if (!sel) return;
-  if (!window._stores || !_stores.length) {
+  if (!_stores || !_stores.length) {
     try {
       const res = await authFetch(`${BASE_URL}/api/stores`);
       if (res.ok) { _stores = await res.json(); _storeNameById = {}; _stores.forEach(s => { _storeNameById[s.id] = s.name; }); }
@@ -6316,7 +6411,6 @@ async function populateStoreSelect(selId) {
 }
 
 async function loadSalesAnalytics() {
-  destroySACharts();
   await populateStoreSelect('saStoreFilter');
   
   const days = parseInt(document.getElementById('saRange')?.value || '30');
@@ -6407,7 +6501,7 @@ async function loadSalesAnalytics() {
     const statusColors = ['#4d8eff', '#f59e0b', '#4edea3', '#ffb4ab'];
     const statusLabels = { open: 'Open', followup: 'Follow-up', converted: 'Converted', lost: 'Lost' };
     const statusEntries = Object.entries(statusMap);
-    saCharts.leadsStatus = new Chart(document.getElementById('saChartLeadsStatus'), {
+    saChart('leadsStatus', 'saChartLeadsStatus', {
       type: 'doughnut',
       data: {
         labels: statusEntries.map(([k]) => statusLabels[k] || k),
@@ -6436,7 +6530,7 @@ async function loadSalesAnalytics() {
     
     // Chart 2: Staff Revenue (Horizontal Bar)
     const staffList = Object.values(staffMap).sort((a, b) => b.revenue - a.revenue);
-    saCharts.staffRevenue = new Chart(document.getElementById('saChartStaffRevenue'), {
+    saChart('staffRevenue', 'saChartStaffRevenue', {
       type: 'bar',
       data: {
         labels: staffList.map(s => s.name),
@@ -6462,7 +6556,7 @@ async function loadSalesAnalytics() {
     });
     
     // Chart 3: Top Products (Horizontal Bar)
-    saCharts.topProducts = new Chart(document.getElementById('saChartTopProducts'), {
+    saChart('topProducts', 'saChartTopProducts', {
       type: 'bar',
       data: {
         labels: topProducts.map(p => p.name.length > 20 ? p.name.substring(0, 18) + '…' : p.name),
@@ -6490,7 +6584,7 @@ async function loadSalesAnalytics() {
     
     // Chart 4: Top Brands (Pie)
     const brandColors = ['#4d8eff','#4edea3','#f59e0b','#c084fc','#38bdf8','#f472b6','#fb923c','#a3e635'];
-    saCharts.topBrands = new Chart(document.getElementById('saChartTopBrands'), {
+    saChart('topBrands', 'saChartTopBrands', {
       type: 'pie',
       data: {
         labels: topBrands.map(b => b.name),
@@ -7133,9 +7227,9 @@ async function catDelete(id, name) {
 
 // ── Admin Calendar ──
 let adCalEvents = [];
-let adCalViewDate = new Date();
 let adCalStaffList = [];
 let adCalSelectedDate = null;
+let adCalCalendar = null;
 const AD_CAL_DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 let adCalStoreFilter = 'all';
@@ -7154,7 +7248,8 @@ async function adCalLoadData() {
     adCalStaffList = staffRes.ok ? await staffRes.json() : [];
     const sel = document.getElementById('adCalNoteStaff');
     if (sel) sel.innerHTML = '<option value="">Select staff...</option>' + adCalStaffList.map(s => `<option value="${s.id}">${escHtml(s.name || s.id)}</option>`).join('');
-    adCalRender();
+    if (adCalCalendar) adCalUpdateFC();
+    else adCalInitCalendar();
   } catch(e) { console.warn('Admin calendar load failed'); }
 }
 
@@ -7186,50 +7281,85 @@ function adCalGetPinLabel(type) {
   return "N";
 }
 
-function adCalRender() {
-  const year = adCalViewDate.getFullYear();
-  const month = adCalViewDate.getMonth();
-  const grid = document.getElementById('adCalGrid');
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  document.getElementById('adCalTitle').textContent = months[month] + ' ' + year;
-  let html = '<div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div><div class="cal-weekday">Sun</div>';
-  const firstDay = new Date(year, month, 1);
-  const startDow = firstDay.getDay();
-  const startOff = startDow === 0 ? 6 : startDow - 1;
-  const lastDate = new Date(year, month + 1, 0).getDate();
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const prevLast = new Date(year, month, 0).getDate();
-  for (let i = startOff - 1; i >= 0; i--) html += '<div class="cal-day other-month">' + (prevLast - i) + '</div>';
-  for (let d = 1; d <= lastDate; d++) {
-    const ds = year + '-' + String(month + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-    const evs = adCalGetEvents(ds);
-    const isToday = ds === todayStr;
-    const isOff = adCalIsWeeklyOff(ds);
-    let cls = 'cal-day';
-    if (isToday) cls += ' today';
-    if (isOff) cls += ' weekly-off';
-    let pins = '';
-    if (isOff) {
-      const offStaff = adCalStaffList.find(s => s.weekly_off === AD_CAL_DAYS[new Date(ds + 'T00:00:00').getDay()]);
-      const col = offStaff ? adCalGetColor(offStaff.id) : 'var(--outline)';
-      pins += '<span class="pin-dot" style="background:' + col + '">W</span>';
+function adCalInitCalendar() {
+  const el = document.getElementById('adCalCalendar');
+  if (!el || adCalCalendar) return;
+  adCalCalendar = new FullCalendar.Calendar(el, {
+    initialView: 'dayGridMonth',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,timeGridWeek,timeGridDay'
+    },
+    height: 'auto',
+    firstDay: 1,
+    locale: 'en',
+    buttonText: { today: 'Today', month: 'Month', week: 'Week', day: 'Day' },
+    events: [],
+    dateClick: function(info) {
+      adCalSelectedDate = info.dateStr;
+      adCalSelectDay(info.dateStr);
+    },
+    eventClick: function(info) {
+      adCalSelectedDate = info.event.startStr.slice(0, 10);
+      adCalSelectDay(adCalSelectedDate);
+    },
+    eventDidMount: function(info) {
+      var props = info.event.extendedProps;
+      if (!props) return;
+      var prefix = props.isAdminEvent ? '\u2605' : '';
+      var label = props.type === 'agenda' ? 'A' : 'N';
+      var titleEl = info.el.querySelector('.fc-event-title');
+      if (titleEl && titleEl.textContent.indexOf(prefix + label) !== 0) {
+        titleEl.textContent = prefix + label + ' ' + titleEl.textContent;
+      }
+    },
+    dayCellDidMount: function(info) {
+      var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      var dayName = dayNames[info.date.getDay()];
+      var offStaff = adCalStaffList.filter(function(s) { return s.weekly_off === dayName; });
+      if (offStaff.length) {
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;gap:2px;justify-content:center;flex-wrap:wrap;margin-top:1px;';
+        offStaff.forEach(function(s) {
+          var dot = document.createElement('span');
+          dot.textContent = 'W';
+          dot.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;font-size:8px;font-weight:800;color:#fff;background:' + adCalGetColor(s.id) + ';border:2px solid var(--fc-page-bg-color, #0f172a);';
+          dot.title = (s.name || s.id) + ' - Weekly Off';
+          wrap.appendChild(dot);
+        });
+        info.el.appendChild(wrap);
+      }
     }
-    if (evs.length) {
-      pins += evs.slice(0, 4).map(function(e) {
-        const col = adCalGetColor(e.createdById);
-        if (adCalIsAdminEv(e.type, e.createdByRole)) return '<span class="pin-star"><span class="label">' + adCalGetPinLabel(e.type) + '</span>&#9733;</span>';
-        return '<span class="pin-dot" style="background:' + col + '">' + adCalGetPinLabel(e.type) + '</span>';
-      }).join('');
-    }
-    if (pins) pins = '<div class="cal-pins">' + pins + '</div>';
-    html += '<div class="' + cls + '" onclick="adCalSelectDay(\'' + ds + '\')">' + d + pins + '</div>';
-  }
-  const total = startOff + lastDate;
-  const rem = (7 - total % 7) % 7;
-  for (let i = 1; i <= rem; i++) html += '<div class="cal-day other-month">' + i + '</div>';
-  grid.innerHTML = html;
-  document.getElementById('adCalDayPanel').style.display = 'none';
-  document.getElementById('adCalNoDay').style.display = '';
+  });
+  adCalCalendar.render();
+  adCalUpdateFC();
+  adCalSelectDay(new Date().toISOString().slice(0, 10));
+}
+
+function adCalUpdateFC() {
+  if (!adCalCalendar) return;
+  var events = adCalEvents.map(function(e) {
+    return {
+      id: e.id,
+      title: e.title,
+      start: e.date,
+      allDay: true,
+      color: adCalGetColor(e.createdById),
+      textColor: '#fff',
+      extendedProps: {
+        type: e.type,
+        description: e.description || '',
+        createdById: e.createdById,
+        createdBy: e.createdBy || 'Unknown',
+        createdByRole: e.createdByRole,
+        visibility: e.visibility || 'public',
+        isAdminEvent: e.type === 'agenda' || ((e.createdByRole === 'admin' || e.createdByRole === 'accountant') && e.type === 'note')
+      }
+    };
+  });
+  adCalCalendar.removeAllEvents();
+  events.forEach(function(ev) { adCalCalendar.addEvent(ev); });
 }
 
 function adCalSelectDay(dateStr) {
@@ -7279,9 +7409,6 @@ function adCalSelectDay(dateStr) {
     woEl.style.display = 'none';
   }
 }
-
-function adCalPrevMonth() { adCalViewDate.setMonth(adCalViewDate.getMonth() - 1); adCalRender(); }
-function adCalNextMonth() { adCalViewDate.setMonth(adCalViewDate.getMonth() + 1); adCalRender(); }
 
 function adCalOpenAgenda() {
   if (!adCalSelectedDate) { showToast('Select a date first', 'info'); return; }
@@ -7378,6 +7505,35 @@ async function adCalDeleteEvent(id) {
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
+/* ── ONCE-PER-DAY WELCOME ── */
+function showWelcomeOnce() {
+  const today = new Date().toDateString();
+  if (localStorage.getItem("welcomeDateAdmin") === today) return;
+  const el = document.getElementById("welcomeOverlay");
+  const greeting = document.getElementById("welcomeGreeting");
+  const sub = document.getElementById("welcomeSub");
+  if (!el) return;
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+  greeting.textContent = `👋 ${timeGreeting}!`;
+  const storeVal = adminStoreFilter && adminStoreFilter !== "all" ? adminStoreFilter : "";
+  if (storeVal && typeof _stores !== "undefined" && _stores) {
+    const resolved = _stores.find(s => s.id === storeVal) || _stores.find(s => s.name === storeVal);
+    const storeName = resolved ? resolved.name : storeVal;
+    const short = storeName.replace(/^Hari Om Electronics - /, '');
+    const cls = short.toLowerCase() === "alandi" ? "chip-alandi" : "chip-dhanore";
+    sub.innerHTML = `<span class="store-chip ${cls}"><span class="chip-dot"></span>${escHtml(short)}</span>`;
+  } else {
+    sub.textContent = "📋 All Stores";
+  }
+  el.classList.add("show");
+  localStorage.setItem("welcomeDateAdmin", today);
+  setTimeout(() => el.classList.remove("show"), 3800);
+  el.onclick = () => el.classList.remove("show");
+}
+
+setTimeout(showWelcomeOnce, 600);
+
 /* ── SIDEBAR TOGGLE (mobile) ── */
 function openSidebar() {
   document.getElementById('sidebar').classList.add('open');
@@ -7393,5 +7549,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sidebarOverlay')?.addEventListener('click', closeSidebar);
 });
 </script>
+
+<!-- WELCOME OVERLAY (once/day) -->
+<div id="welcomeOverlay" class="welcome-overlay">
+  <div class="welcome-card" id="welcomeCard">
+    <div class="greeting" id="welcomeGreeting">👋 Welcome!</div>
+    <div class="sub" id="welcomeSub">—</div>
+  </div>
+</div>
 </body>
 </html>

@@ -19,6 +19,7 @@ import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import admin from "firebase-admin";
 import { createRequire } from "module";
+import path from "path";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import Groq from "groq-sdk";
@@ -70,7 +71,66 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(express.json({ limit: "10mb" })); // XML imports can be large
 app.use(sanitizeRequest);
-app.use(express.static("."));
+
+/* ════════════════════════════════════════════════
+   STATIC FILE SECURITY — block sensitive files/paths
+   express.static(".") would otherwise serve source,
+   secrets and dev artifacts. Anything not explicitly
+   allowed below is 404'd before reaching static serving.
+   (Frontend only legitimately needs HTML/CSS/JS/JSON
+    manifests/icons and the two service workers.)
+════════════════════════════════════════════════ */
+const BLOCKED_EXACT = new Set([
+  "/.env", "/server.js", "/bridge.js", "/watcher.js",
+  "/firestore.js", "/storage.js", "/firebase.js",
+  "/firebase.json", "/.firebaserc", "/firebase-service-account.json",
+  "/package.json", "/package-lock.json", "/firestore.indexes.json",
+  "/extraction-report.json", "/Hariom_Electronics_Sheet.xlsx", "/nul"
+]);
+const BLOCKED_PREFIXES = [
+  "/.git/", "/node_modules/", "/scripts/", "/Bridge/", "/BridgePackage/",
+  "/bridgeInstaller/", "/watcher-setup/", "/Working TDLs/", "/tallysync/",
+  "/invoices/", "/.agents/"
+];
+const BLOCKED_EXT = new Set([".log", ".zip", ".tgz", ".pem", ".key"]);
+
+app.use((req, res, next) => {
+  const p = req.path;
+  if (
+    BLOCKED_EXACT.has(p) ||
+    BLOCKED_PREFIXES.some(prefix => p.startsWith(prefix)) ||
+    BLOCKED_EXT.has(path.extname(p).toLowerCase()) ||
+    /^\/_/.test(p) // leading-underscore dev/test artifacts
+  ) {
+    return res.status(404).end();
+  }
+  next();
+});
+
+/* ════════════════════════════════════════════════
+   STATIC SERVING + CACHE HEADERS
+   - Long-lived, revalidated cache for hashed/static
+     assets (CSS/JS/icons/manifests) → repeat-visit speed
+   - HTML kept "no-cache" so new deploys show instantly
+════════════════════════════════════════════════ */
+const LONG_CACHE_EXT = new Set([
+  ".css", ".js", ".png", ".jpg", ".jpeg", ".svg",
+  ".webp", ".woff2", ".ico", ".webmanifest", ".json"
+]);
+
+app.use(express.static(".", {
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (LONG_CACHE_EXT.has(ext)) {
+      res.setHeader(
+        "Cache-Control",
+        "public, max-age=86400, stale-while-revalidate=604800"
+      );
+    } else if (ext === ".html") {
+      res.setHeader("Cache-Control", "no-cache");
+    }
+  }
+}));
 
 app.get("/", (req, res) => {
   res.sendFile(process.cwd() + "/driver_interface.html");
@@ -1386,6 +1446,26 @@ async function resolveStoreId(tallyStoreName) {
   } catch { return null; }
 }
 
+/* ── Activity Log Helper ── */
+async function logActivity({ action, entityType, entityId, label, details, req }) {
+  try {
+    await addDoc(collection(db, "activity_log"), {
+      action,
+      entityType,
+      entityId: entityId || "",
+      label: label || "",
+      details: details || "",
+      performedBy: req.user?.uid || "",
+      performedByName: req.user?.name || req.user?.username || "",
+      performedByRole: req.user?.role || "",
+      storeId: req.user?.storeId || "",
+      timestamp: Timestamp.now()
+    });
+  } catch (err) {
+    console.error("logActivity error:", err.message);
+  }
+}
+
 /* ════════════════════════════════════════════════
    WHATSAPP — disabled (not in use)
 ════════════════════════════════════════════════ */
@@ -2258,8 +2338,11 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
 });
 
 app.delete("/delivery/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  const snap = await getDoc(doc(db, "deliveries", req.params.id));
+  const d = snap.exists() ? snap.data() : null;
   await deleteDoc(doc(db, "deliveries", req.params.id));
   invalidateDeliveriesCache();
+  if (d) logActivity({ action: "delete_delivery", entityType: "delivery", entityId: req.params.id, label: d.customer_name || d.phone || "", details: "Delivery deleted by admin", req });
   res.json({ success: true });
 });
 
@@ -2289,6 +2372,7 @@ app.post("/deleteFailedDelivery/:id", authenticate, authorize(["accountant", "ad
 
     await deleteDoc(refDoc);
     invalidateDeliveriesCache();
+    logActivity({ action: "delete_failed_delivery", entityType: "delivery", entityId: req.params.id, label: delivery.customer_name || delivery.phone || "", details: `Failed delivery deleted. Reason: ${(reason || "").trim()}`, req });
     res.json({ success: true });
   } catch (error) {
     console.error("/deleteFailedDelivery error:", error);
@@ -2534,7 +2618,10 @@ app.delete("/driver/:id", authenticate, authorize(["admin"]), async (req, res) =
     ));
     const hasActive = snapshot.docs.some(d => d.data().status !== "delivered");
     if (hasActive) return res.json({ error: "Driver has active deliveries. Cannot delete." });
+    const driverSnap = await getDoc(doc(db, "drivers", driverId));
+    const driverName = driverSnap.exists() ? driverSnap.data().driver_name : driverId;
     await deleteDoc(doc(db, "drivers", driverId));
+    logActivity({ action: "delete_driver", entityType: "driver", entityId: driverId, label: driverName, details: "Driver deleted by admin", req });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2919,6 +3006,7 @@ app.post("/reverseDelivery/:id", authenticate, authorize(["admin", "accountant"]
 
     console.log(`[reverseDelivery] ${req.params.id} reversed. Reason: ${reason}`);
     invalidateDeliveriesCache();
+    logActivity({ action: "reverse_delivery", entityType: "delivery", entityId: req.params.id, label: delivery.customer_name || delivery.phone || "", details: `Delivered → failed. Reason: ${reason}`, req });
     res.json({ success: true });
 
     // Notify driver that delivery was reversed
@@ -2939,6 +3027,72 @@ app.post("/reverseDelivery/:id", authenticate, authorize(["admin", "accountant"]
     }
   } catch (err) {
     console.error("/reverseDelivery error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   REVERT LOADED → PENDING
+   POST /revertLoaded/:id  (admin/accountant only)
+   Clears loaded photo, serial, location; sets status to pending
+   ════════════════════════════════════════════════ */
+app.post("/revertLoaded/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const refDoc = doc(db, "deliveries", id);
+    const snap = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+    const delivery = snap.data();
+    if (delivery.status !== "loaded") {
+      return res.status(400).json({ error: "Only loaded deliveries can be reverted to pending" });
+    }
+    if (delivery.photo_loaded_url) {
+      try {
+        const oldPath = decodeURIComponent(
+          delivery.photo_loaded_url.split("/o/")[1].split("?")[0].replace(/%2F/g, "/")
+        );
+        await adminBucket.file(oldPath).delete().catch(() => {});
+      } catch (err) { console.error("Failed to delete loaded photo:", err.message); }
+    }
+    await updateDoc(refDoc, {
+      status: "pending",
+      photo_loaded_url: "",
+      loaded_timestamp: null,
+      loaded_location: null,
+      product_serial_number: ""
+    });
+    console.log(`[revertLoaded] ${id} reverted to pending`);
+    logActivity({ action: "revert_loaded", entityType: "delivery", entityId: id, label: delivery.customer_name || delivery.phone || "", details: "Loaded → pending. Photo, serial, and location cleared.", req });
+    res.json({ success: true, message: "Delivery reverted to pending" });
+  } catch (err) {
+    console.error("/revertLoaded error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   ACTIVITY LOG
+   GET /activity-log?limit=100
+   Returns recent activity log entries (admin only)
+   ════════════════════════════════════════════════ */
+app.get("/activity-log", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const maxResults = Math.min(parseInt(req.query.limit) || 100, 500);
+    const constraints = [];
+    if (req.query.since) {
+      constraints.push(where("timestamp", ">=", new Date(req.query.since)));
+    }
+    const q = query(
+      collection(db, "activity_log"),
+      ...constraints,
+      orderBy("timestamp", "desc"),
+      limit(maxResults)
+    );
+    const snap = await getDocs(q);
+    const entries = snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate?.()?.toISOString() || null }));
+    res.json(entries);
+  } catch (err) {
+    console.error("/activity-log error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -4109,7 +4263,10 @@ app.put("/staff/:id", authenticate, authorize(["admin"]), async (req, res) => {
 
 app.delete("/staff/:id", authenticate, authorize(["admin"]), async (req, res) => {
   try {
+    const snap = await getDoc(doc(db, "staff_users", req.params.id));
+    const name = snap.exists() ? snap.data().name || snap.data().username || req.params.id : req.params.id;
     await deleteDoc(doc(db, "staff_users", req.params.id));
+    logActivity({ action: "delete_staff", entityType: "staff", entityId: req.params.id, label: name, details: "Staff user deleted by admin", req });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -4269,7 +4426,10 @@ app.put("/leads/:id", authenticate, authorize(["admin", "accountant", "staff"]),
 
 app.delete("/leads/:id", authenticate, authorize(["admin"]), async (req, res) => {
   try {
+    const snap = await getDoc(doc(db, "leads", req.params.id));
+    const lead = snap.exists() ? snap.data() : null;
     await deleteDoc(doc(db, "leads", req.params.id));
+    if (lead) logActivity({ action: "delete_lead", entityType: "lead", entityId: req.params.id, label: lead.customer_name || lead.phone || "", details: `Lead deleted by admin. Status was: ${lead.status || "unknown"}`, req });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -4520,12 +4680,13 @@ app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]),
     }
 
     await deleteDoc(refDoc);
+    const ticketLabel = `${t.customer_name || t.phone} — ${t.product_name || t.type}`;
+    logActivity({ action: "delete_service_ticket", entityType: "service_ticket", entityId: req.params.id, label: ticketLabel, details: `Ticket deleted. Reason: ${(reason || "").trim()}`, req });
     res.json({ success: true });
 
     // Notify admin + accountant in background
     (async () => {
       try {
-        const label = `${t.customer_name || t.phone} — ${t.product_name || t.type}`;
         const by    = req.user.name || req.user.role;
         await sendAccountantPush(
           `🗑 Ticket Deleted by ${by}`,

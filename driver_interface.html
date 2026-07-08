@@ -25,6 +25,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
   </noscript>
 
+  <link rel="stylesheet" href="/design-system.css?v=2">
   <style>
     /* ════════════════════════════════════════════════
        KINETIC LUMINESCENCE — CSS FOUNDATION
@@ -173,6 +174,17 @@
       box-shadow: 0 48px 48px rgba(0,0,0,0.12);
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.error   { border-color: var(--error);    color: var(--error); }
+    #toast.success { border-color: var(--tertiary); }
+    #toast.warning { border-color: var(--amber);    color: var(--amber); }
+    #toast.info    { border-color: var(--primary);  color: var(--primary); }
+
+    /* Skeleton shimmer */
+    @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+    .skeleton { background:linear-gradient(90deg,var(--surface-container) 25%,var(--surface-container-high) 50%,var(--surface-container) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:8px; }
+    .skeleton-card { background:var(--surface-container-low);border-radius:20px;padding:20px 18px;margin-bottom:12px; }
+    .skeleton-line { background:linear-gradient(90deg,var(--surface-container) 25%,var(--surface-container-high) 50%,var(--surface-container) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px;margin-bottom:10px; }
+    @keyframes cardIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 
     /* ─── PTR ─── */
     #ptrIndicator {
@@ -359,10 +371,10 @@
       overflow: hidden;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
-      transition: background 0.15s, transform 0.1s;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
       user-select: none;
     }
-    .delivery-card:active { transform: scale(0.99); background: var(--surface-container); }
+    .delivery-card:active { transform: scale(0.99); background: var(--surface-container); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
     .delivery-card.priority-urgent { border-left: 4px solid var(--error); }
     .delivery-card.pending-sync { opacity: 0.85; }
 
@@ -467,6 +479,7 @@
     .badge-urgent    { background: rgba(255,180,171,0.15); color: var(--error); }
     .badge-failed    { background: rgba(255,180,171,0.12); color: var(--error); }
     .badge-normal    { background: rgba(194,198,214,0.1); color: var(--on-surface-variant); }
+    .badge-pending::before,.badge-loaded::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:middle;animation:pulse 1.4s ease-in-out infinite}
 
     .btn-failed {
       width: 100%;
@@ -513,6 +526,23 @@
     }
 
     .card-chevron { color: var(--outline); font-size: 20px; flex-shrink: 0; }
+
+    /* One-tap contextual CTA on the delivery card footer */
+    .card-cta {
+      flex-shrink: 0;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+      background: rgba(78,222,163,0.15);
+      color: var(--tertiary);
+    }
+    .card-cta-load { background: rgba(77,142,255,0.15); color: var(--primary); }
 
     /* ─── SKELETON LOADER ─── */
     .skeleton-card {
@@ -1272,7 +1302,7 @@
       <button class="btn btn-unlock" id="unlockBtn" onclick="unlockDriver()">Authenticate</button>
     </div>
     <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-      <button class="btn btn-danger" id="changeDriverBtn" style="display:none;" onclick="logoutDriver()">⇄ Change Driver</button>
+      <button class="btn btn-danger" id="changeDriverBtn" style="display:none;" onclick="confirmLogout()">⇄ Change Driver</button>
       <div id="rememberedTag" class="login-remembered-tag" style="display:none;">⚡ Last session restored</div>
     </div>
   </div>
@@ -1366,7 +1396,8 @@
   </div>
 
   <div id="dispatcherCards" style="display:flex;flex-direction:column;gap:12px;">
-    <div style="text-align:center;color:var(--on-surface-variant);padding:20px;font-size:14px;">Loading…</div>
+    <div class="skeleton-card"><div class="skeleton-line" style="height:18px;width:60%;"></div><div class="skeleton-line" style="height:13px;width:40%;"></div><div class="skeleton-line" style="height:13px;width:80%;margin-top:14px;"></div></div>
+    <div class="skeleton-card"><div class="skeleton-line" style="height:18px;width:55%;"></div><div class="skeleton-line" style="height:13px;width:35%;"></div><div class="skeleton-line" style="height:13px;width:75%;margin-top:14px;"></div></div>
   </div>
 
   <!-- Bulk selection footer -->
@@ -1468,7 +1499,7 @@
       <span style="font-size:22px;">🚚</span>
     </button>
     <!-- History — show history section then scroll to it -->
-    <button class="kinetic-nav-btn" title="History" onclick="(function(){const h=document.getElementById('historySection');if(h){h.style.display='';h.scrollIntoView({behavior:'smooth'});}})()">
+    <button class="kinetic-nav-btn" title="History" onclick="showHistorySection()">
       <span style="font-size:22px;">📋</span>
     </button>
     <!-- Push status — toggle push dot info -->
@@ -1477,7 +1508,7 @@
       <span id="navPushDot" style="position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--tertiary);display:none;"></span>
     </button>
     <!-- Change Driver / Logout -->
-    <button class="kinetic-nav-btn" title="Change Driver" onclick="logoutDriver()">
+    <button class="kinetic-nav-btn" title="Change Driver" onclick="confirmLogout()">
       <span style="font-size:22px;">👤</span>
     </button>
   </div>
@@ -1485,7 +1516,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="/shared.js"></script>
+<script src="/shared.js?v=2"></script>
 
 <script>
 
@@ -2219,7 +2250,14 @@ function filterDeliveryCards() {
 /* ═══════════════════════════════════════
    RENDER — sorted: urgent first, then by ETA
 ══════════════════════════════════════ */
+let _driverRenderSig = null;
 function renderDeliveries(data) {
+  const _sy = window.scrollY;
+  // Skip full re-render when nothing visible changed (kills auto-refresh flicker + scroll jump)
+  const _sig = (data || []).map(d => d.id + ":" + d.status + ":" + d.priority).join("|");
+  if (_sig === _driverRenderSig) return;
+  _driverRenderSig = _sig;
+
   applyOfflineActionsToDeliveries();
   data = data.filter(d => d.status !== "delivered" && d.status !== "failed");
 
@@ -2247,10 +2285,11 @@ function renderDeliveries(data) {
     countBadge.style.display = "none";
     container.innerHTML = `
       <div class="empty-state">
-        <div class="icon">📭</div>
+        <div style="margin-bottom:14px;">${emptyStateSVG('check')}</div>
         <p>All clear!</p>
         <small>No active deliveries assigned</small>
       </div>`;
+    window.scrollTo(0, _sy);
     return;
   }
 
@@ -2314,6 +2353,11 @@ function renderDeliveries(data) {
       <div class="card-footer">
         <div class="card-address">${d.address}</div>
         ${etaLabel ? `<div class="card-eta">⏱ ${etaLabel}</div>` : ""}
+        ${d.status === "loaded"
+          ? `<button class="card-cta" onclick="event.stopPropagation();openDelivery('${d.id}')">✅ Deliver</button>`
+          : d.status === "pending"
+          ? `<button class="card-cta card-cta-load" onclick="event.stopPropagation();openDelivery('${d.id}')">📦 Load</button>`
+          : ""}
         <div class="card-chevron">›</div>
       </div>`;
 
@@ -2348,6 +2392,8 @@ function renderDeliveries(data) {
       container.appendChild(makeCard(d, false));
     }
   });
+
+  window.scrollTo(0, _sy);
 }
 
 /* ═══════════════════════════════════════
@@ -3045,6 +3091,9 @@ async function silentRefresh() {
       allDeliveriesData = cached;
       applyOfflineActionsToDeliveries();
       renderDeliveries(allDeliveriesData);
+    } else {
+      const c = document.getElementById("deliveryCards");
+      if (c) c.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Couldn't load deliveries</p><small><button onclick="silentRefresh()" style="margin-top:8px;padding:8px 18px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">↻ Retry</button></small></div>`;
     }
   }
 }
@@ -3062,6 +3111,10 @@ function applyOfflineActionsToDeliveries() {
 /* ═══════════════════════════════════════
    LOGOUT
 ═══════════════════════════════════════ */
+function confirmLogout() {
+  if (confirm("Switch driver / log out?")) logoutDriver();
+}
+
 function logoutDriver() {
   currentDriverId    = null;
   currentDriverPin   = null;
@@ -3345,6 +3398,22 @@ function toggleHistory() {
   cards.classList.toggle("open",   historyOpen);
   chevron.classList.toggle("open", historyOpen);
   toggle.classList.toggle("open",  historyOpen);
+}
+
+/* Open the history section from the bottom nav (fixes blank section bug) */
+function showHistorySection() {
+  const h = document.getElementById("historySection");
+  if (!h) return;
+  h.style.display = "block";
+  historyOpen = true;
+  const cards   = document.getElementById("historyCards");
+  const chevron = document.getElementById("historyChevron");
+  const toggle  = document.getElementById("historyToggle");
+  if (cards)   cards.classList.add("open");
+  if (chevron) chevron.classList.add("open");
+  if (toggle)  toggle.classList.add("open");
+  if (!historyData || historyData.length === 0) loadDeliveryHistory(currentDriverId);
+  h.scrollIntoView({ behavior: "smooth" });
 }
 
 /* ═══════════════════════════════════════════════════
@@ -4014,6 +4083,8 @@ async function loadDispatcherDeliveries() {
       toAssign.forEach(d => container.appendChild(buildDispatcherCard(d)));
     }
 
+    staggerCards(container);
+
   } catch (e) {
     container.innerHTML = `
       <div style="text-align:center;padding:24px;background:var(--surface);border-radius:16px;border:1px solid #fca5a5;">
@@ -4401,7 +4472,7 @@ async function bulkAssignDispatch() {
   loadDispatcherDeliveries();
 }
 
-/* escHtml shared via /shared.js */
+/* escHtml shared via /shared.js?v=2 */
 
 // When dispatcher changes a driver dropdown, mirror it to all selected cards
 function onDispatchSelectChange(deliveryId, selectId) {

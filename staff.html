@@ -16,6 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
 
+  <link rel="stylesheet" href="/design-system.css?v=3">
   <style>
     /* ════════════════════════════════════════════════
        KINETIC LUMINESCENCE — STAFF PANEL
@@ -101,6 +102,14 @@
       border: 1px solid rgba(173,198,255,0.12); box-shadow: 0 48px 48px rgba(0,0,0,0.12);
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.error   { border-color: var(--error);    color: var(--error); }
+    #toast.success { border-color: var(--tertiary); }
+    #toast.warning { border-color: var(--amber);    color: var(--amber); }
+    #toast.info    { border-color: var(--primary);  color: var(--primary); }
+
+    /* Skeleton shimmer */
+    @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+    .skeleton { background:linear-gradient(90deg,var(--surface-container) 25%,var(--surface-container-high) 50%,var(--surface-container) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:8px; }
 
     /* ── OFFLINE INDICATOR ── */
     #offlineBanner {
@@ -231,9 +240,9 @@
       background: var(--surface-container-low); border-radius: 20px;
       margin-bottom: 12px; overflow: hidden; cursor: pointer;
       -webkit-tap-highlight-color: transparent;
-      transition: background 0.15s, transform 0.1s;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
     }
-    .delivery-card:active { transform: scale(0.99); background: var(--surface-container); }
+    .delivery-card:active { transform: scale(0.99); background: var(--surface-container); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
     .card-top {
       padding: 16px 18px 10px;
       display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
@@ -257,6 +266,8 @@
     .badge-warranty-ok     { background: rgba(78,222,163,0.12);  color: var(--tertiary); }
     .badge-warranty-expiring { background: rgba(255,179,0,0.12); color: #ffb300; }
     .badge-warranty-expired  { background: rgba(255,180,171,0.12); color: var(--error); }
+    @keyframes pulse {0%,100%{opacity:1}50%{opacity:0.35}}
+    .badge-pending::before,.badge-loaded::before,.badge-open::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:middle;animation:pulse 1.4s ease-in-out infinite}
 
     .card-divider { height: 1px; background: var(--border); margin: 0 18px; }
     .card-footer  { padding: 10px 18px 14px; display: flex; align-items: center; gap: 8px; }
@@ -279,6 +290,7 @@
       background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; margin-bottom: 10px;
     }
     @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    @keyframes cardIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 
     /* ── EMPTY STATE ── */
     .empty-state { text-align: center; padding: 56px 20px; color: var(--on-surface-variant); }
@@ -336,52 +348,55 @@
     .rc-no  { flex:1; background: transparent; color: var(--on-surface-variant); border: 1px solid var(--outline-variant); border-radius: 8px; padding: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
 
     /* ── POPUP / DETAIL SHEET ── */
-    .popup {
-      display: none; position: fixed; inset: 0;
+    body .popup {
+      display: none; position: fixed;
+      top: 0; right: 0; bottom: 0; left: 0;
       background: rgba(0,0,0,0.80); backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px); z-index: 200;
       overflow-y: auto; -webkit-overflow-scrolling: touch;
       padding: calc(16px + var(--safe-top)) 14px calc(16px + var(--safe-bottom));
+      align-items: center; justify-content: center;
+      max-width: none; max-height: none; animation: none;
     }
-    .popup.open { display: block; }
-    .popup-box {
+    body .popup.open { display: flex; }
+    body .popup-box {
       background: var(--surface-container-low); width: 100%; max-width: 500px;
-      margin: 0 auto; border-radius: 28px; overflow: hidden;
+      margin: auto; border-radius: 28px; overflow: hidden;
       box-shadow: 0 48px 80px rgba(0,0,0,0.5);
       border: 1px solid rgba(173,198,255,0.08);
     }
-    .popup-band {
+    body .popup-band {
       padding: 22px 22px 16px; border-bottom: 1px solid var(--border);
     }
-    .popup-band-delivered { background: rgba(78,222,163,0.08); }
-    .popup-band-loaded    { background: rgba(77,142,255,0.08); }
-    .popup-band-pending   { background: rgba(255,179,0,0.08); }
-    .popup-band-failed    { background: rgba(255,180,171,0.08); }
-    .popup-band-lead      { background: rgba(173,198,255,0.06); }
-    .popup-name { font-size: 22px; font-weight: 800; color: var(--on-surface); letter-spacing: -0.3px; line-height: 1.2; }
-    .popup-status-row { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; flex-wrap: wrap; }
-    .popup-body { padding: 4px 22px 6px; }
-    .detail-row {
+    body .popup-band-delivered { background: rgba(78,222,163,0.08); }
+    body .popup-band-loaded    { background: rgba(77,142,255,0.08); }
+    body .popup-band-pending   { background: rgba(255,179,0,0.08); }
+    body .popup-band-failed    { background: rgba(255,180,171,0.08); }
+    body .popup-band-lead      { background: rgba(173,198,255,0.06); }
+    body .popup-name { font-size: 22px; font-weight: 800; color: var(--on-surface); letter-spacing: -0.3px; line-height: 1.2; }
+    body .popup-status-row { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; flex-wrap: wrap; }
+    body .popup-body { padding: 4px 22px 6px; }
+    body .detail-row {
       display: flex; gap: 10px; padding: 12px 0;
       border-bottom: 1px solid var(--border); font-size: 14px; align-items: flex-start;
     }
-    .detail-row:last-of-type { border-bottom: none; }
-    .detail-label { color: var(--on-surface-variant); font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; min-width: 82px; padding-top: 2px; flex-shrink: 0; }
-    .detail-value { color: var(--on-surface); font-weight: 500; line-height: 1.5; flex: 1; }
-    .phone-link { color: var(--primary); text-decoration: none; font-weight: 700; }
-    .popup-actions {
+    body .detail-row:last-of-type { border-bottom: none; }
+    body .detail-label { color: var(--on-surface-variant); font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; min-width: 82px; padding-top: 2px; flex-shrink: 0; }
+    body .detail-value { color: var(--on-surface); font-weight: 500; line-height: 1.5; flex: 1; }
+    body .phone-link { color: var(--primary); text-decoration: none; font-weight: 700; }
+    body .popup-actions {
       padding: 14px 22px calc(22px + var(--safe-bottom));
       display: flex; flex-direction: column; gap: 10px;
       background: var(--surface-container-lowest); border-top: 1px solid var(--border);
     }
-    .popup-actions-row { display: flex; gap: 10px; }
-    .popup-actions-row .btn { flex: 1; }
-    .popup-close-btn {
+    body .popup-actions-row { display: flex; gap: 10px; }
+    body .popup-actions-row .btn { flex: 1; }
+    body .popup-close-btn {
       background: var(--surface-container-highest); color: var(--on-surface);
       padding: 14px; font-size: 15px; font-weight: 600; width: 100%;
       border-radius: 12px; border: none; font-family: 'Inter', sans-serif; cursor: pointer;
     }
-    .popup-action-btn {
+    body .popup-action-btn {
       padding: 14px; font-size: 15px; font-weight: 600; width: 100%;
       border-radius: 12px; border: none; font-family: 'Inter', sans-serif; cursor: pointer;
     }
@@ -437,7 +452,7 @@
       -webkit-tap-highlight-color: transparent; position: relative;
       border: 1px solid var(--border);
     }
-    .home-card:active { transform: scale(0.95); background: var(--surface-container); }
+    .home-card:active { transform: scale(0.95); background: var(--surface-container); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
     .home-card-icon {
       width: 50px; height: 50px; border-radius: 16px;
       display: flex; align-items: center; justify-content: center;
@@ -475,9 +490,9 @@
     [data-theme="light"] .delivery-card { background: var(--surface-container-low); }
     [data-theme="light"] .delivery-card:active { background: var(--surface-container); }
     [data-theme="light"] .form-card   { background: var(--surface-container-low); }
-    [data-theme="light"] .popup-box   { background: var(--surface); }
-    [data-theme="light"] .popup-actions { background: var(--surface-container-low); }
-    [data-theme="light"] .popup-close-btn { background: var(--surface-container-highest); color: #1a2540; }
+    [data-theme="light"] body .popup-box   { background: var(--surface); }
+    [data-theme="light"] body .popup-actions { background: var(--surface-container-low); }
+    [data-theme="light"] body .popup-close-btn { background: var(--surface-container-highest); color: #1a2540; }
     [data-theme="light"] .form-input  { background: var(--surface-container-high); color: #1a2540; }
     [data-theme="light"] .form-select { background: var(--surface-container-high); color: #1a2540; }
     [data-theme="light"] .search-input { background: var(--surface-container-high); color: #1a2540; }
@@ -491,10 +506,10 @@
     [data-theme="light"] .card-chevron { color: #94a3b8; }
     [data-theme="light"] .section-title-text { color: #1a2540; }
     [data-theme="light"] .count-badge { background: rgba(37,99,235,0.1); color: #2563eb; }
-    [data-theme="light"] .popup-name { color: #1a2540; }
-    [data-theme="light"] .detail-label { color: #64748b; }
-    [data-theme="light"] .detail-value { color: #1a2540; }
-    [data-theme="light"] .detail-row { border-color: rgba(0,0,0,0.06); }
+    [data-theme="light"] body .popup-name { color: #1a2540; }
+    [data-theme="light"] body .detail-label { color: #64748b; }
+    [data-theme="light"] body .detail-value { color: #1a2540; }
+    [data-theme="light"] body .detail-row { border-color: rgba(0,0,0,0.06); }
     [data-theme="light"] .lead-edit-select { background: #e2e8f4; color: #1a2540; }
     [data-theme="light"] .lead-edit-input  { background: #e2e8f4; color: #1a2540; }
     [data-theme="light"] .badge-pending   { background: #fef3c7; color: #92400e; }
@@ -651,76 +666,58 @@
     .pg-chip:hover { border-color:var(--primary);color:var(--primary); }
     .pg-chip.active { background:linear-gradient(135deg,var(--primary-container),var(--primary));border-color:transparent;color:var(--on-primary-container); }
 
-    /* ── CALENDAR ── */
-    .cal-nav {
-      display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+    /* ── FullCalendar Dark Theme ── */
+    :root {
+      --fc-page-bg-color: var(--surface-container-low);
+      --fc-neutral-bg-color: var(--surface-container);
+      --fc-border-color: var(--border);
+      --fc-button-text-color: var(--on-surface);
+      --fc-button-bg-color: var(--surface-container-high);
+      --fc-button-border-color: var(--outline-variant);
+      --fc-button-hover-bg-color: var(--surface-container-highest);
+      --fc-button-hover-border-color: var(--outline);
+      --fc-button-active-bg-color: var(--primary-container);
+      --fc-button-active-border-color: var(--primary);
+      --fc-today-bg-color: rgba(173,198,255,0.08);
+      --fc-event-bg-color: var(--primary-container);
+      --fc-event-border-color: var(--primary);
+      --fc-event-text-color: var(--on-surface);
+      --fc-more-link-bg-color: var(--surface-container-high);
+      --fc-more-link-text-color: var(--primary);
+      --fc-more-link-hover-bg-color: var(--surface-container-highest);
+      --fc-highlight-color: rgba(173,198,255,0.06);
+      --fc-non-business-color: transparent;
+      --fc-neutral-text-color: var(--on-surface-variant);
+      --fc-list-event-hover-bg-color: var(--surface-container);
     }
-    .cal-nav-title { font-size: 18px; font-weight: 800; color: var(--on-surface); letter-spacing: -0.3px; }
-    .cal-nav-btn {
-      background: var(--surface-container-high); border: none; border-radius: 10px;
-      padding: 8px 12px; font-size: 16px; cursor: pointer; color: var(--on-surface);
-      font-family: 'Inter',sans-serif; font-weight: 600; transition: background 0.12s;
-    }
-    .cal-nav-btn:active { background: var(--surface-container-highest); }
-    .cal-grid {
-      display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
-      background: var(--surface-container); border-radius: 16px; overflow: hidden;
-      margin-bottom: 14px;
-    }
-    .cal-weekday {
-      padding: 8px 0; text-align: center; font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.8px; color: var(--outline);
-      background: var(--surface-container-low);
-    }
-    .cal-day {
-      aspect-ratio: 1; display: flex; flex-direction: column; align-items: center;
-      justify-content: center; font-size: 13px; font-weight: 600; color: var(--on-surface);
-      background: transparent; cursor: pointer; border: none; font-family: 'Inter',sans-serif;
-      position: relative; transition: background 0.1s; border-radius: 4px; min-height: 42px;
-    }
-    .cal-day:hover { background: var(--surface-container-high); }
-    .cal-day.other-month { color: var(--outline); opacity: 0.4; }
-    .cal-day.today { font-weight: 900; color: var(--primary); background: rgba(173,198,255,0.08); }
-    .cal-day.weekly-off { opacity: 0.5; }
-    .cal-pins {
-      display: flex; align-items: center; justify-content: center;
-      height: 16px; margin-top: 1px;
-    }
-    .pin-dot {
-      width: 16px; height: 16px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 8px; font-weight: 800; color: #fff;
-      line-height: 1; flex-shrink: 0;
-      border: 2px solid var(--surface-container);
-      margin-left: -5px;
-    }
-    .pin-dot:first-child, .pin-star:first-child { margin-left: 0; }
-    .pin-star {
-      display: inline-flex; align-items: center; justify-content: center;
-      position: relative; width: 22px; height: 22px;
-      flex-shrink: 0; margin-left: -5px;
-      color: #f59e0b; font-size: 20px; line-height: 1;
-    }
-    .pin-star .label {
-      position: absolute; font-size: 9px; font-weight: 800; color: #fff;
-      top: 50%; left: 50%; transform: translate(-50%, -40%);
-      line-height: 1; z-index: 1;
-    }
-    .cal-event { margin-bottom: 10px; }
-    .cal-event-card {
-      background: var(--surface-container-low); border-radius: 14px;
-      padding: 12px 14px; display: flex; gap: 11px; align-items: flex-start;
-      border-left: 4px solid var(--border);
-    }
-    .cal-event-body { flex: 1; min-width: 0; }
-    .cal-event-meta { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); margin-bottom: 2px; }
-    .cal-event-title { font-size: 14px; font-weight: 700; color: var(--on-surface); }
-    .cal-event-desc { font-size: 12px; color: var(--on-surface-variant); margin-top: 3px; }
-    .cal-event-vis-badge {
-      display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.3px; padding: 1px 6px; border-radius: 3px;
-      background: rgba(255,255,255,0.08); margin-left: 6px;
-    }
+    .fc { font-family: 'Inter', sans-serif; }
+    .fc .fc-toolbar-title { font-size: 1.15em !important; font-weight: 800; color: var(--on-surface); }
+    .fc .fc-button { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 13px; border-radius: 10px; padding: 6px 14px; }
+    .fc .fc-button-primary:not(:disabled).fc-button-active { background: var(--fc-button-active-bg-color); }
+    .fc .fc-daygrid-day { cursor: pointer; }
+    .fc .fc-daygrid-day-number { font-size: 13px; font-weight: 600; color: var(--on-surface); padding: 4px 6px; }
+    .fc .fc-day-other .fc-daygrid-day-number { color: var(--outline); opacity: 0.5; }
+    .fc .fc-col-header-cell-cushion { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--outline); padding: 8px 0; text-decoration: none; }
+    .fc .fc-day-today .fc-daygrid-day-number { color: var(--primary); font-weight: 900; }
+    .fc .fc-day-today { background: var(--fc-today-bg-color) !important; }
+    .fc .fc-scrollgrid { border-radius: 16px; overflow: hidden; border: 1px solid var(--border); }
+    .fc .fc-scrollgrid table { border-collapse: separate; }
+    .fc td, .fc th { border-color: var(--border); }
+    .fc .fc-daygrid-day-events { min-height: 0; }
+    .fc .fc-daygrid-event { border-radius: 6px; padding: 1px 4px; margin: 0 3px 2px; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fc .fc-daygrid-more-link { font-size: 10px; font-weight: 700; color: var(--primary); padding: 0 4px; }
+    .fc .fc-popover { background: var(--surface-container-high); border: 1px solid var(--outline-variant); border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .fc .fc-popover-header { background: var(--surface-container); padding: 8px 12px; border-radius: 12px 12px 0 0; font-weight: 700; color: var(--on-surface); }
+    .fc .fc-popover-body .fc-daygrid-event { margin: 3px 6px; }
+
+    /* Light mode overrides for FullCalendar */
+    [data-theme="light"] { --fc-page-bg-color: var(--surface); --fc-neutral-bg-color: var(--surface-container-low); --fc-border-color: rgba(0,0,0,0.08); --fc-button-bg-color: var(--surface-container-high); --fc-button-text-color: #1a2540; --fc-button-hover-bg-color: var(--surface-container-highest); --fc-button-active-bg-color: var(--primary-container); --fc-event-text-color: #1a2540; --fc-more-link-text-color: #2563eb; }
+    [data-theme="light"] .fc .fc-col-header-cell-cushion { color: #64748b; }
+    [data-theme="light"] .fc .fc-daygrid-day-number { color: #1a2540; }
+    [data-theme="light"] .fc .fc-day-today .fc-daygrid-day-number { color: #2563eb; }
+    [data-theme="light"] .fc .fc-scrollgrid { border-color: rgba(0,0,0,0.08); }
+
+    /* Day panel (kept from original, simplified) */
     .cal-day-header { font-size: 18px; font-weight: 800; color: var(--on-surface); margin-bottom: 4px; }
     .cal-day-sub { font-size: 12px; color: var(--on-surface-variant); margin-bottom: 14px; }
     .cal-empty { text-align: center; padding: 30px 20px; color: var(--outline); }
@@ -757,40 +754,12 @@
     .combobox-dropdown div.active { background: var(--surface-container-high); }
 
     /* ════ ONCE-PER-DAY WELCOME ════ */
-    .welcome-overlay {
-      position: fixed; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.35);
-      backdrop-filter: blur(2px);
-      z-index: 9999;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.4s ease;
-    }
-    .welcome-overlay.show { opacity: 1; pointer-events: auto; }
-    .welcome-card {
-      background: rgba(11,19,38,0.80);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(173,198,255,0.12);
-      border-radius: 24px;
-      padding: 40px 48px;
-      text-align: center;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.4);
-      animation: welcomeIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
-      max-width: 400px;
-    }
-    .welcome-card .greeting { font-size: 28px; font-weight: 800; }
-    .welcome-card .sub { margin-top: 8px; font-size: 14px; color: var(--on-surface-variant); }
-    .welcome-card .stat-row { margin-top: 20px; display: flex; gap: 20px; justify-content: center; }
-    .welcome-card .stat-item { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
-    .welcome-card .stat-item b { color: var(--on-surface); font-size: 18px; display: block; }
-    @keyframes welcomeIn {
-      from { opacity: 0; transform: translateY(40px) scale(0.96); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
+    @keyframes gradientShift {0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
-<script src="/shared.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
+<script src="/shared.js?v=2"></script>
 </head>
 <body>
 
@@ -1157,12 +1126,7 @@
         <span class="material-symbols-outlined">arrow_back</span> Home
       </button>
       <div class="page-title">📅 Calendar</div>
-      <div class="cal-nav">
-        <button class="cal-nav-btn" onclick="calendarPrevMonth()">‹</button>
-        <span class="cal-nav-title" id="calTitle">June 2026</span>
-        <button class="cal-nav-btn" onclick="calendarNextMonth()">›</button>
-      </div>
-      <div class="cal-grid" id="calGrid"></div>
+      <div id="staffCalendar"></div>
       <div id="calDayPanel" style="display:none;">
         <div class="cal-day-header" id="calDayHeader"></div>
         <div class="cal-day-sub" id="calDaySub"></div>
@@ -1301,9 +1265,9 @@ let stPgFilterSlab  = null;
 let stPgFilterCat   = null;
 let stPgCatList     = [];
 let calendarEvents   = [];
-let calViewDate      = new Date();
 let calStaffList     = [];
 let selectedCalendarDate = null;
+let staffCalendar    = null;
 
 /* ── STAFF COLOR (deterministic from id, overridable by stored color) ── */
 let staffColor = "";
@@ -1365,7 +1329,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("darkToggleBtn").textContent = isDark ? "☀️" : "🌙";
 });
 
-/* showToast shared via /shared.js */
+/* showToast shared via /shared.js?v=2 */
 
 /* ── AUTH ── */
 
@@ -1543,7 +1507,12 @@ function showMainPanel() {
 }
 
 // Auto-refresh calendar data every 60s so admin color/event edits show up
-setInterval(() => { loadCalendarEvents(); loadCalStaff(); }, 60_000);
+setInterval(() => {
+  if (document.hidden) return;
+  if (document.querySelector('.popup.open')) return;
+  loadCalendarEvents();
+  loadCalStaff();
+}, 60_000);
 
 /* ── Home screen helpers ── */
 function writeHomeGreeting() {
@@ -1589,7 +1558,7 @@ function switchTab(tab) {
   });
   if (tab === "home") updateHomeCounts();
   if (tab === "raiseTicket") clearPhoneSearch();
-  if (tab === "calendar") renderCalendar();
+  if (tab === "calendar") { if (staffCalendar) { staffCalendar.render(); updateFullCalendar(); } else initStaffCalendar(); }
   if (tab === "prices") stPgRender(priceGuideData);
   if (tab === "slabs") stSlLoadData();
 }
@@ -1638,7 +1607,7 @@ function renderDeliveries(data) {
   document.getElementById("delivBadge").textContent = q.length > 0 ? shown.length : shown.length;
 
   if (!shown.length) {
-    list.innerHTML = `<div class="empty-state"><div class="icon">📦</div><p>No deliveries found</p><small>Try a different search</small></div>`;
+    list.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('box')}</div><p>No deliveries found</p><small>Try a different search</small></div>`;
     return;
   }
 
@@ -1663,6 +1632,7 @@ function renderDeliveries(data) {
       </div>
     </div>`;
   }).join("");
+  staggerCards(list);
 
 }
 
@@ -1786,7 +1756,8 @@ async function raiseTicket(delivId, type) {
         address:        d.address,
         product_name:   d.product_name,
         serial_number:  d.product_serial_number,
-        description:    description || ""
+        description:    description || "",
+        storeId:        d.storeId || staffStoreId || ""
       })
     });
     const data = await res.json();
@@ -2076,7 +2047,7 @@ async function submitPhoneTicket() {
   msg("ptFormMsg").textContent = "Submitting…";
 
   try {
-    const payload = { type, linked_delivery_id: linkedDeliveryId, customer_name: name, product_name: product, serial_number: serial, description: desc };
+    const payload = { type, linked_delivery_id: linkedDeliveryId, customer_name: name, product_name: product, serial_number: serial, description: desc, storeId: staffStoreId || "" };
     if (!useTally) { payload.phone = phone; payload.alternate_phone = altPhone; payload.address = address; }
     const res = await authFetch(`${BASE_URL}/service/ticket`, {
       method: "POST",
@@ -2326,7 +2297,7 @@ function renderLeads(data) {
   const list = document.getElementById("leadsList");
   document.getElementById("leadsBadge").textContent = data.length;
   if (!data.length) {
-    list.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No leads found</p><small>Try a different filter</small></div>`;
+    list.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('person')}</div><p>No leads found</p><small>Try a different filter</small></div>`;
     return;
   }
   list.innerHTML = data.map(l => {
@@ -2861,12 +2832,90 @@ async function stSlLoadData() {
    CALENDAR
 ════════════════════════════════════════════════ */
 
+function updateFullCalendar() {
+  if (!staffCalendar) return;
+  const events = calendarEvents.map(e => ({
+    id: e.id,
+    title: e.title,
+    start: e.date,
+    allDay: true,
+    color: getStaffColor(e.createdById),
+    textColor: "#fff",
+    extendedProps: {
+      type: e.type,
+      description: e.description || "",
+      createdById: e.createdById,
+      createdBy: e.createdBy || "Unknown",
+      createdByRole: e.createdByRole,
+      visibility: e.visibility || "public",
+      isAdminEvent: e.type === "agenda" || (e.createdByRole === "admin" || e.createdByRole === "accountant") && e.type === "note"
+    }
+  }));
+  staffCalendar.removeAllEvents();
+  events.forEach(ev => staffCalendar.addEvent(ev));
+}
+
+function initStaffCalendar() {
+  const el = document.getElementById("staffCalendar");
+  if (!el || staffCalendar) return;
+  staffCalendar = new FullCalendar.Calendar(el, {
+    initialView: "dayGridMonth",
+    headerToolbar: {
+      left: "prev,next today",
+      center: "title",
+      right: "dayGridMonth,timeGridWeek,timeGridDay"
+    },
+    height: "auto",
+    firstDay: 1,
+    locale: "en",
+    buttonText: { today: "Today", month: "Month", week: "Week", day: "Day" },
+    events: [],
+    dateClick: function(info) {
+      selectedCalendarDate = info.dateStr;
+      selectCalendarDay(info.dateStr);
+    },
+    eventClick: function(info) {
+      selectedCalendarDate = info.event.startStr.slice(0,10);
+      selectCalendarDay(selectedCalendarDate);
+    },
+    eventDidMount: function(info) {
+      var props = info.event.extendedProps;
+      if (!props) return;
+      var prefix = props.isAdminEvent ? "\u2605" : "";
+      var label = props.type === "agenda" ? "A" : props.type === "leave" ? "L" : "N";
+      var titleEl = info.el.querySelector(".fc-event-title");
+      if (titleEl && titleEl.textContent.indexOf(prefix + label) !== 0) {
+        titleEl.textContent = prefix + label + " " + titleEl.textContent;
+      }
+    },
+    dayCellDidMount: function(info) {
+      var dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      var dayName = dayNames[info.date.getDay()];
+      var offStaff = calStaffList.filter(function(s) { return s.weekly_off === dayName; });
+      if (offStaff.length) {
+        var wrap = document.createElement("div");
+        wrap.style.cssText = "display:flex;gap:2px;justify-content:center;flex-wrap:wrap;margin-top:1px;";
+        offStaff.forEach(function(s) {
+          var dot = document.createElement("span");
+          dot.textContent = "W";
+          dot.style.cssText = "display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;font-size:8px;font-weight:800;color:#fff;background:" + getStaffColor(s.id) + ";border:2px solid var(--fc-page-bg-color, #0f172a);";
+          dot.title = (s.name || s.id) + " - Weekly Off";
+          wrap.appendChild(dot);
+        });
+        info.el.appendChild(wrap);
+      }
+    }
+  });
+  staffCalendar.render();
+  updateFullCalendar();
+}
+
 async function loadCalendarEvents() {
   try {
     const res = await authFetch(`${BASE_URL}/calendar-events`);
     calendarEvents = await res.json();
     updateHomeCounts();
-    if (currentTab === "calendar") renderCalendar();
+    updateFullCalendar();
   } catch(e) { console.warn("Failed to load calendar events"); }
 }
 
@@ -2874,7 +2923,7 @@ async function loadCalStaff() {
   try {
     const res = await authFetch(`${BASE_URL}/staff-weekly-off`);
     calStaffList = await res.json();
-    if (currentTab === "calendar") renderCalendar();
+    updateFullCalendar();
   } catch(e) { calStaffList = []; }
 }
 
@@ -2886,61 +2935,6 @@ function isWeeklyOff(dateStr) {
 
 function getEventsForDate(dateStr) {
   return calendarEvents.filter(e => e.date === dateStr);
-}
-
-function renderCalendar() {
-  const year = calViewDate.getFullYear();
-  const month = calViewDate.getMonth();
-  const grid = document.getElementById("calGrid");
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  document.getElementById("calTitle").textContent = months[month] + " " + year;
-
-  let html = `<div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div><div class="cal-weekday">Sun</div>`;
-
-  const firstDay = new Date(year, month, 1);
-  const startDow = firstDay.getDay();
-  const startOff = startDow === 0 ? 6 : startDow - 1;
-  const lastDate = new Date(year, month + 1, 0).getDate();
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  const prevLast = new Date(year, month, 0).getDate();
-  for (let i = startOff - 1; i >= 0; i--) html += `<div class="cal-day other-month">${prevLast - i}</div>`;
-
-  for (let d = 1; d <= lastDate; d++) {
-    const ds = `${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    const evs = getEventsForDate(ds);
-    const isToday = ds === todayStr;
-    const isOff = isWeeklyOff(ds);
-    let cls = "cal-day";
-    if (isToday) cls += " today";
-    if (isOff) cls += " weekly-off";
-
-    let pins = "";
-    if (isOff) {
-      const offStaff = calStaffList.find(s => s.weekly_off === ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(ds + "T00:00:00").getDay()]);
-      const col = offStaff ? getStaffColor(offStaff.id) : "var(--outline)";
-      pins += `<span class="pin-dot" style="background:${col}">W</span>`;
-    }
-    if (evs.length) {
-      pins += evs.slice(0, 4).map(e => {
-        const col = getStaffColor(e.createdById);
-        const isAdminEv = isAdminEvent(e.type, e.createdByRole);
-        if (isAdminEv) return `<span class="pin-star"><span class="label">${getStaffPinLabel(e.type)}</span>&#9733;</span>`;
-        return `<span class="pin-dot" style="background:${col}">${getStaffPinLabel(e.type)}</span>`;
-      }).join("");
-    }
-    if (pins) pins = `<div class="cal-pins">${pins}</div>`;
-
-    html += `<div class="${cls}" onclick="selectCalendarDay('${ds}')">${d}${pins}</div>`;
-  }
-
-  const total = startOff + lastDate;
-  const rem = (7 - total % 7) % 7;
-  for (let i = 1; i <= rem; i++) html += `<div class="cal-day other-month">${i}</div>`;
-
-  grid.innerHTML = html;
-  document.getElementById("calDayPanel").style.display = "none";
-  document.getElementById("calNoDay").style.display = "";
 }
 
 function selectCalendarDay(dateStr) {
@@ -2990,9 +2984,6 @@ function selectCalendarDay(dateStr) {
     woEl.style.display = "none";
   }
 }
-
-function calendarPrevMonth() { calViewDate.setMonth(calViewDate.getMonth() - 1); renderCalendar(); }
-function calendarNextMonth() { calViewDate.setMonth(calViewDate.getMonth() + 1); renderCalendar(); }
 
 function openAddLeavePopup() {
   if (!selectedCalendarDate) { showToast("Select a date first"); return; }

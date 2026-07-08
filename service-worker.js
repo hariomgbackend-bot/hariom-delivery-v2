@@ -1,20 +1,28 @@
 /* ═══════════════════════════════════════════════════
    Hariom DMS — App Shell Service Worker
-   Handles: offline fallback, cache strategy, install prompt
-═══════════════════════════════════════════════════ */
+   Strategy:
+   - HTML navigations: network-first, offline fallback (true offline use)
+   - Static assets (css/js/png/svg/woff2/ico/manifest):
+     stale-while-revalidate (instant from cache, refresh in background)
+   Bump CACHE_NAME on any change to force a clean install.
+══════════════════════════════════════════════════ */
 
-const CACHE_NAME = "hariom-dms-v1";
+const CACHE_NAME = "hariom-dms-v4";
 const OFFLINE_URL = "/offline.html";
 
-// App shell files to cache on install
+// App shell assets to precache on install
 const PRECACHE_URLS = [
-  "/offline.html",
+  OFFLINE_URL,
   "/manifest.json",
+  "/driver-manifest.json",
+  "/staff-manifest.json",
+  "/design-system.css",
+  "/shared.js",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png"
 ];
 
-/* ── INSTALL: cache offline page ── */
+/* ── INSTALL: precache app shell ── */
 self.addEventListener("install", event => {
   console.log("[SW] Installing...");
   event.waitUntil(
@@ -41,37 +49,47 @@ self.addEventListener("activate", event => {
   );
 });
 
-/* ── FETCH: Network-first, offline fallback ── */
+/* ── FETCH ── */
 self.addEventListener("fetch", event => {
-  // Only handle GET requests for same-origin navigation
+  // Only handle GET for http(s)
   if (event.request.method !== "GET") return;
-
   const url = new URL(event.request.url);
-
-  // Skip chrome-extension and non-http requests
   if (!url.protocol.startsWith("http")) return;
 
-  // For navigation requests (HTML pages) — network first, fallback to offline
+  // Same-origin only; let cross-origin (CDN fonts/scripts) pass through
+  if (url.origin !== self.location.origin) return;
+
+  // ── Navigations (HTML pages): network-first, offline fallback ──
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(OFFLINE_URL);
-      })
+      fetch(event.request)
+        .then(response => {
+          // Cache a fresh copy of the HTML for offline use
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(event.request);
+          return cached || caches.match(OFFLINE_URL);
+        })
     );
     return;
   }
 
-  // For icons/manifest — cache first
-  if (url.pathname.startsWith("/icons/") || url.pathname === "/manifest.json") {
-    event.respondWith(
-      caches.match(event.request).then(cached => {
-        return cached || fetch(event.request).then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+  // ── Static assets: stale-while-revalidate ──
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      const network = fetch(event.request)
+        .then(response => {
+          if (response && response.status === 200 && response.type === "basic") {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+          }
           return response;
-        });
-      })
-    );
-    return;
-  }
+        })
+        .catch(() => cached); // offline: fall back to whatever we have
+      return cached || network;
+    })
+  );
 });

@@ -23,48 +23,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
   </noscript>
 
+  <link rel="stylesheet" href="/design-system.css?v=2">
   <style>
     /* ════════════════════════════════════════════════
        KINETIC LUMINESCENCE — ACCOUNTANT PANEL
        Design: "The Digital Horizon" / Financial Overview
     ════════════════════════════════════════════════ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:                       #0b1326;
-      --surface:                  #0b1326;
-      --surface-container-lowest: #060e20;
-      --surface-container-low:    #131b2e;
-      --surface-container:        #171f33;
-      --surface-container-high:   #222a3d;
-      --surface-container-highest:#2d3449;
-      --primary:                  #adc6ff;
-      --primary-container:        #4d8eff;
-      --on-primary:               #002e6a;
-      --on-primary-container:     #00285d;
-      --tertiary:                 #4edea3;
-      --tertiary-container:       #00a572;
-      --error:                    #ffb4ab;
-      --error-container:          #93000a;
-      --on-surface:               #dae2fd;
-      --on-surface-variant:       #c2c6d6;
-      --outline:                  #8c909f;
-      --outline-variant:          #424754;
-      --amber:                    #f59e0b;
-      /* Functional aliases for JS-rendered HTML */
-      --border:     rgba(255,255,255,0.07);
-      --accent:     #adc6ff;
-      --text:       #dae2fd;
-      --muted:      #c2c6d6;
-      --green:      #4edea3;
-      --red:        #ffb4ab;
-      --font-mono:  'JetBrains Mono', monospace;
-      --font-body:  'Inter', sans-serif;
-      --font-display: 'Inter', sans-serif;
-    }
-
-    html { height: 100%; }
-
     body {
       font-family: 'Inter', sans-serif;
       background: var(--bg);
@@ -116,18 +80,7 @@
       flex-wrap: wrap;
     }
 
-    #lastUpdated {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: rgba(218,226,253,0.3);
-      letter-spacing: 0.5px;
-    }
 
-    #pushIndicator {
-      font-size: 11px;
-      color: var(--on-surface-variant);
-      font-weight: 600;
-    }
 
     .header-logout-btn {
       background: rgba(173,198,255,0.07);
@@ -370,12 +323,6 @@
     .summary-bar span { color: var(--on-surface); }
 
     /* ════ TABLE ════ */
-    .table-wrap {
-      overflow-x: auto;
-      border-radius: 14px;
-      background: var(--surface-container-lowest);
-    }
-
     table {
       width: 100%;
       border-collapse: collapse;
@@ -416,13 +363,9 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .badge-pending   { background: rgba(245,158,11,0.15);  color: #fbbf24; }
-    .badge-loaded    { background: rgba(77,142,255,0.15);   color: var(--primary); }
-    .badge-delivered { background: rgba(78,222,163,0.15);   color: var(--tertiary); }
-    .badge-failed    { background: rgba(255,180,171,0.15);  color: var(--error); }
-    .badge-booked    { background: rgba(129,140,248,0.15);  color: #818cf8; }
-    .badge-urgent    { background: rgba(255,180,171,0.12);  color: var(--error); }
+
     .badge-selfpickup { background: rgba(78,222,163,0.12); color: var(--tertiary); }
+
 
     /* Batch row grouping — preserved from original */
     tbody tr.batch-first td { border-top: 2px solid var(--batch-color, rgba(173,198,255,0.3)); padding-top: 14px; }
@@ -555,9 +498,9 @@
       margin-bottom: 10px;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
-      transition: background 0.12s;
+      transition: background 0.12s, box-shadow 0.12s;
     }
-    .delivery-mob-card:active { background: var(--surface-container); }
+    .delivery-mob-card:active { background: var(--surface-container); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
 
     /* ════ POPUP OVERLAYS ════ */
     .popup-overlay {
@@ -648,6 +591,20 @@
     .popup-card input::placeholder { color: var(--on-surface-variant); }
     .popup-card select option { background: var(--surface-container-highest); color: var(--on-surface); }
 
+    input[type="checkbox"] {
+      width: 16px; height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      -webkit-appearance: auto;
+      appearance: auto;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 0;
+      outline: none;
+      margin: 0;
+      flex-shrink: 0;
+    }
     .checkbox-row {
       display: flex;
       align-items: center;
@@ -657,13 +614,8 @@
       font-size: 14px;
       color: var(--on-surface);
     }
-    .checkbox-row input[type="checkbox"] {
-      width: 16px; height: 16px;
-      margin-bottom: 0;
-      accent-color: var(--primary);
-      cursor: pointer;
-    }
     .checkbox-row label { cursor: pointer; }
+    /* inline-styled IPV checkboxes keep their width/height/accent-color via style attr */
 
     .form-actions {
       display: flex;
@@ -685,14 +637,12 @@
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     #toast.error { border-color: var(--error); color: var(--error); }
     #toast.success { border-color: var(--tertiary); }
+    #toast.warning { border-color: var(--amber); color: var(--amber); }
+    #toast.info { border-color: var(--primary); color: var(--primary); }
 
-    /* ════ OFFLINE INDICATOR ════ */
-    #offlineBanner {
-      display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
-      background: #dc2626; color: white; padding: 10px 16px; font-size: 13px;
-      font-weight: 600; text-align: center;
-    }
-    #offlineBanner.show { display: block; }
+
+
+
 
     /* ════ PRODUCT ITEM (multi-product list) ════ */
     #productList { margin-bottom: 4px; }
@@ -834,6 +784,12 @@
       min-width: 130px;
       padding-top: 2px;
       flex-shrink: 0;
+    }
+    .detail-row > span,
+    .detail-row > a {
+      flex: 1;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
 
     /* ════ INSTRUCTION WRAP (Marathi xlit) ════ */
@@ -1024,40 +980,7 @@
     [data-theme="light"] .store-chip.chip-alandi { background: rgba(99,102,241,0.06); border-color: rgba(99,102,241,0.12); color: #4338ca; }
     [data-theme="light"] .store-chip.chip-dhanore { background: rgba(5,150,105,0.06); border-color: rgba(5,150,105,0.12); color: #065f46; }
 
-    /* ════ ONCE-PER-DAY WELCOME ════ */
-    .welcome-overlay {
-      position: fixed; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.35);
-      backdrop-filter: blur(2px);
-      z-index: 9999;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.4s ease;
-    }
-    .welcome-overlay.show {
-      opacity: 1; pointer-events: auto;
-    }
-    .welcome-card {
-      background: rgba(11,19,38,0.80);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(173,198,255,0.12);
-      border-radius: 24px;
-      padding: 40px 48px;
-      text-align: center;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.4);
-      animation: welcomeIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
-      max-width: 400px;
-    }
-    .welcome-card .greeting { font-size: 28px; font-weight: 800; }
-    .welcome-card .sub { margin-top: 8px; font-size: 14px; color: var(--on-surface-variant); }
-    .welcome-card .stat-row { margin-top: 20px; display: flex; gap: 20px; justify-content: center; }
-    .welcome-card .stat-item { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
-    .welcome-card .stat-item b { color: var(--on-surface); font-size: 18px; display: block; }
-    @keyframes welcomeIn {
-      from { opacity: 0; transform: translateY(40px) scale(0.96); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
+
   </style>
 </head>
 <body>
@@ -1101,6 +1024,10 @@
   <div class="card" style="padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
     <button class="btn btn-primary" onclick="openPopup()">+ Create Delivery</button>
     <button class="btn btn-success" onclick="exportToCSV()">⬇ Export CSV</button>
+    <button class="btn" onclick="document.getElementById('unifiedFileInput').click()"
+      style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:rgba(173,198,255,0.1);color:var(--primary);border:1px solid rgba(173,198,255,0.25);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
+      📂 Import Invoice
+    </button>
     <button class="btn" onclick="openStockSyncModal()"
       style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:rgba(78,222,163,0.1);color:var(--tertiary);border:1px solid rgba(78,222,163,0.25);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
       🔄 Sync Stock
@@ -1146,11 +1073,8 @@
       <button class="filter-btn" style="padding:4px 10px;font-size:11px;color:var(--error);" onclick="resetDateRange()">✕ Reset</button>
     </div>
 
-    <!-- STORE, DRIVER & ROUTE FILTERS -->
+    <!-- DRIVER & ROUTE FILTERS -->
     <div class="filter-bar" id="driverRouteBar" style="margin-top:4px;gap:8px;">
-      <select id="storeFilterSelect" onchange="setStoreFilter(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:700;">
-        <option value="all">🏪 All Stores</option>
-      </select>
       <select id="driverFilterSelect" onchange="setDriverFilter(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--surface-container-high);color:var(--on-surface);outline:none;">
         <option value="all">All Drivers</option>
       </select>
@@ -1219,15 +1143,7 @@
       <div id="recentInvoicesList"></div>
     </div>
 
-    <div class="store-section">
-      <div class="section-title">Store</div>
-      <select id="storeId">
-        <option value="">— Select —</option>
-        <option value="store_a">Alandi</option>
-        <option value="store_b">Dhanore</option>
-      </select>
-      <div id="storeReadonlyBadge" style="display:none;"></div>
-    </div>
+    <div id="createDoStoreBadge" style="margin:12px 0 6px;display:none;"></div>
 
     <div class="section-title">Customer Name</div>
     <input id="first_name" placeholder="First Name">
@@ -1469,7 +1385,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="/shared.js"></script>
+<script src="/shared.js?v=2"></script>
 
 <script>
 
@@ -1498,54 +1414,17 @@ const BASE_URL = window.location.origin;
 let _stores = [];
 
 /* ── LOAD STORES ── */
-function populateStoreFilterSelect() {
-  const sel = document.getElementById("storeFilterSelect");
-  if (!sel || !_stores || !_stores.length) return;
-  const cur = sel.value;
-  const seen = new Set();
-  const storeOpts = _stores.filter(s => {
-    const n = s.name;
-    if (!n || seen.has(n)) return false;
-    seen.add(n);
-    return true;
-  }).map(s =>
-    `<option value="${escHtml(s.id)}">🏪 ${escHtml(s.name.replace(/^Hari Om Electronics - /, ''))}</option>`
-  ).join('');
-  sel.innerHTML = (storeOpts.length > 1 ? '<option value="all">🏪 All Stores</option>' : '') + storeOpts;
-  sel.value = cur;
-}
-
 async function loadStores() {
   if (!window.authGetToken) { setTimeout(loadStores, 200); return; }
   try {
     const res = await authFetch(`${BASE_URL}/api/stores`);
     if (res.ok) _stores = await res.json();
-    const sel = document.getElementById("storeId");
-    if (sel) {
-      const cur = sel.value;
-      sel.innerHTML = '<option value="">— Select —</option>' + _stores.map(s =>
-        `<option value="${escHtml(s.id)}" ${cur === s.id ? "selected" : ""}>${escHtml(s.name)}</option>`
-      ).join('');
-    }
-    populateStoreFilterSelect();
-    // Resolve JWT storeName to storeId if needed, then re-fire deliveries
-    if (_stores && selectedStore) {
-      const was = selectedStore;
-      const byId = _stores.find(s => s.id === selectedStore);
-      if (!byId) {
-        const byName = _stores.find(s => s.name === selectedStore);
-        if (byName) selectedStore = byName.id;
-      }
-      if (was !== selectedStore && typeof loadDeliveries === "function") loadDeliveries();
-    }
     updateAccountantStoreBadge();
-    const fs = document.getElementById("storeFilterSelect");
-    if (fs && selectedStore) { fs.value = selectedStore; if (fs.value !== selectedStore) fs.value = "all"; }
   } catch {}
 }
 
 /* ── TOAST NOTIFICATION ── */
-/* showToast, escHtml, tagAll shared via /shared.js */
+/* showToast, escHtml, tagAll shared via /shared.js?v=2 */
 
 /* ── OFFLINE DETECTION ── */
 window.addEventListener("online", () => {
@@ -1692,33 +1571,21 @@ function showWelcomeOnce() {
   const today = new Date().toDateString();
   if (localStorage.getItem("welcomeDate") === today) return;
   const name = getUserNameFromToken();
-  const el = document.getElementById("welcomeOverlay");
-  const greeting = document.getElementById("welcomeGreeting");
-  const sub = document.getElementById("welcomeSub");
-  if (!el) return;
   const hour = new Date().getHours();
   const timeGreeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
-  greeting.textContent = `👋 ${timeGreeting}${name ? ", " + name : ""}!`;
+  let storeLabel = "All Stores";
   let raw = getUserStoreFromToken() || selectedStore || "";
   if (raw && raw !== "all") {
     const resolved = _stores ? (_stores.find(s => s.id === raw) || _stores.find(s => s.name === raw)) : null;
-    const storeName = resolved ? resolved.name : raw;
-    const short = storeName.replace(/^Hari Om Electronics - /, '');
-    const cls = short.toLowerCase() === "alandi" ? "chip-alandi" : "chip-dhanore";
-    sub.innerHTML = `<span class="store-chip ${cls}"><span class="chip-dot"></span>${escHtml(short)}</span>`;
-  } else {
-    sub.textContent = "📋 All Stores";
+    storeLabel = resolved ? resolved.name.replace(/^Hari Om Electronics - /, '') : raw;
   }
-  const dlvEl = document.getElementById("welcomeDlvCount");
-  const tdyEl = document.getElementById("welcomeTodayCount");
   const fcAll = document.getElementById("fc-all");
   const fcToday = document.getElementById("fc-today");
-  if (dlvEl && fcAll) dlvEl.textContent = fcAll.textContent || "—";
-  if (tdyEl && fcToday) tdyEl.textContent = fcToday.textContent || "—";
-  el.classList.add("show");
+  const dlv = fcAll ? (fcAll.textContent || "—") : "—";
+  const tdy = fcToday ? (fcToday.textContent || "—") : "—";
+  // Non-intrusive corner toast instead of a full-screen overlay flash
+  showToast(`👋 ${timeGreeting}${name ? ", " + name : ""} — ${storeLabel} · ${dlv} deliveries, ${tdy} today`, "info");
   localStorage.setItem("welcomeDate", today);
-  setTimeout(() => el.classList.remove("show"), 3800);
-  el.onclick = () => el.classList.remove("show");
 }
 
 function updateAccountantStoreBadge() {
@@ -1739,14 +1606,6 @@ function updateAccountantStoreBadge() {
   } else if (storeName) el.textContent = `(${display})`;
   else el.textContent = "";
 }
-function setStoreFilter(val) {
-  selectedStore = val;
-  const sel = document.getElementById("storeFilterSelect");
-  if (sel) sel.value = val;
-  updateAccountantStoreBadge();
-  loadDeliveryCounts().then(() => loadDeliveries());
-}
-
 setTimeout(loadStores, 0);
 
 // Guard on every tab focus
@@ -1772,19 +1631,6 @@ function showApp() {
     selectedStore = jwtName ? (nameToId[jwtName.toLowerCase()] || jwtName) : "all";
   }
   updateAccountantStoreBadge();
-  function setStoreFilterValue() {
-    const sel = document.getElementById("storeFilterSelect");
-    if (sel) {
-      sel.value = selectedStore;
-      if (sel.value !== selectedStore) sel.value = "all";
-    }
-  }
-  if (_stores && _stores.length) {
-    populateStoreFilterSelect();
-    setStoreFilterValue();
-  } else {
-    setTimeout(() => { populateStoreFilterSelect(); setStoreFilterValue(); }, 500);
-  }
   setTimeout(showWelcomeOnce, 600);
 }
 
@@ -1929,8 +1775,8 @@ function initApp() {
 function startAutoRefresh() {
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
   autoRefreshInterval = setInterval(() => {
-    if (!document.hidden) loadDeliveries();
-  }, 90000);  // 90s — reduces rate-limit pressure from auto-refresh
+    if (!document.hidden) loadDeliveries(false);
+  }, 90000);  // 90s — reduces rate-limit pressure from auto-refresh (no skeleton to avoid flicker)
 }
 
 /* ── FILTERS ── */
@@ -3565,7 +3411,7 @@ async function createDelivery() {
     sold_by_id:              document.getElementById("sold_by").value || "",
     sold_by_name:            document.getElementById("sold_by").options[document.getElementById("sold_by").selectedIndex].text || "Others",
     sale_price:              parseFloat(document.getElementById("sale_price").value) || 0,
-    storeId:           document.getElementById("storeId").value || "",
+    storeId:           getUserStoreIdFromToken() || "",
     source:                  _formCreationSource
   };
 
@@ -3616,6 +3462,7 @@ async function createDelivery() {
               product_name:       products[i].product_name || "",
               serial_number:      products[i].product_serial_number || "",
               priority:           products[i].install_priority || "normal",
+              storeId:            sharedPayload.storeId || "",
             })
           });
         } catch(e) { console.warn("[install ticket]", e.message); }
@@ -3688,25 +3535,13 @@ function resetForm() {
   document.getElementById("freight_charged").checked = false;
   document.getElementById("freight_amount").style.display = "none";
   document.getElementById("freight_amount").value = "";
-  // Auto-set store for accountants, keep dropdown for admins
+  // Show store badge from header badge (already resolved by updateAccountantStoreBadge)
   (function() {
-    const sid = getUserStoreIdFromToken();
-    const isSuper = getUserIsSuperAdminFromToken();
-    const sel = document.getElementById("storeId");
-    const badge = document.getElementById("storeReadonlyBadge");
-    const section = sel?.closest(".store-section");
-    if (sid && !isSuper) {
-      if (sel) { sel.value = sid; sel.style.display = "none"; }
-      if (section) section.querySelector(".section-title").style.display = "none";
-      if (badge) {
-        const name = ({store_a:"Alandi",store_b:"Dhanore"})[sid] || sid;
-        badge.style.display = "block";
-        badge.innerHTML = `<span class="store-chip ${sid==="store_a"?"chip-alandi":"chip-dhanore"}"><span class="chip-dot"></span>${name}</span>`;
-      }
-    } else {
-      if (sel) sel.style.display = "";
-      if (section) section.querySelector(".section-title").style.display = "";
-      if (badge) badge.style.display = "none";
+    const badge = document.getElementById("createDoStoreBadge");
+    const headerBadge = document.getElementById("accStoreBadge");
+    if (badge && headerBadge && headerBadge.innerHTML.trim()) {
+      badge.style.display = "block";
+      badge.innerHTML = headerBadge.innerHTML;
     }
   })();
   // Per-product fields (serial, invoice, pickup_from) reset when product items are re-rendered
@@ -3776,15 +3611,35 @@ function formatDate(dateString) {
 }
 
 /* ── LOAD DELIVERIES ── */
-async function loadDeliveries() {
+async function loadDeliveries(showSkeleton = true) {
   if (_deliveriesDebounceTimer) { clearTimeout(_deliveriesDebounceTimer); }
   return new Promise(resolve => {
     _deliveriesDebounceTimer = setTimeout(async () => {
       _deliveriesDebounceTimer = null;
-      await _doLoadDeliveries();
+      await _doLoadDeliveries(showSkeleton);
       resolve();
     }, 0);
   });
+}
+
+/* Shimmer placeholder rows/cards shown while deliveries are loading */
+function showDeliverySkeleton() {
+  const list = document.getElementById("list");
+  if (list) {
+    list.innerHTML = Array.from({ length: 8 }).map(() =>
+      `<tr><td colspan="9"><div class="skeleton" style="height:16px;width:92%;margin:12px 0;"></div></td></tr>`
+    ).join("");
+  }
+  const mc = document.getElementById("mobileCards");
+  if (mc) {
+    mc.innerHTML = Array.from({ length: 5 }).map(() =>
+      `<div class="skeleton-card">
+        <div class="skeleton-line" style="width:60%"></div>
+        <div class="skeleton-line" style="width:40%"></div>
+        <div class="skeleton-line" style="width:80%"></div>
+      </div>`
+    ).join("");
+  }
 }
 
 async function loadDeliveryCounts() {
@@ -3799,11 +3654,14 @@ async function loadDeliveryCounts() {
   }
 }
 
-async function _doLoadDeliveries() {
+async function _doLoadDeliveries(showSkeleton = true) {
   if (_deliveriesInflight) return;
   _deliveriesInflight = true;
   const countsPromise = loadDeliveryCounts();
   try {
+    // Shimmer skeleton on user-initiated loads (initial / filter / search / page).
+    // Skipped for background auto-refresh (showSkeleton=false) to avoid flicker + scroll jump.
+    if (showSkeleton) showDeliverySkeleton();
     let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
 
     const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
@@ -3891,6 +3749,14 @@ async function _doLoadDeliveries() {
 
     // Render rows
     const list = document.getElementById("list");
+    const _sy = window.scrollY;
+    if (pageData.length === 0) {
+      list.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div></td></tr>`;
+      const _mc = document.getElementById("mobileCards");
+      if (_mc) _mc.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div>`;
+      window.scrollTo(0, _sy);
+      return;
+    }
     list.innerHTML = "";
     const phonePositions = {};
     pageData.forEach((d,i) => {
@@ -3960,6 +3826,9 @@ async function _doLoadDeliveries() {
 
     renderMobileCards(pageData, batchPhones, batchNumberMap, BATCH_PALETTES);
     renderPaginationBar(totalItems, totalPagesResult, currentPage);
+    // Preserve scroll position across re-render (no jump on auto-refresh)
+    const _maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo(0, Math.max(0, Math.min(_sy, _maxScroll)));
   } catch (e) { clearDeliveryTables(); console.error(e); }
   finally { _deliveriesInflight = false; }
 }
@@ -4065,6 +3934,7 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
       container.appendChild(makeMobCard(d, null));
     }
   });
+  staggerCards(container);
 }
 
 /* ── VIEW POPUP ── */
@@ -4102,11 +3972,12 @@ function openViewPopup(id) {
     <div class="detail-row" id="driverDetailRow">
       <b>Driver</b>
       <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span id="driverNameDisplay">${escHtml(delivery.assigned_driver_name) || "—"}</span>
+        <span id="driverNameDisplay">${escHtml(delivery.assigned_driver_name) || "&mdash;"}</span>
+        ${delivery.status !== "delivered" && delivery.status !== "failed" && delivery.status !== "loaded" ? `
         <button onclick="openInlineDriverChange('${escHtml(delivery.id)}')"
           style="padding:3px 10px;font-size:11px;font-weight:700;background:rgba(173,198,255,0.1);color:var(--primary);border:1.5px solid rgba(173,198,255,0.3);border-radius:7px;cursor:pointer;white-space:nowrap;">
           ✏ Change
-        </button>
+        </button>` : ""}
       </span>
     </div>
     <div id="inlineDriverChangeArea" style="display:none;padding:10px 0 4px 0;"></div>
@@ -4153,8 +4024,8 @@ function openViewPopup(id) {
           </div>` : ""}
       </div>` : ""}
 
-    ${delivery.loaded_location    ? `<div class="detail-row"><b>Loaded Location</b><a href="https://www.google.com/maps?q=${delivery.loaded_location.lat},${delivery.loaded_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></div>` : ""}
-    ${delivery.delivered_location ? `<div class="detail-row"><b>Delivered Location</b><a href="https://www.google.com/maps?q=${delivery.delivered_location.lat},${delivery.delivered_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></div>` : ""}
+    ${delivery.loaded_location    ? `<div class="detail-row"><b>Loaded Location</b><span><a href="https://www.google.com/maps?q=${delivery.loaded_location.lat},${delivery.loaded_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></span></div>` : ""}
+    ${delivery.delivered_location ? `<div class="detail-row"><b>Delivered Location</b><span><a href="https://www.google.com/maps?q=${delivery.delivered_location.lat},${delivery.delivered_location.lng}" target="_blank" style="color:var(--accent);">View Map</a></span></div>` : ""}
 
     ${delivery.status === "failed" ? `
     <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:16px;margin-top:16px;">
@@ -4191,6 +4062,17 @@ function openViewPopup(id) {
 
   if (delivery.status === "pending" || delivery.status === "booked") {
     content.innerHTML += `<button class="btn btn-primary" style="margin-top:16px;" onclick="editDelivery('${escHtml(delivery.id)}')">✏ Edit</button>`;
+  }
+
+  if (delivery.status === "loaded") {
+    content.innerHTML += `
+      <div style="margin-top:16px;padding:14px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:12px;">
+        <div style="font-size:13px;font-weight:700;color:#c2410c;margin-bottom:4px;">↩ Revert to Pending</div>
+        <div style="font-size:12px;color:#92400e;margin-bottom:10px;">Clears loaded photo, serial number, and moves delivery back to pending so you can reassign driver and reload.</div>
+        <button class="btn btn-danger btn-sm" onclick="revertLoaded('${escHtml(delivery.id)}')">
+          ↩ Revert to Pending
+        </button>
+      </div>`;
   }
 
   if (delivery.status === "delivered" || delivery.status === "booked") {
@@ -4262,6 +4144,17 @@ function openViewPopup(id) {
 
 function closeViewPopup() {
   document.getElementById("viewPopup").classList.remove("is-open");
+}
+
+async function revertLoaded(deliveryId) {
+  if (!confirm("Revert this delivery to pending? The loaded photo and serial number will be cleared.")) return;
+  try {
+    const res = await authFetch(`${BASE_URL}/revertLoaded/${deliveryId}`, { method: "POST" });
+    if (!res.ok) { const d = await res.json(); showToast(d.error || "Failed to revert", "error"); return; }
+    showToast("Delivery reverted to pending", "success");
+    closeViewPopup();
+    loadDeliveries();
+  } catch(e) { showToast("Network error", "error"); }
 }
 
 /* ── RAISE SERVICE TICKET — INLINE FORMS ── */
@@ -4356,6 +4249,7 @@ async function submitInstallTicket(deliveryId) {
         product_name:       delivery.product_name,
         serial_number:      delivery.product_serial_number,
         priority,
+        storeId:            delivery.storeId || "",
       })
     });
     const data = await res.json();
@@ -4399,6 +4293,7 @@ async function submitComplaintTicket(deliveryId) {
         serial_number:      delivery.product_serial_number,
         description,
         priority,
+        storeId:            delivery.storeId || "",
       })
     });
     const data = await res.json();
@@ -4540,7 +4435,7 @@ async function openInlineDriverChange(deliveryId) {
     return;
   }
 
-  area.innerHTML = `<div style="font-size:12px;color:var(--muted);">Loading drivers…</div>`;
+  area.innerHTML = `<div class="skeleton-line" style="height:12px;width:100px;"></div>`;
   area.style.display = "block";
 
   const res = await fetch(`${BASE_URL}/driver-list-public`);
@@ -6052,7 +5947,7 @@ function renderTallyInvoiceList() {
   if (vouchers.length === 0) {
     container.innerHTML = `
       <div class="tally-empty">
-        <div class="tally-empty-icon">${_tallyCurrentTab === "today" ? "📅" : "✅"}</div>
+        <div style="margin-bottom:10px;">${emptyStateSVG('receipt')}</div>
         <div class="tally-empty-text">${_tallyCurrentTab === "today" ? "No sales found for today" : "All vouchers already imported"}</div>
         <div class="tally-empty-sub">${_tallyCurrentTab === "today" ? "Try the 'All' tab to see other dates" : "Switch to 'All' to re-import"}</div>
       </div>`;
@@ -6111,13 +6006,6 @@ function confirmTallyImport() {
   // ── Fill address ──
   const addr1 = document.getElementById("addr1");
   if (addr1 && v.address) addr1.value = v.address;
-
-  // ── Fill Store ──
-  const pos = document.getElementById("storeId");
-  if (pos && v.store_branch) {
-    const branchToId = { Alandi: "store_a", Dhanore: "store_b" };
-    pos.value = branchToId[v.store_branch] || v.store_branch;
-  }
 
   // ── Fill products ── (same logic as handleInvoiceImport for consistency)
   if (v.products && v.products.length > 0) {

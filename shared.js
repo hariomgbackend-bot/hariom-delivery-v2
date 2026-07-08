@@ -44,6 +44,19 @@ function mkStoreBadge(storeId, size = 22) {
   return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:linear-gradient(135deg,${c1},${c2});color:#fff;font-size:${fs}px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.12);vertical-align:middle;">${letter}</span>`;
 }
 
+/* ── Skeleton loading placeholders ── */
+function skeletons(n, type = "card") {
+  if (type === "row") {
+    return `<tr><td colspan="99" style="padding:0;border:none;"><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div><div class="skeleton" style="height:40px;width:100%;margin:6px 0;"></div></td></tr>`;
+  }
+  return Array.from({length:n}, () => `
+    <div class="skeleton-card">
+      <div class="skeleton-line" style="height:18px;width:60%;"></div>
+      <div class="skeleton-line" style="height:13px;width:40%;"></div>
+      <div class="skeleton-line" style="height:13px;width:80%;margin-top:14px;"></div>
+    </div>`).join("");
+}
+
 /* ── HTML escape ── */
 function escHtml(s) {
   return String(s||"").replace(/&#x2F;/g,"/").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -93,14 +106,49 @@ function ratingBadge(d) {
   return `<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">🔴 VLate</span>`;
 }
 
-/* ── Toast notification ── */
+/* ── Toast notification (queued so rapid toasts don't clobber) ── */
+const TOAST_ICONS = { success:"✅", error:"❌", warning:"⚠️", info:"ℹ️" };
+let _toastQueue = [];
+let _toastShowing = false;
 function showToast(msg, type = "") {
+  _toastQueue.push({ msg, type });
+  if (!_toastShowing) _processToast();
+}
+function _processToast() {
+  if (_toastQueue.length === 0) { _toastShowing = false; return; }
+  _toastShowing = true;
+  const { msg, type } = _toastQueue.shift();
   const t = document.getElementById("toast");
-  if (!t) return;
-  t.textContent = msg;
+  if (!t) { _toastShowing = false; return; }
+  const icon = TOAST_ICONS[type] || "";
+  t.innerHTML = icon ? `<span style="margin-right:6px;">${icon}</span>${msg}` : msg;
   t.className = "show " + type;
   clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove("show"), 3000);
+  t._timer = setTimeout(() => {
+    t.classList.remove("show");
+    setTimeout(_processToast, 250);
+  }, 3000);
+}
+
+/* ── Stagger card fade-in ── */
+function staggerCards(container) {
+  if (!container) return;
+  const children = container.children;
+  for (let i = 0; i < children.length; i++) {
+    children[i].style.animation = `cardIn 0.3s ${i * 0.03}s both`;
+  }
+}
+
+/* ── Empty state SVGs ── */
+function emptyStateSVG(type) {
+  const m = {
+    clipboard:'<svg width="80" height="80" viewBox="0 0 80 80" fill="none"><rect x="20" y="12" width="40" height="54" rx="5" stroke="currentColor" stroke-width="2.5" opacity=".35"/><path d="M32 8c0-3 4-3 8-3s8-3 8-0" stroke="currentColor" stroke-width="2.5" opacity=".35"/><rect x="28" y="24" width="24" height="3" rx="1.5" fill="currentColor" opacity=".35"/><rect x="28" y="33" width="24" height="3" rx="1.5" fill="currentColor" opacity=".35"/><rect x="28" y="42" width="18" height="3" rx="1.5" fill="currentColor" opacity=".35"/><rect x="28" y="51" width="20" height="3" rx="1.5" fill="currentColor" opacity=".35"/></svg>',
+    box:'<svg width="80" height="80" viewBox="0 0 80 80" fill="none"><rect x="18" y="32" width="44" height="32" rx="4" stroke="currentColor" stroke-width="2.5" opacity=".35"/><path d="M18 42h44" stroke="currentColor" stroke-width="2.5" opacity=".35"/><path d="M40 32v32" stroke="currentColor" stroke-width="2.5" opacity=".35"/><path d="M26 24l14-8 14 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/></svg>',
+    person:'<svg width="80" height="80" viewBox="0 0 80 80" fill="none"><circle cx="40" cy="28" r="14" stroke="currentColor" stroke-width="2.5" opacity=".35"/><path d="M12 68c0-16 12-28 28-28s28 12 28 28" stroke="currentColor" stroke-width="2.5" opacity=".35"/></svg>',
+    check:'<svg width="80" height="80" viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="28" stroke="currentColor" stroke-width="2.5" opacity=".35"/><path d="M28 40l8 8 16-16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/></svg>',
+    receipt:'<svg width="80" height="80" viewBox="0 0 80 80" fill="none"><path d="M22 14v52l6-4 6 4 6-4 6 4 6-4 6 4V14l-6 4-6-4-6 4-6-4-6 4-6-4z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" opacity=".35"/><rect x="30" y="28" width="20" height="3" rx="1.5" fill="currentColor" opacity=".35"/><rect x="30" y="36" width="20" height="3" rx="1.5" fill="currentColor" opacity=".35"/><rect x="30" y="44" width="14" height="3" rx="1.5" fill="currentColor" opacity=".35"/></svg>',
+  };
+  return m[type] || m.box;
 }
 
 /* ── Unified auth fetch ── */
