@@ -838,6 +838,7 @@ function toggleSettings() {
 
 /* ── POLL LOOP ── */
 var pollTimer = null;
+var _lastAlertUpdate = Date.now();
 var lastActivityCheck = null;
 var seenDeliveryIds = new Set();
 var seenDeletionIds = new Set();
@@ -896,6 +897,10 @@ async function safeJsonArray(resp) {
 /* ── MAIN CHECK ── */
 async function checkAllAlerts() {
   try {
+    var _staleThreshold = (settings.pollInterval || 30) * 2000;
+    if (Date.now() - _lastAlertUpdate > _staleThreshold) {
+      setStatus('pending', __('reconnecting'));
+    }
     var token = getToken();
     if (!token || isTokenExpired(token)) { await tryAutoRelogin(); return; }
 
@@ -1207,6 +1212,7 @@ async function checkAllAlerts() {
       }
     }
 
+    _lastAlertUpdate = Date.now();
     setStatus('active', __('updated') + ' ' + new Date().toLocaleTimeString());
     renderAlerts(allAlerts);
     fireNotifications(allAlerts);

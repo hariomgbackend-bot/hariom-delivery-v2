@@ -2347,6 +2347,60 @@ app.delete("/delivery/:id", authenticate, authorize(["admin"]), async (req, res)
 });
 
 /* ════════════════════════════════════════════════
+   BATCH UPDATE DELIVERIES (admin UI)
+   POST /batch/deliveries
+   Body: { ids: string[], driverId?: string, driverName?: string, status?: string }
+   Updates status and/or driver for multiple deliveries at once.
+   Does not require photo uploads — lightweight batch operation.
+   Only affects deliveries in "booked" or "pending" status.
+════════════════════════════════════════════════ */
+app.post("/batch/deliveries", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const { ids, driverId, driverName, status } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No delivery IDs provided" });
+    }
+    if (ids.length > 100) {
+      return res.status(400).json({ error: "Batch limit is 100 deliveries" });
+    }
+    if (!driverId && !driverName && !status) {
+      return res.status(400).json({ error: "Nothing to update — provide driver and/or status" });
+    }
+    const VALID_STATUSES = ["booked", "pending", "loaded", "delivered", "failed"];
+    if (status && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+    const results = [];
+    for (const id of ids) {
+      try {
+        const refDoc = doc(db, "deliveries", id);
+        const snap = await getDoc(refDoc);
+        if (!snap.exists()) { results.push({ id, error: "Not found" }); continue; }
+        const delivery = snap.data();
+        if (delivery.status !== "booked" && delivery.status !== "pending") {
+          results.push({ id, error: `Invalid status: ${delivery.status}` }); continue;
+        }
+        const update = {};
+        if (driverId) update.assigned_driver_id = driverId;
+        if (driverName) update.assigned_driver_name = driverName;
+        if (status) update.status = status;
+        if (Object.keys(update).length) {
+          await updateDoc(refDoc, update);
+          results.push({ id, success: true });
+        }
+      } catch (e) {
+        results.push({ id, error: e.message });
+      }
+    }
+    invalidateDeliveriesCache();
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error("/batch/deliveries error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
    DELETE FAILED DELIVERY (accountant)
    Only allows deletion of failed-status deliveries.
    Requires a deletion reason for audit trail.
@@ -2591,7 +2645,7 @@ app.post("/addDriver", authenticate, authorize(["admin"]), async (req, res) => {
   res.json({ success: true, id: docRef.id });
 });
 
-app.get("/drivers", authenticate, authorize(["admin"]), async (req, res) => {
+app.get("/drivers", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
   const snapshot = await getDocs(collection(db, "drivers"));
   res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
 });
@@ -7006,6 +7060,31 @@ app.post("/api/tally-proxy", express.text({ type: 'text/xml' }), async (req, res
       error: "Could not connect to TallyPrime.",
       details: error.message
     });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   ALERT COUNT — lightweight badge count for other pages
+   GET /api/alert-count
+   Returns: { count: number }
+   Counts unassigned + overdue DOs + open tickets + new leads
+════════════════════════════════════════════════ */
+app.get("/api/alert-count", authenticate, async (req, res) => {
+  try {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const [delSnap, ticketSnap, leadSnap] = await Promise.all([
+      getDocs(query(collection(db, "deliveries"), where("assigned_driver_name", "==", "Unassigned"))),
+      getDocs(query(collection(db, "service_tickets"), where("status", "==", "open"))),
+      getDocs(query(collection(db, "leads"), where("createdAt", ">=", today)))
+    ]);
+    const unassigned = delSnap.docs.filter(d => d.data().status === "booked" || d.data().status === "pending").length;
+    const tickets = ticketSnap.size;
+    const leads = leadSnap.size;
+    res.json({ count: unassigned + tickets + leads });
+    res.json({ count });
+  } catch (e) {
+    res.json({ count: 0 });
   }
 });
 

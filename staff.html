@@ -1576,6 +1576,7 @@ function switchTab(tab) {
   });
   if (tab === "home") updateHomeCounts();
   if (tab === "raiseTicket") clearPhoneSearch();
+  if (tab === "deliveries") loadDeliveries();
   if (tab === "calendar") { if (staffCalendar) { staffCalendar.render(); updateFullCalendar(); } else initStaffCalendar(); }
   if (tab === "prices") stPgRender(priceGuideData);
   if (tab === "slabs") stSlLoadData();

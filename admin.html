@@ -1620,6 +1620,7 @@
     </div>
     <div class="topbar-right">
       <span id="lastUpdated"></span>
+      <button onclick="location.href='alerts.html'" style="position:relative;padding:6px 10px;border:none;border-radius:8px;background:transparent;cursor:pointer;font-size:18px;" title="Alerts">🔔<span id="alertBadge" style="display:none;position:absolute;top:0;right:0;min-width:16px;height:16px;border-radius:8px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;padding:0 4px;"></span></button>
       <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
       <button onclick="adminLogout()" style="padding:6px 12px;border:none;border-radius:8px;background:var(--error-container);color:var(--on-error-container);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.3px;">LOGOUT</button>
     </div>
@@ -1668,7 +1669,7 @@
         <table>
           <thead>
             <tr>
-              <th style="width:22px;"></th>
+              <th style="width:22px;"><input type="checkbox" id="selectAllCheck" onchange="toggleSelectAll(this.checked)" title="Select all"></th>
               <th>Customer</th>
               <th style="width:38px;text-align:center;">St</th>
               <th>Driver</th>
@@ -1680,6 +1681,14 @@
           </thead>
           <tbody id="adminTable"></tbody>
         </table>
+      </div>
+
+      <!-- BATCH ACTIONS BAR -->
+      <div id="batchBar" style="display:none;padding:10px 16px;background:var(--surface-container-high);border-radius:10px;margin:10px 0;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span id="batchCount" style="font-weight:700;font-size:13px;color:var(--on-surface);"></span>
+        <button class="btn-sm" onclick="batchAssignDriver()" style="background:var(--primary);color:var(--on-primary-container);border:none;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;">🚚 Assign Driver</button>
+        <button class="btn-sm" onclick="batchChangeStatus()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;">📋 Change Status</button>
+        <button class="btn-sm" onclick="clearBatchSelection()" style="background:transparent;color:var(--error);border:1px solid var(--error);border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;">✕ Clear</button>
       </div>
 
       <!-- MOBILE DELIVERY CARDS -->
@@ -2938,6 +2947,7 @@ function showView(view) {
   const lbl = document.getElementById('topbarViewLabel');
   if (lbl) lbl.textContent = VIEW_LABELS[view] || '';
 
+  if (view === 'deliveries')      { loadAdmin(); }
   if (view === 'payout')          { loadPayoutDrivers(); }
   if (view === 'storage')         { loadStorageStats(); }
   if (view === 'service-count')   { loadServiceCount(); }
@@ -2958,6 +2968,24 @@ function showView(view) {
   if (view === 'links')               { _initLinkUrls(); }
   if (view === 'activity-log')        { loadActivityLog(); }
 }
+
+// ── ALERT BADGE ──────────────────────────────────────────────────
+async function fetchAlertBadge() {
+  try {
+    const r = await authFetch(`${BASE_URL}/api/alert-count`);
+    const data = await r.json();
+    const badge = document.getElementById("alertBadge");
+    if (!badge) return;
+    if (data.count > 0) {
+      badge.textContent = data.count > 99 ? "99+" : data.count;
+      badge.style.display = "inline";
+    } else {
+      badge.style.display = "none";
+    }
+  } catch (e) { /* ignore */ }
+}
+setInterval(fetchAlertBadge, 60000);
+fetchAlertBadge();
 
 /* Jump to a section inside Price Guide (Categories / Models) from the sidebar */
 function gotoPriceGuide(section) {
@@ -3912,10 +3940,23 @@ window.addEventListener("offline", () => {
   document.getElementById("offlineBanner").classList.add("show");
 });
 
-/* ── ESC KEY CLOSES POPUPS ── */
+/* ── KEYBOARD SHORTCUTS ── */
 document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
   if (e.key === "Escape") {
     document.querySelectorAll(".popup-overlay.is-open").forEach(el => el.classList.remove("is-open"));
+    return;
+  }
+  if (e.key === "n" || e.key === "N") {
+    e.preventDefault();
+    window.open("accountant.html", "_blank");
+    return;
+  }
+  if (e.key === "f" || e.key === "F") {
+    e.preventDefault();
+    const search = document.getElementById("adminSearch");
+    if (search) { search.focus(); search.select(); }
+    return;
   }
 });
 
@@ -4000,6 +4041,7 @@ window.authGetToken = getAdminToken;
 window.authOnError = () => redirectToLogin("expired");
 setTimeout(loadStores, 0);
 
+let _adminSearchDebounceTimer = null;
 let selectedAdminDate = null;
 let currentFilter = "all";
 let adminStoreFilter = "all";
@@ -4060,6 +4102,11 @@ function applyDateFilter() {
 let adminTallyProducts = [];
 
 async function loadAdmin() {
+  const table = document.getElementById("adminTable");
+  if (table) table.innerHTML = skeletons(3, "row");
+  const mc = document.getElementById("mobCards");
+  if (mc) mc.innerHTML = skeletons(3);
+
   if (!adminTallyProducts.length) {
     fetch(`${BASE_URL}/tally/products`).then(r => r.json()).then(d => {
       adminTallyProducts = d.names || [];
@@ -4091,8 +4138,8 @@ async function loadAdmin() {
     const res = await authFetch(url);
     result = await res.json();
   } catch (e) {
-    const table = document.getElementById("adminTable");
     if (table) table.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--error);">Failed to load deliveries — <button onclick="loadAdmin()" style="margin-top:8px;padding:8px 18px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">↻ Retry</button></td></tr>`;
+    if (mc) mc.innerHTML = "";
     return;
   }
 
@@ -4115,7 +4162,6 @@ async function loadAdmin() {
   updateFilterCounts(data, serverCounts);
   const pageData = data;
 
-  const table = document.getElementById("adminTable");
   const _sy = window.scrollY;
   table.innerHTML = "";
 
@@ -4200,8 +4246,9 @@ async function loadAdmin() {
     row.className = ("main-row " + rowExtraClass).trim();
     const stCircle = mkStoreBadge(d.storeId, 22);
 
+    const delId = d.id;
     row.innerHTML = `
-      <td><span class="row-chevron">▶</span></td>
+      <td style="white-space:nowrap;"><input type="checkbox" class="row-checkbox" data-id="${escHtml(delId)}" onchange="updateBatchBar()"><span class="row-chevron" style="margin-left:2px;">▶</span></td>
       <td>
         <b>${escHtml(d.customer_name || "")}</b>${batchTag}
         ${d.phone ? `<div style="margin-top:2px;"><a href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">📞 ${escHtml(d.phone)}</a></div>` : ""}
@@ -4281,6 +4328,10 @@ async function loadAdmin() {
     table.appendChild(row);
     table.appendChild(expandRow);
   });
+  if (pageData.length === 0) {
+    table.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div></td></tr>`;
+    if (mc) mc.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div>`;
+  }
   staggerCards(table);
 
   // Last updated
@@ -4611,6 +4662,27 @@ function enableEdit() {
           dl.appendChild(opt);
         });
       }
+
+      // Auto-save draft on input
+      const draftKey = "del_" + d.id;
+      const draft = restoreFormDraft(draftKey);
+      if (draft && Object.keys(draft).length > 2) {
+        const restore = confirm("Unsaved changes found from a previous edit. Restore them?");
+        if (restore) {
+          Object.entries(draft).forEach(([id, val]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (el.type === "checkbox") el.checked = val;
+            else el.value = val;
+          });
+        } else {
+          clearFormDraft(draftKey);
+        }
+      }
+      document.querySelectorAll("#popupContent input:not([type=file]), #popupContent select").forEach(f => {
+        f.addEventListener("input", () => saveFormDraft(draftKey));
+        f.addEventListener("change", () => saveFormDraft(draftKey));
+      });
     })
     .catch(() => {
       // Fallback if driver list fails — show plain text input
@@ -4643,6 +4715,22 @@ function formatEtaForInput(eta) {
   if (!eta || eta === "On-Demand") return "";
   if (eta.seconds) return new Date(eta.seconds * 1000).toISOString().slice(0, 16);
   return new Date(eta).toISOString().slice(0, 16);
+}
+
+// ── FORM DRAFT AUTO-SAVE ──────────────────────────────────────────
+const DRAFT_PREFIX = "admin_draft_";
+function saveFormDraft(key) {
+  const vals = {};
+  document.querySelectorAll("#popupContent input:not([type=file]), #popupContent select, #popupContent input[type=checkbox]").forEach(f => {
+    vals[f.id] = f.type === "checkbox" ? f.checked : f.value;
+  });
+  try { localStorage.setItem(DRAFT_PREFIX + key, JSON.stringify(vals)); } catch (e) {}
+}
+function restoreFormDraft(key) {
+  try { return JSON.parse(localStorage.getItem(DRAFT_PREFIX + key)); } catch (e) { return null; }
+}
+function clearFormDraft(key) {
+  try { localStorage.removeItem(DRAFT_PREFIX + key); } catch (e) {}
 }
 
 async function updateDelivery(id) {
@@ -4710,6 +4798,7 @@ async function updateDelivery(id) {
       }
     }
 
+    clearFormDraft("del_" + id);
     document.getElementById("popup").classList.remove("is-open");
     loadAdmin();
   } catch (e) {
@@ -4910,8 +4999,11 @@ function updateFilterCounts(allData, serverCounts = null) {
 
 // ── SEARCH ────────────────────────────────────────────────────────
 function onSearch() {
-  currentPage = 1;
-  loadAdmin();
+  if (_adminSearchDebounceTimer) clearTimeout(_adminSearchDebounceTimer);
+  _adminSearchDebounceTimer = setTimeout(() => {
+    currentPage = 1;
+    loadAdmin();
+  }, 300);
 }
 
 setInterval(() => {
@@ -4920,6 +5012,127 @@ setInterval(() => {
   loadAdmin();
 }, 30000);
 loadAdmin();
+
+// ── BATCH OPERATIONS ──────────────────────────────────────────────
+function getSelectedIds() {
+  return Array.from(document.querySelectorAll(".row-checkbox:checked")).map(cb => cb.dataset.id);
+}
+function updateBatchBar() {
+  const bar = document.getElementById("batchBar");
+  const count = document.getElementById("batchCount");
+  const checked = document.querySelectorAll(".row-checkbox:checked").length;
+  const all = document.querySelectorAll(".row-checkbox").length;
+  const selAll = document.getElementById("selectAllCheck");
+  if (selAll) selAll.checked = checked > 0 && checked === all;
+  if (checked === 0) { bar.style.display = "none"; return; }
+  bar.style.display = "flex";
+  count.textContent = checked + " selected";
+}
+function toggleSelectAll(checked) {
+  document.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = checked);
+  updateBatchBar();
+}
+function clearBatchSelection() {
+  document.querySelectorAll(".row-checkbox:checked").forEach(cb => cb.checked = false);
+  updateBatchBar();
+}
+async function batchAssignDriver() {
+  const ids = getSelectedIds();
+  if (!ids.length) return showToast("Select deliveries first", "warning");
+  try {
+    const res = await fetch(`${BASE_URL}/driver-list-public`);
+    const drivers = await res.json();
+    if (!drivers.length) return showToast("No drivers found", "error");
+
+    let opts = drivers.map(d => `<option value="${escHtml(d.id)}|${escHtml(d.driver_name)}">${escHtml(d.driver_name)}</option>`).join("");
+    const sel = document.createElement("select");
+    sel.innerHTML = `<option value="">— Select driver —</option>${opts}`;
+    sel.style.cssText = "width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:14px;margin:12px 0;";
+
+    const confirmed = await new Promise(resolve => {
+      const ov = document.createElement("div");
+      ov.className = "popup-overlay is-open";
+      ov.innerHTML = `<div class="popup-card" style="max-width:400px;">
+        <h3 style="margin:0 0 8px;">🚚 Assign Driver</h3>
+        <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">${ids.length} delivery(ies) selected</p>
+        <div id="batchDriverPicker"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+          <button class="btn-gray" id="batchCancelBtn">Cancel</button>
+          <button class="btn-primary" id="batchConfirmBtn" disabled>Assign</button>
+        </div>
+      </div>`;
+      document.body.appendChild(ov);
+      const picker = ov.querySelector("#batchDriverPicker");
+      picker.appendChild(sel);
+      sel.onchange = () => { ov.querySelector("#batchConfirmBtn").disabled = !sel.value; };
+      ov.querySelector("#batchCancelBtn").onclick = () => { document.body.removeChild(ov); resolve(null); };
+      ov.querySelector("#batchConfirmBtn").onclick = () => { document.body.removeChild(ov); resolve(sel.value); };
+    });
+    if (!confirmed) return;
+    const [driverId, driverName] = confirmed.split("|");
+    const r = await authFetch(`${BASE_URL}/batch/deliveries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, driverId, driverName })
+    });
+    const result = await r.json();
+    if (result.success) {
+      showToast(`Assigned ${driverName} to ${result.results.filter(r => r.success).length} delivery(ies)`, "success");
+      clearBatchSelection();
+      loadAdmin();
+    } else {
+      showToast("Batch assign failed", "error");
+    }
+  } catch (e) {
+    showToast("Error: " + e.message, "error");
+  }
+}
+async function batchChangeStatus() {
+  const ids = getSelectedIds();
+  if (!ids.length) return showToast("Select deliveries first", "warning");
+  const VALID_STATUSES = ["booked", "pending", "loaded", "delivered", "failed"];
+  const sel = document.createElement("select");
+  sel.innerHTML = `<option value="">— Select status —</option>` + VALID_STATUSES.map(s => `<option value="${s}">${s}</option>`).join("");
+  sel.style.cssText = "width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:14px;margin:12px 0;";
+
+  const confirmed = await new Promise(resolve => {
+    const ov = document.createElement("div");
+    ov.className = "popup-overlay is-open";
+    ov.innerHTML = `<div class="popup-card" style="max-width:400px;">
+      <h3 style="margin:0 0 8px;">📋 Change Status</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">${ids.length} delivery(ies) selected</p>
+      <div id="batchStatusPicker"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+        <button class="btn-gray" id="batchStatCancelBtn">Cancel</button>
+        <button class="btn-primary" id="batchStatConfirmBtn" disabled>Change</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    const picker = ov.querySelector("#batchStatusPicker");
+    picker.appendChild(sel);
+    sel.onchange = () => { ov.querySelector("#batchStatConfirmBtn").disabled = !sel.value; };
+    ov.querySelector("#batchStatCancelBtn").onclick = () => { document.body.removeChild(ov); resolve(null); };
+    ov.querySelector("#batchStatConfirmBtn").onclick = () => { document.body.removeChild(ov); resolve(sel.value); };
+  });
+  if (!confirmed) return;
+  try {
+    const r = await authFetch(`${BASE_URL}/batch/deliveries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, status: confirmed })
+    });
+    const result = await r.json();
+    if (result.success) {
+      showToast(`Status changed to "${confirmed}" for ${result.results.filter(r => r.success).length} delivery(ies)`, "success");
+      clearBatchSelection();
+      loadAdmin();
+    } else {
+      showToast("Batch status change failed", "error");
+    }
+  } catch (e) {
+    showToast("Error: " + e.message, "error");
+  }
+}
 
 // ── PAYOUT TOGGLE ──────────────────────────────
 function togglePayout() {
