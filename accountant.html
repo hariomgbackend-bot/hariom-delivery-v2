@@ -3834,7 +3834,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
         <td><a class='phone-link' href='tel:${escHtml(d.phone)}'>${escHtml(d.phone)}</a></td>
         <td>${escHtml(d.product_name)}</td>
         <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${escHtml(d.address)||'—'}</span></td>
-        <td>${escHtml(d.assigned_driver_name)||"—"}</td>
+        <td>${d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—'}</td>
         <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
         <td>
           <span class="badge badge-${d.status}">${d.status}</span>
@@ -3932,7 +3932,7 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
       </div>
       <div class="mob-card-meta">
         <span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>
-        <span>🚚 ${escHtml(d.assigned_driver_name) || "—"}</span>
+        <span>🚚 ${d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—'}</span>
         <span>⏱ ${formatDate(d.estimated_delivery_time)}</span>
       </div>
     `;
