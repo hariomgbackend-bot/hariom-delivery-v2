@@ -1677,7 +1677,7 @@
         <table>
           <thead>
             <tr>
-              <th style="width:22px;"><input type="checkbox" id="selectAllCheck" onchange="toggleSelectAll(this.checked)" title="Select all"></th>
+              <th style="width:22px;"></th>
               <th>Customer</th>
               <th style="width:38px;text-align:center;">St</th>
               <th>Driver</th>
@@ -1689,14 +1689,6 @@
           </thead>
           <tbody id="adminTable"></tbody>
         </table>
-      </div>
-
-      <!-- BATCH ACTIONS BAR -->
-      <div id="batchBar" style="display:none;padding:10px 16px;background:var(--surface-container-high);border-radius:10px;margin:10px 0;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span id="batchCount" style="font-weight:700;font-size:13px;color:var(--on-surface);"></span>
-        <button class="btn-sm" onclick="batchAssignDriver()" style="background:var(--primary);color:var(--on-primary-container);border:none;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;">🚚 Assign Driver</button>
-        <button class="btn-sm" onclick="batchChangeStatus()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;">📋 Change Status</button>
-        <button class="btn-sm" onclick="clearBatchSelection()" style="background:transparent;color:var(--error);border:1px solid var(--error);border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;">✕ Clear</button>
       </div>
 
       <!-- MOBILE DELIVERY CARDS -->
@@ -4252,9 +4244,8 @@ async function loadAdmin() {
     row.className = ("main-row " + rowExtraClass).trim();
     const stCircle = mkStoreBadge(d.storeId, 22);
 
-    const delId = d.id;
     row.innerHTML = `
-      <td style="white-space:nowrap;"><input type="checkbox" class="row-checkbox" data-id="${escHtml(delId)}" onchange="updateBatchBar()"><span class="row-chevron" style="margin-left:2px;">▶</span></td>
+      <td><span class="row-chevron">▶</span></td>
       <td>
         <b>${escHtml(d.customer_name || "")}</b>${batchTag}
         ${d.phone ? `<div style="margin-top:2px;"><a href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">📞 ${escHtml(d.phone)}</a></div>` : ""}
@@ -5018,127 +5009,6 @@ setInterval(() => {
   loadAdmin();
 }, 30000);
 loadAdmin();
-
-// ── BATCH OPERATIONS ──────────────────────────────────────────────
-function getSelectedIds() {
-  return Array.from(document.querySelectorAll(".row-checkbox:checked")).map(cb => cb.dataset.id);
-}
-function updateBatchBar() {
-  const bar = document.getElementById("batchBar");
-  const count = document.getElementById("batchCount");
-  const checked = document.querySelectorAll(".row-checkbox:checked").length;
-  const all = document.querySelectorAll(".row-checkbox").length;
-  const selAll = document.getElementById("selectAllCheck");
-  if (selAll) selAll.checked = checked > 0 && checked === all;
-  if (checked === 0) { bar.style.display = "none"; return; }
-  bar.style.display = "flex";
-  count.textContent = checked + " selected";
-}
-function toggleSelectAll(checked) {
-  document.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = checked);
-  updateBatchBar();
-}
-function clearBatchSelection() {
-  document.querySelectorAll(".row-checkbox:checked").forEach(cb => cb.checked = false);
-  updateBatchBar();
-}
-async function batchAssignDriver() {
-  const ids = getSelectedIds();
-  if (!ids.length) return showToast("Select deliveries first", "warning");
-  try {
-    const res = await fetch(`${BASE_URL}/driver-list-public`);
-    const drivers = await res.json();
-    if (!drivers.length) return showToast("No drivers found", "error");
-
-    let opts = drivers.map(d => `<option value="${escHtml(d.id)}|${escHtml(d.driver_name)}">${escHtml(d.driver_name)}</option>`).join("");
-    const sel = document.createElement("select");
-    sel.innerHTML = `<option value="">— Select driver —</option>${opts}`;
-    sel.style.cssText = "width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:14px;margin:12px 0;";
-
-    const confirmed = await new Promise(resolve => {
-      const ov = document.createElement("div");
-      ov.className = "popup-overlay is-open";
-      ov.innerHTML = `<div class="popup-card" style="max-width:400px;">
-        <h3 style="margin:0 0 8px;">🚚 Assign Driver</h3>
-        <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">${ids.length} delivery(ies) selected</p>
-        <div id="batchDriverPicker"></div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
-          <button class="btn-gray" id="batchCancelBtn">Cancel</button>
-          <button class="btn-primary" id="batchConfirmBtn" disabled>Assign</button>
-        </div>
-      </div>`;
-      document.body.appendChild(ov);
-      const picker = ov.querySelector("#batchDriverPicker");
-      picker.appendChild(sel);
-      sel.onchange = () => { ov.querySelector("#batchConfirmBtn").disabled = !sel.value; };
-      ov.querySelector("#batchCancelBtn").onclick = () => { document.body.removeChild(ov); resolve(null); };
-      ov.querySelector("#batchConfirmBtn").onclick = () => { document.body.removeChild(ov); resolve(sel.value); };
-    });
-    if (!confirmed) return;
-    const [driverId, driverName] = confirmed.split("|");
-    const r = await authFetch(`${BASE_URL}/batch/deliveries`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids, driverId, driverName })
-    });
-    const result = await r.json();
-    if (result.success) {
-      showToast(`Assigned ${driverName} to ${result.results.filter(r => r.success).length} delivery(ies)`, "success");
-      clearBatchSelection();
-      loadAdmin();
-    } else {
-      showToast("Batch assign failed", "error");
-    }
-  } catch (e) {
-    showToast("Error: " + e.message, "error");
-  }
-}
-async function batchChangeStatus() {
-  const ids = getSelectedIds();
-  if (!ids.length) return showToast("Select deliveries first", "warning");
-  const VALID_STATUSES = ["booked", "pending", "loaded", "delivered", "failed"];
-  const sel = document.createElement("select");
-  sel.innerHTML = `<option value="">— Select status —</option>` + VALID_STATUSES.map(s => `<option value="${s}">${s}</option>`).join("");
-  sel.style.cssText = "width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:14px;margin:12px 0;";
-
-  const confirmed = await new Promise(resolve => {
-    const ov = document.createElement("div");
-    ov.className = "popup-overlay is-open";
-    ov.innerHTML = `<div class="popup-card" style="max-width:400px;">
-      <h3 style="margin:0 0 8px;">📋 Change Status</h3>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">${ids.length} delivery(ies) selected</p>
-      <div id="batchStatusPicker"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
-        <button class="btn-gray" id="batchStatCancelBtn">Cancel</button>
-        <button class="btn-primary" id="batchStatConfirmBtn" disabled>Change</button>
-      </div>
-    </div>`;
-    document.body.appendChild(ov);
-    const picker = ov.querySelector("#batchStatusPicker");
-    picker.appendChild(sel);
-    sel.onchange = () => { ov.querySelector("#batchStatConfirmBtn").disabled = !sel.value; };
-    ov.querySelector("#batchStatCancelBtn").onclick = () => { document.body.removeChild(ov); resolve(null); };
-    ov.querySelector("#batchStatConfirmBtn").onclick = () => { document.body.removeChild(ov); resolve(sel.value); };
-  });
-  if (!confirmed) return;
-  try {
-    const r = await authFetch(`${BASE_URL}/batch/deliveries`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids, status: confirmed })
-    });
-    const result = await r.json();
-    if (result.success) {
-      showToast(`Status changed to "${confirmed}" for ${result.results.filter(r => r.success).length} delivery(ies)`, "success");
-      clearBatchSelection();
-      loadAdmin();
-    } else {
-      showToast("Batch status change failed", "error");
-    }
-  } catch (e) {
-    showToast("Error: " + e.message, "error");
-  }
-}
 
 // ── PAYOUT TOGGLE ──────────────────────────────
 function togglePayout() {
