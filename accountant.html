@@ -3633,6 +3633,11 @@ function formatDate(dateString) {
   const d = new Date(dateString);
   return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
+function formatEtaForInput(eta) {
+  if (!eta || eta === "On-Demand") return "";
+  if (eta.seconds) return new Date(eta.seconds * 1000).toISOString().slice(0, 16);
+  return new Date(eta).toISOString().slice(0, 16);
+}
 
 /* ── LOAD DELIVERIES ── */
 async function loadDeliveries(showSkeleton = true) {
@@ -4644,7 +4649,7 @@ async function editDelivery(id) {
       </div>
       <div id="editEtaWrap" style="display:${delivery.estimated_delivery_time === "On-Demand" ? "none" : "block"};">
         <div class="section-title">Estimated Delivery Time</div>
-        <input type="datetime-local" id="edit_eta" value="${delivery.estimated_delivery_time && delivery.estimated_delivery_time !== "On-Demand" ? new Date(delivery.estimated_delivery_time).toISOString().slice(0,16) : ""}" style="${inputStyle}">
+        <input type="datetime-local" id="edit_eta" value="${formatEtaForInput(delivery.estimated_delivery_time)}" style="${inputStyle}">
       </div>
       <div class="section-title">Assign Driver</div>
       <select id="edit_driver" style="${inputStyle}"></select>
@@ -4652,7 +4657,7 @@ async function editDelivery(id) {
 
     <div id="editSelfPickupWrap" style="display:${delivery.is_self_pickup ? "block" : "none"};margin-bottom:8px;">
       <div class="section-title">Expected Pickup Date &amp; Time</div>
-      <input type="datetime-local" id="edit_pickup_date" value="${delivery.estimated_delivery_time ? new Date(delivery.estimated_delivery_time).toISOString().slice(0,16) : ""}" style="${inputStyle}">
+        <input type="datetime-local" id="edit_pickup_date" value="${formatEtaForInput(delivery.estimated_delivery_time)}" style="${inputStyle}">
       <div style="font-size:11px;color:var(--text-muted,#888);margin-top:4px;">
         Customer will collect from shop — no driver assigned. Staff at shop will mark as delivered.
       </div>

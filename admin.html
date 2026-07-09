@@ -1070,7 +1070,7 @@
       text-transform: uppercase; letter-spacing: 1px;
     }
     .edit-field input, .edit-field select {
-      width: 100%; padding: 10px 13px;
+      width: 100%; padding: 10px 13px; box-sizing:border-box;
       border: 1px solid rgba(173,198,255,0.15);
       border-radius: 10px;
       font-family: 'Inter', sans-serif; font-size: 14px;
@@ -4565,7 +4565,15 @@ function enableEdit() {
             <option ${d.priority === "urgent" ? "selected" : ""}>urgent</option>
           </select>
         </div>
-        <div class="edit-field"><label>ETA</label><input id="edit_eta" value="${escHtml(d.estimated_delivery_time || "")}"></div>
+        <div style="margin-bottom:8px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--on-surface);text-transform:none;letter-spacing:0;">
+            <input type="checkbox" id="edit_is_on_demand" onchange="toggleAdminOnDemand()" ${d.estimated_delivery_time === "On-Demand" ? "checked" : ""}>
+            📞 On-Demand Delivery
+          </label>
+        </div>
+        <div id="adminEtaWrap" style="display:${d.estimated_delivery_time === "On-Demand" ? "none" : "block"};">
+          <div class="edit-field"><label>ETA</label><input type="datetime-local" id="edit_eta" value="${formatEtaForInput(d.estimated_delivery_time)}"></div>
+        </div>
         <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${escHtml(d.product_serial_number || "")}"></div>
         <div class="edit-field"><label>Store</label>
           <select id="editStoreId" style="width:100%;padding:9px 12px;border:1px solid rgba(173,198,255,0.15);border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;outline:none;background:var(--surface-container-high);color:var(--on-surface);">
@@ -4618,6 +4626,25 @@ function toggleEditProductMode() {
   if (useTally) document.getElementById("edit_product_tally_input")?.focus();
 }
 
+function toggleAdminOnDemand() {
+  const checked = document.getElementById("edit_is_on_demand").checked;
+  document.getElementById("adminEtaWrap").style.display = checked ? "none" : "block";
+  if (!checked) {
+    var d = new Date(Date.now() + 2 * 3600000);
+    var def = d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0') + 'T' +
+      String(d.getHours()).padStart(2, '0') + ':' +
+      String(d.getMinutes()).padStart(2, '0');
+    document.getElementById("edit_eta").value = def;
+  }
+}
+function formatEtaForInput(eta) {
+  if (!eta || eta === "On-Demand") return "";
+  if (eta.seconds) return new Date(eta.seconds * 1000).toISOString().slice(0, 16);
+  return new Date(eta).toISOString().slice(0, 16);
+}
+
 async function updateDelivery(id) {
   if (!confirm("Update this delivery?")) return;
 
@@ -4634,10 +4661,11 @@ async function updateDelivery(id) {
 
     // Resolve driver — from dropdown (has id + name)
     const driverSel  = document.getElementById("edit_driver_select");
-    const driverName = driverSel
+    const isOnDemand = document.getElementById("edit_is_on_demand")?.checked;
+    const driverName = isOnDemand ? "" : driverSel
       ? driverSel.options[driverSel.selectedIndex]?.text
       : (document.getElementById("edit_driver")?.value || "");
-    const driverId   = driverSel ? driverSel.value : d?.assigned_driver_id;
+    const driverId   = isOnDemand ? "" : driverSel ? driverSel.value : d?.assigned_driver_id;
 
     const res = await authFetch(`${BASE_URL}/delivery/${id}`, {
       method: "PUT",
@@ -4650,7 +4678,7 @@ async function updateDelivery(id) {
         assigned_driver_name:    driverName,
         assigned_driver_id:      driverId,
         priority:                document.getElementById("edit_priority").value,
-        estimated_delivery_time: document.getElementById("edit_eta").value,
+        estimated_delivery_time: isOnDemand ? "On-Demand" : document.getElementById("edit_eta").value,
         product_serial_number:   document.getElementById("edit_serial").value,
         storeId:           document.getElementById("editStoreId")?.value || "",
         pickup_from:             document.getElementById("edit_pickup_from")?.value?.trim() || ""
