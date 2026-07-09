@@ -6873,6 +6873,18 @@ app.post("/calendar-events", authenticate, async (req, res) => {
     if (finalVisibility === "staff_only" && !targetStaffId) return res.status(400).json({ error: "targetStaffId required for staff_only visibility" });
     // Auto-set storeId for non-admin users, or use provided value
     const finalStoreId = !isAdmin ? (req.user.storeId || "") : (storeId || "");
+    if (type === "leave") {
+      const dupeQ = query(
+        collection(db, "calendar_events"),
+        where("createdById", "==", userId),
+        where("date", "==", date),
+        where("type", "==", "leave")
+      );
+      const dupeSnap = await getDocs(dupeQ);
+      if (!dupeSnap.empty) {
+        return res.status(409).json({ error: "You already have a leave on this date" });
+      }
+    }
     const docRef = await addDoc(collection(db, "calendar_events"), {
       date, type, title, description: description || "",
       createdBy: req.user.name || "Admin", createdById: userId,
