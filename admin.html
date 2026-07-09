@@ -452,6 +452,15 @@
       font-size: 11px;
       pointer-events: none;
     }
+    .search-wrap.icon-search::before {
+      content: '🔍';
+      position: absolute;
+      left: 14px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      pointer-events: none;
+      z-index: 1;
+    }
 
     /* ════ DELIVERY TABLE ════ */
     .table-wrap {
@@ -1274,8 +1283,7 @@
     .pg-save-bar .count { font-size:12px;font-weight:700;color:var(--amber);flex:1; }
     .pg-toolbar { display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px; }
     .pg-toolbar .search-wrap { position:relative;flex:1;min-width:180px;max-width:300px; }
-    .pg-toolbar .search-wrap .search-icon { position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--on-surface-variant);pointer-events:none; }
-    .pg-toolbar .search-wrap input { width:100%;padding:8px 10px 8px 34px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none; }
+    .pg-toolbar .search-wrap input { width:100%;padding:8px 10px 8px 44px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none; }
     .pg-toolbar .search-wrap input:focus { outline:2px solid var(--primary); }
     .pg-chip-row { display:flex;gap:6px;flex-wrap:wrap; }
     .pg-chip { padding:5px 14px;border:1px solid var(--outline-variant);border-radius:20px;background:transparent;color:var(--on-surface-variant);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;white-space:nowrap; }
@@ -1660,7 +1668,7 @@
         </select>
         <div class="toolbar-right">
           <div class="search-wrap">
-            <input type="text" id="adminSearch" placeholder="Name, phone, product…" oninput="onSearch()" autocomplete="off">
+            <input type="text" id="adminSearch" placeholder="Name, phone, product…" oninput="onSearch()" autocomplete="search">
           </div>
         </div>
       </div>
@@ -2278,12 +2286,12 @@
 
       <!-- Modern search + filter row -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
-        <div style="position:relative;flex:1;min-width:200px;">
-          <span class="material-symbols-outlined" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--on-surface-variant);pointer-events:none;">search</span>
+        <div class="search-wrap icon-search" style="flex:1;min-width:200px;">
           <input id="leadAdminSearch"
             placeholder="Search name, phone or product…"
+            autocomplete="search"
             oninput="renderLeadsAdmin()"
-            style="width:100%;height:42px;padding:0 14px 0 38px;background:var(--surface-container-high);
+            style="width:100%;height:42px;padding:0 14px 0 44px;background:var(--surface-container-high);
               border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;
               color:var(--on-surface);outline:none;transition:box-shadow 0.2s;"
             onfocus="this.style.boxShadow='0 0 0 2px var(--primary)'"
@@ -2411,9 +2419,8 @@
           <div style="font-size:13px;font-weight:700;color:var(--on-surface);">Individual Sales</div>
           <div style="font-size:11px;color:var(--on-surface-variant);" id="incPageInfo">Page 1 of 1</div>
         </div>
-        <div style="position:relative;margin-bottom:12px;">
-          <input type="text" class="inc-search" id="incSearchInput" placeholder="Search product, customer, staff…" oninput="filterIncentiveTable()" style="padding-left:36px;">
-          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--on-surface-variant);font-size:16px;">🔍</span>
+        <div class="search-wrap icon-search" style="margin-bottom:12px;">
+          <input type="text" class="inc-search" id="incSearchInput" placeholder="Search product, customer, staff…" autocomplete="search" oninput="filterIncentiveTable()" style="padding-left:44px;">
         </div>
         <div style="overflow-x:auto;border-radius:12px;border:1px solid var(--outline-variant);">
           <table class="inc-table">
@@ -2509,9 +2516,8 @@
       </div>
 
       <div class="pg-toolbar">
-        <div class="search-wrap">
-          <span class="material-symbols-outlined search-icon">search</span>
-          <input type="text" id="pgSearch" placeholder="Search product…" oninput="pgFilter()">
+        <div class="search-wrap icon-search">
+          <input type="text" id="pgSearch" placeholder="Search product…" autocomplete="search" oninput="pgFilter()">
         </div>
         <div class="pg-chip-row" id="pgChipRow"></div>
         <div class="pg-toggle-wrap">

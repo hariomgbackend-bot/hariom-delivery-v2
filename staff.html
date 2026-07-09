@@ -230,9 +230,14 @@
     }
     .search-input:focus { box-shadow: 0 0 0 2px var(--primary); }
     .search-input::placeholder { color: var(--outline); }
-    .search-icon {
-      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
-      color: var(--outline); font-size: 18px; pointer-events: none;
+    .search-wrap.icon-search::before {
+      content: '🔍';
+      position: absolute;
+      left: 14px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      pointer-events: none;
+      z-index: 1;
     }
 
     /* ── DELIVERY CARDS ── */
@@ -1000,9 +1005,8 @@
       </button>
       <div class="page-title">📦 Deliveries</div>
       <span class="count-badge" id="delivBadge" style="display:none;">0</span>
-      <div class="search-wrap">
-        <span class="material-symbols-outlined search-icon">search</span>
-        <input class="search-input" id="delivSearch" placeholder="Search name or phone…" oninput="filterDeliveries()">
+      <div class="search-wrap icon-search">
+        <input class="search-input" id="delivSearch" placeholder="Search name or phone…" autocomplete="search" oninput="filterDeliveries()">
       </div>
       <div id="deliveriesList"></div>
     </div>
@@ -1092,10 +1096,10 @@
         </div>
 
         <!-- Search -->
-        <div class="search-wrap" style="margin-bottom:10px;">
-          <span class="material-symbols-outlined search-icon">search</span>
+        <div class="search-wrap icon-search" style="margin-bottom:10px;">
           <input class="search-input" id="leadsSearchInput"
             placeholder="Search name, phone, product…"
+            autocomplete="search"
             oninput="filterAndRenderLeads()">
         </div>
 
@@ -1119,9 +1123,8 @@
       </button>
       <div class="page-title">💰 Price Guide</div>
       <span class="count-badge" id="pgBadge" style="display:none;">0</span>
-      <div class="search-wrap">
-        <span class="material-symbols-outlined search-icon">search</span>
-        <input class="search-input" id="pgSearch" placeholder="Search product…" oninput="stPgFilter()">
+      <div class="search-wrap icon-search">
+        <input class="search-input" id="pgSearch" placeholder="Search product…" autocomplete="search" oninput="stPgFilter()">
       </div>
       <div class="pg-chip-row" id="stPgCatRow"></div>
       <div class="pg-chip-row" id="stPgChipRow"></div>
