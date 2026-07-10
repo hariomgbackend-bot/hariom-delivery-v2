@@ -4034,7 +4034,7 @@ async function loadDispatcherDeliveries() {
     let deliveries = allDeliveries.filter(d =>
       d.assigned_driver_id === unassignedDriverId ||   // normal path
       d.assigned_driver_id === "self_pickup"         || // legacy: created before Unassigned-ID fix
-      (d.is_self_pickup && !d.assigned_driver_id)       // safety: self-pickup with no driver set
+      d.is_self_pickup                                   // catch all self-pickup DOs
     );
 
     if (dispatcherTab === "pending") {
