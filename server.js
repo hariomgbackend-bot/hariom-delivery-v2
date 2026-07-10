@@ -593,7 +593,7 @@ return res.send(`
         : null;
 
       // Resolve storeId from Tally's store_branch (Alandi/Dhanore)
-      const storeId = store_branch ? await resolveStoreId(store_branch) : "";
+      const storeId = store_branch ? await resolveStoreId(store_branch) : "store_a";
 
       const createdIds = [];
       for (let i = 0; i < items.length; i++) {
@@ -1176,6 +1176,24 @@ async function runStartupMigration() {
       }
       console.log(`[SEED] Added ${defaultStores.length} default stores`);
     }
+
+    // ── Part 5: Backfill missing/empty storeId on deliveries ──
+    const allDelSnap = await getDocs(collection(db, "deliveries"));
+    let backfilled = 0;
+    const BATCH = 30;
+    let updates = [];
+    for (const d of allDelSnap.docs) {
+      if (!d.data().storeId) {
+        updates.push(updateDoc(doc(db, "deliveries", d.id), { storeId: "store_a" }));
+        backfilled++;
+        if (updates.length >= BATCH) {
+          await Promise.all(updates);
+          updates = [];
+        }
+      }
+    }
+    if (updates.length > 0) await Promise.all(updates);
+    if (backfilled > 0) console.log(`[MIGRATION] Backfilled storeId → store_a on ${backfilled} deliveries`);
   } catch (err) {
     console.error("[MIGRATION] error:", err.message);
   }
@@ -2194,7 +2212,11 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
     }
 
     const snapshot = await getDocs(q);
-    let deliveries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    let deliveries = snapshot.docs.map(d => {
+      const data = d.data();
+      if (!data.storeId) data.storeId = "store_a";
+      return { id: d.id, ...data };
+    });
 
     // Client-side text search (Firestore can't do partial text search)
     if (search) {
