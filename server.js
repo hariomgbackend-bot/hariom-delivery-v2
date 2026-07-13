@@ -1087,6 +1087,13 @@ app.post("/product/normalize", authenticate, authorize(["admin"]), async (req, r
 ════════════════════════════════════════════════ */
 async function runStartupMigration() {
   try {
+    const migrationRef = doc(db, "_migrations", "startup_v2");
+    const migrationSnap = await getDoc(migrationRef);
+    if (migrationSnap.exists() && migrationSnap.data().done) {
+      console.log("[MIGRATION] Already completed — skipping");
+      return;
+    }
+
     // ── Part 1: Deliveries — flip pending with future ETA → booked ──
     const today = todayIST();
     const snap = await getDocs(query(collection(db, "deliveries"), where("status", "==", "pending")));
@@ -1194,6 +1201,9 @@ async function runStartupMigration() {
     }
     if (updates.length > 0) await Promise.all(updates);
     if (backfilled > 0) console.log(`[MIGRATION] Backfilled storeId → store_a on ${backfilled} deliveries`);
+
+    await setDoc(migrationRef, { done: true, at: Timestamp.now() });
+    console.log("[MIGRATION] Complete — marker saved");
   } catch (err) {
     console.error("[MIGRATION] error:", err.message);
   }
@@ -1829,8 +1839,12 @@ app.post("/verify-token", (req, res) => {
 ════════════════════════════════════════════════ */
 
 app.get("/products", async (req, res) => {
+  const cache = getRefCache("products");
+  if (Date.now() < cache.expiry) return res.json(cache.data);
   const snapshot = await getDocs(collection(db, "products"));
-  res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+  const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  cache.data = data; cache.expiry = Date.now() + cache.ttl;
+  res.json(data);
 });
 
 app.post("/products", async (req, res) => {
@@ -1839,12 +1853,17 @@ app.post("/products", async (req, res) => {
   const snapshot = await getDocs(query(collection(db, "products"), where("name", "==", name)));
   if (!snapshot.empty) return res.json({ exists: true });
   await addDoc(collection(db, "products"), { name });
+  invalidateRefCache("products");
   res.json({ success: true });
 });
 
 app.get("/makes", async (req, res) => {
+  const cache = getRefCache("makes");
+  if (Date.now() < cache.expiry) return res.json(cache.data);
   const snapshot = await getDocs(collection(db, "makes"));
-  res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+  const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  cache.data = data; cache.expiry = Date.now() + cache.ttl;
+  res.json(data);
 });
 
 app.post("/makes", async (req, res) => {
@@ -1853,12 +1872,17 @@ app.post("/makes", async (req, res) => {
   const snapshot = await getDocs(query(collection(db, "makes"), where("name", "==", name)));
   if (!snapshot.empty) return res.json({ exists: true });
   await addDoc(collection(db, "makes"), { name });
+  invalidateRefCache("makes");
   res.json({ success: true });
 });
 
 app.get("/models", async (req, res) => {
+  const cache = getRefCache("models");
+  if (Date.now() < cache.expiry) return res.json(cache.data);
   const snapshot = await getDocs(collection(db, "models"));
-  res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+  const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  cache.data = data; cache.expiry = Date.now() + cache.ttl;
+  res.json(data);
 });
 
 app.post("/models", async (req, res) => {
@@ -1867,6 +1891,7 @@ app.post("/models", async (req, res) => {
   const snapshot = await getDocs(query(collection(db, "models"), where("name", "==", name)));
   if (!snapshot.empty) return res.json({ exists: true });
   await addDoc(collection(db, "models"), { name });
+  invalidateRefCache("models");
   res.json({ success: true });
 });
 
@@ -2062,14 +2087,27 @@ app.post("/createDeliveries", writeLimiter, authenticate, async (req, res) => {
 });
 
 /* ════════════════════════════════════════════════
-   IN-MEMORY CACHE for /deliveries
+   IN-MEMORY CACHE for /deliveries and /delivery-counts
 ════════════════════════════════════════════════ */
 
 let deliveriesCache = { data: null, expiry: 0 };
 const DELIVERIES_CACHE_TTL = 30_000; // 30 seconds
+let deliveryCountsCache = { data: null, expiry: 0 };
+const DELIVERY_COUNTS_CACHE_TTL = 30_000;
 
 function invalidateDeliveriesCache() {
   deliveriesCache = { data: null, expiry: 0 };
+  deliveryCountsCache = { data: null, expiry: 0 };
+}
+
+// Simple in-memory cache for reference data (small, rarely-changing collections)
+const refCaches = {};
+function getRefCache(key, ttl = 60000) {
+  if (!refCaches[key]) refCaches[key] = { data: null, expiry: 0, ttl };
+  return refCaches[key];
+}
+function invalidateRefCache(key) {
+  if (refCaches[key]) refCaches[key].expiry = 0;
 }
 
 async function countQuery(q) {
@@ -2086,6 +2124,10 @@ function startOfTodayISTTimestamp() {
 
 app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "accountant"]), async (req, res) => {
   try {
+    if (Date.now() < deliveryCountsCache.expiry) {
+      return res.json(deliveryCountsCache.data);
+    }
+
     const deliveriesRef = collection(db, "deliveries");
     const todayStart = startOfTodayISTTimestamp();
     const storeCond = [];
@@ -2113,7 +2155,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
       sourceToday[source]++;
     });
 
-    res.json({
+    const result = {
       total,
       all: total,
       booked,
@@ -2124,7 +2166,10 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
       urgent,
       today: todaySnap.size,
       sourceToday
-    });
+    };
+
+    deliveryCountsCache = { data: result, expiry: Date.now() + DELIVERY_COUNTS_CACHE_TTL };
+    res.json(result);
   } catch (error) {
     console.error("/delivery-counts error:", error);
     res.status(500).json({ error: error.message });
@@ -2150,6 +2195,12 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       }
     }
 
+    // Parse status filter early
+    let parsedStatuses = [];
+    if (status) {
+      parsedStatuses = status.split(",").map(s => s.trim()).filter(Boolean);
+    }
+
     // Build Firestore query with optional filters
     let q = collection(db, "deliveries");
     const constraints = [];
@@ -2166,13 +2217,8 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       }
     }
 
-    if (status) {
-      const statuses = status.split(",").map(s => s.trim()).filter(Boolean);
-      if (statuses.length === 1) {
-        constraints.push(where("status", "==", statuses[0]));
-      } else if (statuses.length > 1) {
-        constraints.push(where("status", "in", statuses.slice(0, 10)));
-      }
+    if (parsedStatuses.length === 1) {
+      constraints.push(where("status", "==", parsedStatuses[0]));
     }
 
     if (priority) {
@@ -2191,27 +2237,52 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
     let totalCount = 0;
     if (isPaginated) {
       try {
-        // Use the constraint-only query (no limit) for counting
-        const countQ = constraints.length > 0
-          ? query(collection(db, "deliveries"), ...constraints)
+        let countConstraints = [...constraints];
+        if (parsedStatuses.length > 1) {
+          countConstraints.push(where("status", "in", parsedStatuses.slice(0, 10)));
+        }
+        const countQ = countConstraints.length > 0
+          ? query(collection(db, "deliveries"), ...countConstraints)
           : collection(db, "deliveries");
         const countSnap = await getCountFromServer(countQ);
         totalCount = countSnap.data().count;
       } catch (_) { /* fall back to deliveries.length */ }
     }
 
-    // For single-status paginated queries, add orderBy + limit to avoid fetching all docs.
-    // Multi-status and "all" queries need ALL matching docs for the
-    // in-memory interleave sort — no limit applied.
-    // Text search excluded (narrow scope, no limit needed).
+    // Execute query with pagination — single-status uses limit; multi-status fetches per status with limit
+    let snapshot;
     if (isPaginated && !search) {
-      const statuses = status ? status.split(",").map(s => s.trim()).filter(Boolean) : [];
-      if (statuses.length === 1) {
+      if (parsedStatuses.length === 1) {
         q = query(q, orderBy("created_timestamp", "desc"), limit(p * ps));
+        snapshot = await getDocs(q);
+      } else if (parsedStatuses.length > 1) {
+        const limitVal = p * ps;
+        const statusSnaps = await Promise.all(
+          parsedStatuses.map(s => getDocs(query(
+            collection(db, "deliveries"),
+            where("status", "==", s),
+            ...constraints,
+            orderBy("created_timestamp", "desc"),
+            limit(limitVal)
+          )))
+        );
+        const seen = new Set();
+        const merged = [];
+        statusSnaps.forEach(snap => {
+          snap.docs.forEach(d => {
+            if (!seen.has(d.id)) { seen.add(d.id); merged.push(d); }
+          });
+        });
+        snapshot = { docs: merged, size: merged.length };
+      } else {
+        snapshot = await getDocs(q);
       }
+    } else {
+      if (parsedStatuses.length > 1) {
+        q = query(q, where("status", "in", parsedStatuses.slice(0, 10)));
+      }
+      snapshot = await getDocs(q);
     }
-
-    const snapshot = await getDocs(q);
     let deliveries = snapshot.docs.map(d => {
       const data = d.data();
       if (!data.storeId) data.storeId = "store_a";
@@ -2664,12 +2735,17 @@ app.post("/addDriver", authenticate, authorize(["admin"]), async (req, res) => {
     pinHash,
     created_timestamp: Timestamp.now()
   });
+  invalidateRefCache("drivers");
   res.json({ success: true, id: docRef.id });
 });
 
 app.get("/drivers", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  const cache = getRefCache("drivers");
+  if (Date.now() < cache.expiry) return res.json(cache.data);
   const snapshot = await getDocs(collection(db, "drivers"));
-  res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+  const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  cache.data = data; cache.expiry = Date.now() + cache.ttl;
+  res.json(data);
 });
 
 app.put("/driver/:id", authenticate, authorize(["admin"]), async (req, res) => {
@@ -2682,6 +2758,7 @@ app.put("/driver/:id", authenticate, authorize(["admin"]), async (req, res) => {
   } else {
     await updateDoc(refDoc, otherFields);
   }
+  invalidateRefCache("drivers");
   res.json({ success: true });
 });
 
@@ -2697,6 +2774,7 @@ app.delete("/driver/:id", authenticate, authorize(["admin"]), async (req, res) =
     const driverSnap = await getDoc(doc(db, "drivers", driverId));
     const driverName = driverSnap.exists() ? driverSnap.data().driver_name : driverId;
     await deleteDoc(doc(db, "drivers", driverId));
+    invalidateRefCache("drivers");
     logActivity({ action: "delete_driver", entityType: "driver", entityId: driverId, label: driverName, details: "Driver deleted by admin", req });
     res.json({ success: true });
   } catch (error) {
@@ -2705,7 +2783,7 @@ app.delete("/driver/:id", authenticate, authorize(["admin"]), async (req, res) =
 });
 
 app.get("/driver-list-public", async (req, res) => {
-  const snapshot = await getDocs(collection(db, "drivers"));
+  const snapshot = await getDocs(query(collection(db, "drivers"), limit(200)));
   res.json(snapshot.docs.map(d => ({ id: d.id, driver_name: d.data().driver_name })));
 });
 
@@ -3518,21 +3596,20 @@ app.get("/api/sales/today", async (req, res) => {
       }
     }
 
-    const snap = await getDocs(collection(db, "leads"));
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
+    const snap = await getDocs(query(
+      collection(db, "leads"),
+      where("status", "==", "sale"),
+      where("created_at", ">=", Timestamp.fromDate(todayStart)),
+      where("created_at", "<=", Timestamp.fromDate(todayEnd))
+    ));
+
     const sales = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(l => {
-        if (l.status !== "sale") return false;
-        const ts = l.created_at;
-        if (!ts) return false;
-        const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
-        return d >= todayStart && d <= todayEnd;
-      })
       .sort((a, b) => {
         const da = a.created_at?.seconds || 0;
         const db = b.created_at?.seconds || 0;
@@ -3565,22 +3642,21 @@ app.get("/api/sales/today", async (req, res) => {
 app.get("/api/sales/today-ui", async (req, res) => {
   try {
     const storeIdFilter = req.query.store;
-    const leadsRef = storeIdFilter ? query(collection(db, "leads"), where("storeId", "==", storeIdFilter)) : collection(db, "leads");
-    const snap = await getDocs(leadsRef);
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
+    const queryConstraints = [
+      where("status", "==", "sale"),
+      where("created_at", ">=", Timestamp.fromDate(todayStart)),
+      where("created_at", "<=", Timestamp.fromDate(todayEnd))
+    ];
+    if (storeIdFilter) queryConstraints.push(where("storeId", "==", storeIdFilter));
+    const snap = await getDocs(query(collection(db, "leads"), ...queryConstraints));
+
     const sales = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(l => {
-        if (l.status !== "sale") return false;
-        const ts = l.created_at;
-        if (!ts) return false;
-        const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
-        return d >= todayStart && d <= todayEnd;
-      })
       .sort((a, b) => {
         const da = a.created_at?.seconds || 0;
         const db = b.created_at?.seconds || 0;
@@ -4149,11 +4225,14 @@ async function autoCreateServiceTicket(deliveryData, deliveryId) {
 ════════════════════════════════════════════════ */
 app.get("/staff-list-public", async (req, res) => {
   try {
+    const cache = getRefCache("staff-list-public");
+    if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "staff_users"));
-    res.json(snap.docs
+    const data = snap.docs
       .map(d => ({ id: d.id, name: d.data().name, role: d.data().role, weekly_off: d.data().weekly_off || "", color: d.data().color || "" }))
-      .filter(s => s.role === "staff")
-    );
+      .filter(s => s.role === "staff");
+    cache.data = data; cache.expiry = Date.now() + cache.ttl;
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4323,13 +4402,16 @@ app.post("/addStaff", authenticate, authorize(["admin"]), async (req, res) => {
 
 app.get("/staff", authenticate, authorize(["admin"]), async (req, res) => {
   try {
+    const cache = getRefCache("staff");
+    if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "staff_users"));
-    res.json(snap.docs.map(d => {
-      const data = d.data();
-      // Never return hashes
-      const { pinHash, passwordHash, ...safe } = data;
+    const data = snap.docs.map(d => {
+      const docData = d.data();
+      const { pinHash, passwordHash, ...safe } = docData;
       return { id: d.id, ...safe };
-    }));
+    });
+    cache.data = data; cache.expiry = Date.now() + cache.ttl;
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4552,15 +4634,14 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
     if (req.user.role !== "service") {
       addStoreFilter(ticketConstraints, req.user, undefined, req);
     }
-    const q = ticketConstraints.length > 0 ? query(collection(db, "service_tickets"), ...ticketConstraints) : collection(db, "service_tickets");
+    if (req.query.status) ticketConstraints.push(where("status", "==", req.query.status));
+    if (req.query.type)   ticketConstraints.push(where("type", "==", req.query.type));
+    ticketConstraints.push(orderBy("created_at", "desc"));
+
+    const q = query(collection(db, "service_tickets"), ...ticketConstraints);
     const snap   = await getDocs(q);
-    let tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // Optional filters via query params
-    if (req.query.status) tickets = tickets.filter(t => t.status === req.query.status);
-    if (req.query.type)   tickets = tickets.filter(t => t.type   === req.query.type);
-
-    tickets.sort((a, b) => (b.created_at?.seconds ?? 0) - (a.created_at?.seconds ?? 0));
     res.json(tickets);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -5030,8 +5111,12 @@ app.get("/service/search", authenticate, authorize(["admin", "accountant", "serv
 ════════════════════════════════════════════════ */
 app.get("/brands", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
+    const cache = getRefCache("brands");
+    if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "brands"));
-    res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    cache.data = data; cache.expiry = Date.now() + cache.ttl;
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -5054,6 +5139,7 @@ app.post("/brands", authenticate, authorize(["admin"]), async (req, res) => {
       notes:              notes             || "",
       created_at:         Timestamp.now()
     });
+    invalidateRefCache("brands");
     res.json({ success: true, id: docRef.id });
   } catch (err) {
     console.error("/brands POST error:", err.message);
@@ -5070,6 +5156,7 @@ app.put("/brands/:id", authenticate, authorize(["admin"]), async (req, res) => {
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     await updateDoc(refDoc, updates);
+    invalidateRefCache("brands");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -5079,6 +5166,7 @@ app.put("/brands/:id", authenticate, authorize(["admin"]), async (req, res) => {
 app.delete("/brands/:id", authenticate, authorize(["admin"]), async (req, res) => {
   try {
     await deleteDoc(doc(db, "brands", req.params.id));
+    invalidateRefCache("brands");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -5095,8 +5183,12 @@ app.delete("/brands/:id", authenticate, authorize(["admin"]), async (req, res) =
 ════════════════════════════════════════════════ */
 app.get("/api/stores", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
+    const cache = getRefCache("stores");
+    if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "stores"));
-    res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    cache.data = data; cache.expiry = Date.now() + cache.ttl;
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -5114,6 +5206,7 @@ app.post("/api/stores", authenticate, authorize(["admin"]), async (req, res) => 
       altPhone: altPhone || "",
       created_at: Timestamp.now()
     });
+    invalidateRefCache("stores");
     res.json({ success: true, id: docRef.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -5129,6 +5222,7 @@ app.put("/api/stores/:id", authenticate, authorize(["admin"]), async (req, res) 
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     await updateDoc(refDoc, updates);
+    invalidateRefCache("stores");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -5138,6 +5232,7 @@ app.put("/api/stores/:id", authenticate, authorize(["admin"]), async (req, res) 
 app.delete("/api/stores/:id", authenticate, authorize(["admin"]), async (req, res) => {
   try {
     await deleteDoc(doc(db, "stores", req.params.id));
+    invalidateRefCache("stores");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -5155,6 +5250,7 @@ app.post("/api/stores/seed", authenticate, authorize(["admin"]), async (req, res
     for (const s of defaults) {
       await addDoc(collection(db, "stores"), { ...s, created_at: Timestamp.now() });
     }
+    invalidateRefCache("stores");
     res.json({ success: true, message: "Default stores seeded" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6645,6 +6741,7 @@ app.post("/price-guide/bulk", authenticate, authorize(["admin", "accountant"]), 
       });
       results.push({ id: docRef.id, productName: item.productName });
     }
+    invalidateRefCache("price-guide");
     res.json({ success: true, count: results.length, items: results });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6733,8 +6830,11 @@ app.get("/weather", async (req, res) => {
 
 app.get("/price-guide", authenticate, async (req, res) => {
   try {
+    const cache = getRefCache("price-guide");
+    if (Date.now() < cache.expiry) return res.json(cache.data);
     const pgSnap = await getDocs(collection(db, "price_guide"));
     const items = pgSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    cache.data = items; cache.expiry = Date.now() + cache.ttl;
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6751,6 +6851,7 @@ app.post("/price-guide", authenticate, authorize(["admin", "accountant"]), async
       slabId: slabId || "", mspEnabled: mspEnabled !== undefined ? mspEnabled : true,
       updatedAt: Timestamp.now(), updatedBy: req.user.name || "admin"
     });
+    invalidateRefCache("price-guide");
     res.json({ success: true, id: docRef.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6788,6 +6889,7 @@ app.put("/price-guide/:id", authenticate, authorize(["admin", "accountant"]), as
     const clean = { ...req.body };
     delete clean.id;
     await updateDoc(ref, { ...clean, updatedAt: Timestamp.now(), updatedBy: req.user.name || "admin" });
+    invalidateRefCache("price-guide");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6797,6 +6899,7 @@ app.put("/price-guide/:id", authenticate, authorize(["admin", "accountant"]), as
 app.delete("/price-guide/:id", authenticate, authorize(["admin"]), async (req, res) => {
   try {
     await deleteDoc(doc(db, "price_guide", req.params.id));
+    invalidateRefCache("price-guide");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6809,9 +6912,12 @@ app.delete("/price-guide/:id", authenticate, authorize(["admin"]), async (req, r
 
 app.get("/slabs", authenticate, async (req, res) => {
   try {
+    const cache = getRefCache("slabs");
+    if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "slabs"));
     const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     items.sort((a, b) => (a.slabName || "").localeCompare(b.slabName || ""));
+    cache.data = items; cache.expiry = Date.now() + cache.ttl;
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6826,6 +6932,7 @@ app.post("/slabs", authenticate, authorize(["admin", "accountant"]), async (req,
       slabName: slabName.trim(), description: description || "",
       createdAt: Timestamp.now(), updatedAt: Timestamp.now()
     });
+    invalidateRefCache("slabs");
     res.json({ success: true, id: docRef.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6840,6 +6947,7 @@ app.put("/slabs/:id", authenticate, authorize(["admin", "accountant"]), async (r
     delete clean.id;
     clean.updatedAt = Timestamp.now();
     await updateDoc(ref, clean);
+    invalidateRefCache("slabs");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6849,6 +6957,7 @@ app.put("/slabs/:id", authenticate, authorize(["admin", "accountant"]), async (r
 app.delete("/slabs/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
   try {
     await deleteDoc(doc(db, "slabs", req.params.id));
+    invalidateRefCache("slabs");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6858,9 +6967,12 @@ app.delete("/slabs/:id", authenticate, authorize(["admin", "accountant"]), async
 // ── Categories ──
 app.get("/categories", authenticate, async (req, res) => {
   try {
+    const cache = getRefCache("categories");
+    if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "categories"));
     const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     items.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    cache.data = items; cache.expiry = Date.now() + cache.ttl;
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6872,6 +6984,7 @@ app.post("/categories", authenticate, authorize(["admin"]), async (req, res) => 
     const { name } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: "Category name required" });
     const docRef = await addDoc(collection(db, "categories"), { name: name.trim().toUpperCase() });
+    invalidateRefCache("categories");
     res.json({ success: true, id: docRef.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6884,6 +6997,7 @@ app.put("/categories/:id", authenticate, authorize(["admin"]), async (req, res) 
     if (!(await getDoc(ref)).exists()) return res.status(404).json({ error: "Not found" });
     const { name } = req.body;
     await updateDoc(ref, { name: name.trim().toUpperCase() });
+    invalidateRefCache("categories");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -6893,6 +7007,7 @@ app.put("/categories/:id", authenticate, authorize(["admin"]), async (req, res) 
 app.delete("/categories/:id", authenticate, authorize(["admin"]), async (req, res) => {
   try {
     await deleteDoc(doc(db, "categories", req.params.id));
+    invalidateRefCache("categories");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

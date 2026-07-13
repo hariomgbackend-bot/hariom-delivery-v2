@@ -1035,7 +1035,7 @@ setInterval(() => {
   const dp = document.getElementById("ticketDetailPopup");
   if (dp && dp.classList.contains("is-open")) return;
   loadTickets(false);
-}, 30000);
+}, 60000);
 
 // Deliveries are loaded lazily — only fetch the specific one needed
 // instead of dumping the full collection on login (was causing the slow load)
