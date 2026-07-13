@@ -1474,6 +1474,7 @@ let _formCreationSource = "manual";
 let allRawDeliveries      = [];   // full unfiltered list — used for repeat customer lookup
 let tallyProducts = [];
 let autoRefreshInterval = null;
+let _accountantSSE = null;
 let batchPhones    = [];
 let _deliveriesDebounceTimer = null;
 let _deliveriesInflight = false;
@@ -1529,6 +1530,8 @@ function handleAuthError() {
 }
 
 function accountantLogout() {
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  if (_accountantSSE) { _accountantSSE.close(); _accountantSSE = null; }
   localStorage.removeItem("adminToken");
   localStorage.removeItem("accountantToken");
   redirectToLogin();
@@ -1777,12 +1780,30 @@ function initApp() {
   }
 }
 
-// Auto-refresh deliveries every 30 seconds
+// ── SSE — instant refresh on changes, 5 min fallback poll ──
 function startAutoRefresh() {
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  if (_accountantSSE) { _accountantSSE.close(); _accountantSSE = null; }
+
+  const token = getToken();
+  if (token) {
+    const es = new EventSource(`${window.location.origin}/sse?token=${encodeURIComponent(token)}`);
+    es.addEventListener("refresh", e => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.type === "delivery" || d.type === "driver") {
+          if (!document.hidden) loadDeliveries(false);
+        }
+      } catch (_) {}
+    });
+    es.onerror = () => { es.close(); if (_accountantSSE === es) _accountantSSE = null; setTimeout(startAutoRefresh, 5000); };
+    _accountantSSE = es;
+  }
+
+  // Fallback poll every 5 min
   autoRefreshInterval = setInterval(() => {
     if (!document.hidden) loadDeliveries(false);
-  }, 90000);  // 90s — reduces rate-limit pressure from auto-refresh (no skeleton to avoid flicker)
+  }, 300000);
 }
 
 /* ── FILTERS ── */

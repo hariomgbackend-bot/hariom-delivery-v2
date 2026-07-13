@@ -351,8 +351,9 @@
       <select id="sPoll" onchange="saveSetting('pollInterval',+this.value)">
         <option value="15">15s</option>
         <option value="30">30s</option>
-        <option value="60" selected>60s</option>
+        <option value="60">60s</option>
         <option value="120">2min</option>
+        <option value="300" selected>5min</option>
       </select>
     </div>
     <div class="setting-row">
@@ -780,7 +781,7 @@ function setStatus(state, text) {
 var SETTINGS_DEFAULTS = {
   pendingThreshold: 2,
   loadedThreshold: 2,
-  pollInterval: 60,
+  pollInterval: 300,
   toggles: {
     deletions: true, pending: true, loaded: true, booked: true,
     dos: true, staleTickets: true, onLeave: true, weeklyOff: true,
@@ -838,6 +839,7 @@ function toggleSettings() {
 
 /* ── POLL LOOP ── */
 var pollTimer = null;
+var _alertsSSE = null;
 var _lastAlertUpdate = Date.now();
 var lastActivityCheck = null;
 var seenDeliveryIds = new Set();
@@ -852,15 +854,34 @@ var leadsInitialized = false;
 
 function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (_alertsSSE) { _alertsSSE.close(); _alertsSSE = null; }
 }
 function restartPoll() {
   stopPolling();
   pollAlerts();
 }
+function connectSSE() {
+  if (_alertsSSE) return;
+  var token = getToken();
+  if (!token) return;
+  var es = new EventSource(BASE_URL + '/sse?token=' + encodeURIComponent(token));
+  es.addEventListener("refresh", function(e) {
+    try {
+      var d = JSON.parse(e.data);
+      if (d.type === "delivery" || d.type === "ticket" || d.type === "driver") {
+        checkAllAlerts();
+      }
+    } catch (_) {}
+  });
+  es.onerror = function() { es.close(); _alertsSSE = null; setTimeout(connectSSE, 5000); };
+  _alertsSSE = es;
+}
+
 function pollAlerts() {
   checkAllAlerts();
-  var interval = (settings.pollInterval || 60) * 1000;
-  pollTimer = setInterval(() => {
+  connectSSE();
+  var interval = Math.max((settings.pollInterval || 300), 300) * 1000;
+  pollTimer = setInterval(function() {
     if (!document.hidden) checkAllAlerts();
   }, interval);
 }

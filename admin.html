@@ -5003,11 +5003,27 @@ function onSearch() {
   }, 300);
 }
 
+// ── SSE — instant refresh on changes, 5 min fallback poll ──
+function connectSSE() {
+  const token = getToken();
+  if (!token) return;
+  const es = new EventSource(`${BASE_URL}/sse?token=${encodeURIComponent(token)}`);
+  es.addEventListener("refresh", e => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === "delivery") { loadAdmin(); loadDeliveryCounts(); }
+      if (d.type === "driver") { loadAdmin(); }
+    } catch (_) {}
+  });
+  es.onerror = () => { es.close(); setTimeout(connectSSE, 5000); };
+}
+connectSSE();
+
 setInterval(() => {
   if (document.hidden) return;
   if (currentAdminView !== 'deliveries') return;
   loadAdmin();
-}, 60000);
+}, 300000);
 loadAdmin();
 
 // ── PAYOUT TOGGLE ──────────────────────────────

@@ -1028,14 +1028,33 @@ async function loadTickets(showSkeleton = true) {
   }
 }
 
-// Silent background refresh so another tech's ticket changes appear without a manual reload.
-// Skipped when the tab is hidden or the ticket detail popup is open (avoids scroll loss / discard).
+// ── SSE — instant refresh on ticket changes, 5 min fallback ──
+function connectSSE() {
+  const token = getToken();
+  if (!token) return;
+  const es = new EventSource(`${BASE_URL}/sse?token=${encodeURIComponent(token)}`);
+  es.addEventListener("refresh", e => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === "ticket" || d.type === "delivery") {
+        if (document.hidden) return;
+        const dp = document.getElementById("ticketDetailPopup");
+        if (dp && dp.classList.contains("is-open")) return;
+        loadTickets(false);
+      }
+    } catch (_) {}
+  });
+  es.onerror = () => { es.close(); setTimeout(connectSSE, 5000); };
+}
+connectSSE();
+
+// Silent background refresh as fallback
 setInterval(() => {
   if (document.hidden) return;
   const dp = document.getElementById("ticketDetailPopup");
   if (dp && dp.classList.contains("is-open")) return;
   loadTickets(false);
-}, 60000);
+}, 300000);
 
 // Deliveries are loaded lazily — only fetch the specific one needed
 // instead of dumping the full collection on login (was causing the slow load)

@@ -1988,6 +1988,7 @@ let currentDeliveryId   = null;
 let currentStatus       = null;
 let etaInterval         = null;
 let driverRefreshInterval = null;
+let _driverSSE = null;
 let precompressedBlob    = null;   // Photo compressed on selection — ready before swipe
 let currentDriverId     = null;
 let currentDriverPin    = null;
@@ -3025,11 +3026,31 @@ document.getElementById("popup").addEventListener("click", e => {
 
 function startDriverAutoRefresh() {
   if (driverRefreshInterval) clearInterval(driverRefreshInterval);
+  if (_driverSSE) { _driverSSE.close(); _driverSSE = null; }
+
+  const token = driverSessionToken;
+  if (token) {
+    const es = new EventSource(`${BASE_URL}/sse?token=${encodeURIComponent(token)}`);
+    es.addEventListener("refresh", e => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.type === "delivery" || d.type === "driver") {
+          if (document.getElementById("popup").style.display !== "block" && currentDriverId) {
+            silentRefresh();
+          }
+        }
+      } catch (_) {}
+    });
+    es.onerror = () => { es.close(); if (_driverSSE === es) _driverSSE = null; setTimeout(startDriverAutoRefresh, 5000); };
+    _driverSSE = es;
+  }
+
+  // Fallback poll every 5 min
   driverRefreshInterval = setInterval(() => {
     if (document.getElementById("popup").style.display !== "block" && currentDriverId) {
       silentRefresh();
     }
-  }, 60000);
+  }, 300000);
 }
 
 async function silentRefresh() {
@@ -3132,6 +3153,7 @@ function logoutDriver() {
   currentDriverPin   = null;
   driverSessionToken = null;
   if (driverRefreshInterval) clearInterval(driverRefreshInterval);
+  if (_driverSSE) { _driverSSE.close(); _driverSSE = null; }
 
   document.getElementById("driverSelect").disabled     = false;
   const pin = document.getElementById("driverPin");

@@ -560,10 +560,11 @@ return res.send(`
       //    don't create duplicate DOs for the same voucher ──
       const dupeSnap = await getDocs(query(
         collection(db, "deliveries"),
-        where("invoice_number", "==", voucher_number)
+        where("invoice_number", "==", voucher_number),
+        where("source", "==", "tally_tdl"),
+        limit(1)
       ));
-      const existingTallyDocs = dupeSnap.docs.filter(d => d.data().source === "tally_tdl");
-      if (existingTallyDocs.length > 0) {
+      if (dupeSnap.size > 0) {
           console.log("[tally/voucher TDL XML] duplicate push ignored:", voucher_number);
 
           res.set("Content-Type", "text/xml");
@@ -581,11 +582,7 @@ return res.send(`
       const estimated_delivery_time = is_self_pickup ? selfPickupETA() : tallyAutoETA();
 
       // ── Driver: Tally has no driver info — park on "Unassigned" for dispatch ──
-      const driversSnap   = await getDocs(collection(db, "drivers"));
-      const unassignedDoc = driversSnap.docs.find(d =>
-        (d.data().driver_name || "").trim().toLowerCase() === "unassigned"
-      );
-      const assigned_driver_id   = unassignedDoc ? unassignedDoc.id : "unassigned";
+      const assigned_driver_id   = await getUnassignedDriverId();
       const assigned_driver_name = "Unassigned";
 
       const batchId = items.length > 1
@@ -593,7 +590,7 @@ return res.send(`
         : null;
 
       // Resolve storeId from Tally's store_branch (Alandi/Dhanore)
-      const storeId = store_branch ? await resolveStoreId(store_branch) : "store_a";
+      const storeId = store_branch ? await resolveStoreIdCached(store_branch) : "store_a";
 
       const createdIds = [];
       for (let i = 0; i < items.length; i++) {
@@ -678,26 +675,23 @@ return res.send(`
       // Idempotency check
       const dupeSnap = await getDocs(query(
         collection(db, "deliveries"),
-        where("invoice_number", "==", voucher_number)
+        where("invoice_number", "==", voucher_number),
+        where("source", "==", "tally_tdl"),
+        limit(1)
       ));
-      const existingTallyDocs = dupeSnap.docs.filter(d => d.data().source === "tally_tdl");
-      if (existingTallyDocs.length > 0) {
+      if (dupeSnap.size > 0) {
         console.log("[tally/voucher TDL JSON-new] duplicate push ignored:", voucher_number);
         return res.json({
           ok: true, invoice_number: voucher_number, customer: customer_name,
-          ids: existingTallyDocs.map(d => d.id), duplicate: true
+          ids: [dupeSnap.docs[0].id], duplicate: true
         });
       }
 
       const estimated_delivery_time = tallyAutoETA();
-      const driversSnap   = await getDocs(collection(db, "drivers"));
-      const unassignedDoc = driversSnap.docs.find(d =>
-        (d.data().driver_name || "").trim().toLowerCase() === "unassigned"
-      );
-      const assigned_driver_id   = unassignedDoc ? unassignedDoc.id : "unassigned";
+      const assigned_driver_id   = await getUnassignedDriverId();
       const assigned_driver_name = "Unassigned";
       const storeBranch = req.body?.store_branch || req.body?.HARIOMFSTOREBRANCH || "";
-      const storeId = storeBranch ? await resolveStoreId(storeBranch) : "store_a";
+      const storeId = storeBranch ? await resolveStoreIdCached(storeBranch) : "store_a";
 
       const docRef = await addDoc(collection(db, "deliveries"), {
         customer_name,
@@ -929,18 +923,12 @@ app.post(
 
       const dupeSnap = await getDocs(query(
         collection(db, "service_tickets"),
-        where("tally_voucher_number", "==", voucher_number)
+        where("tally_voucher_number", "==", voucher_number),
+        where("type", "==", type),
+        where("created_at", ">=", Timestamp.fromMillis(Date.now() - (5 * 60 * 1000))),
+        limit(1)
       ));
-      const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-      const recentDuplicate = dupeSnap.docs.find(d => {
-        const data = d.data() || {};
-        const createdMs =
-          typeof data.created_at?.toMillis === "function"
-            ? data.created_at.toMillis()
-            : 0;
-        return (data.type || "") === type && createdMs >= fiveMinutesAgo;
-      });
-      if (recentDuplicate) {
+      if (dupeSnap.size > 0) {
         console.log("[tally/ticket] recent duplicate push ignored:", voucher_number);
         res.set("Content-Type", "text/xml");
         return res.send(`
@@ -974,7 +962,7 @@ app.post(
         purchase_date:         null,
         is_auto_created:       true,
         source:                "tally_tdl",
-        storeId:               store_branch ? await resolveStoreId(store_branch) : "",
+        storeId:               store_branch ? await resolveStoreIdCached(store_branch) : "",
         tally_voucher_number:  voucher_number,
         brand_tracking_number: null,
         brand_request_status:  null,
@@ -1916,13 +1904,11 @@ app.post("/createDelivery", writeLimiter, authenticate, async (req, res) => {
         collection(db, "deliveries"),
         where("phone", "==", data.phone),
         where("product_name", "==", data.product_name),
-        where("status", "in", ["pending", "booked"])
+        where("status", "in", ["pending", "booked"]),
+        where("created_timestamp", ">=", since),
+        limit(1)
       ));
-      const isDuplicate = dupeSnap.docs.some(d => {
-        const ts = d.data().created_timestamp;
-        return ts && ts.seconds >= since.seconds;
-      });
-      if (isDuplicate) {
+      if (dupeSnap.size > 0) {
         return res.status(409).json({ error: "Duplicate delivery detected. This customer + product was just created. Please wait a moment." });
       }
     }
@@ -1992,11 +1978,7 @@ app.post("/createDeliveries", writeLimiter, authenticate, async (req, res) => {
         shared.estimated_delivery_time = eod.toISOString().slice(0, 16);
       }
       // Look up the real "Unassigned" driver doc so dispatcher panel picks it up
-      const driversSnap = await getDocs(collection(db, "drivers"));
-      const unassignedDoc = driversSnap.docs.find(d =>
-        (d.data().driver_name || "").trim().toLowerCase() === "unassigned"
-      );
-      shared.assigned_driver_id   = unassignedDoc ? unassignedDoc.id : "self_pickup";
+      shared.assigned_driver_id   = await getUnassignedDriverId();
       shared.assigned_driver_name = "Unassigned";
     }
 
@@ -2098,6 +2080,7 @@ const DELIVERY_COUNTS_CACHE_TTL = 30_000;
 function invalidateDeliveriesCache() {
   deliveriesCache = { data: null, expiry: 0 };
   deliveryCountsCache = { data: null, expiry: 0 };
+  broadcastRefresh({ type: "delivery" });
 }
 
 // Simple in-memory cache for reference data (small, rarely-changing collections)
@@ -2108,6 +2091,50 @@ function getRefCache(key, ttl = 60000) {
 }
 function invalidateRefCache(key) {
   if (refCaches[key]) refCaches[key].expiry = 0;
+}
+
+// ── Cached "Unassigned" driver ID (avoids full drivers collection scan on every Tally push) ──
+let _unassignedDriverCache = { id: null, expiry: 0 };
+const UNASSIGNED_DRIVER_CACHE_TTL = 300_000; // 5 minutes
+
+async function getUnassignedDriverId() {
+  if (Date.now() < _unassignedDriverCache.expiry && _unassignedDriverCache.id) {
+    return _unassignedDriverCache.id;
+  }
+  try {
+    const snap = await getDocs(query(collection(db, "drivers"), where("driver_name", "==", "Unassigned"), limit(1)));
+    _unassignedDriverCache.id = snap.empty ? "unassigned" : snap.docs[0].id;
+    _unassignedDriverCache.expiry = Date.now() + UNASSIGNED_DRIVER_CACHE_TTL;
+    return _unassignedDriverCache.id;
+  } catch {
+    return "unassigned";
+  }
+}
+
+function invalidateUnassignedDriverCache() {
+  _unassignedDriverCache = { id: null, expiry: 0 };
+}
+
+// ── Cached storeId resolution (avoids stores collection query on every Tally push) ──
+let _storeIdCache = { data: {}, expiry: 0 };
+const STORE_ID_CACHE_TTL = 300_000; // 5 minutes
+
+async function resolveStoreIdCached(tallyStoreName) {
+  if (!tallyStoreName) return null;
+  if (Date.now() < _storeIdCache.expiry && _storeIdCache.data[tallyStoreName] !== undefined) {
+    return _storeIdCache.data[tallyStoreName];
+  }
+  try {
+    const snap = await getDocs(query(collection(db, "stores"), where("name", "==", tallyStoreName), limit(1)));
+    const id = snap.empty ? null : snap.docs[0].id;
+    _storeIdCache.data[tallyStoreName] = id;
+    _storeIdCache.expiry = Date.now() + STORE_ID_CACHE_TTL;
+    return id;
+  } catch { return null; }
+}
+
+function invalidateStoreIdCache() {
+  _storeIdCache = { data: {}, expiry: 0 };
 }
 
 async function countQuery(q) {
@@ -2134,7 +2161,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
     addStoreFilter(storeCond, req.user, undefined, req);
 
     const [
-      total, booked, pending, loaded, delivered, failed, urgent, todaySnap
+      total, booked, pending, loaded, delivered, failed, urgent, manualCount, tallyTdlCount, importFileCount
     ] = await Promise.all([
       countQuery(query(deliveriesRef, ...storeCond)),
       countQuery(query(deliveriesRef, where("status", "==", "booked"), ...storeCond)),
@@ -2143,17 +2170,11 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
       countQuery(query(deliveriesRef, where("status", "==", "delivered"), ...storeCond)),
       countQuery(query(deliveriesRef, where("status", "==", "failed"), ...storeCond)),
       countQuery(query(deliveriesRef, where("priority", "==", "urgent"), ...storeCond)),
-      getDocs(query(deliveriesRef, where("created_timestamp", ">=", todayStart), ...storeCond))
+      countQuery(query(deliveriesRef, where("created_timestamp", ">=", todayStart), where("source", "==", "manual"), ...storeCond)),
+      countQuery(query(deliveriesRef, where("created_timestamp", ">=", todayStart), where("source", "==", "tally_tdl"), ...storeCond)),
+      countQuery(query(deliveriesRef, where("created_timestamp", ">=", todayStart), where("source", "==", "import_file"), ...storeCond))
     ]);
-    const sourceToday = { manual: 0, tally_tdl: 0, import_file: 0 };
-    todaySnap.docs.forEach(d => {
-      const source = d.data().source === "tally_tdl"
-        ? "tally_tdl"
-        : d.data().source === "import_file"
-          ? "import_file"
-          : "manual";
-      sourceToday[source]++;
-    });
+    const todayTotal = manualCount + tallyTdlCount + importFileCount;
 
     const result = {
       total,
@@ -2164,8 +2185,8 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
       delivered,
       failed,
       urgent,
-      today: todaySnap.size,
-      sourceToday
+      today: todayTotal,
+      sourceToday: { manual: manualCount, tally_tdl: tallyTdlCount, import_file: importFileCount }
     };
 
     deliveryCountsCache = { data: result, expiry: Date.now() + DELIVERY_COUNTS_CACHE_TTL };
@@ -2736,6 +2757,7 @@ app.post("/addDriver", authenticate, authorize(["admin"]), async (req, res) => {
     created_timestamp: Timestamp.now()
   });
   invalidateRefCache("drivers");
+  broadcastRefresh({ type: "driver" });
   res.json({ success: true, id: docRef.id });
 });
 
@@ -2759,6 +2781,7 @@ app.put("/driver/:id", authenticate, authorize(["admin"]), async (req, res) => {
     await updateDoc(refDoc, otherFields);
   }
   invalidateRefCache("drivers");
+  broadcastRefresh({ type: "driver" });
   res.json({ success: true });
 });
 
@@ -2775,6 +2798,7 @@ app.delete("/driver/:id", authenticate, authorize(["admin"]), async (req, res) =
     const driverName = driverSnap.exists() ? driverSnap.data().driver_name : driverId;
     await deleteDoc(doc(db, "drivers", driverId));
     invalidateRefCache("drivers");
+    broadcastRefresh({ type: "driver" });
     logActivity({ action: "delete_driver", entityType: "driver", entityId: driverId, label: driverName, details: "Driver deleted by admin", req });
     res.json({ success: true });
   } catch (error) {
@@ -4738,6 +4762,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
     });
 
     res.json({ success: true, id: docRef.id });
+    broadcastRefresh({ type: "ticket" });
 
     // Push notification to service panel in background
     (async () => {
@@ -4797,6 +4822,7 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
 
     await updateDoc(refDoc, { ...updates, updated_at: Timestamp.now() });
     res.json({ success: true });
+    broadcastRefresh({ type: "ticket" });
 
     // Background push notifications
     (async () => {
@@ -4867,6 +4893,7 @@ app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]),
     const ticketLabel = `${t.customer_name || t.phone} — ${t.product_name || t.type}`;
     logActivity({ action: "delete_service_ticket", entityType: "service_ticket", entityId: req.params.id, label: ticketLabel, details: `Ticket deleted. Reason: ${(reason || "").trim()}`, req });
     res.json({ success: true });
+    broadcastRefresh({ type: "ticket" });
 
     // Notify admin + accountant in background
     (async () => {
@@ -6758,6 +6785,34 @@ app.get("/health", (req, res) => {
   res.setHeader("Content-Type", "text/plain");
   res.status(200).send("OK");
 });
+
+// ── Server-Sent Events endpoint — pushes refresh signals to browser tabs ──
+const sseClients = new Set();
+app.get("/sse", (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(401).json({ error: "Token required" });
+  try {
+    jwt.verify(token, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+  res.write("event: connected\ndata: {}\n\n");
+  sseClients.add(res);
+  req.on("close", () => sseClients.delete(res));
+});
+
+// Broadcast events to all connected SSE clients
+function broadcastRefresh(event) {
+  const msg = `event: refresh\ndata: ${JSON.stringify(event)}\n\n`;
+  for (const client of sseClients) {
+    try { client.write(msg); } catch (_) { sseClients.delete(client); }
+  }
+}
 
 app.get("/test-fetch", async (req, res) => {
   try {
