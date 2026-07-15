@@ -2404,7 +2404,7 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
     trackReads("deliveries", deliveries.length);
 
     // Cache unfiltered, non-paginated results
-    if (!hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup) {
+    if (!hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver) {
       deliveriesCache = { data: deliveries, expiry: Date.now() + DELIVERIES_CACHE_TTL };
     }
 
