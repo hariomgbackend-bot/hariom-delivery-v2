@@ -2310,12 +2310,14 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
         });
         snapshot = { docs: merged, size: merged.length };
       } else {
+        q = query(q, limit(200));
         snapshot = await getDocs(q);
       }
     } else {
       if (parsedStatuses.length > 1) {
         q = query(q, where("status", "in", parsedStatuses.slice(0, 10)));
       }
+      q = query(q, limit(200));
       snapshot = await getDocs(q);
     }
     let deliveries = snapshot.docs.map(d => {
@@ -4797,7 +4799,6 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
 
     res.json({ success: true, id: docRef.id });
     broadcastRefresh({ type: "ticket" });
-    Object.keys(serviceTicketsCaches).forEach(k => { serviceTicketsCaches[k].expiry = 0; });
 
     // Push notification to service panel in background
     (async () => {
@@ -4858,7 +4859,6 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
     await updateDoc(refDoc, { ...updates, updated_at: Timestamp.now() });
     res.json({ success: true });
     broadcastRefresh({ type: "ticket" });
-    Object.keys(serviceTicketsCaches).forEach(k => { serviceTicketsCaches[k].expiry = 0; });
 
     // Background push notifications
     (async () => {
@@ -4930,7 +4930,6 @@ app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]),
     logActivity({ action: "delete_service_ticket", entityType: "service_ticket", entityId: req.params.id, label: ticketLabel, details: `Ticket deleted. Reason: ${(reason || "").trim()}`, req });
     res.json({ success: true });
     broadcastRefresh({ type: "ticket" });
-    Object.keys(serviceTicketsCaches).forEach(k => { serviceTicketsCaches[k].expiry = 0; });
 
     // Notify admin + accountant in background
     (async () => {
