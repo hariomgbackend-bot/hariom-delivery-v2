@@ -691,7 +691,7 @@
         📦 In Stock
       </label>
     </div>
-    <div class="form-field" id="ctStoreWrap" style="display:none;">
+    <div class="form-field" id="ctStoreWrap">
       <label>Store</label>
       <select class="form-select" id="ctStore" onchange="onCtStoreChange()">
         <option value="">— Select store —</option>
@@ -1798,7 +1798,6 @@ function onCtInStockChange() {
   ctType.disabled = checked;
   if (checked) ctType.value = "complaint";
   onCtTypeChange();
-  document.getElementById("ctStoreWrap").style.display = checked ? "" : "none";
   showCustomerFields(!checked);
   if (!checked) {
     document.getElementById("ctStore").value = "";
