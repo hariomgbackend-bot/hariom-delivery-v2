@@ -2079,6 +2079,8 @@ let deliveriesCache = { data: null, expiry: 0 };
 const DELIVERIES_CACHE_TTL = 30_000; // 30 seconds
 let deliveryCountsCache = { data: null, expiry: 0 };
 const DELIVERY_COUNTS_CACHE_TTL = 30_000;
+let serviceTicketsCache = { data: null, expiry: 0 };
+const SERVICE_TICKETS_CACHE_TTL = 30_000;
 
 function invalidateDeliveriesCache() {
   deliveriesCache = { data: null, expiry: 0 };
@@ -4679,6 +4681,9 @@ app.delete("/leads/:id", authenticate, authorize(["admin"]), async (req, res) =>
 ════════════════════════════════════════════════ */
 app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
+    if (Date.now() < serviceTicketsCache.expiry) {
+      return res.json(serviceTicketsCache.data);
+    }
     const ticketConstraints = [];
     if (req.user.role !== "service") {
       addStoreFilter(ticketConstraints, req.user, undefined, req);
@@ -4691,6 +4696,7 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
     const snap   = await getDocs(q);
     const tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     trackReads("service-tickets", snap.docs.length);
+    serviceTicketsCache = { data: tickets, expiry: Date.now() + SERVICE_TICKETS_CACHE_TTL };
 
     res.json(tickets);
   } catch (err) {
@@ -4789,6 +4795,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
 
     res.json({ success: true, id: docRef.id });
     broadcastRefresh({ type: "ticket" });
+    serviceTicketsCache.expiry = 0;
 
     // Push notification to service panel in background
     (async () => {
@@ -4849,6 +4856,7 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
     await updateDoc(refDoc, { ...updates, updated_at: Timestamp.now() });
     res.json({ success: true });
     broadcastRefresh({ type: "ticket" });
+    serviceTicketsCache.expiry = 0;
 
     // Background push notifications
     (async () => {
@@ -4920,6 +4928,7 @@ app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]),
     logActivity({ action: "delete_service_ticket", entityType: "service_ticket", entityId: req.params.id, label: ticketLabel, details: `Ticket deleted. Reason: ${(reason || "").trim()}`, req });
     res.json({ success: true });
     broadcastRefresh({ type: "ticket" });
+    serviceTicketsCache.expiry = 0;
 
     // Notify admin + accountant in background
     (async () => {
