@@ -2310,14 +2310,13 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
         });
         snapshot = { docs: merged, size: merged.length };
       } else {
-        q = query(q, limit(200));
+        q = query(q, orderBy("created_timestamp", "desc"), limit(p * ps));
         snapshot = await getDocs(q);
       }
     } else {
       if (parsedStatuses.length > 1) {
         q = query(q, where("status", "in", parsedStatuses.slice(0, 10)));
       }
-      q = query(q, limit(200));
       snapshot = await getDocs(q);
     }
     let deliveries = snapshot.docs.map(d => {
