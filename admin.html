@@ -5046,7 +5046,7 @@ function onSearch() {
 
 // ── SSE — instant refresh on changes, 5 min fallback poll ──
 function connectSSE() {
-  const token = getToken();
+  const token = getAdminToken();
   if (!token) return;
   const es = new EventSource(`${BASE_URL}/sse?token=${encodeURIComponent(token)}`);
   es.addEventListener("refresh", e => {
