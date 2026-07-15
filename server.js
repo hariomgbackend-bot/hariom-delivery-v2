@@ -1831,6 +1831,7 @@ app.get("/products", async (req, res) => {
   if (Date.now() < cache.expiry) return res.json(cache.data);
   const snapshot = await getDocs(collection(db, "products"));
   const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  trackReads("products", snapshot.docs.length);
   cache.data = data; cache.expiry = Date.now() + cache.ttl;
   res.json(data);
 });
@@ -1850,6 +1851,7 @@ app.get("/makes", async (req, res) => {
   if (Date.now() < cache.expiry) return res.json(cache.data);
   const snapshot = await getDocs(collection(db, "makes"));
   const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  trackReads("makes", snapshot.docs.length);
   cache.data = data; cache.expiry = Date.now() + cache.ttl;
   res.json(data);
 });
@@ -1869,6 +1871,7 @@ app.get("/models", async (req, res) => {
   if (Date.now() < cache.expiry) return res.json(cache.data);
   const snapshot = await getDocs(collection(db, "models"));
   const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  trackReads("models", snapshot.docs.length);
   cache.data = data; cache.expiry = Date.now() + cache.ttl;
   res.json(data);
 });
@@ -2083,6 +2086,14 @@ function invalidateDeliveriesCache() {
   broadcastRefresh({ type: "delivery" });
 }
 
+// ── Read stats tracker — counts docs read per endpoint ──
+const readStats = { started: Date.now(), endpoints: {} };
+function trackReads(label, docCount) {
+  if (!readStats.endpoints[label]) readStats.endpoints[label] = { calls: 0, docs: 0 };
+  readStats.endpoints[label].calls++;
+  readStats.endpoints[label].docs += docCount;
+}
+
 // Simple in-memory cache for reference data (small, rarely-changing collections)
 const refCaches = {};
 function getRefCache(key, ttl = 60000) {
@@ -2189,6 +2200,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
       sourceToday: { manual: manualCount, tally_tdl: tallyTdlCount, import_file: importFileCount }
     };
 
+    trackReads("delivery-counts", 10);
     deliveryCountsCache = { data: result, expiry: Date.now() + DELIVERY_COUNTS_CACHE_TTL };
     res.json(result);
   } catch (error) {
@@ -2385,6 +2397,8 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
 
       return 0;
     });
+
+    trackReads("deliveries", deliveries.length);
 
     // Cache unfiltered, non-paginated results
     if (!hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup) {
@@ -2766,6 +2780,7 @@ app.get("/drivers", authenticate, authorize(["admin", "accountant"]), async (req
   if (Date.now() < cache.expiry) return res.json(cache.data);
   const snapshot = await getDocs(collection(db, "drivers"));
   const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  trackReads("drivers", snapshot.docs.length);
   cache.data = data; cache.expiry = Date.now() + cache.ttl;
   res.json(data);
 });
@@ -2808,6 +2823,7 @@ app.delete("/driver/:id", authenticate, authorize(["admin"]), async (req, res) =
 
 app.get("/driver-list-public", async (req, res) => {
   const snapshot = await getDocs(query(collection(db, "drivers"), limit(200)));
+  trackReads("driver-list-public", snapshot.docs.length);
   res.json(snapshot.docs.map(d => ({ id: d.id, driver_name: d.data().driver_name })));
 });
 
@@ -2875,6 +2891,7 @@ app.post("/driverDeliveries", pinLimiter, async (req, res) => {
     collection(db, "deliveries"),
     where("assigned_driver_id", "==", driver_id)
   ));
+  trackReads("driverDeliveries", snapshot.docs.length);
 
   res.json({ deliveries: snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status !== "booked" && !d.is_self_pickup), sessionToken });
 });
@@ -2895,6 +2912,7 @@ app.post("/driverDeliveriesRefresh", authenticate, authorize(["driver"]), async 
       collection(db, "deliveries"),
       where("assigned_driver_id", "==", driver_id)
     ));
+    trackReads("driverDeliveriesRefresh", snapshot.docs.length);
     res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status !== "booked"));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -3294,6 +3312,7 @@ app.get("/activity-log", authenticate, authorize(["admin"]), async (req, res) =>
       limit(maxResults)
     );
     const snap = await getDocs(q);
+    trackReads("activity-log", snap.docs.length);
     const entries = snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate?.()?.toISOString() || null }));
     res.json(entries);
   } catch (err) {
@@ -3655,6 +3674,7 @@ app.get("/api/sales/today", async (req, res) => {
         created_at: l.created_at?.seconds || 0
       }));
 
+    trackReads("sales-today", snap.docs.length);
     res.json({ success: true, count: sales.length, sales });
 
   } catch (err) {
@@ -3678,6 +3698,7 @@ app.get("/api/sales/today-ui", async (req, res) => {
     ];
     if (storeIdFilter) queryConstraints.push(where("storeId", "==", storeIdFilter));
     const snap = await getDocs(query(collection(db, "leads"), ...queryConstraints));
+    trackReads("sales-today-ui", snap.docs.length);
 
     const sales = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
@@ -4255,6 +4276,7 @@ app.get("/staff-list-public", async (req, res) => {
     const data = snap.docs
       .map(d => ({ id: d.id, name: d.data().name, role: d.data().role, weekly_off: d.data().weekly_off || "", color: d.data().color || "" }))
       .filter(s => s.role === "staff");
+    trackReads("staff-list-public", snap.docs.length);
     cache.data = data; cache.expiry = Date.now() + cache.ttl;
     res.json(data);
   } catch (err) {
@@ -4265,6 +4287,7 @@ app.get("/staff-list-public", async (req, res) => {
 app.get("/staff-weekly-off", authenticate, async (req, res) => {
   try {
     const snap = await getDocs(query(collection(db, "staff_users"), where("role", "==", "staff")));
+    trackReads("staff-weekly-off", snap.docs.length);
     const list = snap.docs.map(d => ({ id: d.id, name: d.data().name, weekly_off: d.data().weekly_off || "", color: d.data().color || "" }));
     res.json(list);
   } catch (err) {
@@ -4434,6 +4457,7 @@ app.get("/staff", authenticate, authorize(["admin"]), async (req, res) => {
       const { pinHash, passwordHash, ...safe } = docData;
       return { id: d.id, ...safe };
     });
+    trackReads("staff", snap.docs.length);
     cache.data = data; cache.expiry = Date.now() + cache.ttl;
     res.json(data);
   } catch (err) {
@@ -4496,6 +4520,7 @@ app.get("/leads", authenticate, authorize(["admin", "accountant", "staff", "serv
     const q = leadsConstraints.length > 0 ? query(collection(db, "leads"), ...leadsConstraints) : collection(db, "leads");
     const snap  = await getDocs(q);
     let leads   = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    trackReads("leads", snap.docs.length);
 
     // Staff can only see their own leads
     if (req.user.role === "staff") {
@@ -4665,6 +4690,7 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
     const q = query(collection(db, "service_tickets"), ...ticketConstraints);
     const snap   = await getDocs(q);
     const tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    trackReads("service-tickets", snap.docs.length);
 
     res.json(tickets);
   } catch (err) {
@@ -5142,6 +5168,7 @@ app.get("/brands", authenticate, authorize(["admin", "accountant", "service", "s
     if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "brands"));
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    trackReads("brands", snap.docs.length);
     cache.data = data; cache.expiry = Date.now() + cache.ttl;
     res.json(data);
   } catch (err) {
@@ -5214,6 +5241,7 @@ app.get("/api/stores", authenticate, authorize(["admin", "accountant", "service"
     if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "stores"));
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    trackReads("stores", snap.docs.length);
     cache.data = data; cache.expiry = Date.now() + cache.ttl;
     res.json(data);
   } catch (err) {
@@ -6014,6 +6042,7 @@ app.post("/transfer-serial", authenticate, async (req, res) => {
 app.get("/inventory", authenticate, async (req, res) => {
   try {
     const snapshot = await getDocs(collection(db, "inventory_serials"));
+    trackReads("inventory", snapshot.docs.length);
     const serials = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     res.json(serials);
   } catch (err) {
@@ -6814,6 +6843,23 @@ function broadcastRefresh(event) {
   }
 }
 
+// ── Read stats dashboard (admin only) ──
+app.get("/admin/read-stats", authenticate, authorize(["admin"]), (req, res) => {
+  const elapsed = Math.max(1, (Date.now() - readStats.started) / 1000 / 60);
+  const entries = Object.entries(readStats.endpoints)
+    .map(([k, v]) => ({ endpoint: k, calls: v.calls, docs: v.docs }))
+    .sort((a, b) => b.docs - a.docs);
+  const totalCalls = entries.reduce((s, e) => s + e.calls, 0);
+  const totalDocs  = entries.reduce((s, e) => s + e.docs, 0);
+  res.json({
+    uptime_min: Math.round(elapsed),
+    total_calls: totalCalls,
+    total_docs_read: totalDocs,
+    docs_per_min: Math.round(totalDocs / elapsed),
+    endpoints: entries
+  });
+});
+
 app.get("/test-fetch", async (req, res) => {
   try {
     const response = await fetch("https://httpbin.org/get");
@@ -6889,6 +6935,7 @@ app.get("/price-guide", authenticate, async (req, res) => {
     if (Date.now() < cache.expiry) return res.json(cache.data);
     const pgSnap = await getDocs(collection(db, "price_guide"));
     const items = pgSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    trackReads("price-guide", pgSnap.docs.length);
     cache.data = items; cache.expiry = Date.now() + cache.ttl;
     res.json(items);
   } catch (err) {
@@ -6971,6 +7018,7 @@ app.get("/slabs", authenticate, async (req, res) => {
     if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "slabs"));
     const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    trackReads("slabs", snap.docs.length);
     items.sort((a, b) => (a.slabName || "").localeCompare(b.slabName || ""));
     cache.data = items; cache.expiry = Date.now() + cache.ttl;
     res.json(items);
@@ -7026,6 +7074,7 @@ app.get("/categories", authenticate, async (req, res) => {
     if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "categories"));
     const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    trackReads("categories", snap.docs.length);
     items.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     cache.data = items; cache.expiry = Date.now() + cache.ttl;
     res.json(items);
@@ -7074,6 +7123,7 @@ app.delete("/categories/:id", authenticate, authorize(["admin"]), async (req, re
 app.get("/calendar-events", authenticate, async (req, res) => {
   try {
     const snap = await getDocs(collection(db, "calendar_events"));
+    trackReads("calendar-events", snap.docs.length);
     let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     items.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
     const role = req.user.role;
@@ -7273,6 +7323,7 @@ app.get("/api/alert-count", authenticate, async (req, res) => {
     const unassigned = delSnap.docs.filter(d => d.data().status === "booked" || d.data().status === "pending").length;
     const tickets = ticketSnap.size;
     const leads = leadSnap.size;
+    trackReads("alert-count", delSnap.docs.length + ticketSnap.size + leadSnap.size);
     res.json({ count: unassigned + tickets + leads });
     res.json({ count });
   } catch (e) {

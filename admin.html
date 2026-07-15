@@ -1609,6 +1609,10 @@
       <span class="material-symbols-outlined">history</span>
       Activity Log
     </button>
+    <button class="sidebar-item" onclick="openReadStats()">
+      <span class="material-symbols-outlined">database</span>
+      Read Stats
+    </button>
   </nav>
 </aside>
 
@@ -4007,6 +4011,43 @@ function adminLogout() {
   localStorage.removeItem("adminToken");
   localStorage.removeItem("accountantToken");
   window.location.href = "login.html";
+}
+
+function openReadStats() {
+  const token = getAdminToken();
+  if (!token) return;
+  fetch(`${BASE_URL}/admin/read-stats`, {
+    headers: { "Authorization": "Bearer " + token }
+  })
+    .then(r => r.json())
+    .then(d => {
+      let html = `<div style="padding:20px;font-family:monospace;font-size:13px;max-width:800px;margin:0 auto;">
+        <h2 style="font-size:18px;margin-bottom:4px;">📊 Read Stats</h2>
+        <div style="color:var(--muted);margin-bottom:16px;">
+          Uptime: ${d.uptime_min} min &middot; Total calls: ${d.total_calls.toLocaleString()} &middot;
+          Total docs read: ${d.total_docs_read.toLocaleString()} &middot;
+          Docs/min: ${d.docs_per_min.toLocaleString()}
+        </div>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr style="border-bottom:2px solid var(--border);">
+            <th style="text-align:left;padding:6px 8px;">Endpoint</th>
+            <th style="text-align:right;padding:6px 8px;">Calls</th>
+            <th style="text-align:right;padding:6px 8px;">Docs Read</th>
+            <th style="text-align:right;padding:6px 8px;">Docs/Call</th>
+          </tr>`;
+      d.endpoints.forEach(e => {
+        html += `<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:4px 8px;">${e.endpoint}</td>
+          <td style="text-align:right;padding:4px 8px;">${e.calls.toLocaleString()}</td>
+          <td style="text-align:right;padding:4px 8px;">${e.docs.toLocaleString()}</td>
+          <td style="text-align:right;padding:4px 8px;">${(e.docs / Math.max(1, e.calls)).toFixed(1)}</td>
+        </tr>`;
+      });
+      html += `</table></div>`;
+      const container = document.getElementById("content") || document.querySelector(".content");
+      if (container) container.innerHTML = html;
+    })
+    .catch(() => showToast("Failed to load read stats"));
 }
 
 function redirectToLogin(reason) {
