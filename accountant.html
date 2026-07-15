@@ -3761,6 +3761,16 @@ async function _doLoadDeliveries(showSkeleton = true) {
     totalDeliveries = totalItems;
     totalPages = totalPagesResult;
 
+    // Sort: on-demand (estimated_delivery_time === "On-Demand") first, then by created_timestamp desc
+    if (pageData.length > 1) {
+      pageData.sort((a, b) => {
+        const aOD = a.estimated_delivery_time === "On-Demand" ? 1 : 0;
+        const bOD = b.estimated_delivery_time === "On-Demand" ? 1 : 0;
+        if (aOD !== bOD) return bOD - aOD;
+        return (b.created_timestamp?.seconds || 0) - (a.created_timestamp?.seconds || 0);
+      });
+    }
+
     // Counts from server endpoint (already started in parallel above)
     const sc = await countsPromise;
     if (sc) {
