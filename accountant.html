@@ -3713,7 +3713,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
     // Skipped for background auto-refresh (showSkeleton=false) to avoid flicker + scroll jump.
     if (showSkeleton) showDeliverySkeleton();
     let url = currentFilter === "all"
-      ? `${BASE_URL}/deliveries`
+      ? `${BASE_URL}/deliveries?_=1`
       : `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
 
     const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
