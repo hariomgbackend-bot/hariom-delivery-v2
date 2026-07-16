@@ -4266,6 +4266,7 @@ async function autoCreateServiceTicket(deliveryData, deliveryId) {
     resolved_at:        null,
     warranty_expiry:    expiry,
     purchase_date:      deliveryData.delivered_timestamp || null,
+    storeId:            deliveryData.storeId || "",
     is_auto_created:    true
   });
   console.log(`[autoTicket] Created installation ticket for delivery ${deliveryId}`);
