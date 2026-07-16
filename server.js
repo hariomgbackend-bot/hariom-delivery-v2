@@ -1648,7 +1648,7 @@ app.post("/api/verify-firebase-token", async (req, res) => {
 app.get("/api/stores", async (req, res) => {
   try {
     const snap = await getDocs(collection(db, "stores"));
-    res.json(snap.docs.map(d => ({ id: d.id, key: d.data().key || "", name: d.data().name })));
+    res.json(snap.docs.map(d => ({ id: d.id, key: d.data().key || "", name: d.data().name, address: d.data().address || "", phone: d.data().phone || "", altPhone: d.data().altPhone || "" })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
