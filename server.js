@@ -2080,12 +2080,16 @@ const DELIVERIES_CACHE_TTL = 30_000; // 30 seconds
 let deliveryCountsCache = { data: null, expiry: 0 };
 const DELIVERY_COUNTS_CACHE_TTL = 30_000;
 const serviceTicketsCaches = {};
-const SERVICE_TICKETS_CACHE_TTL = 30_000;
+const SERVICE_TICKETS_CACHE_TTL = 60_000;
 
 function invalidateDeliveriesCache() {
   deliveriesCache = { data: null, expiry: 0 };
   deliveryCountsCache = { data: null, expiry: 0 };
   broadcastRefresh({ type: "delivery" });
+}
+
+function invalidateServiceTicketsCache() {
+  Object.keys(serviceTicketsCaches).forEach(k => delete serviceTicketsCaches[k]);
 }
 
 // ── Read stats tracker — counts docs read per endpoint ──
@@ -4694,6 +4698,7 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
     if (req.query.status) ticketConstraints.push(where("status", "==", req.query.status));
     if (req.query.type)   ticketConstraints.push(where("type", "==", req.query.type));
     ticketConstraints.push(orderBy("created_at", "desc"));
+    ticketConstraints.push(limit(500));
 
     const q = query(collection(db, "service_tickets"), ...ticketConstraints);
     const snap   = await getDocs(q);
@@ -4798,6 +4803,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
 
     res.json({ success: true, id: docRef.id });
     broadcastRefresh({ type: "ticket" });
+    invalidateServiceTicketsCache();
 
     // Push notification to service panel in background
     (async () => {
@@ -4858,6 +4864,7 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
     await updateDoc(refDoc, { ...updates, updated_at: Timestamp.now() });
     res.json({ success: true });
     broadcastRefresh({ type: "ticket" });
+    invalidateServiceTicketsCache();
 
     // Background push notifications
     (async () => {
@@ -4929,6 +4936,7 @@ app.delete("/service/ticket/:id", authenticate, authorize(["admin", "service"]),
     logActivity({ action: "delete_service_ticket", entityType: "service_ticket", entityId: req.params.id, label: ticketLabel, details: `Ticket deleted. Reason: ${(reason || "").trim()}`, req });
     res.json({ success: true });
     broadcastRefresh({ type: "ticket" });
+    invalidateServiceTicketsCache();
 
     // Notify admin + accountant in background
     (async () => {
@@ -5142,9 +5150,8 @@ app.get("/service/search", authenticate, authorize(["admin", "accountant", "serv
     if (req.user.role !== "service") {
       addStoreFilter(searchConstraints, req.user, undefined, req);
     }
-    const ticketSnap = searchConstraints.length > 0
-      ? await getDocs(query(collection(db, "service_tickets"), ...searchConstraints))
-      : await getDocs(collection(db, "service_tickets"));
+    const searchWithLimit = [...searchConstraints, limit(500)];
+    const ticketSnap = await getDocs(query(collection(db, "service_tickets"), ...searchWithLimit));
 
     const tickets = ticketSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
