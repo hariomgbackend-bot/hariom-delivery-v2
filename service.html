@@ -1192,7 +1192,7 @@ function renderTicketsTable(tickets) {
       <td><span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace("_"," ")}</span></td>
       <td>${warrantyStr(t)}</td>
       <td style="font-size:12px;color:var(--on-surface-variant);">${fmtDate(t.created_at)}</td>
-      <td style="font-size:11px;color:var(--on-surface-variant);">${esc(t.created_by_name)||esc(t.created_by)||"—"}</td>
+      <td style="font-size:11px;">${getSourceHtml(t)}</td>
       <td>
         <button class="btn btn-teal btn-sm" onclick="event.stopPropagation();openTicketDetail('${t.id}')">Open</button>
       </td>
@@ -1281,6 +1281,18 @@ function displayType(type) {
   return type === "installation" ? "Demo-Installation" : (type || "—");
 }
 
+function getSourceHtml(t) {
+  const name = t.created_by_name || t.created_by || "—";
+  if (t.source === "tally_tdl")      return `<span class="badge" style="background:rgba(156,163,175,0.15);color:#9ca3af;border:1px solid rgba(156,163,175,0.3);">Auto Via Tally</span>`;
+  if (t.source === "delivery_auto")  return `<span class="badge" style="background:rgba(251,146,60,0.15);color:#fb923c;border:1px solid rgba(251,146,60,0.3);">Auto Via Accountant</span>`;
+  if (t.is_legacy_import)            return `<span class="badge" style="background:rgba(156,163,175,0.15);color:#9ca3af;border:1px solid rgba(156,163,175,0.3);">Legacy Import</span>`;
+  if (t.created_by_role === "staff")     return `<span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.3);">Staff: ${esc(name)}</span>`;
+  if (t.created_by_role === "service")   return `<span class="badge" style="background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);">Service: ${esc(name)}</span>`;
+  if (t.created_by_role === "admin")     return `<span class="badge" style="background:rgba(196,181,253,0.15);color:#c4b5fd;border:1px solid rgba(196,181,253,0.3);">Admin: ${esc(name)}</span>`;
+  if (t.created_by_role === "accountant") return `<span class="badge" style="background:rgba(251,146,60,0.15);color:#fb923c;border:1px solid rgba(251,146,60,0.3);">Accountant: ${esc(name)}</span>`;
+  return `<span style="color:var(--on-surface-variant);font-size:11px;">${esc(name)}</span>`;
+}
+
 function shareTicketWA(id) {
   const t = allTickets.find(x => x.id === id);
   if (!t) return;
@@ -1363,7 +1375,7 @@ function openTicketDetail(id) {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
       <span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace(/_/g," ")}</span>
       ${warranty !== "—" ? warranty : ""}
-      ${t.is_auto_created ? `<span class="badge" style="background:rgba(173,198,255,0.1);color:var(--on-surface-variant);">Auto-created</span>` : ""}
+      ${getSourceHtml(t)}
     </div>
 
     <div class="detail-row">
@@ -1378,7 +1390,7 @@ function openTicketDetail(id) {
     <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${esc(t.serial_number) || "—"}</span></div>
     ${t.description ? `<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${esc(t.description)}</span></div>` : ""}
     ${t.priority && t.priority !== "normal" ? `<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value" style="color:var(--error);font-weight:700;">🔴 Urgent</span></div>` : (t.priority === "normal" ? `<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value">Normal</span></div>` : "")}
-    <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${createdDate} by ${esc(t.created_by_name) || esc(t.created_by) || "—"}</span></div>
+    <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${createdDate} ${getSourceHtml(t)}</span></div>
     ${purchaseDate ? `<div class="detail-row"><span class="detail-label">Purchase Date</span><span class="detail-value">${purchaseDate}</span></div>` : ""}
     ${loggedDate   ? `<div class="detail-row"><span class="detail-label">Logged with Brand</span><span class="detail-value">${loggedDate}</span></div>` : ""}
     ${resolvedDate ? `<div class="detail-row"><span class="detail-label">Resolved</span><span class="detail-value">${resolvedDate}</span></div>` : ""}
