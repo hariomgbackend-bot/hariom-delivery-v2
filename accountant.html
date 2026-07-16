@@ -1089,6 +1089,33 @@
 
     <input class="search-input" id="searchInput" placeholder="Search by name, phone or product…" oninput="applySearch()">
 
+    <!-- COLLAPSIBLE BOOKED SECTION (visible only for "all" filter) -->
+    <div id="bookedCollapsible" style="display:none;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+      <div onclick="toggleBooked()" style="cursor:pointer;padding:10px 16px;background:var(--surface-container-high);display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;user-select:none;">
+        <span id="bookedToggle">▶</span> 📅 Booked <span class="filter-count" id="bookedCount"></span>
+      </div>
+      <div id="bookedBody" style="display:none;">
+        <div class="table-wrap" style="border:none;margin:0;border-radius:0;">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:44px;text-align:center;">St</th>
+                <th>Customer</th>
+                <th>Phone</th>
+                <th>Product</th>
+                <th style="max-width:160px;">Address</th>
+                <th>Driver</th>
+                <th>ETA</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="bookedList"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- DESKTOP TABLE -->
     <div class="table-wrap">
       <table>
@@ -1107,6 +1134,16 @@
         </thead>
         <tbody id="list"></tbody>
       </table>
+    </div>
+
+    <!-- MOBILE BOOKED COLLAPSIBLE -->
+    <div id="mobileBookedCollapsible" style="display:none;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+      <div onclick="toggleBooked()" style="cursor:pointer;padding:10px 16px;background:var(--surface-container-high);display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;user-select:none;">
+        <span id="mobileBookedToggle">▶</span> 📅 Booked <span class="filter-count" id="mobileBookedCount"></span>
+      </div>
+      <div id="mobileBookedBody" style="display:none;">
+        <div class="mobile-cards" id="mobileBookedCards"></div>
+      </div>
     </div>
 
     <!-- MOBILE CARDS -->
@@ -1478,6 +1515,7 @@ let _accountantSSE = null;
 let batchPhones    = [];
 let _deliveriesDebounceTimer = null;
 let _deliveriesInflight = false;
+let _bookedExpanded = false;
 let batchNumberMap = {};
 let phoneCounts    = {};
 
@@ -3680,6 +3718,14 @@ function showDeliverySkeleton() {
       `<tr><td colspan="9"><div class="skeleton" style="height:16px;width:92%;margin:12px 0;"></div></td></tr>`
     ).join("");
   }
+  const bl = document.getElementById("bookedList");
+  if (bl) bl.innerHTML = Array.from({ length: 4 }).map(() =>
+    `<tr><td colspan="9"><div class="skeleton" style="height:16px;width:90%;margin:10px 0;"></div></td></tr>`
+  ).join("");
+  const mb = document.getElementById("mobileBookedCards");
+  if (mb) mb.innerHTML = Array.from({ length: 3 }).map(() =>
+    `<div class="skeleton-card"><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:40%"></div><div class="skeleton-line" style="width:80%"></div></div>`
+  ).join("");
   const mc = document.getElementById("mobileCards");
   if (mc) {
     mc.innerHTML = Array.from({ length: 5 }).map(() =>
@@ -3704,67 +3750,157 @@ async function loadDeliveryCounts() {
   }
 }
 
+function toggleBooked() {
+  _bookedExpanded = !_bookedExpanded;
+  const disp = _bookedExpanded ? "" : "none";
+  const icon = _bookedExpanded ? "▼" : "▶";
+  ["bookedBody","mobileBookedBody"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = disp;
+  });
+  ["bookedToggle","mobileBookedToggle"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = icon;
+  });
+}
+
+function makeDeliveryRow(d, i, phonePositions) {
+  const isBatched = d.phone && batchPhones.includes(d.phone);
+  let batchTag = "";
+  const tr = document.createElement("tr");
+  if (isBatched) {
+    const bN = batchNumberMap[d.phone];
+    const pal = BATCH_PALETTES[(bN-1)%BATCH_PALETTES.length];
+    const pos = phonePositions[d.phone];
+    const pIdx = pos.indexOf(i);
+    tr.classList.add("batch-row");
+    if (pIdx===0) tr.classList.add("batch-first");
+    if (pIdx===pos.length-1) tr.classList.add("batch-last");
+    if (pIdx!==0 && pIdx!==pos.length-1) tr.classList.add("batch-mid");
+    tr.style.setProperty("--batch-color", pal.border);
+    tr.style.setProperty("--batch-bg", pal.bg);
+    batchTag = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${pal.bg};color:${pal.text};border:1px solid ${pal.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bN}</span>`;
+  }
+  if (d.status==="booked") tr.style.background=_isDark()?"rgba(99,102,241,0.08)":"#eef2ff";
+  if (d.status==="failed") tr.style.background=_isDark()?"rgba(255,180,171,0.06)":"#fff1f2";
+
+  const storeCircle = d.storeId === "store_a"
+    ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.15);vertical-align:middle;">A</span>`
+    : d.storeId === "store_b"
+    ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.15);vertical-align:middle;">D</span>`
+    : `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:12px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
+
+  tr.innerHTML = `
+    <td style="text-align:center;">${storeCircle}</td>
+    <td>${escHtml(d.customer_name)}${batchTag}${d.previous_failures>0?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>`:""}</td>
+    <td><a class='phone-link' href='tel:${escHtml(d.phone)}'>${escHtml(d.phone)}</a></td>
+    <td>${escHtml(d.product_name)}</td>
+    <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${escHtml(d.address)||'—'}</span></td>
+    <td>${d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—'}</td>
+    <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
+    <td>
+      <span class="badge badge-${d.status}">${d.status}</span>
+      ${d.is_self_pickup?`<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>`:""}
+      ${(d.status!=="delivered"&&d.status!=="failed"&&d.status!=="booked"&&d.estimated_delivery_time&&new Date(d.estimated_delivery_time)<new Date())?`<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>`:""}
+      ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
+    </td>
+    <td><button class="btn ${d.status==='failed'?'btn-danger':'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status==="failed"?"⚠ Action":"View"}</button></td>
+  `;
+  return tr;
+}
+
 async function _doLoadDeliveries(showSkeleton = true) {
   if (_deliveriesInflight) return;
   _deliveriesInflight = true;
   const countsPromise = loadDeliveryCounts();
   try {
-    // Shimmer skeleton on user-initiated loads (initial / filter / search / page).
-    // Skipped for background auto-refresh (showSkeleton=false) to avoid flicker + scroll jump.
     if (showSkeleton) showDeliverySkeleton();
-    let url = currentFilter === "all"
-      ? `${BASE_URL}/deliveries?_=1`
-      : `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
-
-    const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
-    if (currentFilter === "past")             url += `&status=delivered,failed`;
-    else if (statusMap[currentFilter])        url += `&status=${statusMap[currentFilter]}`;
-    if (currentFilter === "urgent")           url += `&priority=urgent`;
-    if (currentFilter === "self_pickup")      url += `&selfPickup=true`;
-
-    if (currentFilter === "today") {
-      const t = new Date().toISOString().slice(0,10);
-      url += `&startDate=${t}&endDate=${t}`;
-    } else if (currentFilter === "yesterday") {
-      const y = new Date(Date.now()-864e5).toISOString().slice(0,10);
-      url += `&startDate=${y}&endDate=${y}`;
-    } else if (dateRangeStart && dateRangeEnd) {
-      url += `&startDate=${encodeURIComponent(dateRangeStart)}&endDate=${encodeURIComponent(dateRangeEnd)}`;
-    }
-
-    if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
-
-    // Send route and driver filters to server (so pagination works correctly)
-    if (currentRoute !== "all") url += `&route=${encodeURIComponent(currentRoute)}`;
-    if (currentDriverFilter !== "all") url += `&driver=${encodeURIComponent(currentDriverFilter)}`;
-    if (selectedStore && selectedStore !== "all") url += `&store=${encodeURIComponent(selectedStore)}`;
-
-    const res = await authFetch(url);
-    if (res.status === 429) { _deliveriesInflight = false; return; }
-    const result = await res.json();
 
     let pageData, totalItems, totalPagesResult;
-    if (result && result.data !== undefined) {
-      pageData = result.data;
-      totalItems = result.total;
-      totalPagesResult = result.totalPages;
-    } else if (Array.isArray(result)) {
-      pageData = result;
-      totalItems = result.length;
-      totalPagesResult = 1;
-    } else {
-      clearDeliveryTables(); _deliveriesInflight = false; return;
-    }
+    let bookedData = [];
+    let restData = [];
 
-    // Route and driver filters are now applied server-side (sent as query params above)
-    // No client-side filtering needed — the server already returned filtered results.
+    if (currentFilter === "all") {
+      // Build base filter params shared by both fetches
+      const fp = [];
+      if (dateRangeStart && dateRangeEnd) {
+        fp.push(`startDate=${encodeURIComponent(dateRangeStart)}&endDate=${encodeURIComponent(dateRangeEnd)}`);
+      }
+      if (searchQuery) fp.push(`search=${encodeURIComponent(searchQuery)}`);
+      if (currentRoute !== "all") fp.push(`route=${encodeURIComponent(currentRoute)}`);
+      if (currentDriverFilter !== "all") fp.push(`driver=${encodeURIComponent(currentDriverFilter)}`);
+      if (selectedStore && selectedStore !== "all") fp.push(`store=${encodeURIComponent(selectedStore)}`);
+      const fq = fp.length ? "&" + fp.join("&") : "";
+
+      const [bookedRes, restRes] = await Promise.all([
+        authFetch(`${BASE_URL}/deliveries?status=booked${fq}`),
+        authFetch(`${BASE_URL}/deliveries?status=pending,loaded,delivered&page=${currentPage}&pageSize=${PAGE_SIZE}${fq}`)
+      ]);
+      if (bookedRes.status === 429 || restRes.status === 429) { _deliveriesInflight = false; return; }
+
+      const bookedJson = await bookedRes.json();
+      bookedData = Array.isArray(bookedJson) ? bookedJson : (bookedJson.data || []);
+      totalItems = 0;
+      totalPagesResult = 1;
+
+      const restJson = await restRes.json();
+      if (restJson && restJson.data !== undefined) {
+        restData = restJson.data;
+        totalItems = restJson.total || 0;
+        totalPagesResult = restJson.totalPages || 1;
+      } else if (Array.isArray(restJson)) {
+        restData = restJson;
+        totalItems = restJson.length;
+        totalPagesResult = 1;
+      }
+
+      pageData = [...bookedData, ...restData];
+    } else {
+      let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
+
+      const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
+      if (currentFilter === "past")             url += `&status=delivered,failed`;
+      else if (statusMap[currentFilter])        url += `&status=${statusMap[currentFilter]}`;
+      if (currentFilter === "urgent")           url += `&priority=urgent`;
+      if (currentFilter === "self_pickup")      url += `&selfPickup=true`;
+
+      if (currentFilter === "today") {
+        const t = new Date().toISOString().slice(0,10);
+        url += `&startDate=${t}&endDate=${t}`;
+      } else if (currentFilter === "yesterday") {
+        const y = new Date(Date.now()-864e5).toISOString().slice(0,10);
+        url += `&startDate=${y}&endDate=${y}`;
+      } else if (dateRangeStart && dateRangeEnd) {
+        url += `&startDate=${encodeURIComponent(dateRangeStart)}&endDate=${encodeURIComponent(dateRangeEnd)}`;
+      }
+
+      if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+      if (currentRoute !== "all") url += `&route=${encodeURIComponent(currentRoute)}`;
+      if (currentDriverFilter !== "all") url += `&driver=${encodeURIComponent(currentDriverFilter)}`;
+      if (selectedStore && selectedStore !== "all") url += `&store=${encodeURIComponent(selectedStore)}`;
+
+      const res = await authFetch(url);
+      if (res.status === 429) { _deliveriesInflight = false; return; }
+      const result = await res.json();
+
+      if (result && result.data !== undefined) {
+        pageData = result.data;
+        totalItems = result.total;
+        totalPagesResult = result.totalPages;
+      } else if (Array.isArray(result)) {
+        pageData = result;
+        totalItems = result.length;
+        totalPagesResult = 1;
+      } else {
+        clearDeliveryTables(); _deliveriesInflight = false; return;
+      }
+    }
 
     currentAccountantData = pageData;
     totalDeliveries = totalItems;
     totalPages = totalPagesResult;
 
-
-    // Counts from server endpoint (already started in parallel above)
+    // Counts from server endpoint
     const sc = await countsPromise;
     if (sc) {
       ["all","booked","pending","loaded","delivered","failed","urgent","self_pickup","today"].forEach(k => {
@@ -3782,7 +3918,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
 
     populateDriverFilterDropdown(pageData);
 
-    // Route counts (approximate from page data)
+    // Route counts
     const rCounts = { all:pageData.length, bhosari:0, moshi:0, wadgaon:0, markal:0, charholi:0, other:0 };
     pageData.forEach(d => rCounts[getDeliveryRoute(d)]++);
     Object.keys(rCounts).forEach(r => {
@@ -3800,17 +3936,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
       if (d.phone && batchPhones.includes(d.phone) && !(d.phone in batchNumberMap)) batchNumberMap[d.phone] = bc++;
     });
 
-    // Render rows
-    const list = document.getElementById("list");
-    const _sy = window.scrollY;
-    if (pageData.length === 0) {
-      list.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div></td></tr>`;
-      const _mc = document.getElementById("mobileCards");
-      if (_mc) _mc.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div>`;
-      window.scrollTo(0, _sy);
-      return;
-    }
-    list.innerHTML = "";
+    // Phone positions for batch rendering
     const phonePositions = {};
     pageData.forEach((d,i) => {
       if (d.phone && batchPhones.includes(d.phone)) {
@@ -3819,55 +3945,72 @@ async function _doLoadDeliveries(showSkeleton = true) {
       }
     });
 
+    const _sy = window.scrollY;
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+
+    if (pageData.length === 0) {
+      list.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div></td></tr>`;
+      const _mc = document.getElementById("mobileCards");
+      if (_mc) _mc.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div>`;
+      ["bookedCollapsible","mobileBookedCollapsible"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+      });
+      window.scrollTo(0, _sy);
+      return;
+    }
+
+    // Collapsible booked section (only for "all" filter)
+    const bookedCollEl = document.getElementById("bookedCollapsible");
+    const bookedBody = document.getElementById("bookedBody");
+    const bookedList = document.getElementById("bookedList");
+    const mobBookedCollEl = document.getElementById("mobileBookedCollapsible");
+    const mobBookedBody = document.getElementById("mobileBookedBody");
+    const mobBookedCards = document.getElementById("mobileBookedCards");
+    if (currentFilter === "all") {
+      const bkCount = bookedData.length || "";
+      bookedCollEl.style.display = "";
+      mobBookedCollEl.style.display = "";
+      document.getElementById("bookedCount").innerText = bkCount;
+      document.getElementById("mobileBookedCount").innerText = bkCount;
+      if (!_bookedExpanded) {
+        bookedBody.style.display = "none";
+        mobBookedBody.style.display = "none";
+        document.getElementById("bookedToggle").textContent = "▶";
+        document.getElementById("mobileBookedToggle").textContent = "▶";
+      } else {
+        bookedBody.style.display = "";
+        mobBookedBody.style.display = "";
+        document.getElementById("bookedToggle").textContent = "▼";
+        document.getElementById("mobileBookedToggle").textContent = "▼";
+      }
+      bookedList.innerHTML = "";
+      bookedData.forEach((d,i) => {
+        const tr = makeDeliveryRow(d, i, phonePositions);
+        bookedList.appendChild(tr);
+      });
+      // Mobile booked cards
+      if (mobBookedCards) {
+        mobBookedCards.innerHTML = "";
+        const bcOpts = { batchPhones, batchNumberMap, BATCH_PALETTES };
+        renderMobileCardsSubset(bookedData, mobBookedCards, bcOpts);
+      }
+    } else {
+      bookedCollEl.style.display = "none";
+      mobBookedCollEl.style.display = "none";
+    }
+
+    // Render rest items in main table
     let bkd=0, pnd=0, lod=0, dlv=0, fld=0;
-    pageData.forEach((d,i) => {
+    const itemsToRender = currentFilter === "all" ? restData : pageData;
+    itemsToRender.forEach((d,i) => {
       if (d.status === "booked") bkd++;
       if (d.status === "pending") pnd++;
       if (d.status === "loaded") lod++;
       if (d.status === "delivered") dlv++;
       if (d.status === "failed") fld++;
-
-      const tr = document.createElement("tr");
-      const isBatched = d.phone && batchPhones.includes(d.phone);
-      let batchTag = "";
-      if (isBatched) {
-        const bN = batchNumberMap[d.phone];
-        const pal = BATCH_PALETTES[(bN-1)%BATCH_PALETTES.length];
-        const pos = phonePositions[d.phone];
-        const pIdx = pos.indexOf(i);
-        tr.classList.add("batch-row");
-        if (pIdx===0) tr.classList.add("batch-first");
-        if (pIdx===pos.length-1) tr.classList.add("batch-last");
-        if (pIdx!==0 && pIdx!==pos.length-1) tr.classList.add("batch-mid");
-        tr.style.setProperty("--batch-color", pal.border);
-        tr.style.setProperty("--batch-bg", pal.bg);
-        batchTag = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${pal.bg};color:${pal.text};border:1px solid ${pal.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bN}</span>`;
-      }
-      if (d.status==="booked") tr.style.background=_isDark()?"rgba(99,102,241,0.08)":"#eef2ff";
-      if (d.status==="failed") tr.style.background=_isDark()?"rgba(255,180,171,0.06)":"#fff1f2";
-
-      const storeCircle = d.storeId === "store_a"
-        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.15);vertical-align:middle;">A</span>`
-        : d.storeId === "store_b"
-        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.15);vertical-align:middle;">D</span>`
-        : `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:12px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
-
-      tr.innerHTML = `
-        <td style="text-align:center;">${storeCircle}</td>
-        <td>${escHtml(d.customer_name)}${batchTag}${d.previous_failures>0?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>`:""}</td>
-        <td><a class='phone-link' href='tel:${escHtml(d.phone)}'>${escHtml(d.phone)}</a></td>
-        <td>${escHtml(d.product_name)}</td>
-        <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${escHtml(d.address)||'—'}</span></td>
-        <td>${d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—'}</td>
-        <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
-        <td>
-          <span class="badge badge-${d.status}">${d.status}</span>
-          ${d.is_self_pickup?`<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>`:""}
-          ${(d.status!=="delivered"&&d.status!=="failed"&&d.status!=="booked"&&d.estimated_delivery_time&&new Date(d.estimated_delivery_time)<new Date())?`<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>`:""}
-          ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
-        </td>
-        <td><button class="btn ${d.status==='failed'?'btn-danger':'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status==="failed"?"⚠ Action":"View"}</button></td>
-      `;
+      const tr = makeDeliveryRow(d, i + (currentFilter === "all" ? bookedData.length : 0), phonePositions);
       list.appendChild(tr);
     });
 
@@ -3877,9 +4020,13 @@ async function _doLoadDeliveries(showSkeleton = true) {
     const luEl = document.getElementById("lastUpdated");
     if (luEl) luEl.innerText = "🕐 "+new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
 
-    renderMobileCards(pageData, batchPhones, batchNumberMap, BATCH_PALETTES);
+    if (currentFilter === "all") {
+      renderMobileCardsSubset(restData, document.getElementById("mobileCards"), { batchPhones, batchNumberMap, BATCH_PALETTES });
+    } else {
+      renderMobileCards(pageData, batchPhones, batchNumberMap, BATCH_PALETTES);
+    }
     renderPaginationBar(totalItems, totalPagesResult, currentPage);
-    // Preserve scroll position across re-render (no jump on auto-refresh)
+
     const _maxScroll = document.documentElement.scrollHeight - window.innerHeight;
     window.scrollTo(0, Math.max(0, Math.min(_sy, _maxScroll)));
   } catch (e) { clearDeliveryTables(); console.error(e); }
@@ -3890,6 +4037,14 @@ function clearDeliveryTables() {
   ["deliveryTable","mobileCardsContainer"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = "";
+  });
+  ["bookedList","mobileBookedCards"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = "";
+  });
+  ["bookedCollapsible","mobileBookedCollapsible"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
   });
   const pb = document.getElementById("paginationBar");
   if (pb) pb.innerHTML = "";
@@ -3970,6 +4125,62 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
     if (isBatch) {
       const bNum    = batchNumberMap[d.phone];
       const palette = BATCH_PALETTES[(bNum - 1) % BATCH_PALETTES.length];
+      const siblings = finalData.filter(x => x.phone === d.phone);
+      const grp = document.createElement("div");
+      grp.className = "mob-batch-group";
+      grp.style.setProperty("--mob-batch-color", palette.border);
+      grp.style.setProperty("--mob-batch-bg",    palette.bg);
+      grp.style.setProperty("--mob-batch-text",  palette.text);
+      const hdr = document.createElement("div");
+      hdr.className = "mob-batch-group-header";
+      hdr.innerHTML = `🔗 Batch ${bNum} · ${escHtml(d.customer_name)} · ${siblings.length} items`;
+      grp.appendChild(hdr);
+      siblings.forEach(item => { rendered.add(item.id); grp.appendChild(makeMobCard(item, palette)); });
+      container.appendChild(grp);
+    } else {
+      rendered.add(d.id);
+      container.appendChild(makeMobCard(d, null));
+    }
+  });
+  staggerCards(container);
+}
+
+function renderMobileCardsSubset(finalData, container, opts) {
+  if (!container) return;
+  container.innerHTML = "";
+
+  function makeMobCard(d, palette) {
+    const card = document.createElement("div");
+    card.className = "delivery-mob-card" + (palette ? " batch-card" : "");
+    if (palette) card.style.setProperty("--mob-batch-color", palette.border);
+    card.onclick = () => openViewPopup(d.id);
+    card.innerHTML = `
+      <div class="mob-card-header">
+        <div>
+          <div class="mob-card-name">${escHtml(d.customer_name)}${storeDisplayName(d.storeId)?`<span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${escHtml(storeDisplayName(d.storeId))}</span>`:""}${palette ? `<span style="margin-left:6px;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};">🔗 B${opts.batchNumberMap[d.phone]}</span>` : ""}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${escHtml(d.product_name)}</div>
+        </div>
+        <div class="mob-card-badges">
+          <span class="badge badge-${d.status}">${d.status}</span>
+          ${d.priority === "urgent" ? `<span class="badge" style="background:rgba(255,180,171,0.15);color:var(--error);">🔥</span>` : ""}
+        </div>
+      </div>
+      <div class="mob-card-meta">
+        <span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>
+        <span>🚚 ${d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—'}</span>
+        <span>⏱ ${formatDate(d.estimated_delivery_time)}</span>
+      </div>
+    `;
+    return card;
+  }
+
+  const rendered = new Set();
+  finalData.forEach(d => {
+    if (rendered.has(d.id)) return;
+    const isBatch = d.phone && opts.batchPhones.includes(d.phone);
+    if (isBatch) {
+      const bNum    = opts.batchNumberMap[d.phone];
+      const palette = opts.BATCH_PALETTES[(bNum - 1) % opts.BATCH_PALETTES.length];
       const siblings = finalData.filter(x => x.phone === d.phone);
       const grp = document.createElement("div");
       grp.className = "mob-batch-group";
