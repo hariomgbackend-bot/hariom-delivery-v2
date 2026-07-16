@@ -407,6 +407,23 @@
     }
 
 
+    /* ── TRAINING TAB ── */
+    .training-lang-bar { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+    .training-lang-btn {
+      flex:1; padding:8px 12px; border-radius:10px; border:1.5px solid var(--outline-variant);
+      background:transparent; color:var(--on-surface-variant); font-family:var(--font-body);
+      font-size:12px; font-weight:700; cursor:pointer; transition:all 0.15s; text-align:center; min-width:80px;
+    }
+    .training-lang-btn.active { background:var(--primary-container); color:var(--on-primary-container); border-color:var(--primary); }
+    .training-section {
+      background:var(--surface-container-low); border-radius:14px; padding:14px 16px; margin-bottom:12px;
+      border:1px solid var(--border);
+    }
+    .training-section h3 { font-size:15px; font-weight:700; color:var(--on-surface); margin:0 0 8px; }
+    .training-section ol, .training-section ul { margin:0; padding-left:20px; }
+    .training-section li { font-size:13px; color:var(--on-surface-variant); line-height:1.6; margin-bottom:4px; }
+    .training-section li strong { color:var(--on-surface); }
+
     /* Lead edit inline */
     .lead-edit-select {
       background: var(--surface-container-high); color: var(--on-surface);
@@ -892,6 +909,11 @@
           <div class="home-card-label">Raise Ticket</div>
           <div class="home-card-count muted" id="hcRaiseTicket">by phone</div>
         </div>
+        <div class="home-card" onclick="switchTab('training')">
+          <div class="home-card-icon" style="background:rgba(173,198,255,0.12);">📚</div>
+          <div class="home-card-label">Training</div>
+          <div class="home-card-count muted">guide</div>
+        </div>
       </div>
     </div>
 
@@ -904,6 +926,20 @@
 
       <div class="search-wrap" style="margin-bottom:12px;">
         <input class="search-input" id="ptPhone" placeholder="Enter phone number to find customer…" maxlength="10" inputmode="numeric" style="padding-left:16px;" oninput="onPhoneTicketSearch(this.value)">
+      </div>
+
+      <!-- In Stock toggle -->
+      <div class="form-field" style="margin-bottom:10px;">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+          <input type="checkbox" id="ptInStock" onchange="onPtInStockChange()">
+          📦 In Stock
+        </label>
+      </div>
+      <div class="form-field" id="ptStoreWrap" style="display:none;margin-bottom:10px;">
+        <label>Store</label>
+        <select class="form-select" id="ptStore" onchange="onPtStoreChange()">
+          <option value="">— Select store —</option>
+        </select>
       </div>
 
       <!-- Recently raised tickets (24h) -->
@@ -938,6 +974,7 @@
             <option value="installation">Demo-Installation</option>
           </select>
 
+          <div id="ptCustomerSection">
           <label class="form-label">Customer Details</label>
           <label class="pt-tally-toggle" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;">
             <input type="checkbox" id="ptTallySearch" onchange="togglePtTallySearch()">
@@ -977,6 +1014,7 @@
           <input class="form-input" id="ptAddr1" placeholder="Address Line 1 * (House no, street)" style="margin-bottom:8px;">
 
           <input class="form-input" id="ptLandmark" placeholder="Landmark (optional)" style="margin-bottom:8px;">
+          </div>
 
           <div class="form-row" style="margin-bottom:8px;">
             <div class="prod-search-wrap" style="flex:1;">
@@ -1167,6 +1205,197 @@
       </div>
     </div>
 
+    <!-- TAB: TRAINING -->
+    <div id="tabTraining" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">📚 Training Guide</div>
+
+      <div class="training-lang-bar">
+        <button class="training-lang-btn active" onclick="showTrainingLang('en')">🇬🇧 English</button>
+        <button class="training-lang-btn" onclick="showTrainingLang('hi')">🇮🇳 हिन्दी</button>
+        <button class="training-lang-btn" onclick="showTrainingLang('mr')">🇮🇳 मराठी</button>
+      </div>
+
+      <!-- ENGLISH -->
+      <div id="trainingEn" class="training-content">
+        <div class="training-section">
+          <h3>🔧 Raising a Service Ticket</h3>
+          <ol>
+            <li>On the home screen, tap <strong>Raise Ticket</strong>.</li>
+            <li>Enter the customer's <strong>10-digit phone number</strong> in the search box.</li>
+            <li>If a matching customer is found, tap <strong>Yes</strong> to auto-fill their details. If not, tap <strong>Create New Ticket</strong>.</li>
+            <li>Select the <strong>Type</strong> (Complaint or Demo-Installation).</li>
+            <li>If the item is physically in a store, check <strong>📦 In Stock</strong> and pick the store — customer fields will auto-fill.</li>
+            <li>Fill in or verify all required fields (marked with *). You can search from Tally for customer details.</li>
+            <li>Search and select the <strong>Product</strong>, enter the <strong>Serial No.</strong> if available.</li>
+            <li>Describe the <strong>Issue</strong> in detail.</li>
+            <li>Tap <strong>Submit Ticket</strong>.</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>📦 Managing Deliveries</h3>
+          <ol>
+            <li>Tap <strong>Deliveries</strong> on the home screen.</li>
+            <li>View your delivery list — pending, loaded, and delivered items are shown.</li>
+            <li>Tap a delivery to see full details.</li>
+            <li>Update delivery status when needed.</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>📋 Managing Leads / Sales</h3>
+          <ol>
+            <li>Tap <strong>Leads / Sales</strong> on the home screen.</li>
+            <li>View your leads — add new leads by filling in the form.</li>
+            <li>Tap a lead to edit its status (New, Follow-up, Closed).</li>
+            <li>Use the <strong>Ledger Picker</strong> to search customers from Tally.</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>📅 Using the Calendar</h3>
+          <ol>
+            <li>Tap <strong>Calendar</strong> on the home screen.</li>
+            <li>Select a date to view or add events.</li>
+            <li>Use <strong>Add Leave</strong> to mark your leave.</li>
+            <li>Use <strong>Add Note</strong> to create notes (visible to everyone or admin only).</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>💰 Price Guide &amp; Incentive Slabs</h3>
+          <ol>
+            <li>Tap <strong>Price Guide</strong> to view product prices.</li>
+            <li>Tap <strong>Incentive Slabs</strong> to check your sales targets and incentives.</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>💡 General Tips</h3>
+          <ul>
+            <li>Keep the app updated for the latest features.</li>
+            <li>Contact admin if you face any issues.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- HINDI -->
+      <div id="trainingHi" class="training-content" style="display:none;">
+        <div class="training-section">
+          <h3>🔧 सर्विस टिकट बनाना</h3>
+          <ol>
+            <li>होम स्क्रीन पर <strong>Raise Ticket</strong> पर टैप करें।</li>
+            <li>सर्च बॉक्स में ग्राहक का <strong>10 अंकों का फ़ोन नंबर</strong> दर्ज करें।</li>
+            <li>यदि ग्राहक मिल जाता है, तो <strong>Yes</strong> पर टैप करें — विवरण अपने आप भर जाएगा। यदि नहीं मिलता, तो <strong>Create New Ticket</strong> पर टैप करें।</li>
+            <li><strong>प्रकार</strong> चुनें (Complaint या Demo-Installation)।</li>
+            <li>यदि सामान किसी स्टोर में है, तो <strong>📦 In Stock</strong> चेक करें और स्टोर चुनें — ग्राहक विवरण अपने आप भर जाएगा।</li>
+            <li>सभी आवश्यक फ़ील्ड (जिन पर * का निशान है) भरें या जांचें।</li>
+            <li><strong>प्रोडक्ट</strong> खोजें और चुनें, <strong>सीरियल नंबर</strong> दर्ज करें (यदि उपलब्ध हो)।</li>
+            <li><strong>समस्या</strong> का विवरण विस्तार से लिखें।</li>
+            <li><strong>Submit Ticket</strong> पर टैप करें।</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>📦 डिलीवरी प्रबंधन</h3>
+          <ol>
+            <li>होम स्क्रीन पर <strong>Deliveries</strong> पर टैप करें।</li>
+            <li>अपनी डिलीवरी सूची देखें — पेंडिंग, लोडेड और डिलीवर आइटम दिखाए जाते हैं।</li>
+            <li>पूरी जानकारी के लिए किसी डिलीवरी पर टैप करें।</li>
+            <li>ज़रूरत पड़ने पर डिलीवरी स्थिति अपडेट करें।</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>📋 लीड / सेल्स प्रबंधन</h3>
+          <ol>
+            <li>होम स्क्रीन पर <strong>Leads / Sales</strong> पर टैप करें।</li>
+            <li>अपने लीड देखें — फ़ॉर्म भरकर नए लीड जोड़ें।</li>
+            <li>किसी लीड पर टैप करके उसकी स्थिति बदलें (New, Follow-up, Closed)।</li>
+            <li>टैली से ग्राहक खोजने के लिए <strong>Ledger Picker</strong> का उपयोग करें।</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>📅 कैलेंडर का उपयोग</h3>
+          <ol>
+            <li>होम स्क्रीन पर <strong>Calendar</strong> पर टैप करें।</li>
+            <li>ईवेंट देखने या जोड़ने के लिए कोई तारीख चुनें।</li>
+            <li>अपनी छुट्टी दर्ज करने के लिए <strong>Add Leave</strong> का उपयोग करें।</li>
+            <li>नोट बनाने के लिए <strong>Add Note</strong> का उपयोग करें (सभी को दिखे या केवल एडमिन को)।</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>💰 मूल्य सूची और इंसेंटिव स्लैब</h3>
+          <ol>
+            <li>उत्पाद की कीमतें देखने के लिए <strong>Price Guide</strong> पर टैप करें।</li>
+            <li>अपने सेल्स टार्गेट और इंसेंटिव देखने के लिए <strong>Incentive Slabs</strong> पर टैप करें।</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>💡 सामान्य सुझाव</h3>
+          <ul>
+            <li>नवीनतम सुविधाओं के लिए ऐप अपडेट रखें।</li>
+            <li>किसी भी समस्या के लिए एडमिन से संपर्क करें।</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- MARATHI -->
+      <div id="trainingMr" class="training-content" style="display:none;">
+        <div class="training-section">
+          <h3>🔧 सर्व्हिस टिकट तयार करणे</h3>
+          <ol>
+            <li>होम स्क्रीन वर <strong>Raise Ticket</strong> वर टॅप करा.</li>
+            <li>सर्च बॉक्स मध्ये ग्राहकाचा <strong>10 अंकी फोन नंबर</strong> टाका.</li>
+            <li>जर ग्राहक सापडला, तर <strong>Yes</strong> वर टॅप करा — माहिती आपोआप भरेल. जर सापडला नाही, तर <strong>Create New Ticket</strong> वर टॅप करा.</li>
+            <li><strong>प्रकार</strong> निवडा (Complaint किंवा Demo-Installation).</li>
+            <li>जर वस्तू स्टोअर मध्ये असेल, तर <strong>📦 In Stock</strong> चेक करा आणि स्टोअर निवडा — ग्राहक माहिती आपोआप भरेल.</li>
+            <li>सर्व आवश्यक फील्ड (ज्यावर * आहे) भरा किंवा तपासा.</li>
+            <li><strong>उत्पादन</strong> शोधा आणि निवडा, <strong>सीरियल नंबर</strong> टाका (उपलब्ध असल्यास).</li>
+            <li><strong>समस्या</strong> तपशीलवार लिहा.</li>
+            <li><strong>Submit Ticket</strong> वर टॅप करा.</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>📦 डिलिव्हरी व्यवस्थापन</h3>
+          <ol>
+            <li>होम स्क्रीन वर <strong>Deliveries</strong> वर टॅप करा.</li>
+            <li>तुमची डिलिव्हरी यादी पहा — पेंडिंग, लोडेड आणि डिलिव्हर केलेल्या वस्तू दाखवल्या जातात.</li>
+            <li>पूर्ण माहितीसाठी डिलिव्हरीवर टॅप करा.</li>
+            <li>गरज पडल्यास डिलिव्हरी स्थिती अपडेट करा.</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>📋 लीड / सेल्स व्यवस्थापन</h3>
+          <ol>
+            <li>होम स्क्रीन वर <strong>Leads / Sales</strong> वर टॅप करा.</li>
+            <li>तुमचे लीड पहा — फॉर्म भरून नवीन लीड जोडा.</li>
+            <li>लीडवर टॅप करून त्याची स्थिती बदला (New, Follow-up, Closed).</li>
+            <li>टॅली मधून ग्राहक शोधण्यासाठी <strong>Ledger Picker</strong> वापरा.</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>📅 कॅलेंडर वापर</h3>
+          <ol>
+            <li>होम स्क्रीन वर <strong>Calendar</strong> वर टॅप करा.</li>
+            <li>ईव्हेंट पाहण्यासाठी किंवा जोडण्यासाठी तारीख निवडा.</li>
+            <li>रजा चिन्हांकित करण्यासाठी <strong>Add Leave</strong> वापरा.</li>
+            <li>नोट तयार करण्यासाठी <strong>Add Note</strong> वापरा (सर्वांना दिसेल किंवा फक्त अ‍ॅडमिनला).</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>💰 किंमत सूची आणि इंसेंटिव्ह स्लॅब</h3>
+          <ol>
+            <li>उत्पादन किंमती पाहण्यासाठी <strong>Price Guide</strong> वर टॅप करा.</li>
+            <li>तुमचे विक्री उद्दिष्ट आणि इंसेंटिव्ह पाहण्यासाठी <strong>Incentive Slabs</strong> वर टॅप करा.</li>
+          </ol>
+        </div>
+        <div class="training-section">
+          <h3>💡 सामान्य टिप्स</h3>
+          <ul>
+            <li>नवीन सुविधांसाठी अ‍ॅप अपडेट ठेवा.</li>
+            <li>कोणत्याही समस्येसाठी अ‍ॅडमिनशी संपर्क साधा.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /mainPanel -->
 </div><!-- /container -->
 
@@ -1267,6 +1496,7 @@ let staffToken       = null;
 let staffId          = null;
 let staffName        = "";
 let staffStoreId     = "";
+let STAFF_STORES     = {};
 let allDeliveries    = [];
 let currentTab       = "deliveries";
 let currentDelivery  = null;
@@ -1511,6 +1741,7 @@ function showMainPanel() {
   stPgLoadData();
   loadCalendarEvents();
   loadCalStaff();
+  loadStaffStores();
   switchTab("home");
   // Don't pre-fill product row — form is collapsed until user opens it
   // Phone listeners
@@ -1572,7 +1803,7 @@ function doLogout() {
 /* ── TAB SWITCH ── */
 function switchTab(tab) {
   currentTab = tab;
-  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", slabs:"tabSlabs" };
+  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", slabs:"tabSlabs", training:"tabTraining" };
   Object.keys(idMap).forEach(k => {
     const el = document.getElementById(idMap[k]);
     if (el) el.style.display = k === tab ? "" : "none";
@@ -1583,6 +1814,16 @@ function switchTab(tab) {
   if (tab === "calendar") { if (staffCalendar) { staffCalendar.render(); updateFullCalendar(); } else initStaffCalendar(); }
   if (tab === "prices") stPgRender(priceGuideData);
   if (tab === "slabs") stSlLoadData();
+}
+
+/* ── Training Tab Language Switcher ── */
+function showTrainingLang(lang) {
+  document.querySelectorAll(".training-lang-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".training-content").forEach(c => c.style.display = "none");
+  document.querySelector(`.training-lang-btn[onclick*="'${lang}'"]`).classList.add("active");
+  const map = { en:"trainingEn", hi:"trainingHi", mr:"trainingMr" };
+  const el = document.getElementById(map[lang]);
+  if (el) el.style.display = "";
 }
 
 /* ════════════════════════════════════════════════
@@ -1901,6 +2142,14 @@ function clearPhoneSearch() {
   if (el("ptForm")) el("ptForm").style.display = "none";
   if (el("ptFormMsg")) el("ptFormMsg").textContent = "";
   _ptMatches = []; _ptMatchIdx = 0; _ptConfirmedMatch = null;
+  const inStock = el("ptInStock");
+  if (inStock) { inStock.checked = false; onPtInStockChange(); }
+  const custSec = el("ptCustomerSection");
+  if (custSec) custSec.style.display = "";
+  const storeWrap = el("ptStoreWrap");
+  if (storeWrap) storeWrap.style.display = "none";
+  const ptType = el("ptType");
+  if (ptType) ptType.disabled = false;
   loadRecentTickets();
 }
 
@@ -2048,6 +2297,8 @@ async function submitPhoneTicket() {
   const type     = msg("ptType")?.value || "complaint";
   const desc     = val("ptDesc");
   const linkedDeliveryId = _ptConfirmedMatch?.linkedDeliveryId || "";
+  const inStockChecked   = msg("ptInStock")?.checked || false;
+  const selectedStoreId  = inStockChecked ? msg("ptStore")?.value || "" : "";
 
   const missing = [];
   if (!name)     missing.push("Customer Name");
@@ -2057,6 +2308,7 @@ async function submitPhoneTicket() {
   if (!useTally && !district) missing.push("District");
   if (!useTally && !area)     missing.push("Area");
   if (!useTally && !addr1)    missing.push("Address Line 1");
+  if (inStockChecked && !selectedStoreId) missing.push("Store");
   if (!product)  missing.push("Product");
   if (!desc)     missing.push("Description");
   if (missing.length) {
@@ -2069,7 +2321,7 @@ async function submitPhoneTicket() {
   msg("ptFormMsg").textContent = "Submitting…";
 
   try {
-    const payload = { type, linked_delivery_id: linkedDeliveryId, customer_name: name, product_name: product, serial_number: serial, description: desc, storeId: staffStoreId || "" };
+    const payload = { type, linked_delivery_id: linkedDeliveryId, customer_name: name, product_name: product, serial_number: serial, description: desc, storeId: selectedStoreId || staffStoreId || "" };
     if (!useTally) { payload.phone = phone; payload.alternate_phone = altPhone; payload.address = address; }
     const res = await authFetch(`${BASE_URL}/service/ticket`, {
       method: "POST",
@@ -3254,6 +3506,51 @@ function togglePtTallySearch() {
   var checked = document.getElementById("ptTallySearch").checked;
   document.getElementById("ptManualFields").style.display = checked ? "none" : "";
   document.getElementById("ptTallyFields").style.display = checked ? "" : "none";
+}
+
+/* ── In Stock Complaint ── */
+async function loadStaffStores() {
+  try {
+    const res = await authFetch(`${BASE_URL}/api/stores`);
+    if (res.ok) {
+      const list = await res.json();
+      STAFF_STORES = {};
+      const sel = document.getElementById("ptStore");
+      if (sel) {
+        sel.innerHTML = '<option value="">— Select store —</option>';
+        list.forEach(s => {
+          STAFF_STORES[s.id] = { name: s.name, address: s.address, phone: s.phone, altPhone: s.altPhone };
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.name;
+          sel.appendChild(opt);
+        });
+      }
+    }
+  } catch(e) { console.warn("loadStaffStores failed:", e); }
+}
+
+function onPtInStockChange() {
+  const checked = document.getElementById("ptInStock").checked;
+  const ptType = document.getElementById("ptType");
+  ptType.disabled = checked;
+  if (checked) ptType.value = "complaint";
+  document.getElementById("ptStoreWrap").style.display = checked ? "" : "none";
+  document.getElementById("ptCustomerSection").style.display = checked ? "none" : "";
+  if (!checked) {
+    document.getElementById("ptStore").value = "";
+  }
+}
+
+function onPtStoreChange() {
+  const storeKey = document.getElementById("ptStore").value;
+  if (!storeKey) return;
+  const store = STAFF_STORES[storeKey];
+  if (!store) return;
+  document.getElementById("ptName").value = store.name;
+  document.getElementById("ptPhoneDisplay").value = store.phone;
+  document.getElementById("ptAltPhone").value = store.altPhone;
+  document.getElementById("ptAddr1").value = store.address;
 }
 
 loadLedgers();
