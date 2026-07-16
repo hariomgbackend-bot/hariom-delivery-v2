@@ -1904,6 +1904,9 @@ async function submitCreateTicket() {
 
   if (!phone || phone.length !== 10) { msg.style.color="var(--error)"; msg.textContent="Valid 10-digit phone required."; return; }
 
+  const store = document.getElementById("ctStore").value;
+  if (!store) { msg.style.color="var(--error)"; msg.textContent="Please select a store."; return; }
+
   // Assemble address from parts
   const pincode = document.getElementById("ctPincode").value.trim();
   const state   = document.getElementById("ctState").value.trim();
