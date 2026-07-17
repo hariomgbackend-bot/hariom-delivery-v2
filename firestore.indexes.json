@@ -147,6 +147,14 @@
       "collectionGroup": "service_tickets",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "_search_tokens", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "service_tickets",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "tally_voucher_number", "order": "ASCENDING" },
         { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "created_at", "order": "DESCENDING" }

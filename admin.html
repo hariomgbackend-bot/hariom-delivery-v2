@@ -6134,7 +6134,8 @@ async function loadServiceCount() {
   try {
     const storeQ = scStoreFilter && scStoreFilter !== "all" ? `?store=${encodeURIComponent(scStoreFilter)}` : "";
     const res  = await authFetch(`${BASE_URL}/service/tickets${storeQ}`);
-    allServiceTickets = await res.json();
+    const body = await res.json();
+    allServiceTickets = body.data || body;
     updateSCStats();
     renderSCTable();
   } catch(e) {

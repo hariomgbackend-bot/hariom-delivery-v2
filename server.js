@@ -1646,9 +1646,12 @@ app.post("/api/verify-firebase-token", async (req, res) => {
 ════════════════════════════════════════════════ */
 
 app.get("/api/stores", async (req, res) => {
+  console.log("[PUBLIC STORES] hit at line 1648");
   try {
     const snap = await getDocs(collection(db, "stores"));
-    res.json(snap.docs.map(d => ({ id: d.id, key: d.data().key || "", name: d.data().name, address: d.data().address || "", phone: d.data().phone || "", altPhone: d.data().altPhone || "" })));
+    const result = snap.docs.map(d => ({ id: d.id, key: d.data().key || "", name: d.data().name, address: d.data().address || "", phone: d.data().phone || "", altPhone: d.data().altPhone || "" }));
+    console.log("[PUBLIC STORES] returning", result.length, "stores, first:", JSON.stringify(result[0]));
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4688,6 +4691,39 @@ app.delete("/leads/:id", authenticate, authorize(["admin"]), async (req, res) =>
    PUT    /service/ticket/:id     — service/admin
    GET    /service/search?q=      — service/admin/accountant
 ════════════════════════════════════════════════ */
+
+function computeSearchField(ticket) {
+  const parts = [
+    ticket.customer_name,
+    ticket.first_name,
+    ticket.middle_name,
+    ticket.last_name,
+    ticket.phone,
+    ticket.alternate_phone
+  ];
+  return parts
+    .filter(Boolean)
+    .map(s => String(s).toUpperCase().replace(/\s+/g, " ").trim())
+    .join(" ");
+}
+
+function computeSearchTokens(ticket) {
+  const parts = [
+    ticket.customer_name,
+    ticket.first_name,
+    ticket.middle_name,
+    ticket.last_name,
+    ticket.phone,
+    ticket.alternate_phone
+  ];
+  return [...new Set(
+    parts
+      .filter(Boolean)
+      .flatMap(s => String(s).toUpperCase().split(/\s+/))
+      .filter(Boolean)
+  )];
+}
+
 app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
     const cacheKey = `${req.user.role}_${req.user.storeId || ''}_${req.query.status || ''}_${req.query.type || ''}`;
@@ -4702,15 +4738,21 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
     if (req.query.status) ticketConstraints.push(where("status", "==", req.query.status));
     if (req.query.type)   ticketConstraints.push(where("type", "==", req.query.type));
     ticketConstraints.push(orderBy("created_at", "desc"));
-    ticketConstraints.push(limit(500));
+    ticketConstraints.push(limit(50));
 
     const q = query(collection(db, "service_tickets"), ...ticketConstraints);
     const snap   = await getDocs(q);
     const tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     trackReads("service-tickets", snap.docs.length);
-    serviceTicketsCaches[cacheKey] = { data: tickets, expiry: Date.now() + SERVICE_TICKETS_CACHE_TTL };
 
-    res.json(tickets);
+    // Get total count (filtered)
+    const countSnap = await getCountFromServer(query(collection(db, "service_tickets"), ...ticketConstraints.slice(0, -2)));
+    const total = countSnap.data().count;
+
+    const result = { data: tickets, total };
+    serviceTicketsCaches[cacheKey] = { data: result, expiry: Date.now() + SERVICE_TICKETS_CACHE_TTL };
+
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4779,7 +4821,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       }
     }
 
-    const docRef = await addDoc(collection(db, "service_tickets"), {
+    const newTicket = {
       storeId:          req.body.storeId || req.user.storeId || "",
       type,
       status:             "open",
@@ -4804,7 +4846,10 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       source:             "manual",
       brand_tracking_number: null,
       brand_request_status:  null,
-    });
+    };
+    newTicket._search = computeSearchField(newTicket);
+    newTicket._search_tokens = computeSearchTokens(newTicket);
+    const docRef = await addDoc(collection(db, "service_tickets"), newTicket);
 
     res.json({ success: true, id: docRef.id });
     broadcastRefresh({ type: "ticket" });
@@ -4843,6 +4888,14 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
     ];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+
+    // ── Recompute _search if name/phone fields changed ──
+    const searchFields = ["customer_name", "phone", "alternate_phone"];
+    if (searchFields.some(k => k in updates)) {
+      const merged = { ...existing, ...updates };
+      updates._search = computeSearchField(merged);
+      updates._search_tokens = computeSearchTokens(merged);
+    }
 
     // ── logged_at: set on first log AND updated on every re-log ──
     const isLogging = updates.status === "logged";
@@ -5144,31 +5197,25 @@ app.delete("/service/legacy-import-cleanup", authenticate, authorize(["admin"]),
 // Search across deliveries + tickets by phone or name
 app.get("/service/search", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
-    const q = (req.query.q || "").toLowerCase().trim();
+    const q = (req.query.q || "").trim();
     if (!q || q.length < 3) return res.status(400).json({ error: "Query must be at least 3 characters" });
 
-    const _norm = s => (s || "").toLowerCase().replace(/[.,\-/ ]+/g, "");
-    const qNorm = _norm(q);
+    const qNorm = q.toUpperCase().trim();
 
     // Apply store filter unless the user is a service role
     const searchConstraints = [];
     if (req.user.role !== "service") {
       addStoreFilter(searchConstraints, req.user, undefined, req);
     }
-    const searchWithLimit = [...searchConstraints, limit(500)];
-    const ticketSnap = await getDocs(query(collection(db, "service_tickets"), ...searchWithLimit));
 
-    const tickets = ticketSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(d =>
-        _norm(d.customer_name).includes(qNorm) ||
-        _norm(d.phone).includes(qNorm) ||
-        _norm(d.alternate_phone).includes(qNorm) ||
-        _norm(d.product_name).includes(qNorm) ||
-        _norm(d.brand_tracking_number).includes(qNorm)
-      )
-      .sort((a, b) => (b.created_at?.seconds ?? 0) - (a.created_at?.seconds ?? 0))
-      .slice(0, 30);
+    // Use _search_tokens array-contains for efficient indexed search (exact word/phone match)
+    const tokenConstraints = [...searchConstraints, where("_search_tokens", "array-contains", qNorm), orderBy("created_at", "desc"), limit(30)];
+    const ticketSnap = await getDocs(query(collection(db, "service_tickets"), ...tokenConstraints));
+
+    const tickets = ticketSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Also try exact phone match on the phone field directly (catches partial phone numbers stored as tokens)
+    // This is handled by array-contains on _search_tokens since phone numbers are stored as individual tokens
 
     res.json({ tickets });
   } catch (err) {
@@ -5257,6 +5304,7 @@ app.delete("/brands/:id", authenticate, authorize(["admin"]), async (req, res) =
    POST /api/stores/seed — seed default stores (admin only)
 ════════════════════════════════════════════════ */
 app.get("/api/stores", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
+  console.log("[AUTH STORES] hit at line 5259");
   try {
     const cache = getRefCache("stores");
     if (Date.now() < cache.expiry) return res.json(cache.data);

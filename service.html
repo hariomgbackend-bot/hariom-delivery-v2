@@ -623,7 +623,8 @@
         <button class="filter-btn" data-filter="logged"      onclick="setFilter('logged',this)">Logged <span class="filter-count" id="fc-logged"></span></button>
         <button class="filter-btn" data-filter="installation" onclick="setFilter('installation',this)">Demo-Installation <span class="filter-count" id="fc-installation"></span></button>
         <button class="filter-btn" data-filter="complaint"   onclick="setFilter('complaint',this)">Complaints <span class="filter-count" id="fc-complaint"></span></button>
-        <select id="ticketStoreFilter" onchange="onTicketStoreFilter()" style="margin-left:auto;padding:4px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;cursor:pointer;">
+        <span id="totalTicketsBadge" style="margin-left:auto;font-size:11px;color:var(--on-surface-variant);font-weight:600;white-space:nowrap;"></span>
+        <select id="ticketStoreFilter" onchange="onTicketStoreFilter()" style="margin-left:6px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;cursor:pointer;">
           <option value="all">All Stores</option>
         </select>
       </div>
@@ -888,6 +889,7 @@ document.addEventListener("keydown", e => {
 let serviceToken = null;
 let serviceName  = "";
 let allTickets   = [];
+let totalTickets = 0;
 let allDeliveries = [];
 let currentFilter = "all";
 let currentStoreFilter = "all";
@@ -1015,7 +1017,9 @@ async function loadTickets(showSkeleton = true) {
   if (showSkeleton && tbody) tbody.innerHTML = skeletons(3, "row");
   try {
     const res   = await authFetch(`${BASE_URL}/service/tickets`);
-    allTickets  = await res.json();
+    const body  = await res.json();
+    allTickets  = body.data || body;
+    totalTickets = body.total || allTickets.length;
     currentPage = 1;
     updateStats();
     renderTickets();
@@ -1098,11 +1102,13 @@ function updateStats() {
     counts[t.status] = (counts[t.status] || 0) + 1;
     counts[t.type]   = (counts[t.type]   || 0) + 1;
   });
-  ["all","new","logged","installation","complaint"].forEach(k => {
-    const el = document.getElementById("fc-" + k);
-    if (el) el.textContent = counts[k] || "";
-  });
-}
+    ["all","new","logged","installation","complaint"].forEach(k => {
+      const el = document.getElementById("fc-" + k);
+      if (el) el.textContent = counts[k] || "";
+    });
+    const totalBadge = document.getElementById("totalTicketsBadge");
+    if (totalBadge) totalBadge.textContent = `${totalTickets} total`;
+  }
 
 /* ── FILTER ── */
 function setFilter(f, btn) {
