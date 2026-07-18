@@ -1,21 +1,16 @@
 // Run: node migrate-search-tokens.cjs
 // Backfills _search and _search_tokens on all existing service tickets
 
-const { initializeApp } = require("firebase/app");
-const { getFirestore, collection, getDocs, doc, updateDoc, query, orderBy, limit: fLimit } = require("firebase/firestore");
-require("dotenv").config();
+const admin = require("firebase-admin");
+const { getFirestore } = require("firebase-admin/firestore");
 
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID
-};
+const serviceAccount = require("./firebase-service-account.json");
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+const db = getFirestore();
 
 function computeSearchField(ticket) {
   const parts = [
@@ -51,7 +46,7 @@ function computeSearchTokens(ticket) {
 
 async function migrate() {
   console.log("Reading all service tickets...");
-  const snap = await getDocs(query(collection(db, "service_tickets"), orderBy("created_at", "desc"), fLimit(2000)));
+  const snap = await db.collection("service_tickets").orderBy("created_at", "desc").limit(2000).get();
   const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   console.log(`Total tickets: ${all.length}`);
 
@@ -65,7 +60,7 @@ async function migrate() {
     }
     const _search = computeSearchField(t);
     const _search_tokens = computeSearchTokens(t);
-    await updateDoc(doc(db, "service_tickets", t.id), { _search, _search_tokens });
+    await db.collection("service_tickets").doc(t.id).update({ _search, _search_tokens });
     updated++;
     if (updated % 100 === 0) console.log(`  Migrated ${updated}...`);
   }

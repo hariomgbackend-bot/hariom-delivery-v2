@@ -168,6 +168,14 @@
         { "fieldPath": "source", "order": "ASCENDING" },
         { "fieldPath": "created_timestamp", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "storeId", "order": "ASCENDING" },
+        { "fieldPath": "created_by", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

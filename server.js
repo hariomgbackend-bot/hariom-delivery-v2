@@ -4531,15 +4531,13 @@ app.get("/leads", authenticate, authorize(["admin", "accountant", "staff", "serv
   try {
     const leadsConstraints = [];
     addStoreFilter(leadsConstraints, req.user, undefined, req);
+    if (req.user.role === "staff" && req.user.staff_id) {
+      leadsConstraints.push(where("created_by", "==", req.user.staff_id));
+    }
     const q = leadsConstraints.length > 0 ? query(collection(db, "leads"), ...leadsConstraints) : collection(db, "leads");
     const snap  = await getDocs(q);
     let leads   = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     trackReads("leads", snap.docs.length);
-
-    // Staff can only see their own leads
-    if (req.user.role === "staff") {
-      leads = leads.filter(l => l.created_by === req.user.staff_id);
-    }
 
     // Sort: open/followup first, then by created_at desc
     const statusOrder = { open: 0, followup: 1, sale: 2, lost: 3 };
@@ -4774,7 +4772,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       return res.status(400).json({ error: "Type must be 'installation' or 'complaint'" });
     if (type === "complaint" && !description?.trim())
       return res.status(400).json({ error: "Description required for complaints" });
-    if (!phone) return res.status(400).json({ error: "Phone required" });
+    if (!phone && !req.body.storeId) return res.status(400).json({ error: "Phone required" });
 
     // Assemble customer name from parts if provided
     const customer_name = raw_customer_name ||

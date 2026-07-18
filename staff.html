@@ -882,7 +882,7 @@
         <div class="home-card" onclick="switchTab('deliveries')">
           <div class="home-card-icon" style="background:rgba(77,142,255,0.12);">📦</div>
           <div class="home-card-label">Deliveries</div>
-          <div class="home-card-count" id="hcDeliveries">—</div>
+          <div class="home-card-count muted">→</div>
         </div>
         <div class="home-card" onclick="switchTab('leads')">
           <div class="home-card-icon" style="background:rgba(78,222,163,0.12);">📋</div>
@@ -1017,8 +1017,8 @@
           </div>
 
           <div class="form-row" style="margin-bottom:8px;">
-            <div class="prod-search-wrap" style="flex:1;">
-              <input class="form-input" id="ptProduct" placeholder="Search product…" autocomplete="off" style="margin-bottom:0;" oninput="onPtProductSearch(this)" onfocus="onPtProductSearch(this)">
+            <div class="prod-search-wrap" style="flex:1;position:relative;">
+              <input class="form-input" id="ptProduct" placeholder="Search product…" autocomplete="off" style="margin-bottom:0;" oninput="onPtProductSearch(this)">
               <div class="prod-dropdown" id="ptProductDrop" style="display:none;"></div>
             </div>
             <input class="form-input" id="ptSerial" placeholder="Serial No. (optional)" style="margin-bottom:0;flex:0.6;font-family:'JetBrains Mono',monospace;font-size:13px;">
@@ -1037,7 +1037,7 @@
     </div>
 
     <!-- TAB: DELIVERIES -->
-    <div id="tabDeliveries">
+    <div id="tabDeliveries" style="display:none;">
       <button class="back-home-btn" onclick="switchTab('home')">
         <span class="material-symbols-outlined">arrow_back</span> Home
       </button>
@@ -1497,6 +1497,10 @@ let staffId          = null;
 let staffName        = "";
 let staffStoreId     = "";
 let STAFF_STORES     = {};
+const STORE_DEFAULTS = {
+  Alandi:  { address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",  phone: "8177896218", altPhone: "9822632095" },
+  Dhanore: { address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105", phone: "8177896218", altPhone: "9822632095" }
+};
 let allDeliveries    = [];
 let currentTab       = "deliveries";
 let currentDelivery  = null;
@@ -1735,13 +1739,12 @@ function showMainPanel() {
   document.getElementById("headerSub").textContent       = staffName;
   showStaffStoreBadge();
   writeHomeGreeting();
-  loadDeliveries();
   loadLeads();
   loadTallyProducts();
   stPgLoadData();
   loadCalendarEvents();
   loadCalStaff();
-  loadStaffStores();
+  try { loadStaffStores(); } catch(e) {}
   switchTab("home");
   // Don't pre-fill product row — form is collapsed until user opens it
   // Phone listeners
@@ -1776,8 +1779,6 @@ function writeHomeGreeting() {
 }
 
 function updateHomeCounts() {
-  const delivCount = allDeliveries.filter(d => ["delivered","loaded","pending","failed"].includes(d.status)).length;
-  document.getElementById("hcDeliveries").textContent = delivCount || "—";
   document.getElementById("hcLeads").textContent = allLeads.length || "—";
   document.getElementById("hcPrices").textContent = priceGuideData.length || "—";
   document.getElementById("hcCalendar").textContent = calendarEvents.length || "—";
@@ -1834,11 +1835,11 @@ async function loadDeliveries() {
   const list = document.getElementById("deliveriesList");
   list.innerHTML = skeletons(3);
   try {
-    const res  = await authFetch(`${BASE_URL}/deliveries`);
+    const from = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10);
+    const res  = await authFetch(`${BASE_URL}/deliveries?startDate=${from}`);
     const data = await res.json();
     allDeliveries = data;
     renderDeliveries(data);
-    updateHomeCounts();
   } catch (e) {
     list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load</p><small>${e.message}</small><button onclick="loadDeliveries()" style="margin-top:12px;padding:10px 24px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Retry</button></div>`;
   }
@@ -1862,15 +1863,14 @@ function filterDeliveries() {
 
 function renderDeliveries(data) {
   const list = document.getElementById("deliveriesList");
-  // Show delivered and loaded only — no pending (staff don't manage dispatch)
   const shown = data.filter(d => ["delivered","loaded","pending","failed"].includes(d.status));
-  const q     = document.getElementById("delivSearch").value.trim();
-  const totalAll  = allDeliveries.filter(d => ["delivered","loaded","pending","failed"].includes(d.status)).length;
+  const q     = document.getElementById("delivSearch")?.value?.trim() || "";
 
-  document.getElementById("delivBadge").textContent = q.length > 0 ? shown.length : shown.length;
+  const badge = document.getElementById("delivBadge");
+  if (badge) badge.textContent = shown.length;
 
   if (!shown.length) {
-    list.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('box')}</div><p>No deliveries found</p><small>Try a different search</small></div>`;
+    list.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('box')}</div><p>No deliveries found</p></div>`;
     return;
   }
 
@@ -2179,6 +2179,11 @@ function onPtPincodeInput(el) {
     .catch(() => {});
 }
 
+function selectPtProduct(name) {
+  document.getElementById("ptProduct").value = name;
+  document.getElementById("ptProductDrop").style.display = "none";
+}
+
 function onPtProductSearch(input) {
   const q = input.value.trim().toLowerCase();
   const drop = document.getElementById("ptProductDrop");
@@ -2186,8 +2191,14 @@ function onPtProductSearch(input) {
   const filtered = tallyNames.filter(n => n.toLowerCase().includes(q)).slice(0, 10);
   if (!filtered.length) { drop.style.display = "none"; return; }
   drop.innerHTML = filtered.map(n =>
-    `<div class="prod-dropdown-item" data-action="ptselect" data-name="${n.replace(/"/g,'&quot;')}">${esc(n)}</div>`
+    `<div class="prod-dropdown-item" data-name="${n.replace(/"/g,'&quot;')}">${esc(n)}</div>`
   ).join("");
+  Array.from(drop.children).forEach(el => {
+    el.onclick = function(e) {
+      selectPtProduct(this.dataset.name);
+      e.stopPropagation();
+    };
+  });
   drop.style.display = "block";
 }
 
@@ -2301,14 +2312,17 @@ async function submitPhoneTicket() {
   const selectedStoreId  = inStockChecked ? msg("ptStore")?.value || "" : "";
 
   const missing = [];
-  if (!name)     missing.push("Customer Name");
-  if (!useTally && !phone) missing.push("Phone");
-  if (!useTally && (!pincode || pincode.length !== 6)) missing.push("Pincode");
-  if (!useTally && !state)    missing.push("State");
-  if (!useTally && !district) missing.push("District");
-  if (!useTally && !area)     missing.push("Area");
-  if (!useTally && !addr1)    missing.push("Address Line 1");
-  if (inStockChecked && !selectedStoreId) missing.push("Store");
+  if (inStockChecked) {
+    if (!selectedStoreId) missing.push("Store");
+  } else {
+    if (!name)     missing.push("Customer Name");
+    if (!useTally && !phone) missing.push("Phone");
+    if (!useTally && (!pincode || pincode.length !== 6)) missing.push("Pincode");
+    if (!useTally && !state)    missing.push("State");
+    if (!useTally && !district) missing.push("District");
+    if (!useTally && !area)     missing.push("Area");
+    if (!useTally && !addr1)    missing.push("Address Line 1");
+  }
   if (!product)  missing.push("Product");
   if (!desc)     missing.push("Description");
   if (missing.length) {
@@ -2316,7 +2330,7 @@ async function submitPhoneTicket() {
     return;
   }
 
-  const address = useTally ? "" : [addr1, area, district + " " + taluka, state + " " + pincode, landmark].filter(Boolean).join(", ");
+  const address = useTally ? "" : (inStockChecked ? addr1 : [addr1, area, district + " " + taluka, state + " " + pincode, landmark].filter(Boolean).join(", "));
 
   msg("ptFormMsg").textContent = "Submitting…";
 
@@ -2337,7 +2351,8 @@ async function submitPhoneTicket() {
     saveRecentTicket({ id: data.id, customer_name: name, phone: phone || "", product, type });
     clearPhoneSearch();
   } catch(e) {
-    msg("ptFormMsg").textContent = "❌ Network error";
+    console.error("submitPhoneTicket error:", e);
+    msg("ptFormMsg").textContent = "❌ " + (e.message || "Network error");
   }
 }
 
@@ -2466,7 +2481,6 @@ document.addEventListener("click", e => {
     const name   = item.dataset.name;
     if (action === "select")  selectProd(idx, name);
     if (action === "addnew")  addNewProd(idx, name);
-    if (action === "ptselect") { document.getElementById("ptProduct").value = name; document.getElementById("ptProductDrop").style.display = "none"; return; }
     return;
   }
   // Close dropdowns on outside click
@@ -3511,7 +3525,7 @@ function togglePtTallySearch() {
 /* ── In Stock Complaint ── */
 async function loadStaffStores() {
   try {
-    const res = await authFetch(`${BASE_URL}/api/stores`);
+    const res = await fetch(`${BASE_URL}/api/stores`);
     if (res.ok) {
       const list = await res.json();
       STAFF_STORES = {};
@@ -3530,15 +3544,44 @@ async function loadStaffStores() {
   } catch(e) { console.warn("loadStaffStores failed:", e); }
 }
 
-function onPtInStockChange() {
+async function onPtInStockChange() {
   const checked = document.getElementById("ptInStock").checked;
   const ptType = document.getElementById("ptType");
   ptType.disabled = checked;
   if (checked) ptType.value = "complaint";
+  const phoneSearch = document.getElementById("ptPhone").closest(".search-wrap");
+  if (phoneSearch) phoneSearch.style.display = checked ? "none" : "";
   document.getElementById("ptStoreWrap").style.display = checked ? "" : "none";
   document.getElementById("ptCustomerSection").style.display = checked ? "none" : "";
+  document.getElementById("ptForm").style.display = checked ? "" : "none";
+  if (checked) {
+    document.getElementById("ptTallySearch").checked = false;
+    try {
+      const res = await fetch(`${BASE_URL}/api/stores`);
+      if (res.ok) {
+        const list = await res.json();
+        STAFF_STORES = {};
+        const sel = document.getElementById("ptStore");
+        if (sel) {
+          sel.innerHTML = '<option value="">— Select store —</option>';
+          list.forEach(s => {
+            const def = STORE_DEFAULTS[s.name] || {};
+            STAFF_STORES[s.id] = { name: s.name, address: s.address || def.address || "", phone: s.phone || def.phone || "", altPhone: s.altPhone || def.altPhone || "" };
+            const opt = document.createElement("option");
+            opt.value = s.id;
+            opt.textContent = s.name;
+            sel.appendChild(opt);
+          });
+        }
+      }
+    } catch(e) { console.warn("onPtInStockChange fetch stores failed:", e); }
+  }
   if (!checked) {
     document.getElementById("ptStore").value = "";
+    document.getElementById("ptName").value = "";
+    document.getElementById("ptPhoneDisplay").value = "";
+    document.getElementById("ptAltPhone").value = "";
+    document.getElementById("ptAddr1").value = "";
   }
 }
 
@@ -3546,11 +3589,17 @@ function onPtStoreChange() {
   const storeKey = document.getElementById("ptStore").value;
   if (!storeKey) return;
   const store = STAFF_STORES[storeKey];
-  if (!store) return;
+  if (!store) { console.warn("onPtStoreChange: STAFF_STORES[" + storeKey + "] not found"); return; }
   document.getElementById("ptName").value = store.name;
   document.getElementById("ptPhoneDisplay").value = store.phone;
   document.getElementById("ptAltPhone").value = store.altPhone;
   document.getElementById("ptAddr1").value = store.address;
+  document.getElementById("ptPincode").value = "";
+  document.getElementById("ptState").value = "";
+  document.getElementById("ptDistrict").value = "";
+  document.getElementById("ptTaluka").value = "";
+  document.getElementById("ptArea").value = "";
+  document.getElementById("ptLandmark").value = "";
 }
 
 loadLedgers();

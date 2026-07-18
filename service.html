@@ -623,7 +623,6 @@
         <button class="filter-btn" data-filter="logged"      onclick="setFilter('logged',this)">Logged <span class="filter-count" id="fc-logged"></span></button>
         <button class="filter-btn" data-filter="installation" onclick="setFilter('installation',this)">Demo-Installation <span class="filter-count" id="fc-installation"></span></button>
         <button class="filter-btn" data-filter="complaint"   onclick="setFilter('complaint',this)">Complaints <span class="filter-count" id="fc-complaint"></span></button>
-        <span id="totalTicketsBadge" style="margin-left:auto;font-size:11px;color:var(--on-surface-variant);font-weight:600;white-space:nowrap;"></span>
         <select id="ticketStoreFilter" onchange="onTicketStoreFilter()" style="margin-left:6px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;cursor:pointer;">
           <option value="all">All Stores</option>
         </select>
@@ -1084,7 +1083,7 @@ async function getDelivery(id) {
 function updateStats() {
   const todayStr = new Date().toDateString();
   const elOpen = document.getElementById("statOpen");
-  if (elOpen) elOpen.textContent = allTickets.filter(t => t.status === "new").length;
+  if (elOpen) elOpen.textContent = allTickets.filter(t => t.status === "open").length;
   const elProgress = document.getElementById("statInProgress");
   if (elProgress) elProgress.textContent = allTickets.filter(t => t.status === "logged").length;
   const elToday = document.getElementById("statTodayInstall");
@@ -1097,17 +1096,15 @@ function updateStats() {
 
   // Filter counts
   const counts = {};
+  counts.all = totalTickets;
   allTickets.forEach(t => {
-    counts.all = (counts.all || 0) + 1;
-    counts[t.status] = (counts[t.status] || 0) + 1;
+    counts[t.status === "open" ? "new" : t.status] = (counts[t.status === "open" ? "new" : t.status] || 0) + 1;
     counts[t.type]   = (counts[t.type]   || 0) + 1;
   });
     ["all","new","logged","installation","complaint"].forEach(k => {
       const el = document.getElementById("fc-" + k);
       if (el) el.textContent = counts[k] || "";
     });
-    const totalBadge = document.getElementById("totalTicketsBadge");
-    if (totalBadge) totalBadge.textContent = `${totalTickets} total`;
   }
 
 /* ── FILTER ── */
@@ -1130,7 +1127,7 @@ function getFilteredTickets() {
     filtered = filtered.filter(t => t.storeId === currentStoreFilter);
   if (currentFilter === "all") return filtered;
   if (["new","logged"].includes(currentFilter))
-    return filtered.filter(t => t.status === currentFilter);
+    return filtered.filter(t => t.status === (currentFilter === "new" ? "open" : currentFilter));
   if (["installation","complaint"].includes(currentFilter))
     return filtered.filter(t => t.type === currentFilter);
   return filtered;
@@ -1139,7 +1136,7 @@ function getFilteredTickets() {
 /* ── RENDER TICKETS with pagination ── */
 function renderTickets() {
   const all    = getFilteredTickets();
-  const total  = all.length;
+  const total  = currentFilter === "all" && currentStoreFilter === "all" ? totalTickets : all.length;
   const pages  = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (currentPage > pages) currentPage = pages;
   const start  = (currentPage - 1) * PAGE_SIZE;
@@ -1395,7 +1392,6 @@ function openTicketDetail(id) {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
       <span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace(/_/g," ")}</span>
       ${warranty !== "—" ? warranty : ""}
-      ${getSourceHtml(t)}
     </div>
 
     <div class="detail-row">
@@ -1779,6 +1775,10 @@ function onCtTypeChange() {
 
 /* ── IN STOCK STORE SELECT ── */
 let STORES = {};
+const STORE_DEFAULTS = {
+  Alandi:  { address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",  phone: "8177896218", altPhone: "9822632095" },
+  Dhanore: { address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105", phone: "8177896218", altPhone: "9822632095" }
+};
 async function loadStores() {
   try {
     const res = await authFetch(`${BASE_URL}/api/stores`);
@@ -1789,7 +1789,8 @@ async function loadStores() {
       if (sel) {
         sel.innerHTML = '<option value="">— Select store —</option>';
         list.forEach(s => {
-          STORES[s.id] = { name: s.name, address: s.address, phone: s.phone, altPhone: s.altPhone };
+          const def = STORE_DEFAULTS[s.name] || {};
+          STORES[s.id] = { name: s.name, address: s.address || def.address || "", phone: s.phone || def.phone || "", altPhone: s.altPhone || def.altPhone || "" };
           const opt = document.createElement("option");
           opt.value = s.id;
           opt.textContent = s.name;
@@ -2046,6 +2047,8 @@ function renderSearchResults(tickets) {
   const tEl  = document.getElementById("srTickets");
 
   tSec.style.display = tickets.length ? "" : "none";
+
+  tickets.forEach(t => { if (!allTickets.find(x => x.id === t.id)) allTickets.push(t); });
 
   tEl.innerHTML = tickets.slice(0,30).map(t => `
     <div class="search-result-row" onclick="openTicketDetail('${t.id}')">
