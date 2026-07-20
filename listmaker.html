@@ -16,6 +16,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/design-system.css?v=3">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>window.KNOWN_BRANDS = ['SAMSUNG','WHIRLPOOL','HAIER','LG','BOSCH','IFB','VOLTAS','DAIKIN','HITACHI','CARRIER','BLUE STAR','GODREJ','VIDEOCON','PANASONIC','SONY','PHILIPS','BAJAJ','ORIENT','HAVELLS','USHA','CROMPTON','LIVPURE','SYMPHONY','HINDWARE','RACOLD','AO SMITH','LLOYD','ONIDA','MICROMAX','TCL','HISENSE','REALME','MI','VU','MOTOROLA','ZEBRONICS','KENT','PUREIT','EUREKA FORBES'];</script>
+  <script src="/OCR/ocr-extract.js"></script>
   <script src="/shared.js?v=2"></script>
   <style>
     :root {
@@ -68,6 +71,56 @@
     .tab-btn .icon { font-size: 18px; }
     .tab-panel { display: none; }
     .tab-panel.active { display: block; animation: panelIn 0.15s ease; }
+
+    /* ── Mode toggle ── */
+    .mode-toggle {
+      display: flex; gap: 4px; margin-bottom: 12px;
+      background: var(--surface-container-high); border-radius: 12px; padding: 3px;
+    }
+    .mode-btn {
+      flex: 1; padding: 9px; border: none; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s;
+      background: transparent; color: var(--on-surface-variant);
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .mode-btn.active { background: var(--primary-container); color: var(--on-primary-container); }
+    .mode-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Brand confirm popup (inline, not overlay) ── */
+    .brand-confirm {
+      margin-top: 10px; padding: 16px; border-radius: 16px;
+      background: var(--surface-container-low); border: 1px solid var(--border);
+      display: none; animation: panelIn 0.15s ease;
+    }
+    .brand-confirm.active { display: block; }
+    .brand-confirm .title {
+      font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+    }
+    .brand-confirm .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .brand-confirm .row label { font-size: 13px; color: var(--on-surface-variant); min-width: 70px; }
+    .brand-confirm .row .val { font-size: 14px; font-weight: 600; }
+    .brand-confirm input {
+      flex: 1; padding: 10px 12px; border: none; border-radius: 10px;
+      background: var(--surface-container-high); color: var(--on-surface);
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+      outline: none; text-transform: uppercase;
+    }
+    .brand-confirm input:focus { box-shadow: 0 0 0 2px var(--primary); }
+    .brand-confirm .actions { display: flex; gap: 8px; margin-top: 12px; }
+    .brand-confirm .actions button {
+      flex: 1; padding: 10px; border: none; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .brand-confirm .actions button:active { transform: scale(0.96); }
+    .brand-confirm .btn-save-brand { background: var(--primary-container); color: var(--on-primary-container); }
+    .brand-confirm .btn-skip-brand { background: var(--surface-container-high); color: var(--on-surface-variant); }
+    .brand-confirm .badge-learned {
+      display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 6px; background: rgba(78,222,163,0.15); color: var(--tertiary);
+      margin-left: 6px;
+    }
 
     /* ── Upload zone ── */
     .upload-zone {
@@ -350,6 +403,14 @@
 
   <!-- Image tab -->
   <div class="tab-panel active" id="tabImage">
+    <div class="mode-toggle">
+      <button class="mode-btn active" data-mode="ocr" onclick="setParseMode('ocr')">
+        <span class="material-symbols-outlined" style="font-size:16px;">document_scanner</span> OCR
+      </button>
+      <button class="mode-btn" data-mode="ai" onclick="setParseMode('ai')">
+        <span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span> AI
+      </button>
+    </div>
     <div class="upload-zone" id="uploadZone" onclick="document.getElementById('imageInput').click()">
       <div class="material-symbols-outlined icon">add_photo_alternate</div>
       <div class="label">Tap to take photo or upload</div>
@@ -361,6 +422,21 @@
       <span class="spinner"></span>
       <span class="btn-text"><span class="material-symbols-outlined" style="font-size:18px;">search</span> Parse & Extract</span>
     </button>
+
+    <!-- Brand correction popup -->
+    <div class="brand-confirm" id="brandConfirm">
+      <div class="title"><span class="material-symbols-outlined" style="font-size:18px;">help</span> Brand not recognized</div>
+      <div class="row"><label>Model:</label><span class="val" id="brandModelVal"></span></div>
+      <div class="row"><label>OCR read:</label><span class="val" id="brandOcrVal" style="color:var(--error);"></span></div>
+      <div class="row">
+        <label>Brand:</label>
+        <input type="text" id="brandCorrectInput" placeholder="e.g. SAMSUNG" maxlength="30" autocomplete="off">
+      </div>
+      <div class="actions">
+        <button class="btn-skip-brand" onclick="skipBrand()">Skip</button>
+        <button class="btn-save-brand" onclick="confirmBrand()">Save & Add</button>
+      </div>
+    </div>
   </div>
 
   <!-- Manual tab -->
@@ -435,6 +511,9 @@ let currentDate = new Date().toISOString().slice(0, 10);
 let selectedFile = null;
 let _saveTimer = null;
 let _lastParseTime = 0;
+let parseMode = 'ocr';
+let _ocrReady = false;
+let _pendingBrandResult = null;
 
 // ── Init ──
 document.addEventListener("DOMContentLoaded", () => {
@@ -442,6 +521,8 @@ document.addEventListener("DOMContentLoaded", () => {
   loadTodaysList();
   updateDateLabel();
   renderSavedLists();
+  // Warm up OCR worker in background
+  warmUpOCR().then(() => { _ocrReady = true; });
 });
 
 // ── Tab switching ──
@@ -451,6 +532,14 @@ function switchTab(tab) {
   document.getElementById("tabManual").classList.toggle("active", tab === "manual");
   document.getElementById("tabSaved").classList.toggle("active", tab === "saved");
   if (tab === "saved") renderSavedLists();
+}
+
+// ── Parse mode toggle ──
+function setParseMode(mode) {
+  parseMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === mode)
+  );
 }
 
 // ── Drag & drop ──
@@ -487,6 +576,49 @@ function onFileSelect(e) {
   document.getElementById("fileName").textContent = file.name;
 }
 
+// ── Add rows helper (shared by OCR and AI paths) ──
+function addRowsToTable(models) {
+  let added = 0;
+  let skipped = 0;
+  const existing = new Set(rows.map(r => r.modelNumber.toUpperCase()));
+
+  for (const m of models) {
+    if (!m || !m.trim()) continue;
+    if (existing.has(m.trim().toUpperCase())) {
+      skipped++;
+      continue;
+    }
+    rows.push({
+      srNo: rows.length + 1,
+      modelNumber: m.trim(),
+      mop: "0000",
+      offerPrice: "0000",
+      mrp: ""
+    });
+    existing.add(m.trim().toUpperCase());
+    added++;
+  }
+
+  if (added > 0) {
+    showToast(`Added ${added} new, skipped ${skipped} duplicate(s)`, "success");
+  } else {
+    showToast(`Skipped ${skipped} duplicate(s)`, "info");
+  }
+}
+
+// ── Brand correction ──
+function getBrandMap() {
+  try { return JSON.parse(localStorage.getItem('userBrandMap') || '{}'); } catch { return {}; }
+}
+function saveBrandMap(map) {
+  localStorage.setItem('userBrandMap', JSON.stringify(map));
+}
+function lookupBrandInMap(ocrWord) {
+  const map = getBrandMap();
+  const upper = ocrWord.toUpperCase();
+  return map[upper] || null;
+}
+
 // ── Parse image ──
 async function parseImage() {
   if (!selectedFile) {
@@ -494,7 +626,6 @@ async function parseImage() {
     return;
   }
 
-  // Cooldown to avoid hammering the API
   const now = Date.now();
   if (now - _lastParseTime < 3000) {
     showToast("Please wait a moment before next scan", "info");
@@ -502,66 +633,150 @@ async function parseImage() {
   }
   _lastParseTime = now;
 
+  const btn = document.getElementById("parseBtn");
+  btn.classList.add("loading");
+  btn.disabled = true;
+  document.getElementById("brandConfirm").classList.remove("active");
+  _pendingBrandResult = null;
+
   try {
-    const form = new FormData();
-    form.append("image", selectedFile);
-
-    const res = await fetch("/api/extract-models", {
-      method: "POST",
-      body: form
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      showToast(data.error || "Extraction failed", "error");
-      return;
-    }
-
-    const models = data.modelNumbers || [];
-    if (!models.length) {
-      showToast("Couldn't read the sticker. Try better lighting, a clearer photo, or enter manually.", "warning");
-      return;
-    }
-
-    let added = 0;
-    let skipped = 0;
-    const existing = new Set(rows.map(r => r.modelNumber.toUpperCase()));
-
-    for (const m of models) {
-      if (!m || !m.trim()) continue;
-      if (existing.has(m.trim().toUpperCase())) {
-        skipped++;
-        continue;
-      }
-      rows.push({
-        srNo: rows.length + 1,
-        modelNumber: m.trim(),
-        mop: "0000",
-        offerPrice: "0000",
-        mrp: ""
-      });
-      existing.add(m.trim().toUpperCase());
-      added++;
-    }
-
-    if (added > 0) {
-      showToast(`Added ${added} new, skipped ${skipped} duplicate(s)`, "success");
+    if (parseMode === 'ai') {
+      await parseImageAI();
     } else {
-      showToast(`Skipped ${skipped} duplicate(s)`, "info");
+      await parseImageOCR();
     }
+  } catch (e) {
+    showToast("Error: " + e.message, "error");
+  } finally {
+    if (!document.getElementById("brandConfirm").classList.contains("active")) {
+      btn.classList.remove("loading");
+      btn.disabled = false;
+    }
+  }
+}
 
-    renderTable();
+async function parseImageAI() {
+  const form = new FormData();
+  form.append("image", selectedFile);
+
+  const res = await fetch("/api/extract-models", {
+    method: "POST",
+    body: form
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    showToast(data.error || "Extraction failed", "error");
+    return;
+  }
+
+  const models = data.modelNumbers || [];
+  if (!models.length) {
+    showToast("Couldn't read the sticker. Try better lighting, a clearer photo, or enter manually.", "warning");
+    return;
+  }
+
+  addRowsToTable(models);
+  selectedFile = null;
+  document.getElementById("imageInput").value = "";
+  document.getElementById("fileName").textContent = "";
+}
+
+async function parseImageOCR() {
+  const result = await extractModelsFromImage(selectedFile);
+  const { modelNumbers, rawText, brand, model } = result;
+
+  if (!model) {
+    showToast("Couldn't read a model number. Try better lighting or switch to AI mode.", "warning");
+    return;
+  }
+
+  // Check if brand was detected
+  let brandName = brand;
+
+  // Try user's saved brand map first
+  if (!brandName && rawText) {
+    const words = rawText.toUpperCase().split(/\s+/);
+    for (const w of words) {
+      if (w.length > 1 && w.length < 20 && /[A-Z]/.test(w)) {
+        const mapped = lookupBrandInMap(w);
+        if (mapped) { brandName = mapped; break; }
+      }
+    }
+  }
+
+  // Brand found → add row directly
+  if (brandName && model) {
+    addRowsToTable([`${brandName} ${model}`]);
     selectedFile = null;
     document.getElementById("imageInput").value = "";
     document.getElementById("fileName").textContent = "";
-
-  } catch (e) {
-    showToast("Network error: " + e.message, "error");
-  } finally {
-    btn.classList.remove("loading");
-    btn.disabled = false;
+    return;
   }
+
+  // Found a model but no brand → show correction popup
+  if (model && !brandName) {
+    document.getElementById("brandModelVal").textContent = model;
+
+    // Find the most brand-like word in raw OCR text to suggest
+    let ocrWord = '';
+    if (rawText) {
+      const words = rawText.toUpperCase().split(/\s+/).filter(w => /[A-Z]{2,}/.test(w) && w !== model.toUpperCase());
+      ocrWord = words.find(w => lookupBrandInMap(w)) || words[0] || '';
+    }
+    document.getElementById("brandOcrVal").textContent = ocrWord || '(none detected)';
+    document.getElementById("brandCorrectInput").value = ocrWord ? lookupBrandInMap(ocrWord) || ocrWord : '';
+    document.getElementById("brandConfirm").classList.add("active");
+    _pendingBrandResult = { model };
+    return;
+  }
+
+  // Neither found
+  showToast("Couldn't read the sticker. Try better lighting or switch to AI mode.", "warning");
+}
+
+// ── Brand confirm actions ──
+function confirmBrand() {
+  const input = document.getElementById("brandCorrectInput");
+  const brand = input.value.trim().toUpperCase();
+  if (!brand) { showToast("Enter a brand name", "info"); return; }
+
+  const model = _pendingBrandResult?.model;
+  if (!model) return;
+
+  // Save to map for future
+  const ocrText = document.getElementById("brandOcrVal").textContent;
+  if (ocrText && ocrText !== '(none detected)') {
+    const map = getBrandMap();
+    map[ocrText.toUpperCase()] = brand;
+    saveBrandMap(map);
+  }
+
+  addRowsToTable([`${brand} ${model}`]);
+  document.getElementById("brandConfirm").classList.remove("active");
+  _pendingBrandResult = null;
+
+  selectedFile = null;
+  document.getElementById("imageInput").value = "";
+  document.getElementById("fileName").textContent = "";
+  document.getElementById("parseBtn").classList.remove("loading");
+  document.getElementById("parseBtn").disabled = false;
+}
+
+function skipBrand() {
+  const model = _pendingBrandResult?.model;
+  if (model) {
+    addRowsToTable([model]);
+  }
+  document.getElementById("brandConfirm").classList.remove("active");
+  _pendingBrandResult = null;
+
+  selectedFile = null;
+  document.getElementById("imageInput").value = "";
+  document.getElementById("fileName").textContent = "";
+  document.getElementById("parseBtn").classList.remove("loading");
+  document.getElementById("parseBtn").disabled = false;
 }
 
 // ── Manual add ──
