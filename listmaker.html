@@ -599,6 +599,8 @@ function addRowsToTable(models) {
     added++;
   }
 
+  renderTable();
+
   if (added > 0) {
     showToast(`Added ${added} new, skipped ${skipped} duplicate(s)`, "success");
   } else {
