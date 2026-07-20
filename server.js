@@ -5778,12 +5778,12 @@ async function extractWithGroqVision(imageBuffer, mimeType) {
         ]
       }
     ],
-    model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    model: "qwen/qwen3.6-27b",
     temperature: 0,
-    response_format: { type: "json_object" },
     max_tokens: 2048
   });
-  const raw = completion.choices[0].message.content.replace(/```json/gi,"").replace(/```/g,"").trim();
+  let raw = completion.choices[0].message.content.replace(/```json/gi,"").replace(/```/g,"").trim();
+  raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   return JSON.parse(raw);
 }
 
@@ -5800,7 +5800,7 @@ app.post("/api/extract-invoice", authenticate, upload.single("file"), async (req
     let result;
 
     if (isImage) {
-      console.log("🖼️  Image invoice — sending to Groq vision (llama-4-scout)...");
+      console.log("🖼️  Image invoice — sending to Groq vision (qwen)...");
       result = await extractWithGroqVision(buffer, mimetype);
       console.log(`✅ Vision: ${result.items?.length || 0} items from ${result.vendorName || "?"}`);
 
@@ -5841,6 +5841,73 @@ app.post("/api/extract-invoice", authenticate, upload.single("file"), async (req
   } catch (error) {
     console.error("❌ Extraction Error:", error);
     res.status(500).json({ error: "Failed to parse invoice: " + error.message });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   MODEL NUMBER EXTRACTION (List Maker)
+   ────────────────────────────────────────────── */
+
+app.post("/api/extract-models", authenticate, upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+
+    const { mimetype, buffer } = req.file;
+
+    if (!mimetype.startsWith("image/")) {
+      return res.status(415).json({ error: "Only image files are supported (JPEG/PNG)" });
+    }
+
+    const base64 = buffer.toString("base64");
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "You are extracting product model numbers from an electronics product sticker or label image (e.g. BEE energy label, carton sticker). A model number is an alphanumeric code like 'UA75U8300HULXL', 'GL-F60S', 'K-65S25M2', 'MS19M6000AK'. Return ONLY a JSON array of unique model number strings found. If none, return []. No markdown, no explanation."
+            },
+            { type: "image_url", image_url: { url: `data:${mimetype};base64,${base64}` } }
+          ]
+        }
+      ],
+      model: "qwen/qwen3.6-27b",
+      temperature: 0,
+      max_tokens: 500
+    });
+
+    let raw = completion.choices[0].message.content
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
+
+    // Strip thinking/reasoning tags some models wrap around the answer
+    raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+    let modelNumbers = [];
+    try {
+      modelNumbers = JSON.parse(raw);
+    } catch {
+      // Try extracting JSON array from any remaining text
+      const arrMatch = raw.match(/\[[\s\S]*?\]/);
+      if (arrMatch) {
+        try { modelNumbers = JSON.parse(arrMatch[0]); } catch {}
+      }
+    }
+
+    if (!Array.isArray(modelNumbers)) {
+      modelNumbers = typeof modelNumbers === "string" ? [modelNumbers] : [];
+    }
+
+    modelNumbers = modelNumbers.filter(m => m && typeof m === "string").map(m => m.trim());
+
+    res.json({ modelNumbers });
+
+  } catch (error) {
+    console.error("❌ Model extraction error:", error);
+    res.status(500).json({ error: "Failed to extract model numbers: " + error.message });
   }
 });
 
