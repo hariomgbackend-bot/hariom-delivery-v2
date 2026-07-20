@@ -403,40 +403,8 @@ let currentDate = new Date().toISOString().slice(0, 10);
 let selectedFile = null;
 let _saveTimer = null;
 
-// ── Auth ──
-function getAnyToken() {
-  return localStorage.getItem("adminToken")
-    || localStorage.getItem("accountantToken")
-    || localStorage.getItem("staffToken");
-}
-function getToken() { return getAnyToken(); }
-window.authGetToken = getAnyToken;
-
-function isTokenExpired(token) {
-  try {
-    const p = JSON.parse(atob(token.split(".")[1]));
-    return Date.now() >= p.exp * 1000;
-  } catch { return true; }
-}
-
-function redirectLogin() {
-  window.location.href = "/login.html";
-}
-
-function checkAuth() {
-  const tok = getToken();
-  if (!tok || isTokenExpired(tok)) {
-    redirectLogin();
-    return false;
-  }
-  return true;
-}
-
-window.authOnError = redirectLogin;
-
 // ── Init ──
 document.addEventListener("DOMContentLoaded", () => {
-  if (!checkAuth()) return;
   setupDragDrop();
   loadTodaysList();
   updateDateLabel();
@@ -489,20 +457,12 @@ async function parseImage() {
     showToast("Select or take a photo first", "info");
     return;
   }
-  if (!checkAuth()) return;
-
-  const btn = document.getElementById("parseBtn");
-  btn.classList.add("loading");
-  btn.disabled = true;
-
   try {
     const form = new FormData();
     form.append("image", selectedFile);
 
-    const token = getToken();
     const res = await fetch("/api/extract-models", {
       method: "POST",
-      headers: { Authorization: "Bearer " + token },
       body: form
     });
 

@@ -5848,7 +5848,7 @@ app.post("/api/extract-invoice", authenticate, upload.single("file"), async (req
    MODEL NUMBER EXTRACTION (List Maker)
    ────────────────────────────────────────────── */
 
-app.post("/api/extract-models", authenticate, upload.single("image"), async (req, res) => {
+app.post("/api/extract-models", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
 
