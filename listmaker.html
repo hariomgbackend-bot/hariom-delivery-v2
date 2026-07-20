@@ -434,6 +434,7 @@ let showMrp = true;
 let currentDate = new Date().toISOString().slice(0, 10);
 let selectedFile = null;
 let _saveTimer = null;
+let _lastParseTime = 0;
 
 // ── Init ──
 document.addEventListener("DOMContentLoaded", () => {
@@ -492,6 +493,15 @@ async function parseImage() {
     showToast("Select or take a photo first", "info");
     return;
   }
+
+  // Cooldown to avoid hammering the API
+  const now = Date.now();
+  if (now - _lastParseTime < 3000) {
+    showToast("Please wait a moment before next scan", "info");
+    return;
+  }
+  _lastParseTime = now;
+
   try {
     const form = new FormData();
     form.append("image", selectedFile);
@@ -510,7 +520,7 @@ async function parseImage() {
 
     const models = data.modelNumbers || [];
     if (!models.length) {
-      showToast("No model numbers found in image", "warning");
+      showToast("Couldn't read the sticker. Try better lighting, a clearer photo, or enter manually.", "warning");
       return;
     }
 
@@ -538,7 +548,7 @@ async function parseImage() {
     if (added > 0) {
       showToast(`Added ${added} new, skipped ${skipped} duplicate(s)`, "success");
     } else {
-      showToast(`Skipped ${skipped} duplicate(s) — all already in list`, "info");
+      showToast(`Skipped ${skipped} duplicate(s)`, "info");
     }
 
     renderTable();

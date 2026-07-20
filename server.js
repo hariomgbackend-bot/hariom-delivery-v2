@@ -5848,6 +5848,44 @@ app.post("/api/extract-invoice", authenticate, upload.single("file"), async (req
    MODEL NUMBER EXTRACTION (List Maker)
    ────────────────────────────────────────────── */
 
+async function extractModelsFromImage(base64, mimetype, prompt) {
+  const completion = await groq.chat.completions.create({
+    messages: [{
+      role: "user",
+      content: [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: `data:${mimetype};base64,${base64}` } }
+      ]
+    }],
+    model: "qwen/qwen3.6-27b",
+    temperature: 0,
+    max_tokens: 500
+  });
+
+  let raw = completion.choices[0].message.content
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+  let result = [];
+  try {
+    result = JSON.parse(raw);
+  } catch {
+    const arrMatch = raw.match(/\[[\s\S]*?\]/);
+    if (arrMatch) {
+      try { result = JSON.parse(arrMatch[0]); } catch {}
+    }
+  }
+
+  if (!Array.isArray(result)) {
+    result = typeof result === "string" ? [result] : [];
+  }
+
+  return result.filter(m => m && typeof m === "string").map(m => m.trim());
+}
+
 app.post("/api/extract-models", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
@@ -5860,48 +5898,16 @@ app.post("/api/extract-models", upload.single("image"), async (req, res) => {
 
     const base64 = buffer.toString("base64");
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "You are extracting product info from an electronics product sticker or label image (e.g. BEE energy label, carton sticker). Return ONLY a JSON array of unique strings, each in the format 'BRAND MODELNUMBER' (e.g. 'SAMSUNG UA75U8300HULXL', 'SONY K-65S25M2', 'SAMSUNG UA65U8300HULXL'). If none found, return []. No markdown, no explanation."
-            },
-            { type: "image_url", image_url: { url: `data:${mimetype};base64,${base64}` } }
-          ]
-        }
-      ],
-      model: "qwen/qwen3.6-27b",
-      temperature: 0,
-      max_tokens: 500
-    });
+    // Primary extraction — tries brand + model
+    const primaryPrompt = "You are extracting product info from an electronics product sticker or label image (e.g. BEE energy label, carton sticker). Return ONLY a JSON array of unique strings. Include the brand name before the model number if clearly visible (e.g. 'SAMSUNG UA75U8300HULXL', 'SONY K-65S25M2'). If brand is not visible, return just the model number (e.g. 'UA75U8300HULXL'). If none found, return []. No markdown, no explanation.";
 
-    let raw = completion.choices[0].message.content
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
+    let modelNumbers = await extractModelsFromImage(base64, mimetype, primaryPrompt);
 
-    // Strip thinking/reasoning tags some models wrap around the answer
-    raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-
-    let modelNumbers = [];
-    try {
-      modelNumbers = JSON.parse(raw);
-    } catch {
-      // Try extracting JSON array from any remaining text
-      const arrMatch = raw.match(/\[[\s\S]*?\]/);
-      if (arrMatch) {
-        try { modelNumbers = JSON.parse(arrMatch[0]); } catch {}
-      }
+    // Retry with simpler prompt if empty
+    if (!modelNumbers.length) {
+      const fallbackPrompt = "Look at this electronics product sticker image. Find any product model numbers, codes, or identifiers shown. Return ONLY a JSON array of unique alphanumeric codes found. If none, return []. No markdown, no explanation.";
+      modelNumbers = await extractModelsFromImage(base64, mimetype, fallbackPrompt);
     }
-
-    if (!Array.isArray(modelNumbers)) {
-      modelNumbers = typeof modelNumbers === "string" ? [modelNumbers] : [];
-    }
-
-    modelNumbers = modelNumbers.filter(m => m && typeof m === "string").map(m => m.trim());
 
     res.json({ modelNumbers });
 
