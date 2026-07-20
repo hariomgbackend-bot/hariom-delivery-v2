@@ -5867,7 +5867,7 @@ app.post("/api/extract-models", upload.single("image"), async (req, res) => {
           content: [
             {
               type: "text",
-              text: "You are extracting product model numbers from an electronics product sticker or label image (e.g. BEE energy label, carton sticker). A model number is an alphanumeric code like 'UA75U8300HULXL', 'GL-F60S', 'K-65S25M2', 'MS19M6000AK'. Return ONLY a JSON array of unique model number strings found. If none, return []. No markdown, no explanation."
+              text: "You are extracting product info from an electronics product sticker or label image (e.g. BEE energy label, carton sticker). Return ONLY a JSON array of unique strings, each in the format 'BRAND MODELNUMBER' (e.g. 'SAMSUNG UA75U8300HULXL', 'SONY K-65S25M2', 'SAMSUNG UA65U8300HULXL'). If none found, return []. No markdown, no explanation."
             },
             { type: "image_url", image_url: { url: `data:${mimetype};base64,${base64}` } }
           ]

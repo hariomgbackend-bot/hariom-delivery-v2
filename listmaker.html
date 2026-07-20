@@ -141,7 +141,7 @@
     }
     .sr-col { width: 40px; text-align: center; }
     .model-col { min-width: 140px; }
-    .price-col { width: 90px; }
+    .price-col { width: 120px; }
     .action-col { width: 40px; text-align: center; }
     td.model-col {
       font-weight: 600; font-size: 13px; color: var(--on-surface);
@@ -232,6 +232,30 @@
     }
     .date-picker-row input[type="date"]:focus { box-shadow: 0 0 0 2px var(--primary); }
 
+    /* ── Saved list cards ── */
+    .saved-card {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface-container-low); border-radius: 16px;
+      padding: 14px 16px; margin-bottom: 10px;
+      border: 1px solid var(--border);
+    }
+    .saved-card .info { flex: 1; min-width: 0; }
+    .saved-card .date {
+      font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px;
+    }
+    .saved-card .meta {
+      font-size: 12px; color: var(--on-surface-variant); margin-top: 2px;
+    }
+    .saved-card .actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .saved-card .actions button {
+      padding: 8px 14px; border: none; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .saved-card .actions button:active { transform: scale(0.95); }
+    .saved-card .btn-load { background: var(--primary-container); color: var(--on-primary-container); }
+    .saved-card .btn-del { background: rgba(255,180,171,0.12); color: var(--error); }
+
     .confirm-dialog {
       position: fixed; inset: 0; z-index: 9999;
       background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
@@ -265,7 +289,7 @@
     @media (max-width: 400px) {
       .container { padding: 8px 8px; }
       table { font-size: 12px; min-width: 380px; }
-      .price-col { width: 72px; }
+      .price-col { width: 96px; }
       .model-col { min-width: 110px; }
       td { padding: 4px 6px; }
       .price-input { padding: 4px 6px; font-size: 12px; }
@@ -319,6 +343,9 @@
     <button class="tab-btn" data-tab="manual" onclick="switchTab('manual')">
       <span class="material-symbols-outlined icon">edit_note</span> Manual
     </button>
+    <button class="tab-btn" data-tab="saved" onclick="switchTab('saved')">
+      <span class="material-symbols-outlined icon">folder</span> Saved
+    </button>
   </div>
 
   <!-- Image tab -->
@@ -338,10 +365,15 @@
 
   <!-- Manual tab -->
   <div class="tab-panel" id="tabManual">
-    <textarea class="manual-area" id="manualInput" placeholder="Paste model numbers here, one per line&#10;e.g.&#10;UA75U8300HULXL&#10;UA65U8300HULXL&#10;K-65S25M2"></textarea>
+    <textarea class="manual-area" id="manualInput" placeholder="Paste brand + model here, one per line&#10;e.g.&#10;SAMSUNG UA75U8300HULXL&#10;SAMSUNG UA65U8300HULXL&#10;SONY K-65S25M2"></textarea>
     <button class="add-btn" onclick="addManual()">
       <span class="material-symbols-outlined" style="font-size:18px;">playlist_add</span> Add to List
     </button>
+  </div>
+
+  <!-- Saved tab -->
+  <div class="tab-panel" id="tabSaved">
+    <div id="savedListContainer"></div>
   </div>
 
   <!-- Table -->
@@ -349,14 +381,14 @@
     <div class="empty-state" id="emptyState">
       <div class="material-symbols-outlined icon">format_list_bulleted</div>
       <div class="title">No items yet</div>
-      <div class="desc">Upload a photo of a product sticker or type model numbers manually</div>
+      <div class="desc">Upload a photo of a product sticker or type brand + model manually</div>
     </div>
     <div id="tableWrap" class="table-wrap" style="display:none;">
       <table>
         <thead>
           <tr>
             <th class="sr-col">#</th>
-            <th class="model-col">Model Number</th>
+            <th class="model-col">Brand Model</th>
             <th class="price-col">MOP</th>
             <th class="price-col">Offer Price</th>
             <th class="price-col mrp-col" id="mrpHeader">
@@ -408,6 +440,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupDragDrop();
   loadTodaysList();
   updateDateLabel();
+  renderSavedLists();
 });
 
 // ── Tab switching ──
@@ -415,6 +448,8 @@ function switchTab(tab) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
   document.getElementById("tabImage").classList.toggle("active", tab === "image");
   document.getElementById("tabManual").classList.toggle("active", tab === "manual");
+  document.getElementById("tabSaved").classList.toggle("active", tab === "saved");
+  if (tab === "saved") renderSavedLists();
 }
 
 // ── Drag & drop ──
@@ -694,6 +729,68 @@ function updateDateLabel() {
   }
 }
 
+// ── Saved lists ──
+function renderSavedLists() {
+  const container = document.getElementById("savedListContainer");
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("modelList_")) keys.push(k);
+  }
+  keys.sort().reverse();
+
+  if (!keys.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="material-symbols-outlined icon">folder_off</div>
+      <div class="title">No saved lists</div>
+      <div class="desc">Save a list first, then come back here to load it</div>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = keys.map(k => {
+    const date = k.replace("modelList_", "");
+    let count = 0;
+    try {
+      const data = JSON.parse(localStorage.getItem(k));
+      count = data?.rows?.length || 0;
+    } catch {}
+    return `<div class="saved-card">
+      <div class="info">
+        <div class="date"><span class="material-symbols-outlined" style="font-size:16px;">calendar_month</span> ${date}</div>
+        <div class="meta">${count} item(s)</div>
+      </div>
+      <div class="actions">
+        <button class="btn-load" onclick="loadSavedList('${date}')">Load</button>
+        <button class="btn-del" onclick="deleteSavedList('${date}')">Delete</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function loadSavedList(dateStr) {
+  const data = loadFromDate(dateStr);
+  if (!data) { showToast("List data not found", "error"); return; }
+  currentDate = dateStr;
+  rows = data.rows || [];
+  showMrp = data.showMrp !== undefined ? data.showMrp : true;
+  renderTable();
+  updateDateLabel();
+  switchTab("image");
+  showToast("Loaded list from " + dateStr, "success");
+}
+
+function deleteSavedList(dateStr) {
+  showConfirm("Delete List", `Delete the list saved for ${dateStr}?`,
+    () => {
+      localStorage.removeItem("modelList_" + dateStr);
+      renderSavedLists();
+      showToast("Deleted list from " + dateStr, "success");
+    },
+    null
+  );
+}
+
 // ── New list ──
 function newList() {
   if (rows.length === 0) return;
@@ -762,7 +859,7 @@ function exportExcel() {
     return;
   }
 
-  const header = ["Sr No", "Model Number", "MOP", "Offer Price"];
+  const header = ["Sr No", "Brand Model", "MOP", "Offer Price"];
   const mrpIdx = header.length;
   if (showMrp) header.push("MRP");
 
