@@ -261,6 +261,7 @@
     .bottom-bar .btn:active { transform: scale(0.96); }
     .btn-save { background: var(--tertiary); color: var(--on-primary-container); }
     .btn-excel { background: #16a34a; color: white; }
+    .btn-share { background: var(--primary); color: var(--on-primary-container); }
     .btn-clear { background: var(--surface-container-high); color: var(--error); }
 
     /* ── Tool buttons (header) ── */
@@ -493,6 +494,9 @@
   </button>
   <button class="btn btn-excel" onclick="exportExcel()">
     <span class="material-symbols-outlined" style="font-size:16px;">download</span> Excel
+  </button>
+  <button class="btn btn-share" onclick="shareList()">
+    <span class="material-symbols-outlined" style="font-size:16px;">share</span> Share
   </button>
   <button class="btn btn-clear" onclick="confirmClear()">
     <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
@@ -989,6 +993,8 @@ function renderSavedLists() {
       </div>
       <div class="actions">
         <button class="btn-load" onclick="loadSavedList('${date}')">Load</button>
+        <button class="btn-load" onclick="exportSavedList('${date}')" title="Download Excel" style="background:var(--tertiary);color:var(--on-primary-container);"><span class="material-symbols-outlined" style="font-size:14px;">download</span></button>
+        <button class="btn-load" onclick="shareSavedList('${date}')" title="Share" style="background:var(--primary);color:var(--on-primary-container);"><span class="material-symbols-outlined" style="font-size:14px;">share</span></button>
         <button class="btn-del" onclick="deleteSavedList('${date}')">Delete</button>
       </div>
     </div>`;
@@ -1113,6 +1119,83 @@ function exportExcel() {
   const filename = `model_list_${currentDate}.xlsx`;
   XLSX.writeFile(wb, filename);
   showToast("Downloaded " + filename, "success");
+}
+
+// ── Share list ──
+function buildShareText(rows, dateStr) {
+  let text = `📋 Model List — ${dateStr}\n\n`;
+  text += `#\tBrand Model\t\t\tMOP\tOffer`;
+  if (showMrp) text += '\tMRP';
+  text += '\n' + '─'.repeat(50) + '\n';
+  rows.forEach((r, i) => {
+    const model = r.modelNumber.padEnd(24).slice(0, 24);
+    text += `${i + 1}\t${model}\t${r.mop}\t${r.offerPrice}`;
+    if (showMrp) text += `\t${r.mrp || '—'}`;
+    text += '\n';
+  });
+  text += `\nTotal: ${rows.length} item(s)`;
+  return text;
+}
+
+async function shareList() {
+  if (!rows.length) { showToast("Nothing to share", "info"); return; }
+  const text = buildShareText(rows, currentDate);
+  await doShare(text, "Model List - " + currentDate);
+}
+
+async function shareSavedList(dateStr) {
+  const data = loadFromDate(dateStr);
+  if (!data || !data.rows?.length) { showToast("Nothing to share", "info"); return; }
+  const text = buildShareText(data.rows, dateStr);
+  await doShare(text, "Model List - " + dateStr);
+}
+
+async function doShare(text, title) {
+  if (navigator.share && navigator.canShare?.({ text })) {
+    try {
+      await navigator.share({ title, text });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  // Fallback: copy to clipboard
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Copied to clipboard", "success");
+  } catch {
+    // Last resort: select + execCommand
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showToast("Copied to clipboard", "success");
+  }
+}
+
+// ── Export saved list ──
+function exportSavedList(dateStr) {
+  const data = loadFromDate(dateStr);
+  if (!data || !data.rows?.length) { showToast("No items to export", "info"); return; }
+
+  const savedShowMrp = data.showMrp !== undefined ? data.showMrp : true;
+  const header = ["Sr No", "Brand Model", "MOP", "Offer Price"];
+  if (savedShowMrp) header.push("MRP");
+
+  const rows = data.rows.map((r, i) => {
+    const row = [i + 1, r.modelNumber, r.mop, r.offerPrice];
+    if (savedShowMrp) row.push(r.mrp);
+    return row;
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws["!cols"] = [{ wch: 6 }, { wch: 22 }, { wch: 10 }, { wch: 12 }];
+  if (savedShowMrp) ws["!cols"].push({ wch: 10 });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Model List");
+  XLSX.writeFile(wb, `model_list_${dateStr}.xlsx`);
+  showToast("Downloaded model_list_" + dateStr + ".xlsx", "success");
 }
 
 // ── EscHtml helper ──
