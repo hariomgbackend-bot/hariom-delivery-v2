@@ -17,6 +17,9 @@
   <link rel="stylesheet" href="/design-system.css?v=3">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
   <script>window.KNOWN_BRANDS = ['SAMSUNG','WHIRLPOOL','HAIER','LG','BOSCH','IFB','VOLTAS','DAIKIN','HITACHI','CARRIER','BLUE STAR','GODREJ','VIDEOCON','PANASONIC','SONY','PHILIPS','BAJAJ','ORIENT','HAVELLS','USHA','CROMPTON','LIVPURE','SYMPHONY','HINDWARE','RACOLD','AO SMITH','LLOYD','ONIDA','MICROMAX','TCL','HISENSE','REALME','MI','VU','MOTOROLA','ZEBRONICS','KENT','PUREIT','EUREKA FORBES'];</script>
   <script src="/OCR/ocr-extract.js"></script>
   <script src="/shared.js?v=2"></script>
@@ -519,23 +522,47 @@ let parseMode = 'ocr';
 let _ocrReady = false;
 let _pendingBrandResult = null;
 
+// ── Firestore ──
+let _fsdb = null;
+function initFirestore() {
+  if (_fsdb) return true;
+  try {
+    if (typeof firebase === 'undefined') return false;
+    if (!firebase.apps.length) {
+      firebase.initializeApp({
+        apiKey: "AIzaSyBfQlLpHbuRsZ7YKIFBj8Fa5o-HMo0SBrU",
+        authDomain: "hariom-delivery.firebaseapp.com",
+        projectId: "hariom-delivery",
+        storageBucket: "hariom-delivery.firebasestorage.app",
+        messagingSenderId: "60300951507",
+        appId: "1:60300951507:web:e5d55d0d18dc2000b47926"
+      });
+    }
+    _fsdb = firebase.firestore();
+    return true;
+  } catch (e) {
+    console.warn("Firestore init failed:", e);
+    return false;
+  }
+}
+
 // ── Init ──
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   setupDragDrop();
-  loadTodaysList();
+  await loadTodaysList();
   updateDateLabel();
-  renderSavedLists();
+  await renderSavedLists();
   // Warm up OCR worker in background
   warmUpOCR().then(() => { _ocrReady = true; });
 });
 
 // ── Tab switching ──
-function switchTab(tab) {
+async function switchTab(tab) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
   document.getElementById("tabImage").classList.toggle("active", tab === "image");
   document.getElementById("tabManual").classList.toggle("active", tab === "manual");
   document.getElementById("tabSaved").classList.toggle("active", tab === "saved");
-  if (tab === "saved") renderSavedLists();
+  if (tab === "saved") await renderSavedLists();
 }
 
 // ── Parse mode toggle ──
@@ -889,17 +916,73 @@ function toggleMrp() {
   scheduleSave();
 }
 
-// ── Save / Load (LocalStorage) ──
-function saveList() {
+// ── Firestore helpers ──
+async function fsSaveList(dateStr, data) {
+  if (!initFirestore()) return false;
+  try {
+    await _fsdb.collection("model_lists").doc(dateStr).set({
+      ...data,
+      savedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return true;
+  } catch (e) {
+    console.warn("Firestore save failed:", e);
+    return false;
+  }
+}
+
+async function fsLoadList(dateStr) {
+  if (!initFirestore()) return null;
+  try {
+    const snap = await _fsdb.collection("model_lists").doc(dateStr).get();
+    if (!snap.exists) return null;
+    return snap.data();
+  } catch (e) {
+    console.warn("Firestore load failed:", e);
+    return null;
+  }
+}
+
+async function fsListAllDates() {
+  if (!initFirestore()) return [];
+  try {
+    const snap = await _fsdb.collection("model_lists").orderBy("__name__", "desc").get();
+    return snap.docs.map(d => ({ date: d.id, data: d.data() }));
+  } catch (e) {
+    console.warn("Firestore list failed:", e);
+    return [];
+  }
+}
+
+async function fsDeleteList(dateStr) {
+  if (!initFirestore()) return;
+  try {
+    await _fsdb.collection("model_lists").doc(dateStr).delete();
+  } catch (e) {
+    console.warn("Firestore delete failed:", e);
+  }
+}
+
+// ── Save / Load (Firestore + LocalStorage fallback) ──
+async function saveList() {
   const key = "modelList_" + currentDate;
   const data = { rows: rows.map(r => ({ ...r })), showMrp };
+
+  // Always save to localStorage as local cache
   try {
     localStorage.setItem(key, JSON.stringify(data));
-    document.getElementById("saveStatus").textContent = "Saved";
+  } catch (e) { /* ignore quota */ }
+
+  // Also save to Firestore
+  const ok = await fsSaveList(currentDate, data);
+  if (ok) {
+    document.getElementById("saveStatus").textContent = "Saved ✓";
     setTimeout(() => { document.getElementById("saveStatus").textContent = ""; }, 2000);
     showToast("Saved for " + currentDate, "success");
-  } catch (e) {
-    showToast("Save failed: " + e.message, "error");
+  } else {
+    // Firestore failed but localStorage worked
+    document.getElementById("saveStatus").textContent = "Saved (offline)";
+    setTimeout(() => { document.getElementById("saveStatus").textContent = ""; }, 2000);
   }
 }
 
@@ -909,17 +992,27 @@ function scheduleSave() {
   document.getElementById("saveStatus").textContent = "Unsaved changes";
 }
 
-function loadFromDate(dateStr) {
+async function loadFromDate(dateStr) {
+  // Try localStorage first (fast)
   const key = "modelList_" + dateStr;
   const raw = localStorage.getItem(key);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch { return null; }
+  if (raw) {
+    try { return JSON.parse(raw); } catch {}
+  }
+
+  // Fallback to Firestore
+  const fsData = await fsLoadList(dateStr);
+  if (fsData) {
+    // Cache in localStorage
+    try { localStorage.setItem(key, JSON.stringify({ rows: fsData.rows, showMrp: fsData.showMrp })); } catch {}
+    return { rows: fsData.rows, showMrp: fsData.showMrp };
+  }
+
+  return null;
 }
 
-function loadTodaysList() {
-  const data = loadFromDate(currentDate);
+async function loadTodaysList() {
+  const data = await loadFromDate(currentDate);
   if (data) {
     rows = data.rows || [];
     showMrp = data.showMrp !== undefined ? data.showMrp : true;
@@ -931,12 +1024,12 @@ function loadTodaysList() {
   }
 }
 
-function loadDate() {
+async function loadDate() {
   const input = document.getElementById("loadDateInput");
   const dateStr = input.value;
   if (!dateStr) { showToast("Select a date", "info"); return; }
 
-  const data = loadFromDate(dateStr);
+  const data = await loadFromDate(dateStr);
   if (!data) {
     showToast("No list found for " + dateStr, "info");
     return;
@@ -961,16 +1054,40 @@ function updateDateLabel() {
 }
 
 // ── Saved lists ──
-function renderSavedLists() {
+async function renderSavedLists() {
   const container = document.getElementById("savedListContainer");
-  const keys = [];
+
+  // Get dates from both localStorage and Firestore
+  const localKeys = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith("modelList_")) keys.push(k);
+    if (k && k.startsWith("modelList_")) localKeys.push(k);
   }
-  keys.sort().reverse();
 
-  if (!keys.length) {
+  const fsDates = await fsListAllDates();
+
+  // Merge: Firestore is authoritative, local supplements
+  const allDates = new Map();
+  for (const k of localKeys) {
+    const date = k.replace("modelList_", "");
+    try {
+      const d = JSON.parse(localStorage.getItem(k));
+      allDates.set(date, { rows: d?.rows || [], local: true });
+    } catch {}
+  }
+  for (const { date, data } of fsDates) {
+    if (allDates.has(date)) {
+      const prev = allDates.get(date);
+      prev.local = false; // has Firestore version
+      prev.rows = data?.rows || prev.rows;
+    } else {
+      allDates.set(date, { rows: data?.rows || [], local: false });
+    }
+  }
+
+  const sorted = [...allDates.keys()].sort().reverse();
+
+  if (!sorted.length) {
     container.innerHTML = `<div class="empty-state">
       <div class="material-symbols-outlined icon">folder_off</div>
       <div class="title">No saved lists</div>
@@ -979,16 +1096,13 @@ function renderSavedLists() {
     return;
   }
 
-  container.innerHTML = keys.map(k => {
-    const date = k.replace("modelList_", "");
-    let count = 0;
-    try {
-      const data = JSON.parse(localStorage.getItem(k));
-      count = data?.rows?.length || 0;
-    } catch {}
+  container.innerHTML = sorted.map(date => {
+    const entry = allDates.get(date);
+    const count = entry.rows.length;
+    const badge = entry.local ? '' : '<span style="font-size:10px;color:var(--primary);margin-left:6px;">☁</span>';
     return `<div class="saved-card">
       <div class="info">
-        <div class="date"><span class="material-symbols-outlined" style="font-size:16px;">calendar_month</span> ${date}</div>
+        <div class="date"><span class="material-symbols-outlined" style="font-size:16px;">calendar_month</span> ${date}${badge}</div>
         <div class="meta">${count} item(s)</div>
       </div>
       <div class="actions">
@@ -1001,8 +1115,8 @@ function renderSavedLists() {
   }).join("");
 }
 
-function loadSavedList(dateStr) {
-  const data = loadFromDate(dateStr);
+async function loadSavedList(dateStr) {
+  const data = await loadFromDate(dateStr);
   if (!data) { showToast("List data not found", "error"); return; }
   currentDate = dateStr;
   rows = data.rows || [];
@@ -1013,10 +1127,11 @@ function loadSavedList(dateStr) {
   showToast("Loaded list from " + dateStr, "success");
 }
 
-function deleteSavedList(dateStr) {
+async function deleteSavedList(dateStr) {
   showConfirm("Delete List", `Delete the list saved for ${dateStr}?`,
-    () => {
+    async () => {
       localStorage.removeItem("modelList_" + dateStr);
+      await fsDeleteList(dateStr);
       renderSavedLists();
       showToast("Deleted list from " + dateStr, "success");
     },
