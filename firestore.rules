@@ -1,23 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // List Maker — no auth, open read/write
-    match /model_lists/{date} {
-      allow read, write: if true;
-    }
-
-    // TagPrint — no auth, open read/write to its subcollections
-    match /tagprint/data/{document} {
-      allow read, write: if true;
-    }
-    match /tagprint/data/{document}/{subcollection}/{docId} {
-      allow read, write: if true;
-    }
-
-    // All other collections — require Firebase Auth (server uses Admin SDK)
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
   }
 }

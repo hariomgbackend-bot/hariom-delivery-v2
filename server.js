@@ -5886,7 +5886,7 @@ async function extractModelsFromImage(base64, mimetype, prompt) {
   return result.filter(m => m && typeof m === "string").map(m => m.trim());
 }
 
-app.post("/api/extract-models", upload.single("image"), async (req, res) => {
+app.post("/api/extract-models", authenticate, authorize(["admin", "accountant"]), upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
 

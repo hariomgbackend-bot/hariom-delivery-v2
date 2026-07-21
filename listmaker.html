@@ -546,6 +546,30 @@ function initFirestore() {
   }
 }
 
+// ── Auth guard ──
+(function() {
+  function getToken() {
+    return localStorage.getItem("accountantToken") || localStorage.getItem("adminToken");
+  }
+  function isExpired() {
+    const t = getToken();
+    if (!t) return true;
+    try {
+      const payload = JSON.parse(atob(t.split(".")[1]));
+      return Date.now() >= payload.exp * 1000;
+    } catch { return true; }
+  }
+  const token = getToken();
+  if (!token || isExpired()) {
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("accountantToken");
+    window.location.href = "login.html";
+    return;
+  }
+  window.authGetToken = getToken;
+  window.authOnError = () => { window.location.href = "login.html"; };
+})();
+
 // ── Init ──
 document.addEventListener("DOMContentLoaded", async () => {
   setupDragDrop();
@@ -695,7 +719,7 @@ async function parseImageAI() {
   const form = new FormData();
   form.append("image", selectedFile);
 
-  const res = await fetch("/api/extract-models", {
+  const res = await authFetch("/api/extract-models", {
     method: "POST",
     body: form
   });
