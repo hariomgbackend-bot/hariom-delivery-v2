@@ -466,6 +466,13 @@
     }
     @media (min-width: 768px) { .mobile-cards { display: none; } }
 
+    .booked-desktop { display: block; }
+    .booked-mobile { display: none; }
+    @media (max-width: 767px) {
+      .booked-desktop { display: none; }
+      .booked-mobile { display: block; }
+    }
+
     /* ════ LOADING / EMPTY STATES ════ */
     .loading-state {
       text-align: center;
@@ -1090,7 +1097,7 @@
     <input class="search-input" id="searchInput" placeholder="Search by name, phone or product…" oninput="applySearch()">
 
     <!-- COLLAPSIBLE BOOKED SECTION (visible only for "all" filter) -->
-    <div id="bookedCollapsible" style="display:none;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+    <div id="bookedCollapsible" class="booked-desktop" style="display:none;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
       <div onclick="toggleBooked()" style="cursor:pointer;padding:10px 16px;background:var(--surface-container-high);display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;user-select:none;">
         <span id="bookedToggle">▶</span> 📅 Booked <span class="filter-count" id="bookedCount"></span>
       </div>
@@ -1137,7 +1144,7 @@
     </div>
 
     <!-- MOBILE BOOKED COLLAPSIBLE -->
-    <div id="mobileBookedCollapsible" style="display:none;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+    <div id="mobileBookedCollapsible" class="booked-mobile" style="display:none;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
       <div onclick="toggleBooked()" style="cursor:pointer;padding:10px 16px;background:var(--surface-container-high);display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;user-select:none;">
         <span id="mobileBookedToggle">▶</span> 📅 Booked <span class="filter-count" id="mobileBookedCount"></span>
       </div>
