@@ -607,33 +607,36 @@ function onFileSelect(e) {
   document.getElementById("fileName").textContent = file.name;
 }
 
-// ── Add rows helper (shared by OCR and AI paths) ──
-function addRowsToTable(models) {
+// ── Add rows helper (shared by OCR, AI, and manual paths) ──
+async function addRowsToTable(models) {
   let added = 0;
   let skipped = 0;
   const existing = new Set(rows.map(r => r.modelNumber.toUpperCase()));
 
   for (const m of models) {
-    if (!m || !m.trim()) continue;
-    if (existing.has(m.trim().toUpperCase())) {
-      skipped++;
-      continue;
+    const val = m ? m.trim() : '';
+    if (!val) continue;
+    if (existing.has(val.toUpperCase())) {
+      const ok = await confirmAsync("Duplicate Found", `Model "${val}" is already in the list. Add it again?`);
+      if (!ok) { skipped++; continue; }
     }
     rows.push({
       srNo: rows.length + 1,
-      modelNumber: m.trim(),
+      modelNumber: val,
       mop: "0000",
       offerPrice: "0000",
       mrp: ""
     });
-    existing.add(m.trim().toUpperCase());
+    existing.add(val.toUpperCase());
     added++;
   }
 
   renderTable();
 
-  if (added > 0) {
-    showToast(`Added ${added} new, skipped ${skipped} duplicate(s)`, "success");
+  if (added > 0 && skipped > 0) {
+    showToast(`Added ${added}, skipped ${skipped} duplicate(s)`, "success");
+  } else if (added > 0) {
+    showToast(`Added ${added} item(s)`, "success");
   } else {
     showToast(`Skipped ${skipped} duplicate(s)`, "info");
   }
@@ -710,7 +713,7 @@ async function parseImageAI() {
     return;
   }
 
-  addRowsToTable(models);
+  await addRowsToTable(models);
   selectedFile = null;
   document.getElementById("imageInput").value = "";
   document.getElementById("fileName").textContent = "";
@@ -741,7 +744,7 @@ async function parseImageOCR() {
 
   // Brand found → add row directly
   if (brandName && model) {
-    addRowsToTable([`${brandName} ${model}`]);
+    await addRowsToTable([`${brandName} ${model}`]);
     selectedFile = null;
     document.getElementById("imageInput").value = "";
     document.getElementById("fileName").textContent = "";
@@ -770,7 +773,7 @@ async function parseImageOCR() {
 }
 
 // ── Brand confirm actions ──
-function confirmBrand() {
+async function confirmBrand() {
   const input = document.getElementById("brandCorrectInput");
   const brand = input.value.trim().toUpperCase();
   if (!brand) { showToast("Enter a brand name", "info"); return; }
@@ -786,7 +789,7 @@ function confirmBrand() {
     saveBrandMap(map);
   }
 
-  addRowsToTable([`${brand} ${model}`]);
+  await addRowsToTable([`${brand} ${model}`]);
   document.getElementById("brandConfirm").classList.remove("active");
   _pendingBrandResult = null;
 
@@ -797,10 +800,10 @@ function confirmBrand() {
   document.getElementById("parseBtn").disabled = false;
 }
 
-function skipBrand() {
+async function skipBrand() {
   const model = _pendingBrandResult?.model;
   if (model) {
-    addRowsToTable([model]);
+    await addRowsToTable([model]);
   }
   document.getElementById("brandConfirm").classList.remove("active");
   _pendingBrandResult = null;
@@ -813,7 +816,7 @@ function skipBrand() {
 }
 
 // ── Manual add ──
-function addManual() {
+async function addManual() {
   const textarea = document.getElementById("manualInput");
   const text = textarea.value.trim();
   if (!text) { showToast("Paste or type model numbers first", "info"); return; }
@@ -821,33 +824,7 @@ function addManual() {
   const lines = text.split(/\n|,|;/).map(l => l.trim()).filter(l => l.length > 0);
   if (!lines.length) { showToast("No valid model numbers found", "warning"); return; }
 
-  let added = 0;
-  let skipped = 0;
-  const existing = new Set(rows.map(r => r.modelNumber.toUpperCase()));
-
-  for (const m of lines) {
-    if (existing.has(m.toUpperCase())) {
-      skipped++;
-      continue;
-    }
-    rows.push({
-      srNo: rows.length + 1,
-      modelNumber: m,
-      mop: "0000",
-      offerPrice: "0000",
-      mrp: ""
-    });
-    existing.add(m.toUpperCase());
-    added++;
-  }
-
-  if (added > 0) {
-    showToast(`Added ${added} new, skipped ${skipped} duplicate(s)`, "success");
-  } else {
-    showToast(`Skipped ${skipped} duplicate(s) — all already in list`, "info");
-  }
-
-  renderTable();
+  await addRowsToTable(lines);
   textarea.value = "";
 }
 
@@ -1180,6 +1157,27 @@ function showConfirm(title, msg, onOk, onCancel) {
   document.getElementById("confirmDialog").classList.add("active");
   _confirmCb = onOk || (() => {});
   _confirmCancelCb = onCancel || (() => {});
+}
+
+function confirmAsync(title, msg) {
+  return new Promise(resolve => {
+    const okHandler = () => {
+      cleanup(); resolve(true);
+    };
+    const cancelHandler = () => {
+      cleanup(); resolve(false);
+    };
+    const cleanup = () => {
+      document.getElementById("confirmDialog").classList.remove("active");
+      document.getElementById("confirmOk").removeEventListener("click", okHandler);
+      document.getElementById("confirmCancel").removeEventListener("click", cancelHandler);
+    };
+    document.getElementById("confirmTitle").textContent = title;
+    document.getElementById("confirmMsg").textContent = msg;
+    document.getElementById("confirmDialog").classList.add("active");
+    document.getElementById("confirmOk").addEventListener("click", okHandler);
+    document.getElementById("confirmCancel").addEventListener("click", cancelHandler);
+  });
 }
 
 document.getElementById("confirmOk").addEventListener("click", () => {
