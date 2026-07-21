@@ -563,11 +563,11 @@ function initFirestore() {
   if (!token || isExpired()) {
     localStorage.removeItem("adminToken");
     localStorage.removeItem("accountantToken");
-    window.location.href = "login.html";
+    window.location.href = "login.html?redirect=listmaker.html";
     return;
   }
   window.authGetToken = getToken;
-  window.authOnError = () => { window.location.href = "login.html"; };
+  window.authOnError = () => { window.location.href = "login.html?redirect=listmaker.html"; };
 })();
 
 // ── Init ──

@@ -270,10 +270,15 @@
           localStorage.setItem("accountantToken", data.token);
         }
 
-        // Handle role-based redirect
+        // Handle role-based redirect (with optional redirect param)
+        const redirectUrl = (() => {
+          const r = new URLSearchParams(window.location.search).get("redirect");
+          return r && !r.startsWith("http://") && !r.startsWith("https://") && !r.startsWith("//") ? r : null;
+        })();
+
         if (data.role === "admin") {
           msg.style.color = "#4edea3"; msg.innerText = "Welcome Admin! Redirecting…";
-          window.location.href = "admin.html";
+          window.location.href = redirectUrl || "admin.html";
           return;
         }
 
@@ -281,11 +286,15 @@
           if (data.storeId) {
             // Accountant has a store — redirect directly
             msg.style.color = "#4edea3"; msg.innerText = "Welcome! Redirecting to dashboard…";
-            window.location.href = "accountant.html";
+            window.location.href = redirectUrl || "accountant.html";
           } else {
             // No store assigned — show store selector
             const selector = document.getElementById("storeSelector");
             selector.classList.remove("hidden");
+
+            // Save redirect for after store assignment
+            const pendingRedirect = redirectUrl;
+
             msg.style.color = "#adc6ff"; msg.innerText = "Please select your store to continue.";
             // Override button to self-assign store on first login
             const btn = document.querySelector("button[type=submit]");
@@ -304,7 +313,7 @@
                 if (!assignRes.ok) { throw new Error(assignData.error || "Failed to assign store"); }
                 localStorage.setItem("accountantToken", assignData.token);
                 msg.style.color = "#4edea3"; msg.innerText = "Store assigned! Redirecting…";
-                window.location.href = "accountant.html";
+                window.location.href = pendingRedirect || "accountant.html";
               } catch (e) {
                 msg.style.color = "#ffb4ab"; msg.innerText = "Failed to assign store: " + e.message;
                 btn.innerHTML = '<span>SIGN IN</span><span class="material-symbols-outlined">arrow_forward</span>';
