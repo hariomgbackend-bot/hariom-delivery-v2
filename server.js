@@ -2141,13 +2141,22 @@ const STORE_ID_CACHE_TTL = 300_000; // 5 minutes
 
 async function resolveStoreIdCached(tallyStoreName) {
   if (!tallyStoreName) return null;
-  if (Date.now() < _storeIdCache.expiry && _storeIdCache.data[tallyStoreName] !== undefined) {
-    return _storeIdCache.data[tallyStoreName];
+  const cacheKey = tallyStoreName.toLowerCase();
+  if (Date.now() < _storeIdCache.expiry && _storeIdCache.data[cacheKey] !== undefined) {
+    return _storeIdCache.data[cacheKey];
   }
   try {
-    const snap = await getDocs(query(collection(db, "stores"), where("name", "==", tallyStoreName), limit(1)));
-    const id = snap.empty ? null : snap.docs[0].id;
-    _storeIdCache.data[tallyStoreName] = id;
+    // Match by key field (e.g., "dhanore" → store with key="dhanore")
+    let snap = await getDocs(query(collection(db, "stores"), where("key", "==", cacheKey), limit(1)));
+    let id = snap.empty ? null : snap.docs[0].id;
+
+    // Fallback: match by full name (backward compat)
+    if (!id) {
+      snap = await getDocs(query(collection(db, "stores"), where("name", "==", tallyStoreName), limit(1)));
+      id = snap.empty ? null : snap.docs[0].id;
+    }
+
+    _storeIdCache.data[cacheKey] = id;
     _storeIdCache.expiry = Date.now() + STORE_ID_CACHE_TTL;
     return id;
   } catch { return null; }
@@ -7472,8 +7481,20 @@ app.get("/api/alert-count", authenticate, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running on port ${PORT}`);
   runStartupMigration();
   startSelfPing();
+
+  // Backfill deliveries with null storeId (e.g., from failed resolveStoreIdCached before the fix)
+  try {
+    const nullSnap = await getDocs(query(collection(db, "deliveries"), where("storeId", "==", null)));
+    if (!nullSnap.empty) {
+      const updates = nullSnap.docs.map(d => updateDoc(doc(db, "deliveries", d.id), { storeId: "store_a" }));
+      await Promise.all(updates);
+      console.log(`[STARTUP] Fixed ${nullSnap.size} deliveries with null storeId → store_a`);
+    }
+  } catch (e) {
+    console.error("[STARTUP] null storeId fix error:", e.message);
+  }
 });
