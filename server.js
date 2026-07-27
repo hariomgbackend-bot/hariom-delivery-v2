@@ -583,7 +583,7 @@ return res.send(`
 
       // ── Driver: Tally has no driver info — park on "Unassigned" for dispatch ──
       const assigned_driver_id   = await getUnassignedDriverId();
-      const assigned_driver_name = "Unassigned";
+      const assigned_driver_name = "UNASSIGNED";
 
       const batchId = items.length > 1
         ? `batch_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
@@ -2122,11 +2122,9 @@ async function getUnassignedDriverId() {
     return _unassignedDriverCache.id;
   }
   try {
-    let snap = await getDocs(query(collection(db, "drivers"), where("driver_name", "==", "unassigned"), limit(1)));
-    if (snap.empty) {
-      snap = await getDocs(query(collection(db, "drivers"), where("driver_name", "==", "Unassigned"), limit(1)));
-    }
-    _unassignedDriverCache.id = snap.empty ? "unassigned" : snap.docs[0].id;
+    const snap = await getDocs(query(collection(db, "drivers"), where("driver_name", ">=", "u"), where("driver_name", "<", "v"), limit(20)));
+    const found = snap.docs.find(d => d.data().driver_name?.trim().toLowerCase() === "unassigned");
+    _unassignedDriverCache.id = found?.id || "unassigned";
     _unassignedDriverCache.expiry = Date.now() + UNASSIGNED_DRIVER_CACHE_TTL;
     return _unassignedDriverCache.id;
   } catch {
