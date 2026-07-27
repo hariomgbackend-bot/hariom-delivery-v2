@@ -939,6 +939,25 @@ app.post(
   `);
       }
 
+      const storeId = store_branch ? await resolveStoreIdCached(store_branch) : "";
+
+      if (storeId && customer_name) {
+        try {
+          const storeSnap = await getDoc(doc(db, "stores", storeId));
+          if (storeSnap.exists()) {
+            const s = storeSnap.data();
+            const matchKey = (s.key || "").toLowerCase();
+            const matchName = (s.name || "").toLowerCase();
+            const custLower = customer_name.toLowerCase();
+            if (custLower === matchKey || custLower === matchName) {
+              customer_name = `Hariom Electronics - ${s.name}`;
+            }
+          }
+        } catch (e) {
+          console.warn("[tally/ticket] store lookup for customer fix:", e.message);
+        }
+      }
+
       const docRef = await addDoc(collection(db, "service_tickets"), {
         type,
         status:                "open",
@@ -962,7 +981,7 @@ app.post(
         purchase_date:         null,
         is_auto_created:       true,
         source:                "tally_tdl",
-        storeId:               store_branch ? await resolveStoreIdCached(store_branch) : "",
+        storeId,
         tally_voucher_number:  voucher_number,
         brand_tracking_number: null,
         brand_request_status:  null,
