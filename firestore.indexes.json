@@ -164,6 +164,14 @@
       "collectionGroup": "deliveries",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "created_timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "deliveries",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "storeId", "order": "ASCENDING" },
         { "fieldPath": "source", "order": "ASCENDING" },
         { "fieldPath": "created_timestamp", "order": "ASCENDING" }
