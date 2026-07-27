@@ -983,9 +983,13 @@
     .store-chip.chip-dhanore .chip-dot { background: linear-gradient(135deg,#059669,#34d399); }
     .store-chip.chip-alandi { background: rgba(99,102,241,0.10); border-color: rgba(99,102,241,0.18); color: #a5b4fc; }
     .store-chip.chip-dhanore { background: rgba(5,150,105,0.10); border-color: rgba(5,150,105,0.18); color: #34d399; }
+    .store-chip.chip-all { background: rgba(148,163,184,0.10); border-color: rgba(148,163,184,0.18); color: #cbd5e1; }
+    .store-chip.chip-all .chip-dot { background: linear-gradient(135deg,#64748b,#94a3b8); }
     [data-theme="light"] .store-chip { background: rgba(37,99,235,0.06); border-color: rgba(37,99,235,0.12); color: #1e40af; }
     [data-theme="light"] .store-chip.chip-alandi { background: rgba(99,102,241,0.06); border-color: rgba(99,102,241,0.12); color: #4338ca; }
     [data-theme="light"] .store-chip.chip-dhanore { background: rgba(5,150,105,0.06); border-color: rgba(5,150,105,0.12); color: #065f46; }
+    [data-theme="light"] .store-chip.chip-all { background: rgba(148,163,184,0.08); border-color: rgba(148,163,184,0.14); color: #475569; }
+    [data-theme="light"] .store-chip.chip-all .chip-dot { background: linear-gradient(135deg,#94a3b8,#cbd5e1); }
 
 
   </style>
@@ -1642,13 +1646,29 @@ function showWelcomeOnce() {
   localStorage.setItem("welcomeDate", today);
 }
 
+// Tracks the user's default store so we can toggle back to it
+let _userDefaultStore = null;
+
 function updateAccountantStoreBadge() {
   const el = document.getElementById("accStoreBadge");
   if (!el) return;
-  let raw = getUserStoreFromToken(); // JWT storeName ("Alandi" / "Dhanore")
+  if (_userDefaultStore === null) _userDefaultStore = selectedStore || "all";
+
+  if (selectedStore === "all") {
+    el.innerHTML = `<span class="store-chip chip-all" style="cursor:pointer"><span class="chip-dot"></span>All Stores</span>`;
+    el.title = "Click to filter by your store";
+    el.onclick = () => {
+      selectedStore = _userDefaultStore;
+      updateAccountantStoreBadge();
+      loadDeliveries();
+      loadDeliveryCounts();
+    };
+    return;
+  }
+
+  let raw = getUserStoreFromToken();
   if (!raw && selectedStore && selectedStore !== "all") raw = selectedStore;
   if (!raw && _stores && _stores.length) raw = _stores[0].name;
-  // raw may be a store ID (store_a/store_b) or a name (Alandi/Dhanore)
   const resolved = _stores ? (_stores.find(s => s.id === raw) || _stores.find(s => s.name === raw)) : null;
   const storeName = resolved ? resolved.name : (raw || "");
   const isAlandi = storeName.toLowerCase().includes("alandi");
@@ -1656,9 +1676,16 @@ function updateAccountantStoreBadge() {
   const display = storeName.replace(/^Hari Om Electronics - /, '');
   const chipClass = isAlandi ? "chip-alandi" : isDhanore ? "chip-dhanore" : "";
   if (chipClass) {
-    el.innerHTML = `<span class="store-chip ${chipClass}"><span class="chip-dot"></span>${escHtml(display)}</span>`;
+    el.innerHTML = `<span class="store-chip ${chipClass}" style="cursor:pointer"><span class="chip-dot"></span>${escHtml(display)}</span>`;
   } else if (storeName) el.textContent = `(${display})`;
   else el.textContent = "";
+  el.title = "Click to show all stores";
+  el.onclick = () => {
+    selectedStore = "all";
+    updateAccountantStoreBadge();
+    loadDeliveries();
+    loadDeliveryCounts();
+  };
 }
 setTimeout(loadStores, 0);
 

@@ -2122,7 +2122,10 @@ async function getUnassignedDriverId() {
     return _unassignedDriverCache.id;
   }
   try {
-    const snap = await getDocs(query(collection(db, "drivers"), where("driver_name", "==", "Unassigned"), limit(1)));
+    let snap = await getDocs(query(collection(db, "drivers"), where("driver_name", "==", "unassigned"), limit(1)));
+    if (snap.empty) {
+      snap = await getDocs(query(collection(db, "drivers"), where("driver_name", "==", "Unassigned"), limit(1)));
+    }
     _unassignedDriverCache.id = snap.empty ? "unassigned" : snap.docs[0].id;
     _unassignedDriverCache.expiry = Date.now() + UNASSIGNED_DRIVER_CACHE_TTL;
     return _unassignedDriverCache.id;
