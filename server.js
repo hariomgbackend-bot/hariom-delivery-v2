@@ -23,6 +23,7 @@ import path from "path";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import Groq from "groq-sdk";
+import whatsappRouter from "./routes/whatsapp.js";
 
 dotenv.config();
 
@@ -69,8 +70,12 @@ app.use(cors({
 }));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
-app.use(express.json({ limit: "10mb" })); // XML imports can be large
+app.use(express.json({
+  limit: "10mb",
+  verify: (req, _res, buf) => { req.rawBody = buf.toString(); }
+}));
 app.use(sanitizeRequest);
+app.use("/whatsapp", whatsappRouter);
 
 /* ════════════════════════════════════════════════
    STATIC FILE SECURITY — block sensitive files/paths

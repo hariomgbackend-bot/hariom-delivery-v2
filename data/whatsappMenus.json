@@ -1,0 +1,279 @@
+{
+  "WELCOME": {
+    "type": "button",
+    "en": {
+      "header": "Welcome to Hari Om Electronics",
+      "body": "Please choose your language:",
+      "footer": "",
+      "buttons": [
+        { "id": "lang_en", "title": "English" },
+        { "id": "lang_mr", "title": "मराठी" },
+        { "id": "lang_hi", "title": "हिन्दी" }
+      ]
+    },
+    "mr": {
+      "header": "हरि ओम इलेक्ट्रॉनिक्समध्ये आपले स्वागत आहे",
+      "body": "कृपया आपली भाषा निवडा:",
+      "footer": "",
+      "buttons": [
+        { "id": "lang_en", "title": "English" },
+        { "id": "lang_mr", "title": "मराठी" },
+        { "id": "lang_hi", "title": "हिन्दी" }
+      ]
+    },
+    "hi": {
+      "header": "हरि ओम इलेक्ट्रॉनिक्स में आपका स्वागत है",
+      "body": "कृपया अपनी भाषा चुनें:",
+      "footer": "",
+      "buttons": [
+        { "id": "lang_en", "title": "English" },
+        { "id": "lang_mr", "title": "मराठी" },
+        { "id": "lang_hi", "title": "हिन्दी" }
+      ]
+    }
+  },
+
+  "MAIN_MENU": {
+    "type": "list",
+    "en": {
+      "header": "Hari Om Electronics",
+      "body": "How can we help you?",
+      "footer": "Choose an option",
+      "buttonText": "View Options",
+      "sections": [
+        {
+          "title": "Services",
+          "rows": [
+            { "id": "menu_product", "title": "Product Enquiry", "description": "Check product information" },
+            { "id": "menu_service", "title": "Service Request", "description": "Request a service" },
+            { "id": "menu_store", "title": "Store Location", "description": "Find our stores" },
+            { "id": "menu_staff", "title": "Talk to Staff", "description": "Connect with our team" }
+          ]
+        }
+      ]
+    },
+    "mr": {
+      "header": "हरि ओम इलेक्ट्रॉनिक्स",
+      "body": "आम्ही आपली कशी मदत करू शकतो?",
+      "footer": "एक पर्याय निवडा",
+      "buttonText": "पर्याय पहा",
+      "sections": [
+        {
+          "title": "सेवा",
+          "rows": [
+            { "id": "menu_product", "title": "उत्पादन माहिती", "description": "उत्पादनाची माहिती पहा" },
+            { "id": "menu_service", "title": "सेवा विनंती", "description": "सेवेची विनंती करा" },
+            { "id": "menu_store", "title": "स्टोअरचा पत्ता", "description": "आमचे स्टोअर शोधा" },
+            { "id": "menu_staff", "title": "स्टाफशी बोला", "description": "आमच्या टीमशी संपर्क साधा" }
+          ]
+        }
+      ]
+    },
+    "hi": {
+      "header": "हरि ओम इलेक्ट्रॉनिक्स",
+      "body": "हम आपकी कैसे मदद कर सकते हैं?",
+      "footer": "एक विकल्प चुनें",
+      "buttonText": "विकल्प देखें",
+      "sections": [
+        {
+          "title": "सेवाएँ",
+          "rows": [
+            { "id": "menu_product", "title": "उत्पाद जानकारी", "description": "उत्पाद की जानकारी देखें" },
+            { "id": "menu_service", "title": "सेवा अनुरोध", "description": "सेवा का अनुरोध करें" },
+            { "id": "menu_store", "title": "स्टोर का पता", "description": "हमारे स्टोर खोजें" },
+            { "id": "menu_staff", "title": "स्टाफ से बात करें", "description": "हमारी टीम से संपर्क करें" }
+          ]
+        }
+      ]
+    }
+  },
+
+  "PRODUCT_CATEGORY": {
+    "type": "list",
+    "en": {
+      "header": "Product Enquiry",
+      "body": "Select a product category:",
+      "footer": "Browse our products",
+      "buttonText": "View Categories",
+      "sections": [
+        {
+          "title": "Electronics",
+          "rows": [
+            { "id": "cat_tv", "title": "TV" },
+            { "id": "cat_refrigerator", "title": "Refrigerator" },
+            { "id": "cat_washing_machine", "title": "Washing Machine" },
+            { "id": "cat_ac", "title": "Air Conditioner" },
+            { "id": "cat_mobile", "title": "Mobile" },
+            { "id": "cat_kitchen", "title": "Kitchen Appliances" }
+          ]
+        },
+        {
+          "title": "Furniture",
+          "rows": [
+            { "id": "cat_sofa", "title": "Sofa" },
+            { "id": "cat_bed", "title": "Bed" },
+            { "id": "cat_dining", "title": "Dining Table" },
+            { "id": "cat_wardrobe", "title": "Wardrobe" }
+          ]
+        },
+        {
+          "title": "Other",
+          "rows": [
+            { "id": "cat_other", "title": "Other Products" }
+          ]
+        }
+      ]
+    },
+    "mr": {
+      "header": "उत्पादन माहिती",
+      "body": "कृपया उत्पादन श्रेणी निवडा:",
+      "footer": "आमची उत्पादने पहा",
+      "buttonText": "श्रेणी पहा",
+      "sections": [
+        {
+          "title": "इलेक्ट्रॉनिक्स",
+          "rows": [
+            { "id": "cat_tv", "title": "टीव्ही" },
+            { "id": "cat_refrigerator", "title": "रेफ्रिजरेटर" },
+            { "id": "cat_washing_machine", "title": "वॉशिंग मशीन" },
+            { "id": "cat_ac", "title": "एअर कंडिशनर" },
+            { "id": "cat_mobile", "title": "मोबाईल" },
+            { "id": "cat_kitchen", "title": "स्वयंपाकघर उपकरणे" }
+          ]
+        },
+        {
+          "title": "फर्निचर",
+          "rows": [
+            { "id": "cat_sofa", "title": "सोफा" },
+            { "id": "cat_bed", "title": "बेड" },
+            { "id": "cat_dining", "title": "जेवणाचे टेबल" },
+            { "id": "cat_wardrobe", "title": "वॉर्डरोब" }
+          ]
+        },
+        {
+          "title": "इतर",
+          "rows": [
+            { "id": "cat_other", "title": "इतर उत्पादने" }
+          ]
+        }
+      ]
+    },
+    "hi": {
+      "header": "उत्पाद जानकारी",
+      "body": "कृपया उत्पाद श्रेणी चुनें:",
+      "footer": "हमारे उत्पाद देखें",
+      "buttonText": "श्रेणी देखें",
+      "sections": [
+        {
+          "title": "इलेक्ट्रॉनिक्स",
+          "rows": [
+            { "id": "cat_tv", "title": "टीवी" },
+            { "id": "cat_refrigerator", "title": "रेफ्रिजरेटर" },
+            { "id": "cat_washing_machine", "title": "वॉशिंग मशीन" },
+            { "id": "cat_ac", "title": "एयर कंडीशनर" },
+            { "id": "cat_mobile", "title": "मोबाइल" },
+            { "id": "cat_kitchen", "title": "रसोई उपकरण" }
+          ]
+        },
+        {
+          "title": "फर्नीचर",
+          "rows": [
+            { "id": "cat_sofa", "title": "सोफा" },
+            { "id": "cat_bed", "title": "बिस्तर" },
+            { "id": "cat_dining", "title": "डाइनिंग टेबल" },
+            { "id": "cat_wardrobe", "title": "अलमारी" }
+          ]
+        },
+        {
+          "title": "अन्य",
+          "rows": [
+            { "id": "cat_other", "title": "अन्य उत्पाद" }
+          ]
+        }
+      ]
+    }
+  },
+
+  "PRODUCT_INFO": {
+    "type": "text",
+    "en": {
+      "body": "Thank you for your enquiry about __PRODUCT__. Our team will provide you with the best price and availability information shortly. Visit our store for a live demo!",
+      "followUp": "Is there anything else we can help you with?"
+    },
+    "mr": {
+      "body": "__PRODUCT__ बद्दल चौकशी केल्याबद्दल धन्यवाद. आमची टीम लवकरच तुम्हाला सर्वोत्तम किंमत आणि उपलब्धतेची माहिती देईल. लाइव्ह डेमोसाठी आमच्या स्टोअरला भेट द्या!",
+      "followUp": "आम्ही आपल्या इतर कशी मदत करू शकतो?"
+    },
+    "hi": {
+      "body": "__PRODUCT__ के बारे में पूछताछ करने के लिए धन्यवाद। हमारी टीम आपको सर्वोत्तम मूल्य और उपलब्धता की जानकारी जल्द ही प्रदान करेगी। लाइव डेमो के लिए हमारे स्टोर पर आएं!",
+      "followUp": "क्या हम आपकी किसी और चीज़ में मदद कर सकते हैं?"
+    }
+  },
+
+  "SERVICE_REQUEST": {
+    "type": "text",
+    "en": {
+      "askProduct": "Please tell us the product name (e.g., TV, Refrigerator):",
+      "askBrand": "Please tell us the brand:",
+      "askProblem": "Please describe the issue you are facing:",
+      "confirm": "Thank you! Your service request has been registered.\n\nProduct: __PRODUCT__\nBrand: __BRAND__\nIssue: __PROBLEM__\n\nOur service team will contact you shortly."
+    },
+    "mr": {
+      "askProduct": "कृपया उत्पादनाचे नाव सांगा (उदा. टीव्ही, रेफ्रिजरेटर):",
+      "askBrand": "कृपया ब्रँडचे नाव सांगा:",
+      "askProblem": "कृपया तुमच्या समस्येचे वर्णन करा:",
+      "confirm": "धन्यवाद! तुमची सेवा विनंती नोंदवली गेली आहे.\n\nउत्पादन: __PRODUCT__\nब्रँड: __BRAND__\nसमस्या: __PROBLEM__\n\nआमची सेवा टीम लवकरच तुमच्याशी संपर्क साधेल."
+    },
+    "hi": {
+      "askProduct": "कृपया उत्पाद का नाम बताएं (जैसे, टीवी, रेफ्रिजरेटर):",
+      "askBrand": "कृपया ब्रांड का नाम बताएं:",
+      "askProblem": "कृपया अपनी समस्या का वर्णन करें:",
+      "confirm": "धन्यवाद! आपका सेवा अनुरोध पंजीकृत कर लिया गया है।\n\nउत्पाद: __PRODUCT__\nब्रांड: __BRAND__\nसमस्या: __PROBLEM__\n\nहमारी सेवा टीम जल्द ही आपसे संपर्क करेगी।"
+    }
+  },
+
+  "STORE_LOCATION": {
+    "type": "text",
+    "en": {
+      "body": "📍 *Hari Om Electronics - Alandi*\nDatta Mandir Road, Near Cosmos Bank,\nAlandi Devachi, Tal Khed,\nPune - 412105\n\n📞 +91 8177896218 / +91 9822632095\n\n🕐 *Store Timings:*\nMonday - Saturday: 10:00 AM - 8:00 PM\nSunday: 11:00 AM - 6:00 PM\n\n📍 *Hari Om Electronics - Dhanore*\nDhanore Phata, Markal Road,\nPCS Chawk, Near HP Petrol Pump,\nTal Khed, Pune - 412105\n\n📞 +91 8177896218 / +91 9822632095\n\n🕐 *Store Timings:*\nMonday - Saturday: 10:00 AM - 8:00 PM\nSunday: 11:00 AM - 6:00 PM\n\n👉 Visit us for the best deals on electronics and appliances!",
+      "followUp": "Is there anything else we can help you with?"
+    },
+    "mr": {
+      "body": "📍 *हरि ओम इलेक्ट्रॉनिक्स - आळंदी*\nदत्त मंदिर रोड, कॉसमॉस बँक जवळ,\nआळंदी देवाची, ता. खेड,\nपुणे - ४१२१०५\n\n📞 +91 8177896218 / +91 9822632095\n\n🕐 *स्टोअर वेळ:*\nसोमवार - शनिवार: सकाळी १० - रात्री ८\nरविवार: सकाळी ११ - सायंकाळी ६\n\n📍 *हरि ओम इलेक्ट्रॉनिक्स - धानोरे*\nधानोरे फाटा, मार्कल रोड,\nपीसीएस चौक, एचपी पेट्रोल पंप जवळ,\nता. खेड, पुणे - ४१२१०५\n\n📞 +91 8177896218 / +91 9822632095\n\n👉 सर्वोत्तम डीलसाठी आम्हाला भेट द्या!",
+      "followUp": "आम्ही आपल्या इतर कशी मदत करू शकतो?"
+    },
+    "hi": {
+      "body": "📍 *हरि ओम इलेक्ट्रॉनिक्स - आलंदी*\nदत्त मंदिर रोड, कॉसमॉस बैंक के पास,\nआलंदी देवाची, ता. खेड़,\nपुणे - ४१२१०५\n\n📞 +91 8177896218 / +91 9822632095\n\n🕐 *स्टोर का समय:*\nसोमवार - शनिवार: सुबह १० - रात ८\nरविवार: सुबह ११ - शाम ६\n\n📍 *हरि ओम इलेक्ट्रॉनिक्स - धानोरे*\nधानोरे फाटा, मार्कल रोड,\nपीसीएस चौक, एचपी पेट्रोल पंप के पास,\nता. खेड़, पुणे - ४१२१०५\n\n📞 +91 8177896218 / +91 9822632095\n\n👉 बेहतरीन डील के लिए हमारे स्टोर पर आएं!",
+      "followUp": "क्या हम आपकी किसी और चीज़ में मदद कर सकते हैं?"
+    }
+  },
+
+  "TALK_TO_STAFF": {
+    "type": "text",
+    "en": {
+      "body": "Thank you for reaching out. One of our team members will contact you shortly at your registered number.\n\nFor urgent queries, please call us directly:\n📞 +91 8177896218",
+      "followUp": "Is there anything else we can help you with?"
+    },
+    "mr": {
+      "body": "संपर्क केल्याबद्दल धन्यवाद. आमच्या टीम सदस्यांपैकी एक लवकरच तुमच्या नोंदणीकृत नंबरवर तुमच्याशी संपर्क साधेल.\n\nतात्काळ प्रश्नांसाठी, कृपया थेट कॉल करा:\n📞 +91 8177896218",
+      "followUp": "आम्ही आपल्या इतर कशी मदत करू शकतो?"
+    },
+    "hi": {
+      "body": "संपर्क करने के लिए धन्यवाद। हमारी टीम का एक सदस्य जल्द ही आपके पंजीकृत नंबर पर आपसे संपर्क करेगा।\n\nत्वरित प्रश्नों के लिए, कृपया सीधे कॉल करें:\n📞 +91 8177896218",
+      "followUp": "क्या हम आपकी किसी और चीज़ में मदद कर सकते हैं?"
+    }
+  },
+
+  "ERROR": {
+    "type": "text",
+    "en": {
+      "body": "Sorry, I didn't understand that. Please use the options provided."
+    },
+    "mr": {
+      "body": "क्षमस्व, मला ते समजले नाही. कृपया दिलेले पर्याय वापरा."
+    },
+    "hi": {
+      "body": "क्षमा करें, मैं समझ नहीं पाया। कृपया दिए गए विकल्पों का उपयोग करें।"
+    }
+  }
+}
