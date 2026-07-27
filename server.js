@@ -2181,7 +2181,7 @@ function startOfTodayISTTimestamp() {
 
 app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "accountant"]), async (req, res) => {
   try {
-    if (Date.now() < deliveryCountsCache.expiry) {
+    if (!req.query.store && Date.now() < deliveryCountsCache.expiry) {
       return res.json(deliveryCountsCache.data);
     }
 
@@ -2220,7 +2220,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
     };
 
     trackReads("delivery-counts", 10);
-    deliveryCountsCache = { data: result, expiry: Date.now() + DELIVERY_COUNTS_CACHE_TTL };
+    if (!req.query.store) deliveryCountsCache = { data: result, expiry: Date.now() + DELIVERY_COUNTS_CACHE_TTL };
     res.json(result);
   } catch (error) {
     console.error("/delivery-counts error:", error);
