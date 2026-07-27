@@ -4030,7 +4030,7 @@ async function loadDispatcherDeliveries() {
     const headers = {};
     if (driverSessionToken) headers["Authorization"] = "Bearer " + driverSessionToken;
     const [delivRes, driverRes] = await Promise.all([
-      fetch(`${BASE_URL}/deliveries`, { headers }),
+      fetch(`${BASE_URL}/deliveries?store=all`, { headers }),
       fetch(`${BASE_URL}/driver-list-public`)
     ]);
     const allDeliveries = await delivRes.json();
