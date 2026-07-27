@@ -3774,7 +3774,7 @@ function showDeliverySkeleton() {
 
 async function loadDeliveryCounts() {
   try {
-    const storeParam = selectedStore && selectedStore !== "all" ? `?store=${encodeURIComponent(selectedStore)}` : "";
+    const storeParam = selectedStore ? `?store=${encodeURIComponent(selectedStore)}` : "";
     const res = await authFetch(`${BASE_URL}/delivery-counts${storeParam}`);
     if (!res.ok) return null;
     return await res.json();
@@ -3863,7 +3863,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
       if (searchQuery) fp.push(`search=${encodeURIComponent(searchQuery)}`);
       if (currentRoute !== "all") fp.push(`route=${encodeURIComponent(currentRoute)}`);
       if (currentDriverFilter !== "all") fp.push(`driver=${encodeURIComponent(currentDriverFilter)}`);
-      if (selectedStore && selectedStore !== "all") fp.push(`store=${encodeURIComponent(selectedStore)}`);
+      if (selectedStore) fp.push(`store=${encodeURIComponent(selectedStore)}`);
       const fq = fp.length ? "&" + fp.join("&") : "";
 
       const [bookedRes, restRes] = await Promise.all([
@@ -3911,7 +3911,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
       if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
       if (currentRoute !== "all") url += `&route=${encodeURIComponent(currentRoute)}`;
       if (currentDriverFilter !== "all") url += `&driver=${encodeURIComponent(currentDriverFilter)}`;
-      if (selectedStore && selectedStore !== "all") url += `&store=${encodeURIComponent(selectedStore)}`;
+      if (selectedStore) url += `&store=${encodeURIComponent(selectedStore)}`;
 
       const res = await authFetch(url);
       if (res.status === 429) { _deliveriesInflight = false; return; }
@@ -6445,7 +6445,7 @@ let _allSaleLeads = [];
 
 async function openSalesPopup() {
   try {
-    const storeQ = selectedStore && selectedStore !== "all" ? `store=${encodeURIComponent(selectedStore)}` : "";
+    const storeQ = selectedStore ? `store=${encodeURIComponent(selectedStore)}` : "";
     const res = await authFetch(`${BASE_URL}/leads${storeQ ? "?"+storeQ : ""}`);
     if (!res.ok) { showToast("⚠ Failed to load sales"); return; }
     const allLeads = await res.json();

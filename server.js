@@ -2242,8 +2242,8 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
     const p = Math.max(1, parseInt(page) || 1);
     const ps = Math.min(200, Math.max(1, parseInt(pageSize) || 50));
 
-    // Cache only applies to unfiltered, non-paginated requests
-    if (!force && !hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver) {
+    // Cache only applies to unfiltered, non-paginated requests (no store override)
+    if (!force && !hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver && !req.query.store) {
       if (Date.now() < deliveriesCache.expiry) {
         return res.json(deliveriesCache.data);
       }
@@ -2422,8 +2422,8 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
 
     trackReads("deliveries", deliveries.length);
 
-    // Cache unfiltered, non-paginated results
-    if (!hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver) {
+    // Cache unfiltered, non-paginated results (no store override)
+    if (!hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver && !req.query.store) {
       deliveriesCache = { data: deliveries, expiry: Date.now() + DELIVERIES_CACHE_TTL };
     }
 
