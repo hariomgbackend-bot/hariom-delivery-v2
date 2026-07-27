@@ -51,7 +51,7 @@ export async function sendReplyButtons(to, header, body, footer, buttons) {
   const interactive = {
     type: "button",
     header: header ? { type: "text", text: header } : undefined,
-    body: { text },
+    body: { text: body },
     footer: footer ? { text: footer } : undefined,
     action: {
       buttons: buttons.map((b) => ({
@@ -72,7 +72,7 @@ export async function sendListMessage(to, header, body, footer, buttonText, sect
   const interactive = {
     type: "list",
     header: header ? { type: "text", text: header } : undefined,
-    body: { text },
+    body: { text: body },
     footer: footer ? { text: footer } : undefined,
     action: {
       button: (buttonText || "Options").slice(0, 20),
