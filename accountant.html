@@ -1646,19 +1646,24 @@ function showWelcomeOnce() {
   localStorage.setItem("welcomeDate", today);
 }
 
-// Tracks the user's default store so we can toggle back to it
-let _userDefaultStore = null;
+// Resolve the user's default store from the token (falls back to "all").
+// Computed fresh each time so it can't capture a stale/empty selectedStore.
+function getDefaultStore() {
+  const raw = getUserStoreIdFromToken() || getUserStoreFromToken();
+  if (!raw) return "all";
+  const resolved = _stores ? (_stores.find(s => s.id === raw) || _stores.find(s => s.name === raw)) : null;
+  return resolved ? resolved.id : "all";
+}
 
 function updateAccountantStoreBadge() {
   const el = document.getElementById("accStoreBadge");
   if (!el) return;
-  if (_userDefaultStore === null) _userDefaultStore = selectedStore || "all";
 
   if (selectedStore === "all") {
     el.innerHTML = `<span class="store-chip chip-all" style="cursor:pointer"><span class="chip-dot"></span>All Stores</span>`;
     el.title = "Click to filter by your store";
     el.onclick = () => {
-      selectedStore = _userDefaultStore;
+      selectedStore = getDefaultStore();
       updateAccountantStoreBadge();
       loadDeliveries();
       loadDeliveryCounts();

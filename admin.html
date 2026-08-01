@@ -3680,7 +3680,7 @@ async function loadStaff(){
     ]);
     const staff   = await staffRes.json();
     const leads   = await leadsRes.json();
-    const tickets = await ticketsRes.json();
+    const tickets = (await ticketsRes.json()).data || [];
 
     if(!staff.length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No staff members yet</td></tr>';staffList=[];return;}
     staffList = staff;
