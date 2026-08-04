@@ -19,6 +19,28 @@ function pid(p: string | string[] | undefined): string {
 }
 
 /**
+ * GET /api/gbp/public/qr?url=<absolute url>&width=<px>
+ * Public — server-side QR PNG for any https URL. Used by the staff "Take Review"
+ * tab so it does not depend on a client-side QR library (often blocked offline).
+ */
+router.get("/public/qr", async (req: Request, res: Response) => {
+  try {
+    const raw = Array.isArray(req.query.url) ? String(req.query.url[0] ?? "") : String(req.query.url ?? "");
+    if (!/^https?:\/\//i.test(raw)) {
+      res.status(400).json({ success: false, error: "url must be an absolute http(s) URL" } satisfies ApiResponse);
+      return;
+    }
+    const width = parseInt(String(req.query.width || "512"), 10);
+    const png = await generateQr(raw, { width: isNaN(width) || width <= 0 ? 512 : width });
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(png);
+  } catch (e) {
+    res.status(500).json({ success: false, error: (e as Error).message } satisfies ApiResponse);
+  }
+});
+
+/**
  * GET /api/gbp/locations/:id/qrcode
  * Download a PNG QR code. Scans open the curated review wizard for the place.
  */

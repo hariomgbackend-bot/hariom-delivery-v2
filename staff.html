@@ -799,7 +799,6 @@
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script src="/shared.js?v=2"></script>
 </head>
 <body>
@@ -1863,17 +1862,11 @@ async function trRender() {
   const url = trReviewUrl();
   document.getElementById("tr-link").textContent = url;
   const img = document.getElementById("trQr");
-  if (!window.QRCode) {
-    img.alt = "QR library unavailable (offline or blocked). Use the link below instead.";
-    img.removeAttribute("src");
-    return;
-  }
-  try {
-    img.src = await QRCode.toDataURL(url, { width: 512, margin: 2, errorCorrectionLevel: "M" });
-  } catch (e) {
-    img.alt = "Could not generate QR.";
-    img.removeAttribute("src");
-  }
+  const base = window.location.origin && window.location.origin !== "null" ? window.location.origin : BASE_URL;
+  img.src = base + "/api/gbp/public/qr?width=512&url=" + encodeURIComponent(url);
+  img.decode().catch(function () {
+    img.alt = "Could not generate QR. Use the link below instead.";
+  });
 }
 function trDownload() {
   const img = document.getElementById("trQr");
