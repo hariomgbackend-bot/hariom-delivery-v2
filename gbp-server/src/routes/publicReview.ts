@@ -1,10 +1,11 @@
 import { Router, Request, Response } from "express";
 import { logger } from "../utils/logger.js";
 import { getDb } from "../utils/firestore.js";
+import admin from "firebase-admin";
 import { getLocationFromStore } from "../services/gbp.js";
 import { buildWriteReviewUrl } from "../services/qrcode.js";
 import { generateCuratedReview } from "../services/ai.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, authorize } from "../middleware/auth.js";
 import { ApiResponse } from "../types.js";
 
 const router = Router();
@@ -77,6 +78,103 @@ function pid(p: string | string[] | undefined): string {
   if (Array.isArray(p)) return p[0];
   return p || "";
 }
+
+const STAFF_COUNTS_COLLECTION = "gbp_staff_review_counts";
+
+async function incrementStaffReviewCount(staffId: string, staffName: string): Promise<void> {
+  const db = getDb();
+  const ref = db.collection(STAFF_COUNTS_COLLECTION).doc(staffId);
+  const data: Record<string, unknown> = {
+    staffId,
+    count: 1,
+    updatedAt: new Date(),
+  };
+  if (staffName) data.staffName = staffName;
+  await ref.set(data, { merge: true });
+  await ref.update({ count: admin.firestore.FieldValue.increment(1) });
+}
+
+/**
+ * GET /api/gbp/review-stats
+ * Admin — leaderboard of staff review counts, sorted descending.
+ */
+router.get("/review-stats", authenticate, authorize("admin", "accountant"), async (_req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    const snap = await db.collection(STAFF_COUNTS_COLLECTION).get();
+    const rows = snap.docs.map((d) => {
+      const x = d.data();
+      return {
+        staffId: x.staffId || d.id,
+        staffName: x.staffName || "Staff",
+        count: typeof x.count === "number" ? x.count : 0,
+        updatedAt: x.updatedAt || null,
+      };
+    });
+    rows.sort((a, b) => b.count - a.count);
+    res.json({ success: true, data: rows } satisfies ApiResponse);
+  } catch (e) {
+    res.status(500).json({ success: false, error: (e as Error).message } satisfies ApiResponse);
+  }
+});
+
+/**
+ * GET /api/gbp/public/review-stats
+ * Public (rate-limited) — full leaderboard of staff review counts, sorted desc.
+ */
+router.get("/public/review-stats", async (req: Request, res: Response) => {
+  if (!rateLimit(clientIp(req))) {
+    res.status(429).json({ success: false, error: "Too many requests. Try again in a minute." } satisfies ApiResponse);
+    return;
+  }
+  try {
+    const db = getDb();
+    const snap = await db.collection(STAFF_COUNTS_COLLECTION).get();
+    const rows = snap.docs.map((d) => {
+      const x = d.data();
+      return {
+        staffId: x.staffId || d.id,
+        staffName: x.staffName || "Staff",
+        count: typeof x.count === "number" ? x.count : 0,
+      };
+    });
+    rows.sort((a, b) => b.count - a.count);
+    res.json({ success: true, data: rows } satisfies ApiResponse);
+  } catch (e) {
+    res.status(500).json({ success: false, error: (e as Error).message } satisfies ApiResponse);
+  }
+});
+
+/**
+ * GET /api/gbp/public/review-stats/:staffId
+ * Public (rate-limited) — returns review count for one staff member.
+ */
+router.get("/public/review-stats/:staffId", async (req: Request, res: Response) => {
+  if (!rateLimit(clientIp(req))) {
+    res.status(429).json({ success: false, error: "Too many requests. Try again in a minute." } satisfies ApiResponse);
+    return;
+  }
+  const staffId = pid(req.params.staffId);
+  if (!staffId) {
+    res.status(400).json({ success: false, error: "Missing staffId" } satisfies ApiResponse);
+    return;
+  }
+  try {
+    const db = getDb();
+    const doc = await db.collection(STAFF_COUNTS_COLLECTION).doc(staffId).get();
+    const x = doc.exists ? (doc.data() || {}) : {};
+    res.json({
+      success: true,
+      data: {
+        staffId,
+        staffName: typeof x.staffName === "string" ? x.staffName : "",
+        count: typeof x.count === "number" ? x.count : 0,
+      },
+    } satisfies ApiResponse);
+  } catch (e) {
+    res.status(500).json({ success: false, error: (e as Error).message } satisfies ApiResponse);
+  }
+});
 
 function clientIp(req: Request): string {
   return (
@@ -185,6 +283,17 @@ router.post("/public/review/generate", async (req: Request, res: Response) => {
       language: lang,
       variation: variationValue,
     });
+
+    const staffId =
+      typeof req.body?.staffId === "string" && req.body.staffId.trim() ? req.body.staffId.trim() : "";
+    if (staffId) {
+      await incrementStaffReviewCount(
+        staffId,
+        typeof req.body?.staffName === "string" && req.body.staffName.trim()
+          ? req.body.staffName.trim().slice(0, 80)
+          : ""
+      );
+    }
 
     log.info(`Curated review generated for ${locationId}`);
     res.json({

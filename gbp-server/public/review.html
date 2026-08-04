@@ -167,6 +167,9 @@
 
 <script>
 var locId = location.pathname.split("/").filter(Boolean).pop() || "";
+var _qp = new URLSearchParams(location.search);
+var _staff = _qp.get("staff") || "";
+var _staffName = _qp.get("staffName") || "";
 var storeName = "Our Store";
 var writeReviewUrl = "";
 var selected = { category: "", brand: "", experiences: [], language: "english" };
@@ -262,7 +265,9 @@ async function callGenerate(variation) {
       experiences: selected.experiences,
       customText: $("custom-text").value.trim() || undefined,
       language: selected.language,
-      variation: variation
+      variation: variation,
+      staffId: _staff || undefined,
+      staffName: _staffName || undefined
     })
   });
   var json = await res.json();

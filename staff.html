@@ -1429,6 +1429,13 @@
         <button class="btn" style="flex:1;padding:12px;font-size:13px;background:var(--tertiary-container);color:var(--on-primary-container);border:none;" onclick="trWhatsApp()">📲 WhatsApp</button>
       </div>
       <div id="tr-link" style="margin-top:12px;font-size:12px;color:var(--on-surface-variant);word-break:break-all;"></div>
+
+      <div style="margin-top:18px;padding:16px;background:var(--surface-container-low);border:1px solid var(--border);border-radius:16px;">
+        <div style="font-size:13px;color:var(--on-surface-variant);margin-bottom:8px;">⭐ Reviews you've brought in</div>
+        <div id="tr-my-count" style="font-size:22px;font-weight:700;">…</div>
+        <div style="margin-top:12px;font-size:12px;color:var(--on-surface-variant);">Top reviewers</div>
+        <div id="tr-leaderboard" style="margin-top:6px;font-size:13px;line-height:1.9;"></div>
+      </div>
     </div>
 
   </div><!-- /mainPanel -->
@@ -1856,7 +1863,13 @@ function switchTab(tab) {
 /* ── TAB: TAKE REVIEW (Google review QR wizard) ── */
 function trReviewUrl() {
   const id = document.getElementById("trStore").value;
-  return (window.location.origin && window.location.origin !== "null" ? window.location.origin : BASE_URL) + "/review/" + id;
+  const base = window.location.origin && window.location.origin !== "null" ? window.location.origin : BASE_URL;
+  let url = base + "/review/" + id;
+  if (staffId) {
+    url += "?staff=" + encodeURIComponent(staffId);
+    if (staffName) url += "&staffName=" + encodeURIComponent(staffName);
+  }
+  return url;
 }
 async function trRender() {
   const url = trReviewUrl();
@@ -1867,6 +1880,40 @@ async function trRender() {
   img.decode().catch(function () {
     img.alt = "Could not generate QR. Use the link below instead.";
   });
+  trLoadStats();
+}
+
+async function trLoadStats() {
+  const base = window.location.origin && window.location.origin !== "null" ? window.location.origin : BASE_URL;
+  let mine = { count: 0 };
+  try {
+    if (staffId) {
+      const r = await fetch(base + "/api/gbp/public/review-stats/" + encodeURIComponent(staffId));
+      const j = await r.json();
+      if (j.success) mine = j.data;
+    }
+  } catch (e) {}
+  document.getElementById("tr-my-count").textContent = (typeof mine.count === "number" ? mine.count : 0) + " reviews";
+
+  try {
+    const r = await fetch(base + "/api/gbp/public/review-stats");
+    const j = await r.json();
+    const box = document.getElementById("tr-leaderboard");
+    if (!j.success || !Array.isArray(j.data) || !j.data.length) {
+      box.innerHTML = '<span style="color:var(--on-surface-variant);font-size:12px;">No reviews yet — share your QR!</span>';
+      return;
+    }
+    const top = j.data.slice(0, 5);
+    box.innerHTML = top.map(function (row) {
+      const me = row.staffId === staffId;
+      return '<div style="display:flex;justify-content:space-between;' + (me ? "font-weight:700;" : "") + '">' +
+        "<span>" + (me ? "⭐ " : "") + esc(row.staffName || "Staff") + "</span>" +
+        "<span>" + (typeof row.count === "number" ? row.count : 0) + "</span>" +
+        "</div>";
+    }).join("");
+  } catch (e) {
+    document.getElementById("tr-leaderboard").innerHTML = "";
+  }
 }
 function trDownload() {
   const img = document.getElementById("trQr");
