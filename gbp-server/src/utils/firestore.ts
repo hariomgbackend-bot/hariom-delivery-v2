@@ -26,6 +26,22 @@ export function getFirebaseAdmin(): admin.app.App {
       storageBucket: config.firebaseStorageBucket,
     });
   } catch {
+    // Mirror server.js: fall back to FIREBASE_SERVICE_ACCOUNT (JSON env var),
+    // commonly set on Render where the gitignored service-account file is absent.
+    const fromEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (fromEnv) {
+      try {
+        const serviceAccount = JSON.parse(fromEnv) as ServiceAccount;
+        _app = admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+          storageBucket: config.firebaseStorageBucket,
+        });
+        return _app;
+      } catch (eEnv) {
+        log.warn("Could not initialize Firebase from FIREBASE_SERVICE_ACCOUNT env", eEnv);
+      }
+    }
+
     try {
       _app = admin.initializeApp({
         credential: admin.credential.applicationDefault(),
