@@ -7,6 +7,10 @@ const log = logger("ai");
 
 const DEFAULT_MODEL = "llama-3.3-70b-versatile";
 const INDIC_MODEL = "qwen/qwen3.6-27b"; // far better Devanagari grammar for Hindi/Marathi
+const HIGH_CAPACITY_FALLBACK = "llama-3.1-8b-instant"; // rarely queue-full
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const RETRYABLE_STATUS = new Set([429, 500, 503]);
 
 let _client: Groq | null = null;
 
@@ -70,15 +74,33 @@ export async function generateReply({
   }
 
   try {
-    const completion = await client.chat.completions.create({
-      model: DEFAULT_MODEL,
-      temperature: 0.7,
-      max_tokens: 220,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    });
+    let completion: { choices: { message: { content: string | null } }[] } | undefined;
+    for (const model of [DEFAULT_MODEL, HIGH_CAPACITY_FALLBACK]) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          completion = await client.chat.completions.create({
+            model,
+            temperature: 0.7,
+            max_tokens: 220,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          });
+          break;
+        } catch (e) {
+          if (RETRYABLE_STATUS.has((e as { status?: number })?.status as number)) {
+            await sleep(600 * Math.pow(2, attempt));
+            continue;
+          }
+          throw e;
+        }
+      }
+      if (completion) break;
+    }
+    if (!completion) {
+      throw new Error("Groq request failed after retries");
+    }
 
     const reply = completion.choices[0]?.message?.content?.trim() || "";
     if (!reply) {
@@ -251,18 +273,39 @@ export async function generateCuratedReview({
     .join("\n");
 
   const temperature = 0.75 + Math.random() * 0.2;
-  const model = language === "english" ? DEFAULT_MODEL : INDIC_MODEL;
+  const modelOrder =
+    language === "english"
+      ? [DEFAULT_MODEL, HIGH_CAPACITY_FALLBACK]
+      : [INDIC_MODEL, DEFAULT_MODEL, HIGH_CAPACITY_FALLBACK];
 
-  const completion = await client.chat.completions.create({
-    model,
-    temperature,
-    max_tokens: VARIATION_MAX_TOKENS[variation],
-    ...(model === INDIC_MODEL ? { reasoning_effort: "none" as const } : {}),
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  });
+  let completion: { choices: { message: { content: string | null } }[] } | undefined;
+  for (const model of modelOrder) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        completion = await client.chat.completions.create({
+          model,
+          temperature,
+          max_tokens: VARIATION_MAX_TOKENS[variation],
+          ...(model === INDIC_MODEL ? { reasoning_effort: "none" as const } : {}),
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+        break;
+      } catch (e) {
+        if (RETRYABLE_STATUS.has((e as { status?: number })?.status as number)) {
+          await sleep(600 * Math.pow(2, attempt));
+          continue;
+        }
+        throw e;
+      }
+    }
+    if (completion) break;
+  }
+  if (!completion) {
+    throw new Error("Groq request failed after retries");
+  }
 
   const text = completion.choices[0]?.message?.content?.trim() || "";
   if (!text) {

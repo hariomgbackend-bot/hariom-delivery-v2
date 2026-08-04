@@ -799,6 +799,7 @@
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script src="/shared.js?v=2"></script>
 </head>
 <body>
@@ -913,6 +914,11 @@
           <div class="home-card-icon" style="background:rgba(173,198,255,0.12);">📚</div>
           <div class="home-card-label">Training</div>
           <div class="home-card-count muted">guide</div>
+        </div>
+        <div class="home-card" onclick="switchTab('takeReview')">
+          <div class="home-card-icon" style="background:rgba(78,222,163,0.12);">⭐</div>
+          <div class="home-card-label">Take Review</div>
+          <div class="home-card-count muted">→</div>
         </div>
       </div>
     </div>
@@ -1396,6 +1402,36 @@
       </div>
     </div>
 
+    <!-- TAB: TAKE REVIEW -->
+    <div id="tabTakeReview" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">⭐ Take Review</div>
+      <p style="font-size:13px;color:var(--on-surface-variant);margin:2px 2px 14px;line-height:1.4;">Pick the store, then scan this QR in the shop or share the link with a customer — it opens the review generator.</p>
+
+      <div class="form-field" style="margin-bottom:14px;">
+        <label class="form-label">Store</label>
+        <select class="form-select" id="trStore" onchange="trRender()">
+          <option value="ChIJTzcSFYPIwjsRgLVqUwLlvoI" selected>Alandi</option>
+          <option value="ChIJm8zM72vHwjsRq0OVjQZndVo">Dhanore</option>
+        </select>
+      </div>
+
+      <div style="display:flex;justify-content:center;padding:18px;background:var(--surface-container-low);border:1px solid var(--border);border-radius:18px;">
+        <img id="trQr" alt="Review QR" style="width:240px;height:240px;border-radius:8px;background:#fff;" />
+      </div>
+
+      <div class="form-row" style="margin-top:14px;gap:8px;">
+        <button class="btn-full btn-full-primary" style="flex:1;padding:12px;font-size:14px;" onclick="trDownload()">⬇️ Download QR</button>
+      </div>
+      <div class="form-row" style="margin-top:8px;gap:8px;">
+        <button class="btn btn-primary" style="flex:1;padding:12px;font-size:13px;" onclick="trCopyLink()">🔗 Copy link</button>
+        <button class="btn" style="flex:1;padding:12px;font-size:13px;background:var(--tertiary-container);color:var(--on-primary-container);border:none;" onclick="trWhatsApp()">📲 WhatsApp</button>
+      </div>
+      <div id="tr-link" style="margin-top:12px;font-size:12px;color:var(--on-surface-variant);word-break:break-all;"></div>
+    </div>
+
   </div><!-- /mainPanel -->
 </div><!-- /container -->
 
@@ -1804,7 +1840,7 @@ function doLogout() {
 /* ── TAB SWITCH ── */
 function switchTab(tab) {
   currentTab = tab;
-  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", slabs:"tabSlabs", training:"tabTraining" };
+  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview" };
   Object.keys(idMap).forEach(k => {
     const el = document.getElementById(idMap[k]);
     if (el) el.style.display = k === tab ? "" : "none";
@@ -1815,6 +1851,60 @@ function switchTab(tab) {
   if (tab === "calendar") { if (staffCalendar) { staffCalendar.render(); updateFullCalendar(); } else initStaffCalendar(); }
   if (tab === "prices") stPgRender(priceGuideData);
   if (tab === "slabs") stSlLoadData();
+  if (tab === "takeReview") trRender();
+}
+
+/* ── TAB: TAKE REVIEW (Google review QR wizard) ── */
+function trReviewUrl() {
+  const id = document.getElementById("trStore").value;
+  return (window.location.origin && window.location.origin !== "null" ? window.location.origin : BASE_URL) + "/review/" + id;
+}
+async function trRender() {
+  const url = trReviewUrl();
+  document.getElementById("tr-link").textContent = url;
+  const img = document.getElementById("trQr");
+  if (!window.QRCode) {
+    img.alt = "QR library unavailable (offline or blocked). Use the link below instead.";
+    img.removeAttribute("src");
+    return;
+  }
+  try {
+    img.src = await QRCode.toDataURL(url, { width: 512, margin: 2, errorCorrectionLevel: "M" });
+  } catch (e) {
+    img.alt = "Could not generate QR.";
+    img.removeAttribute("src");
+  }
+}
+function trDownload() {
+  const img = document.getElementById("trQr");
+  if (!img || !img.src) return;
+  const a = document.createElement("a");
+  a.href = img.src;
+  a.download = "review-qr-" + document.getElementById("trStore").selectedOptions[0].textContent.replace(/\s+/g, "-").toLowerCase() + ".png";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+function trCopyLink() {
+  const url = trReviewUrl();
+  const done = function () { showToast("Review link copied"); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url); done(); });
+  } else { fallbackCopy(url); done(); }
+}
+function fallbackCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+function trWhatsApp() {
+  const url = trReviewUrl();
+  window.open("https://wa.me/?text=" + encodeURIComponent("Please share your feedback about your purchase here 🙂 " + url), "_blank");
 }
 
 /* ── Training Tab Language Switcher ── */
