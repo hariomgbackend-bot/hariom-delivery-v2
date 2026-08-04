@@ -3068,7 +3068,7 @@ function sharePanel(path, label) {
 }
 
 /* ── GBPILOT (embedded) ── */
-const GBPILOT_URL = 'http://localhost:5001';
+const GBPILOT_URL = new URL('/gbp/', location.href).href;
 let gbpFrame = null;
 
 function sendGbpToken() {

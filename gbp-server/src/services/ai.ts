@@ -6,6 +6,7 @@ import { GbpReview, ReviewReplyRule } from "../types.js";
 const log = logger("ai");
 
 const DEFAULT_MODEL = "llama-3.3-70b-versatile";
+const INDIC_MODEL = "qwen/qwen3.6-27b"; // far better Devanagari grammar for Hindi/Marathi
 
 let _client: Groq | null = null;
 
@@ -121,8 +122,27 @@ const VARIATION_MAX_TOKENS: Record<ReviewVariation, number> = {
 
 const LANGUAGE_INSTRUCTION: Record<"english" | "hindi" | "marathi", string> = {
   english: "Write entirely in English.",
-  hindi: "Write entirely in Hindi using Devanagari script (हिंदी) — natural, everyday spoken Hindi.",
-  marathi: "Write entirely in Marathi using Devanagari script (मराठी) — natural, everyday spoken Marathi.",
+  hindi: `Write entirely in Hindi using Devanagari script (हिंदी). Use natural, everyday spoken Hindi with correct grammar:
+- Correct gendered verb/noun agreement and natural word order.
+- Never translate word-for-word from English; write the way a native Hindi speaker actually talks.
+- Keep brand and product names in English/Latin script.
+- No Roman-script Hindi and no English words except brand/product names.
+- Warm, conversational register — like a real customer typing on a phone, not a textbook or Google Translate output.
+- Never invent words: if you are not fully sure a Hindi word exists, use a simpler everyday Hindi word you are certain is correct.`,
+  marathi: `Write entirely in Marathi using Devanagari script (मराठी). Use natural, everyday spoken Marathi with correct grammar:
+- Correct gendered verb/noun agreement and natural word order.
+- Never translate word-for-word from English; write the way a native Marathi speaker actually talks.
+- Keep brand and product names in English/Latin script.
+- No Roman-script Marathi and no English words except brand/product names.
+- Warm, conversational register — like a real customer typing on a phone, not a textbook or Google Translate output.
+- Never invent words: if you are not fully sure a Marathi word exists, use a simpler everyday Marathi word you are certain is correct.`,
+};
+
+const NON_EN_EXAMPLES: Record<"hindi" | "marathi", string> = {
+  hindi: `A polished example of the desired Hindi style:
+"पहले तो दुकान देखकर ही अच्छा लगा, सब कुछ साफ-सुथरा था। स्टाफ ने बहुत धैर्य से मेरी हर बात सुनी और समझाया कि कौन सा फ्रिज मेरे घर के लिए सही रहेगा। Samsung का मॉडल भी काफी अच्छे दाम में मिल गया। डिलीवरी के समय भी लड़के ने फ्रिज लगाकर पूरा इस्तेमाल समझाया। कुल मिलाकर खरीदारी का अच्छा अनुभव रहा, और ज़रूरत पड़े तो फिर यहीं आऊँगा।"`,
+  marathi: `A polished example of the desired Marathi style:
+"दुकानात गेलो तेव्हा स्टाफने लगेच लक्ष दिलं. कितीही प्रश्न विचारले तरी अगदी शांतपणे समजावलं आणि घराला कोणता refrigerator चांगला पडेल हेही सांगितलं. Samsung चा model सुद्धा छान दामात मिळाला. डिलिव्हरीच्या वेळी बॉयने फ्रिज बसवून संपूर्ण माहिती दिली. एकूण अनुभव खूप छान होता आणि पुन्हा गरज पडली तर नक्की इथेच येईन."`,
 };
 
 const COMMON_ANTI_AI: string[] = [
@@ -198,13 +218,26 @@ export async function generateCuratedReview({
     .slice(0, 3)
     .map((s) => `"${s}"`)
     .join(" | ");
+  const openingsInstruction =
+    language === "english"
+      ? `Start with ONE short, natural opening line in the spirit of these examples (rephrase — never copy word-for-word): ${openings}.`
+      : `Start with ONE short, natural opening line in the target language with the same friendly tone as these English examples — do NOT translate them literally, they are only tone references: ${openings}.`;
+  const nonEnExample = language !== "english" ? NON_EN_EXAMPLES[language] : "";
+  const foreignInputsNote =
+    language !== "english"
+      ? `The customer's own words, category, brand, and highlights may be in English. Keep brand and product names in English (Latin script) and weave them into the ${language} sentences naturally, without breaking the grammar. If there is a "My own words" field, TRANSLATE it into the ${language} (same meaning) — never paste English verbatim. Do not stop early — actually hit the requested word count.`
+      : "";
   const systemPrompt = [
     ...preset,
     VARIATION_MODIFIERS[variation],
-    `Start with ONE short, natural opening line in the spirit of these examples, in the language you are writing in (rephrase — never copy word-for-word): ${openings}.`,
+    openingsInstruction,
     LANGUAGE_INSTRUCTION[language],
+    nonEnExample,
+    foreignInputsNote,
     ...COMMON_ANTI_AI,
-  ].join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const userPrompt = [
     `Things I want to highlight (pick the most relevant 2-4): ${shuffle(experiences).join(", ") || "none"}`,
@@ -218,11 +251,13 @@ export async function generateCuratedReview({
     .join("\n");
 
   const temperature = 0.75 + Math.random() * 0.2;
+  const model = language === "english" ? DEFAULT_MODEL : INDIC_MODEL;
 
   const completion = await client.chat.completions.create({
-    model: DEFAULT_MODEL,
+    model,
     temperature,
     max_tokens: VARIATION_MAX_TOKENS[variation],
+    ...(model === INDIC_MODEL ? { reasoning_effort: "none" as const } : {}),
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

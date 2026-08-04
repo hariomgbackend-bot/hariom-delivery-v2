@@ -3,7 +3,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+
+// Load gbp-server/.env ONLY when running as the standalone gbp server
+// (node dist/index.js or tsx dev). When mounted inside the main server.js
+// we must NOT pollute the host process env (PORT, ADMIN_EMAIL/PASSWORD, ...).
+const entry = (process.argv[1] || "").split(/[\\/]/).pop() || "";
+if (/^index\.(js|ts)$/.test(entry)) {
+  dotenv.config({ path: path.resolve(__dirname, "../.env") });
+}
 
 export const config = {
   port: parseInt(process.env.PORT || "5001", 10),

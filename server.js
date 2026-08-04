@@ -24,6 +24,7 @@ import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import Groq from "groq-sdk";
 import whatsappRouter from "./routes/whatsapp.js";
+import { createApp as createGbpApp } from "./gbp-server/dist/app.js";
 
 dotenv.config();
 
@@ -77,6 +78,9 @@ app.use(express.json({
 app.use(sanitizeRequest);
 app.use("/whatsapp", whatsappRouter);
 
+// ── GBPilot (gbp-server) — same-process mount ──
+app.use(createGbpApp());
+
 /* ════════════════════════════════════════════════
    STATIC FILE SECURITY — block sensitive files/paths
    express.static(".") would otherwise serve source,
@@ -95,7 +99,7 @@ const BLOCKED_EXACT = new Set([
 const BLOCKED_PREFIXES = [
   "/.git/", "/node_modules/", "/scripts/", "/Bridge/", "/BridgePackage/",
   "/bridgeInstaller/", "/watcher-setup/", "/Working TDLs/", "/tallysync/",
-  "/invoices/", "/.agents/"
+  "/invoices/", "/.agents/", "/gbp-server/"
 ];
 const BLOCKED_EXT = new Set([".log", ".zip", ".tgz", ".pem", ".key"]);
 
@@ -124,6 +128,21 @@ const LONG_CACHE_EXT = new Set([
 ]);
 
 app.use(express.static(".", {
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (LONG_CACHE_EXT.has(ext)) {
+      res.setHeader(
+        "Cache-Control",
+        "public, max-age=86400, stale-while-revalidate=604800"
+      );
+    } else if (ext === ".html") {
+      res.setHeader("Cache-Control", "no-cache");
+    }
+  }
+}));
+
+// ── GBPilot dashboard at /gbp/ ──
+app.use("/gbp", express.static("gbp-server/public", {
   setHeaders: (res, filePath) => {
     const ext = path.extname(filePath).toLowerCase();
     if (LONG_CACHE_EXT.has(ext)) {

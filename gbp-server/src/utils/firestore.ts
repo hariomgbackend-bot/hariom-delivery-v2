@@ -10,6 +10,13 @@ let _db: FirebaseFirestore.Firestore | null = null;
 export function getFirebaseAdmin(): admin.app.App {
   if (_app) return _app;
 
+  // Reuse an already-initialized default app (e.g. when mounted inside the
+  // main server.js, which calls admin.initializeApp with the same project).
+  if (admin.apps.length > 0 && admin.apps[0]) {
+    _app = admin.apps[0];
+    return _app;
+  }
+
   try {
     const serviceAccount = JSON.parse(
       readFileSync(config.firebaseServiceAccount, "utf-8")
