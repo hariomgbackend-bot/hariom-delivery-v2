@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GBPilot — Google Business Pilot</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --border: #e2e6ef;
+    --text: #1c2430;
+    --muted: #6b7280;
+    --primary: #1a73e8;
+    --primary-dark: #1557b0;
+    --green: #188038;
+    --amber: #b06000;
+    --red: #d93025;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px;
+  }
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+  }
+  .login-card {
+    background: #fff; border-radius: 16px; padding: 36px 40px; width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); text-align: center;
+  }
+  .login-card h1 { margin: 0 0 4px; font-size: 24px; }
+  .login-card p { color: var(--muted); margin: 0 0 24px; }
+  .login-card input {
+    width: 100%; padding: 12px 14px; margin-bottom: 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px;
+  }
+  .login-card input:focus { outline: none; border-color: var(--primary); }
+  .btn {
+    background: var(--primary); color: #fff; border: none; border-radius: 8px;
+    padding: 10px 16px; font-size: 14px; cursor: pointer; transition: background .15s;
+  }
+  .btn:hover { background: var(--primary-dark); }
+  .btn:disabled { opacity: .6; cursor: not-allowed; }
+  .btn.secondary { background: #eef1f6; color: var(--text); }
+  .btn.secondary:hover { background: #e2e6ef; }
+  .btn.danger { background: var(--red); }
+  .btn.small { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+  .btn-success { background: var(--green); }
+  .btn-success:hover { background: #146a2e; }
+  .error { color: var(--red); font-size: 13px; margin-top: 8px; }
+  #app { display: none; }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px; background: #1c2430; color: #fff; padding: 20px 0; flex-shrink: 0;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .sidebar .brand { padding: 0 20px 16px; font-size: 18px; font-weight: 700; border-bottom: 1px solid #2a3442; }
+  .sidebar .brand span { color: #8ab4f8; }
+  .sidebar .loc-box { padding: 14px 16px; border-bottom: 1px solid #2a3442; }
+  .sidebar .loc-box label { font-size: 11px; color: #9aa4b2; text-transform: uppercase; letter-spacing: .5px; }
+  .sidebar select {
+    width: 100%; margin-top: 6px; background: #2a3442; color: #fff; border: none;
+    border-radius: 6px; padding: 8px; font-size: 13px;
+  }
+  nav a {
+    display: block; padding: 11px 20px; color: #c6cdd6; text-decoration: none;
+    font-size: 14px; border-left: 3px solid transparent; cursor: pointer;
+  }
+  nav a:hover { background: #262f3c; color: #fff; }
+  nav a.active { background: #262f3c; color: #fff; border-left-color: #8ab4f8; }
+  .main { flex: 1; padding: 24px 32px; min-width: 0; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .topbar h2 { margin: 0; font-size: 22px; }
+  .topbar .user { color: var(--muted); font-size: 13px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04);
+  }
+  .card h3 { margin: 0 0 12px; font-size: 15px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04);
+  }
+  .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
+  .stat .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .stat .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .rating-good { color: var(--green); }
+  .rating-bad { color: var(--red); }
+  .muted { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; padding: 8px; border-bottom: 2px solid var(--border); }
+  td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: #f8fafc; }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  }
+  .tag.pos { background: #e6f4ea; color: var(--green); }
+  .tag.neu { background: #fef7e0; color: var(--amber); }
+  .tag.neg { background: #fce8e6; color: var(--red); }
+  .tag.rank-top { background: #e6f4ea; color: var(--green); }
+  .tag.rank-mid { background: #fef7e0; color: var(--amber); }
+  .tag.rank-low { background: #fce8e6; color: var(--red); }
+  .badge-pill { display:inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input[type=text], input[type=number], input[type=date], textarea, select.field {
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 14px;
+    font-family: inherit; width: 100%;
+  }
+  input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+  textarea { resize: vertical; min-height: 60px; }
+  .form-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .form-row > * { flex: 1; min-width: 140px; }
+  .review-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .review-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .review-author { font-weight: 600; }
+  .stars { color: #fbbc04; letter-spacing: 1px; }
+  .reply-box { margin-top: 10px; background: #f8fafc; border-radius: 8px; padding: 10px; }
+  .reply-box label { font-size: 12px; color: var(--muted); }
+  .reply-saved { color: var(--green); font-size: 12px; margin-top: 6px; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1c2430; color: #fff; padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 99;
+  }
+  .toast.show { opacity: 1; }
+  .hidden { display: none !important; }
+  .qr-preview { text-align: center; padding: 20px; }
+  .qr-preview img { width: 220px; height: 220px; image-rendering: pixelated; }
+  .score-big { font-size: 44px; font-weight: 800; }
+  .bar { background: #eef1f6; border-radius: 8px; height: 8px; overflow: hidden; margin-top: 6px; }
+  .bar > div { height: 100%; background: var(--primary); border-radius: 8px; }
+  .dim-row { margin-bottom: 14px; }
+  .dim-row .dim-head { display: flex; justify-content: space-between; font-size: 13px; }
+  .sugg { border-left: 3px solid var(--amber); background: #fffbf0; padding: 8px 12px; margin-bottom: 8px; border-radius: 0 8px 8px 0; font-size: 13px; }
+  .sugg.high { border-left-color: var(--red); background: #fdf3f2; }
+  .empty { color: var(--muted); text-align: center; padding: 24px; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px; border: 2px solid #fff;
+    border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .rank-list { display: flex; gap: 4px; align-items: flex-end; height: 60px; margin-top: 8px; }
+  .rank-list .rk { width: 18px; background: var(--primary); border-radius: 3px 3px 0 0; position: relative; }
+  .rank-list .rk span { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <h1>GBPilot</h1>
+    <p>Google Business Pilot · Hariom Electronics</p>
+    <input type="email" id="login-email" placeholder="Email" />
+    <input type="password" id="login-password" placeholder="Password" />
+    <button class="btn" id="login-btn" style="width:100%">Sign in</button>
+    <div class="error" id="login-error"></div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">GB<span>Pilot</span></div>
+      <div class="loc-box">
+        <label>Active location</label>
+        <select id="location-select"><option value="">— Select —</option></select>
+      </div>
+      <nav id="nav">
+        <a data-tab="overview" class="active">Overview</a>
+        <a data-tab="locations">Locations</a>
+        <a data-tab="reviews">Reviews</a>
+        <a data-tab="qr">QR Codes</a>
+        <a data-tab="reviewOptions">Review Options</a>
+        <a data-tab="competitors">Competitors</a>
+        <a data-tab="rank">Rank Tracker</a>
+        <a data-tab="audit">Profile Audit</a>
+        <a data-tab="reports">Reports</a>
+      </nav>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <h2 id="page-title">Overview</h2>
+        <div class="user" id="user-label"></div>
+      </div>
+
+      <section id="tab-overview"></section>
+      <section id="tab-locations" class="hidden"></section>
+      <section id="tab-reviews" class="hidden"></section>
+      <section id="tab-qr" class="hidden"></section>
+      <section id="tab-reviewOptions" class="hidden"></section>
+      <section id="tab-competitors" class="hidden"></section>
+      <section id="tab-rank" class="hidden"></section>
+      <section id="tab-audit" class="hidden"></section>
+      <section id="tab-reports" class="hidden"></section>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = "/api/gbp";
+let token = localStorage.getItem("gbp_token") || "";
+let locations = [];
+let currentLocationId = localStorage.getItem("gbp_loc") || "";
+let activeTab = "overview";
+
+const $ = (sel) => document.querySelector(sel);
+const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html !== undefined) n.innerHTML = html; return n; };
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+function stars(r) {
+  return '<span class="stars">' + "★".repeat(Math.round(r || 0)) + "☆".repeat(5 - Math.round(r || 0)) + "</span> " + (r ? r.toFixed(1) : "-");
+}
+
+async function api(path, opts = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = "Bearer " + token;
+  const res = await fetch(API + path, { ...opts, headers });
+  let json = {};
+  try { json = await res.json(); } catch (e) {}
+  if (res.status === 401) {
+    localStorage.removeItem("gbp_token");
+    if (embedded) {
+      requestParentToken();
+      setTimeout(() => location.reload(), 500);
+    } else {
+      location.reload();
+    }
+    throw new Error("Session expired");
+  }
+  if (!json.success) throw new Error(json.error || "Request failed");
+  return json;
+}
+
+function rankTag(p) {
+  if (!p || p <= 0) return '<span class="tag neg">Not in top</span>';
+  if (p <= 3) return '<span class="tag pos">#' + p + '</span>';
+  if (p <= 10) return '<span class="tag neu">#' + p + '</span>';
+  return '<span class="tag neg">#' + p + '</span>';
+}
+
+/* ── Auth ── */
+async function doLogin() {
+  const email = $("#login-email").value.trim();
+  const password = $("#login-password").value;
+  const btn = $("#login-btn");
+  btn.disabled = true; btn.textContent = "Signing in...";
+  $("#login-error").textContent = "";
+  try {
+    const json = await api("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    token = json.token; localStorage.setItem("gbp_token", token);
+    showApp();
+  } catch (e) {
+    $("#login-error").textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = "Sign in";
+  }
+}
+
+function showApp() {
+  $("#login-screen").style.display = "none";
+  $("#app").style.display = "block";
+  $("#user-label").textContent = "Admin";
+  loadLocations();
+}
+
+/* ── Locations ── */
+async function loadLocations() {
+  try {
+    const json = await api("/locations");
+    locations = json.data || [];
+    const sel = $("#location-select");
+    sel.innerHTML = '<option value="">— Select —</option>' +
+      locations.map((l) => '<option value="' + esc(l.locationId) + '">' + esc(l.name) + "</option>").join("");
+    if (currentLocationId && locations.some((l) => l.locationId === currentLocationId)) {
+      sel.value = currentLocationId;
+    }
+    sel.onchange = () => {
+      currentLocationId = sel.value;
+      localStorage.setItem("gbp_loc", currentLocationId);
+      renderCurrentTab();
+    };
+    renderCurrentTab();
+  } catch (e) {
+    toast("Error loading locations: " + e.message);
+  }
+}
+
+function getCurrentLocation() {
+  return locations.find((l) => l.locationId === currentLocationId) || null;
+}
+
+/* ── Tabs / router ── */
+document.querySelectorAll("#nav a").forEach((a) => {
+  a.onclick = () => switchTab(a.dataset.tab);
+});
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.tab === tab));
+  document.querySelectorAll("section[id^=tab-]").forEach((s) => s.classList.add("hidden"));
+  $("#tab-" + tab).classList.remove("hidden");
+  const titles = { overview: "Overview", locations: "Locations", reviews: "Reviews", qr: "QR Codes", reviewOptions: "Review Options", competitors: "Competitors", rank: "Rank Tracker", audit: "Profile Audit", reports: "Reports" };
+  $("#page-title").textContent = titles[tab];
+  renderCurrentTab();
+}
+
+function renderCurrentTab() {
+  if (activeTab === "overview") renderOverview();
+  else if (activeTab === "locations") renderLocations();
+  else if (activeTab === "reviews") renderReviews();
+  else if (activeTab === "qr") renderQr();
+  else if (activeTab === "reviewOptions") renderReviewOptions();
+  else if (activeTab === "competitors") renderCompetitors();
+  else if (activeTab === "rank") renderRank();
+  else if (activeTab === "audit") renderAudit();
+  else if (activeTab === "reports") renderReports();
+}
+
+/* ── Overview ── */
+function renderOverview() {
+  const sec = $("#tab-overview");
+  sec.innerHTML = "";
+
+  if (!locations.length) {
+    sec.appendChild(el("div", "card empty", "No locations yet. Go to <b>Locations</b> and search for your business to add it."));
+    return;
+  }
+
+  const grid = el("div", "grid");
+  for (const l of locations) {
+    const card = el("div", "card");
+    card.innerHTML =
+      '<h3>' + esc(l.name) + '</h3>' +
+      '<div class="muted" style="margin-bottom:6px">' + esc(l.address || "No address") + "</div>" +
+      '<div>Rating: ' + stars(l.rating) + " &nbsp;·&nbsp; " + esc(l.totalReviews ?? 0) + " reviews</div>" +
+      '<div class="actions" style="margin-top:12px">' +
+      '<button class="btn small" data-set="' + esc(l.locationId) + '">Select</button>' +
+      "</div>";
+    card.querySelector("button").onclick = () => {
+      currentLocationId = l.locationId;
+      localStorage.setItem("gbp_loc", currentLocationId);
+      $("#location-select").value = currentLocationId;
+      toast("Active location: " + l.name);
+    };
+    grid.appendChild(card);
+  }
+  sec.appendChild(grid);
+}
+
+/* ── Locations tab ── */
+function renderLocations() {
+  const sec = $("#tab-locations");
+  sec.innerHTML = "";
+
+  const card = el("div", "card");
+  card.innerHTML =
+    '<h3>Add a location</h3>' +
+    '<div class="form-row"><input type="text" id="loc-query" placeholder="e.g. Hariom Electronics Alandi" />' +
+    '<button class="btn" id="loc-search">Search Google</button></div>' +
+    '<div class="hint">Search uses the Google Places API (no GBP API needed). Found places are saved automatically.</div>' +
+    '<div id="loc-result"></div>';
+  sec.appendChild(card);
+
+  $("#loc-search").onclick = async () => {
+    const q = $("#loc-query").value.trim();
+    if (!q) return toast("Enter a search query");
+    const btn = $("#loc-search");
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Searching...';
+    try {
+      const json = await api("/locations/search-places", { method: "POST", body: JSON.stringify({ query: q }) });
+      const res = $("#loc-result");
+      if (!json.data) { res.innerHTML = '<div class="empty">No place found.</div>'; return; }
+      res.innerHTML =
+        '<div class="review-card"><div class="review-head"><span class="review-author">' + esc(json.data.name) + "</span></div>" +
+        '<div class="muted">' + esc(json.data.address || "") + "</div>" +
+        '<div style="margin-top:6px">' + stars(json.data.rating) + " · " + esc(json.data.totalReviews ?? 0) + " reviews</div>" +
+        "</div>";
+      toast("Location saved: " + json.data.name);
+      await loadLocations();
+    } catch (e) {
+      $("#loc-result").innerHTML = '<div class="error">' + esc(e.message) + "</div>";
+    } finally {
+      btn.disabled = false; btn.textContent = "Search Google";
+    }
+  };
+
+  const listCard = el("div", "card");
+  listCard.innerHTML = "<h3>Saved locations</h3><div id='loc-list'></div>";
+  sec.appendChild(listCard);
+
+  const listBox = $("#loc-list");
+  if (!locations.length) { listBox.innerHTML = '<div class="empty">No saved locations.</div>'; return; }
+
+  const table = el("table");
+  table.innerHTML =
+    "<thead><tr><th>Name</th><th>Rating</th><th>Reviews</th><th>Status</th></tr></thead>";
+  const tbody = el("tbody");
+  for (const l of locations) {
+    const tr = el("tr");
+    tr.innerHTML =
+      "<td><b>" + esc(l.name) + "</b><div class='muted'>" + esc(l.address || "") + "</div></td>" +
+      "<td>" + stars(l.rating) + "</td>" +
+      "<td>" + esc(l.totalReviews ?? 0) + "</td>" +
+      "<td><span class='tag neu'>" + esc(l.status || "saved") + "</span></td>";
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  listBox.appendChild(table);
+}
+
+/* ── Reviews tab ── */
+function renderReviews() {
+  const sec = $("#tab-reviews");
+  sec.innerHTML = "";
+  const loc = getCurrentLocation();
+  if (!loc) {
+    sec.appendChild(el("div", "card empty", "Select a location from the sidebar to manage reviews."));
+    return;
+  }
+
+  const card = el("div", "card");
+  card.innerHTML =
+    "<h3>Reviews — " + esc(loc.name) + "</h3>" +
+    '<div class="actions">' +
+    '<button class="btn" id="rv-sync">Sync from Google (top 5)</button>' +
+    '<button class="btn secondary" id="rv-add-toggle">+ Add review manually</button>' +
+    "</div>" +
+    '<div id="rv-add-form" class="hidden" style="margin-top:14px;background:#f8fafc;border-radius:8px;padding:14px">' +
+    '<div class="form-row"><input type="text" id="rv-author" placeholder="Reviewer name" />' +
+    '<input type="number" id="rv-rating" placeholder="Rating 1-5" min="1" max="5" /></div>' +
+    '<textarea id="rv-comment" placeholder="Review text (paste from Google)"></textarea>' +
+    '<div class="actions" style="margin-top:10px"><button class="btn btn-success" id="rv-add">Add Review</button></div>' +
+    "</div>" +
+    '<div id="rv-stats" class="grid" style="margin-top:14px"></div>' +
+    '<div class="form-row" style="margin-top:4px">' +
+    '<select class="field" id="rv-sort">' +
+    '<option value="relevant">Sort: Relevant (unreplied first)</option>' +
+    '<option value="latest">Sort: Latest</option>' +
+    '<option value="oldest">Sort: Oldest</option>' +
+    '<option value="highest">Sort: Highest rating</option>' +
+    '<option value="lowest">Sort: Lowest rating</option>' +
+    "</select>" +
+    '<select class="field" id="rv-filter">' +
+    '<option value="all">Filter: All</option>' +
+    '<option value="unreplied">Filter: Unreplied</option>' +
+    '<option value="positive">Filter: Positive</option>' +
+    '<option value="neutral">Filter: Neutral</option>' +
+    '<option value="negative">Filter: Negative</option>' +
+    "</select>" +
+    "</div>" +
+    "<div id='rv-list' style='margin-top:6px'></div>";
+  sec.appendChild(card);
+
+  $("#rv-sync").onclick = async () => {
+    const b = $("#rv-sync");
+    b.disabled = true; b.innerHTML = '<span class="spinner"></span>Syncing...';
+    try {
+      const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/reviews/sync", { method: "POST" });
+      toast(json.message || "Synced");
+      loadReviews(loc, $("#rv-list"));
+    } catch (e) { toast("Sync failed: " + e.message); }
+    finally { b.disabled = false; b.textContent = "Sync from Google (top 5)"; }
+  };
+
+  $("#rv-add-toggle").onclick = () => $("#rv-add-form").classList.toggle("hidden");
+  $("#rv-add").onclick = async () => {
+    const author = $("#rv-author").value.trim();
+    const rating = parseInt($("#rv-rating").value, 10);
+    const comment = $("#rv-comment").value.trim();
+    if (!author || !comment) return toast("Author and review text required");
+    try {
+      await api("/locations/" + encodeURIComponent(loc.locationId) + "/reviews", {
+        method: "POST", body: JSON.stringify({ author, rating, comment }),
+      });
+      toast("Review added");
+      $("#rv-author").value = ""; $("#rv-rating").value = ""; $("#rv-comment").value = "";
+      loadReviews(loc, $("#rv-list"));
+    } catch (e) { toast("Failed: " + e.message); }
+  };
+
+  $("#rv-sort").onchange = () => loadReviews(loc, $("#rv-list"));
+  $("#rv-filter").onchange = () => loadReviews(loc, $("#rv-list"));
+
+  loadReviews(loc, $("#rv-list"));
+}
+
+function rvTime(r) {
+  return r.createdAt?.seconds ? r.createdAt.seconds * 1000 : new Date(r.createdAt || 0).getTime();
+}
+
+function rvSentiment(r) {
+  if (r.sentiment) return r.sentiment;
+  if (r.rating >= 4) return "positive";
+  if (r.rating === 3) return "neutral";
+  return "negative";
+}
+
+function renderReviewStats(reviews) {
+  const stats = $("#rv-stats");
+  if (!stats) return;
+  const total = reviews.length;
+  const avg = total ? reviews.reduce((s, r) => s + (r.rating || 0), 0) / total : 0;
+  const replied = reviews.filter((r) => r.reply).length;
+  const unreplied = total - replied;
+  stats.innerHTML =
+    '<div class="stat"><div class="label">Total</div><div class="value">' + total + "</div></div>" +
+    '<div class="stat"><div class="label">Avg rating</div><div class="value ' + (avg >= 4 ? "rating-good" : avg < 3 ? "rating-bad" : "") + '">' + avg.toFixed(1) + "</div></div>" +
+    '<div class="stat"><div class="label">Replied</div><div class="value rating-good">' + replied + "</div></div>" +
+    '<div class="stat"><div class="label">Unreplied</div><div class="value ' + (unreplied ? "rating-bad" : "") + '">' + unreplied + "</div></div>";
+}
+
+async function loadReviews(loc, box) {
+  box.innerHTML = '<div class="empty">Loading...</div>';
+  try {
+    const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/reviews");
+    const all = json.data || [];
+    renderReviewStats(all);
+
+    const filter = $("#rv-filter").value;
+    const sort = $("#rv-sort").value;
+
+    let reviews = all.filter((r) => {
+      if (filter === "unreplied") return !r.reply;
+      if (filter === "positive") return rvSentiment(r) === "positive";
+      if (filter === "neutral") return rvSentiment(r) === "neutral";
+      if (filter === "negative") return rvSentiment(r) === "negative";
+      return true;
+    });
+
+    if (sort === "relevant") {
+      reviews.sort((a, b) => (a.reply ? 1 : 0) - (b.reply ? 1 : 0) || rvTime(b) - rvTime(a));
+    } else if (sort === "latest") {
+      reviews.sort((a, b) => rvTime(b) - rvTime(a));
+    } else if (sort === "oldest") {
+      reviews.sort((a, b) => rvTime(a) - rvTime(b));
+    } else if (sort === "highest") {
+      reviews.sort((a, b) => (b.rating || 0) - (a.rating || 0) || rvTime(b) - rvTime(a));
+    } else if (sort === "lowest") {
+      reviews.sort((a, b) => (a.rating || 0) - (b.rating || 0) || rvTime(b) - rvTime(a));
+    }
+
+    if (!reviews.length) { box.innerHTML = '<div class="empty">' + (all.length ? "No reviews match this filter." : 'No reviews stored. Click "Sync from Google" to fetch the top 5.') + "</div>"; return; }
+    box.innerHTML = "";
+    for (const r of reviews) {
+      const rc = el("div", "review-card");
+      rc.innerHTML =
+        '<div class="review-head">' +
+        '<span class="review-author">' + esc(r.author) + ' <span class="muted">· ' + new Date(r.createdAt?.seconds ? r.createdAt.seconds * 1000 : r.createdAt).toLocaleDateString() + "</span></span>" +
+        '<span>' + stars(r.rating) + " " + (r.sentiment ? '<span class="tag ' + esc(r.sentiment) + '">' + esc(r.sentiment) + "</span>" : "") + "</span>" +
+        "</div>" +
+        '<div>' + esc(r.comment) + "</div>" +
+        '<div class="reply-box"><label>Reply (AI draft or manual)</label>' +
+        '<textarea data-rid="' + esc(r.reviewId) + '">' + esc(r.reply || "") + "</textarea>" +
+        '<div class="actions" style="margin-top:8px">' +
+        '<button class="btn secondary small" data-gen="' + esc(r.reviewId) + '">✨ Generate AI reply</button>' +
+        '<button class="btn btn-success small" data-save="' + esc(r.reviewId) + '">Save Reply</button>' +
+        (r.reply ? '<span class="reply-saved">Reply saved ✓</span>' : "") +
+        "</div></div>";
+      box.appendChild(rc);
+    }
+    box.querySelectorAll("[data-gen]").forEach((b) => b.onclick = generateReply);
+    box.querySelectorAll("[data-save]").forEach((b) => b.onclick = saveReply);
+  } catch (e) {
+    box.innerHTML = '<div class="error">' + esc(e.message) + "</div>";
+  }
+}
+
+async function generateReply(ev) {
+  const rid = ev.target.dataset.gen;
+  const box = ev.target.closest(".reply-box");
+  const ta = box.querySelector("textarea");
+  ev.target.disabled = true; ev.target.textContent = "Generating...";
+  try {
+    const loc = getCurrentLocation();
+    const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/reviews/" + encodeURIComponent(rid) + "/generate-reply", { method: "POST" });
+    ta.value = json.data.draft;
+    toast("AI reply generated — copy it into Google");
+  } catch (e) {
+    toast("Generation failed: " + e.message);
+  } finally {
+    ev.target.disabled = false; ev.target.textContent = "✨ Generate AI reply";
+  }
+}
+
+async function saveReply(ev) {
+  const rid = ev.target.dataset.save;
+  const box = ev.target.closest(".reply-box");
+  const reply = box.querySelector("textarea").value.trim();
+  if (!reply) return toast("Reply is empty");
+  try {
+    const loc = getCurrentLocation();
+    await api("/locations/" + encodeURIComponent(loc.locationId) + "/reviews/" + encodeURIComponent(rid) + "/reply", {
+      method: "POST", body: JSON.stringify({ reply }),
+    });
+    toast("Reply saved");
+    loadReviews(loc, $("#rv-list"));
+  } catch (e) { toast("Save failed: " + e.message); }
+}
+
+/* ── QR tab ── */
+function renderQr() {
+  const sec = $("#tab-qr");
+  sec.innerHTML = "";
+  if (!locations.length) {
+    sec.appendChild(el("div", "card empty", "No stores added yet. Add a store under Locations."));
+    return;
+  }
+  const card = el("div", "card");
+  card.innerHTML =
+    "<h3>Review QR Codes</h3>" +
+    '<p class="hint" style="margin:0">Each store has its own QR code. Scanning it opens the review generator for that store — the customer picks tags, gets an AI-drafted review, and posts it to Google.</p>' +
+    '<div class="grid" id="qr-grid" style="margin-top:14px"></div>';
+  sec.appendChild(card);
+
+  const grid = $("#qr-grid");
+  for (const loc of locations) {
+    const item = el("div", "card");
+    item.innerHTML =
+      "<h3>" + esc(loc.name) + "</h3>" +
+      '<div class="qr-preview">Loading QR…</div>' +
+      '<div class="actions" style="justify-content:center">' +
+      '<button class="btn small" data-dl="' + esc(loc.locationId) + '" data-name="' + esc(loc.name) + '">Download PNG</button>' +
+      '<a class="btn secondary small" target="_blank" rel="noopener" data-wiz="' + esc(loc.locationId) + '">Open wizard</a>' +
+      "</div>";
+    grid.appendChild(item);
+    loadQrCard(loc, item);
+  }
+  grid.addEventListener("click", (ev) => {
+    const dl = ev.target.closest("[data-dl]");
+    if (dl) { downloadQr(dl); return; }
+    const sv = ev.target.closest("[data-save-tags]");
+    if (sv) { saveTags(sv); return; }
+    const ab = ev.target.closest("[data-add-btn]");
+    if (ab) { addTag(ab); return; }
+    const rs = ev.target.closest("[data-reset-tags]");
+    if (rs) { resetTags(rs); return; }
+  });
+}
+
+function addTag(btn) {
+  const field = btn.dataset.addBtn;
+  const panel = btn.closest("[data-tags-panel]");
+  if (!panel) return;
+  const input = panel.querySelector('[data-add="' + field + '"]');
+  const value = input.value.trim();
+  if (!value) return;
+  const ta = panel.querySelector('[data-field="' + field + '"]');
+  const lines = ta.value.split("\n").map((s) => s.trim()).filter(Boolean);
+  if (!lines.includes(value)) lines.push(value);
+  ta.value = lines.join("\n");
+  input.value = "";
+  ta.focus();
+}
+
+async function resetTags(btn) {
+  const locId = btn.dataset.resetTags;
+  const panel = document.querySelector('[data-tags-panel="' + locId + '"]');
+  if (!panel) return;
+  const status = panel.querySelector("[data-tags-status]");
+  btn.disabled = true;
+  status.textContent = "Resetting...";
+  try {
+    const json = await api("/review-options", { method: "DELETE" });
+    const d = json.data || {};
+    panel.querySelector('[data-field="categories"]').value = (d.categories || []).join("\n");
+    panel.querySelector('[data-field="brands"]').value = (d.brands || []).join("\n");
+    panel.querySelector('[data-field="experiences"]').value = (d.experiences || []).join("\n");
+    status.textContent = "Reset to defaults — press Save to keep.";
+  } catch (e) {
+    status.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ── Review Options tab ── */
+function reviewOptionsFieldRow(label, field, placeholder) {
+  return (
+    '<label style="font-size:12px;color:var(--muted)">' + label + " (one per line)</label>" +
+    '<textarea data-field="' + field + '" rows="4" style="margin:4px 0 4px"></textarea>' +
+    '<div style="display:flex;gap:6px;margin-bottom:10px">' +
+    '<input data-add="' + field + '" placeholder="' + placeholder + '" style="flex:1" />' +
+    '<button type="button" class="btn small" data-add-btn="' + field + '">+ Add</button>' +
+    "</div>"
+  );
+}
+
+async function renderReviewOptions() {
+  const sec = $("#tab-reviewOptions");
+  sec.innerHTML = "";
+
+  if (!locations.length) {
+    sec.appendChild(el("div", "card empty", "No stores added yet. Add a store under Locations."));
+    return;
+  }
+
+  const card = el("div", "card");
+  card.innerHTML =
+    "<h3>Review Wizard Options</h3>" +
+    '<p class="hint" style="margin:0">These are the pick-lists customers see in the review wizard. They are shared by all stores — only each store\'s name, QR code, and Google review link are different. Tap + Add to put more items in a list, edit any line, then Save. Reset restores the built-in defaults.</p>' +
+    '<div data-tags-panel="common" style="margin-top:12px">' +
+    reviewOptionsFieldRow("Categories", "categories", "Add a category…") +
+    reviewOptionsFieldRow("Brands", "brands", "Add a brand…") +
+    reviewOptionsFieldRow("What did you love?", "experiences", "Add an experience…") +
+    '<div class="actions">' +
+    '<button class="btn btn-success small" data-save-tags="common">Save tags</button>' +
+    '<button type="button" class="btn secondary small" data-reset-tags="common">Reset to defaults</button>' +
+    '<span class="hint" data-tags-status="common" style="margin:0"></span>' +
+    "</div>" +
+    "</div>";
+  sec.appendChild(card);
+
+  const panel = card.querySelector('[data-tags-panel="common"]');
+  try {
+    const json = await api("/review-options");
+    const d = json.data || {};
+    panel.querySelector('[data-field="categories"]').value = (d.categories || []).join("\n");
+    panel.querySelector('[data-field="brands"]').value = (d.brands || []).join("\n");
+    panel.querySelector('[data-field="experiences"]').value = (d.experiences || []).join("\n");
+  } catch (e) {
+    panel.querySelector("[data-tags-status]").textContent = e.message;
+  }
+}
+
+async function saveTags(btn) {
+  const locId = btn.dataset.saveTags;
+  const panel = document.querySelector('[data-tags-panel="' + locId + '"]');
+  if (!panel) return;
+  const split = (sel) => panel.querySelector(sel).value.split("\n").map((s) => s.trim()).filter(Boolean);
+  const body = {
+    categories: split('[data-field="categories"]'),
+    brands: split('[data-field="brands"]'),
+    experiences: split('[data-field="experiences"]'),
+  };
+  btn.disabled = true;
+  try {
+    const json = await api("/review-options", { method: "PUT", body: JSON.stringify(body) });
+    toast(json.message || "Tags saved");
+  } catch (e) {
+    toast("Save failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadQrCard(loc, card) {
+  const box = card.querySelector(".qr-preview");
+  try {
+    const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/qrcode/preview");
+    box.innerHTML =
+      '<img src="' + json.data.qrDataUrl + '" alt="Review QR" />' +
+      '<div class="muted" style="margin-top:8px;font-size:11px;word-break:break-all">' + esc(json.data.wizardUrl) + "</div>";
+    const wiz = card.querySelector("[data-wiz]");
+    wiz.href = json.data.wizardUrl;
+  } catch (e) {
+    box.innerHTML = '<div class="error">' + esc(e.message) + "</div>";
+  }
+}
+
+async function downloadQr(btn) {
+  const locationId = btn.dataset.dl;
+  const name = btn.dataset.name || locationId;
+  btn.disabled = true;
+  try {
+    const headers = {};
+    if (token) headers.Authorization = "Bearer " + token;
+    const res = await fetch(API + "/locations/" + encodeURIComponent(locationId) + "/qrcode?width=1024", { headers });
+    if (!res.ok) throw new Error("Download failed (" + res.status + ")");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "review-qr-" + name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() + ".png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    toast("Download failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ── Competitors tab ── */
+function renderCompetitors() {
+  const sec = $("#tab-competitors");
+  sec.innerHTML = "";
+  const loc = getCurrentLocation();
+  if (!loc) {
+    sec.appendChild(el("div", "card empty", "Select a location first."));
+    return;
+  }
+  const card = el("div", "card");
+  card.innerHTML =
+    "<h3>Competitors — " + esc(loc.name) + "</h3>" +
+    '<button class="btn" id="comp-detect">Auto-detect competitors (Places API)</button>' +
+    "<div id='comp-list' style='margin-top:14px'></div>";
+  sec.appendChild(card);
+
+  $("#comp-detect").onclick = async () => {
+    const b = $("#comp-detect");
+    b.disabled = true; b.innerHTML = '<span class="spinner"></span>Detecting...';
+    try {
+      const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/competitors/auto-detect", { method: "POST" });
+      toast(json.message || "Done");
+      renderCompetitors();
+    } catch (e) { toast("Detection failed: " + e.message); }
+    finally { b.disabled = false; b.textContent = "Auto-detect competitors (Places API)"; }
+  };
+
+  (async () => {
+    try {
+      const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/competitors");
+      const comps = json.data || [];
+      const box = $("#comp-list");
+      if (!comps.length) { box.innerHTML = '<div class="empty">No competitors stored yet.</div>'; return; }
+      const table = el("table");
+      table.innerHTML = "<thead><tr><th>Name</th><th>Rating</th><th>Reviews</th><th>Category</th></tr></thead>";
+      const tb = el("tbody");
+      for (const c of comps) {
+        const tr = el("tr");
+        tr.innerHTML =
+          "<td><b>" + esc(c.name) + "</b>" + (c.website ? '<div class="muted"><a href="' + esc(c.website) + '" target="_blank">website</a></div>' : "") + "</td>" +
+          "<td>" + stars(c.rating) + "</td>" +
+          "<td>" + esc(c.reviewCount ?? 0) + "</td>" +
+          "<td>" + esc(c.category || "") + "</td>";
+        tb.appendChild(tr);
+      }
+      table.appendChild(tb);
+      box.innerHTML = "";
+      box.appendChild(table);
+    } catch (e) { $("#comp-list").innerHTML = '<div class="error">' + esc(e.message) + "</div>"; }
+  })();
+}
+
+/* ── Rank tab ── */
+function renderRank() {
+  const sec = $("#tab-rank");
+  sec.innerHTML = "";
+  const loc = getCurrentLocation();
+  if (!loc) {
+    sec.appendChild(el("div", "card empty", "Select a location first."));
+    return;
+  }
+
+  const card = el("div", "card");
+  card.innerHTML =
+    "<h3>Rank Tracker — " + esc(loc.name) + "</h3>" +
+    '<div class="form-row">' +
+    '<input type="text" id="kw-text" placeholder="Keyword, e.g. electronics shop in Alandi" />' +
+    '<input type="text" id="kw-city" placeholder="City (optional)" />' +
+    '<button class="btn" id="kw-add">Track keyword</button></div>' +
+    '<div class="hint">Rank checks use a headless browser on Google Maps. First run may be slow; ensure <code>npx playwright install chromium</code> has been run.</div>' +
+    "<div id='kw-list' style='margin-top:14px'></div>";
+  sec.appendChild(card);
+
+  $("#kw-add").onclick = async () => {
+    const keyword = $("#kw-text").value.trim();
+    const city = $("#kw-city").value.trim();
+    if (!keyword) return toast("Enter a keyword");
+    try {
+      await api("/locations/" + encodeURIComponent(loc.locationId) + "/keywords", {
+        method: "POST", body: JSON.stringify({ keyword, city: city || undefined }),
+      });
+      $("#kw-text").value = ""; $("#kw-city").value = "";
+      toast("Keyword added");
+      renderRank();
+    } catch (e) { toast("Failed: " + e.message); }
+  };
+
+  (async () => {
+    try {
+      const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/keywords");
+      const kws = json.data || [];
+      const box = $("#kw-list");
+      if (!kws.length) { box.innerHTML = '<div class="empty">No tracked keywords yet.</div>'; return; }
+      const table = el("table");
+      table.innerHTML = "<thead><tr><th>Keyword</th><th>Current rank</th><th>Last checked</th><th>Actions</th></tr></thead>";
+      const tb = el("tbody");
+      for (const k of kws) {
+        const tr = el("tr");
+        const hist = Array.isArray(k.rankHistory) ? k.rankHistory : [];
+        const lastPos = hist.length ? hist[hist.length - 1].position : 0;
+        tr.innerHTML =
+          "<td><b>" + esc(k.keyword) + "</b>" + (k.city ? '<div class="muted">' + esc(k.city) + "</div>" : "") + "</td>" +
+          "<td>" + rankTag(k.currentRank) + "</td>" +
+          "<td class='muted'>" + (k.lastChecked ? new Date(k.lastChecked.seconds ? k.lastChecked.seconds * 1000 : k.lastChecked).toLocaleString() : "never") + "</td>" +
+          '<td><div class="actions">' +
+          '<button class="btn small" data-check="' + esc(k.keywordId) + '">Check now</button>' +
+          '<button class="btn secondary small" data-hist="' + esc(k.keywordId) + '">History</button>' +
+          "</div></td>";
+        tb.appendChild(tr);
+      }
+      table.appendChild(tb);
+      box.innerHTML = "";
+      box.appendChild(table);
+
+      box.querySelectorAll("[data-check]").forEach((b) => b.onclick = async (ev) => {
+        ev.target.disabled = true; ev.target.innerHTML = '<span class="spinner"></span>Checking...';
+        try {
+          const r = await api("/locations/" + encodeURIComponent(loc.locationId) + "/keywords/" + encodeURIComponent(b.dataset.check) + "/check", { method: "POST" });
+          if (r.data.error) toast("Check note: " + r.data.error);
+          else toast(r.data.position > 0 ? "Ranked #" + r.data.position + " for \"" + r.data.keyword + "\"" : "Not found on page 1 for \"" + r.data.keyword + "\"");
+          renderRank();
+        } catch (e) { toast("Check failed: " + e.message); }
+      });
+
+      box.querySelectorAll("[data-hist]").forEach((b) => b.onclick = async () => {
+        const kwId = b.dataset.hist;
+        try {
+          const h = await api("/locations/" + encodeURIComponent(loc.locationId) + "/keywords/" + encodeURIComponent(kwId) + "/history");
+          const hist = h.data.history || [];
+          if (!hist.length) return toast("No history yet — run a check first");
+          const list = hist.slice(-10).map((x) => x.position);
+          const max = Math.max(...list, 1);
+          const bars = list.map((p, i) =>
+            '<div class="rk" style="height:' + (p > 0 ? Math.max(8, Math.round((1 - (p - 1) / max) * 100)) : 4) + '%;' + (p === 0 ? "background:#d93025" : "") + '"><span>' + (p > 0 ? "#" + p : "×") + "</span></div>"
+          ).join("");
+          const card = el("div", "card");
+          card.innerHTML = "<h3>Rank history — " + esc(h.data.keyword) + "</h3><div class='rank-list'>" + bars + "</div><div class='hint'>Last " + list.length + " checks (left = oldest)</div>";
+          sec.insertBefore(card, box);
+        } catch (e) { toast("Failed: " + e.message); }
+      });
+    } catch (e) { $("#kw-list").innerHTML = '<div class="error">' + esc(e.message) + "</div>"; }
+  })();
+}
+
+/* ── Audit tab ── */
+function renderAudit() {
+  const sec = $("#tab-audit");
+  sec.innerHTML = "";
+  const loc = getCurrentLocation();
+  if (!loc) {
+    sec.appendChild(el("div", "card empty", "Select a location first."));
+    return;
+  }
+  const card = el("div", "card");
+  card.innerHTML =
+    "<h3>Profile Audit — " + esc(loc.name) + "</h3>" +
+    '<button class="btn" id="audit-run">Run audit now</button>' +
+    "<div id='audit-result' style='margin-top:16px'></div>";
+  sec.appendChild(card);
+
+  $("#audit-run").onclick = async () => {
+    const b = $("#audit-run");
+    b.disabled = true; b.innerHTML = '<span class="spinner"></span>Auditing...';
+    try {
+      const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/audit", { method: "POST" });
+      toast(json.message || "Audit done");
+      renderAuditResult(json.data, $("#audit-result"));
+    } catch (e) { toast("Audit failed: " + e.message); }
+    finally { b.disabled = false; b.textContent = "Run audit now"; }
+  };
+
+  (async () => {
+    try {
+      const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/audit/latest");
+      if (json.data) renderAuditResult(json.data, $("#audit-result"));
+      else $("#audit-result").innerHTML = '<div class="empty">No audit run yet.</div>';
+    } catch (e) { $("#audit-result").innerHTML = '<div class="error">' + esc(e.message) + "</div>"; }
+  })();
+}
+
+function renderAuditResult(a, box) {
+  const color = a.score >= 75 ? "var(--green)" : a.score >= 50 ? "var(--amber)" : "var(--red)";
+  let html =
+    '<div class="grid">' +
+    '<div class="stat"><div class="label">Audit score</div><div class="score-big" style="color:' + color + '">' + a.score + "/100</div>" +
+    '<div class="sub">' + new Date(a.ranAt.seconds ? a.ranAt.seconds * 1000 : a.ranAt).toLocaleString() + "</div></div>";
+  if (a.competitorComparison) {
+    html +=
+      '<div class="stat"><div class="label">Competitors</div><div class="value">' + a.competitorComparison.totalCompetitors + "</div>" +
+      '<div class="sub">avg rating ' + a.competitorComparison.avgRating.toFixed(1) + " · avg reviews " + Math.round(a.competitorComparison.avgReviewCount) + "</div></div>";
+  }
+  html += "</div>";
+
+  html += '<div class="card" style="margin-top:16px"><h3>Dimensions</h3>';
+  for (const d of a.dimensions || []) {
+    const pct = Math.round((d.score / d.maxScore) * 100);
+    html +=
+      '<div class="dim-row"><div class="dim-head"><span>' + esc(d.name) + "</span><span>" + d.score + "/" + d.maxScore + "</span></div>" +
+      '<div class="bar"><div style="width:' + pct + '%"></div></div>' +
+      '<div class="hint">' + esc(d.details || "") + "</div></div>";
+  }
+  html += "</div>";
+
+  if ((a.suggestions || []).length) {
+    html += '<div class="card"><h3>Suggestions</h3>';
+    for (const s of a.suggestions) {
+      html += '<div class="sugg ' + esc(s.priority === "high" ? "high" : "") + '"><b>' + esc(s.category) + '</b> (' + esc(s.priority) + "): " + esc(s.description) + "</div>";
+    }
+    html += "</div>";
+  }
+  box.innerHTML = html;
+}
+
+/* ── Reports tab ── */
+function renderReports() {
+  const sec = $("#tab-reports");
+  sec.innerHTML = "";
+  const loc = getCurrentLocation();
+  if (!loc) {
+    sec.appendChild(el("div", "card empty", "Select a location first."));
+    return;
+  }
+  const card = el("div", "card");
+  card.innerHTML =
+    "<h3>Reports — " + esc(loc.name) + "</h3>" +
+    '<div class="actions">' +
+    '<button class="btn" id="rep-week">Generate weekly report</button>' +
+    '<button class="btn secondary" id="rep-month">Generate monthly report</button>' +
+    "</div>" +
+    "<div id='rep-list' style='margin-top:16px'></div>";
+  sec.appendChild(card);
+
+  const gen = async (type) => {
+    try {
+      const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/reports/generate", {
+        method: "POST", body: JSON.stringify({ type }),
+      });
+      toast("Report generated");
+      renderReport(json.data);
+    } catch (e) { toast("Failed: " + e.message); }
+  };
+  $("#rep-week").onclick = () => gen("weekly");
+  $("#rep-month").onclick = () => gen("monthly");
+
+  (async () => {
+    try {
+      const json = await api("/locations/" + encodeURIComponent(loc.locationId) + "/reports");
+      const reports = json.data || [];
+      const box = $("#rep-list");
+      if (!reports.length) { box.innerHTML = '<div class="empty">No reports yet.</div>'; return; }
+      box.innerHTML = "";
+      for (const r of reports) {
+        const c = el("div", "card");
+        c.style.cursor = "pointer";
+        c.innerHTML =
+          "<h3>" + esc(r.type) + " · " + esc(r.period) + "</h3>" +
+          "<div class='muted'>" + new Date(r.generatedAt.seconds ? r.generatedAt.seconds * 1000 : r.generatedAt).toLocaleString() + "</div>";
+        c.onclick = () => renderReport(r);
+        box.appendChild(c);
+      }
+    } catch (e) { $("#rep-list").innerHTML = '<div class="error">' + esc(e.message) + "</div>"; }
+  })();
+}
+
+function renderReport(r) {
+  const sec = $("#tab-reports");
+  const d = r.data;
+  const rs = d.reviewStats || {};
+  const kd = d.keywordData;
+  const cd = d.competitorData;
+  const card = el("div", "card");
+  card.innerHTML =
+    "<h3>Report — " + esc(r.type) + " · " + esc(r.period) + "</h3>" +
+    '<div class="grid">' +
+    '<div class="stat"><div class="label">Reviews</div><div class="value">' + rs.total + '</div><div class="sub">' + rs.newReviews + " new in period</div></div>" +
+    '<div class="stat"><div class="label">Avg rating</div><div class="value">' + rs.avgRating + '</div></div>' +
+    '<div class="stat"><div class="label">Response rate</div><div class="value">' + rs.response + '%</div></div>' +
+    (kd ? '<div class="stat"><div class="label">Avg keyword rank</div><div class="value">' + kd.avgPosition + '</div><div class="sub">' + kd.improved + " improved · " + kd.declined + " declined</div></div>" : "") +
+    (d.auditScore != null ? '<div class="stat"><div class="label">Audit score</div><div class="value">' + d.auditScore + "/100</div></div>" : "") +
+    "</div>";
+  sec.insertBefore(card, sec.firstChild);
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ── Embedded / parent-token handoff ── */
+const GBP_PARENT_ORIGINS = [
+  "http://localhost:5000",
+  "http://localhost:5001",
+  "https://hariom-delivery-v2.onrender.com",
+  "https://hariom-delivery.web.app",
+  "null",
+];
+const embedded = window.self !== window.top;
+
+function requestParentToken() {
+  if (!embedded) return;
+  try { window.parent.postMessage({ type: "GBP_NEED_TOKEN" }, "*"); } catch (e) {}
+}
+
+window.addEventListener("message", (e) => {
+  const d = e.data || {};
+  if (d.type !== "GBP_TOKEN" || typeof d.token !== "string" || !d.token) return;
+  if (GBP_PARENT_ORIGINS.length && !GBP_PARENT_ORIGINS.includes(e.origin)) return;
+  token = d.token;
+  localStorage.setItem("gbp_token", token);
+  showApp();
+});
+
+/* ── Init ── */
+$("#login-btn").onclick = doLogin;
+$("#login-email").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+$("#login-password").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+
+if (token) {
+  showApp();
+} else if (embedded) {
+  requestParentToken();
+  setTimeout(() => { if (!token) $("#login-screen").style.display = "flex"; }, 1500);
+} else {
+  $("#login-screen").style.display = "flex";
+}
+</script>
+</body>
+</html>

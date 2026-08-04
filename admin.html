@@ -1602,6 +1602,11 @@
       Panel Links
     </button>
 
+    <button class="sidebar-item" id="nav-gbpilot" onclick="showView('gbpilot')">
+      <span class="material-symbols-outlined">reviews</span>
+      GBPilot
+    </button>
+
     <div class="sidebar-divider"></div>
     <div class="sidebar-section-label">Monitor</div>
 
@@ -2693,6 +2698,17 @@
       </div>
     </section>
 
+    <!-- ════ VIEW: GBPILOT ════ -->
+    <section id="view-gbpilot" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">GBPilot — Google Reviews</div>
+          <div class="section-subtitle">Manage reviews, the review wizard, and QR codes</div>
+        </div>
+      </div>
+      <div id="gbpilotHost" style="background:var(--surface-container-low);border-radius:18px;padding:6px;border:1px solid rgba(173,198,255,0.08);"></div>
+    </section>
+
     <!-- ════ VIEW: SALES ANALYTICS ════ -->
     <section id="view-sales-analytics" style="display:none;">
       <div class="section-heading">
@@ -2930,6 +2946,7 @@ const VIEW_LABELS = {
   'incentive':     'Incentive Calculator',
   'sales-analytics': 'Sales Analytics',
   'links': 'Panel Links',
+  'gbpilot': 'GBPilot',
   'activity-log': 'Activity Log'
 };
 
@@ -2937,7 +2954,7 @@ let currentAdminView = 'deliveries';
 function showView(view) {
   currentAdminView = view;
   ['categories','models'].forEach(k => { const n = document.getElementById('nav-' + k); if (n) n.classList.remove('active'); });
-  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','permissions','leads-admin','product-normalizer','incentive','sales-analytics','links','activity-log'].forEach(v => {
+  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','permissions','leads-admin','product-normalizer','incentive','sales-analytics','links','gbpilot','activity-log'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) {
       el.style.display = v === view ? '' : 'none';
@@ -2968,6 +2985,7 @@ function showView(view) {
   const summaryCards = document.getElementById('summaryCards');
   if (summaryCards) summaryCards.style.display = view === 'deliveries' ? '' : 'none';
   if (view === 'links')               { _initLinkUrls(); }
+  if (view === 'gbpilot')             { bootGbpilot(); }
   if (view === 'activity-log')        { loadActivityLog(); }
 }
 
@@ -3048,6 +3066,46 @@ function sharePanel(path, label) {
     });
   }
 }
+
+/* ── GBPILOT (embedded) ── */
+const GBPILOT_URL = 'http://localhost:5001';
+let gbpFrame = null;
+
+function sendGbpToken() {
+  const t = getAdminToken();
+  if (t && gbpFrame && gbpFrame.contentWindow) {
+    gbpFrame.contentWindow.postMessage({ type: 'GBP_TOKEN', token: t }, GBPILOT_URL);
+  }
+}
+
+function bootGbpilot() {
+  const host = document.getElementById('gbpilotHost');
+  if (!host) return;
+  if (!gbpFrame) {
+    gbpFrame = document.createElement('iframe');
+    gbpFrame.id = 'gbpilotFrame';
+    gbpFrame.src = GBPILOT_URL;
+    gbpFrame.style.width = '100%';
+    gbpFrame.style.height = 'calc(100vh - 140px)';
+    gbpFrame.style.border = '0';
+    gbpFrame.style.borderRadius = '16px';
+    gbpFrame.style.background = '#0b0f19';
+    gbpFrame.style.display = 'block';
+    host.appendChild(gbpFrame);
+    gbpFrame.addEventListener('load', () => sendGbpToken());
+  }
+  sendGbpToken();
+}
+
+window.addEventListener('message', (e) => {
+  if (e.origin !== GBPILOT_URL) return;
+  const d = e.data || {};
+  if (d.type === 'GBP_NEED_TOKEN') {
+    const t = getAdminToken();
+    if (t && e.source) e.source.postMessage({ type: 'GBP_TOKEN', token: t }, GBPILOT_URL);
+  }
+});
+
 
 
 /* ── ACTIVITY LOG ── */

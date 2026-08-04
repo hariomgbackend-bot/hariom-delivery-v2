@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Write a Review</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --primary: #1a73e8;
+    --primary-dark: #1557b0;
+    --green: #188038;
+    --text: #1c2430;
+    --muted: #6b7280;
+    --border: #e2e6ef;
+    --bg: #f4f6fb;
+  }
+  body {
+    margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 24px 18px 48px; }
+  .brand {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+  }
+  .brand .logo {
+    width: 40px; height: 40px; border-radius: 10px; background: var(--primary);
+    color: #fff; font-weight: 800; font-size: 18px; display: flex; align-items: center;
+    justify-content: center;
+  }
+  .brand .name { font-weight: 700; font-size: 17px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+  .card {
+    background: #fff; border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.05);
+  }
+  .card h2 { margin: 0 0 4px; font-size: 18px; }
+  .card .desc { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .progress { display: flex; gap: 6px; margin: 14px 0 20px; }
+  .progress .dot { flex: 1; height: 5px; border-radius: 999px; background: #e2e6ef; }
+  .progress .dot.on { background: var(--primary); }
+  .step { display: none; }
+  .step.active { display: block; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    border: 1px solid var(--border); background: #fff; border-radius: 999px;
+    padding: 9px 16px; font-size: 14px; cursor: pointer; transition: all .12s;
+    user-select: none; color: var(--text);
+  }
+  .pill:hover { border-color: var(--primary); }
+  .pill.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .actions { display: flex; gap: 10px; margin-top: 20px; }
+  .btn {
+    flex: 1; background: var(--primary); color: #fff; border: none; border-radius: 10px;
+    padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn.secondary { background: #eef1f6; color: var(--text); }
+  .btn.green { background: var(--green); }
+  .btn:active { transform: translateY(1px); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  textarea {
+    width: 100%; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font-size: 14px; font-family: inherit; min-height: 130px; resize: vertical;
+  }
+  textarea:focus { outline: none; border-color: var(--primary); }
+  .error { color: #d93025; font-size: 13px; margin-top: 10px; }
+  .success { color: var(--green); font-size: 13px; margin-top: 10px; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px; border: 2px solid #fff;
+    border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite;
+    vertical-align: middle; margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .steps-note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 18px; }
+  .lang-box { margin-bottom: 14px; }
+  .lang-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .stars-note { color: #fbbc04; font-size: 15px; letter-spacing: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <div class="logo">★</div>
+    <div>
+      <div class="name" id="store-name">Our Store</div>
+      <div class="subtitle" id="store-subtitle">Loved shopping here? Tell everyone about it!</div>
+    </div>
+  </div>
+
+  <div class="lang-box">
+    <span class="lang-label">Review language</span>
+    <div class="pills" id="lang-pills">
+      <button type="button" class="pill selected" onclick="setLang('english', this)">English</button>
+      <button type="button" class="pill" onclick="setLang('hindi', this)">हिंदी</button>
+      <button type="button" class="pill" onclick="setLang('marathi', this)">मराठी</button>
+    </div>
+  </div>
+
+  <div class="progress" id="progress">
+    <div class="dot on"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+  </div>
+
+  <form id="wizard" onsubmit="return false">
+
+    <div class="card step active" data-step="0">
+      <h2>What did you buy?</h2>
+      <p class="desc">Pick the category, or tap <b>Next</b> if it isn't listed.</p>
+      <div class="pills" id="cat-pills"></div>
+      <div class="actions">
+        <button type="button" class="btn" onclick="go(1)">Next</button>
+      </div>
+    </div>
+
+    <div class="card step" data-step="1">
+      <h2>Which brand?</h2>
+      <p class="desc">Pick the brand you purchased, or tap <b>Next</b> to skip.</p>
+      <div class="pills" id="brand-pills"></div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="go(-1)">Back</button>
+        <button type="button" class="btn" onclick="go(1)">Next</button>
+      </div>
+    </div>
+
+    <div class="card step" data-step="2">
+      <h2>What did you love?</h2>
+      <p class="desc">Tap everything that fits your experience.</p>
+      <div class="pills" id="exp-pills"></div>
+      <div style="margin-top:16px">
+        <label style="font-size:13px;color:var(--muted)">Anything else in your own words (optional)</label>
+        <textarea id="custom-text" style="margin-top:8px" placeholder="e.g. The delivery boy installed the fridge and explained everything patiently."></textarea>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="go(-1)">Back</button>
+        <button type="button" class="btn green" id="gen-btn" onclick="generate()">Generate my review</button>
+      </div>
+    </div>
+
+  </form>
+
+  <div class="card" id="result-card" style="display:none">
+    <h2>Your review</h2>
+    <p class="desc">Edit it if you like — it's yours. Then copy it and finish on Google.</p>
+    <textarea id="review-text"></textarea>
+    <div class="actions">
+      <button class="btn green" id="copy-btn" onclick="copyAndOpen()">📋 Copy &amp; open Google</button>
+    </div>
+    <div class="actions" style="margin-top:8px;flex-wrap:wrap">
+      <button class="btn secondary small" id="var-short" onclick="regenerate('short')">✂️ Shorter</button>
+      <button class="btn secondary small" id="var-casual" onclick="regenerate('casual')">😊 More casual</button>
+      <button class="btn secondary small" id="var-detailed" onclick="regenerate('detailed')">📖 More detailed</button>
+      <button class="btn secondary small" id="var-standard" onclick="regenerate('standard')">🔄 New version</button>
+    </div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn secondary" onclick="backToEdit()">Change my choices</button>
+    </div>
+    <div id="result-msg"></div>
+    <p class="hint" id="handoff-hint"></p>
+  </div>
+
+  <div class="steps-note">Your review goes directly to Google — we never post it for you.</div>
+
+</div>
+
+<script>
+var locId = location.pathname.split("/").filter(Boolean).pop() || "";
+var storeName = "Our Store";
+var writeReviewUrl = "";
+var selected = { category: "", brand: "", experiences: [], language: "english" };
+var step = 0;
+
+var $ = function (id) { return document.getElementById(id); };
+
+function setLang(lang, btn) {
+  selected.language = lang;
+  document.querySelectorAll("#lang-pills .pill").forEach(function (p) {
+    p.classList.toggle("selected", p === btn);
+  });
+}
+
+function buildPills(containerId, list, onPick) {
+  var box = $(containerId);
+  box.innerHTML = "";
+  list.forEach(function (item) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "pill";
+    b.textContent = item;
+    b.onclick = function () {
+      if (b.classList.contains("selected")) {
+        b.classList.remove("selected");
+      } else {
+        b.classList.add("selected");
+      }
+      onPick();
+    };
+    box.appendChild(b);
+  });
+}
+
+function pillsSelected(containerId) {
+  return Array.prototype.map.call(
+    $(containerId).querySelectorAll(".pill.selected"),
+    function (b) { return b.textContent; }
+  );
+}
+
+function showStep(n) {
+  step = n;
+  var cards = document.querySelectorAll(".card.step");
+  for (var i = 0; i < cards.length; i++) cards[i].classList.remove("active");
+  document.querySelector('.card.step[data-step="' + n + '"]').classList.add("active");
+  var dots = $("progress").children;
+  for (var i = 0; i < dots.length; i++) dots[i].className = "dot" + (i <= n ? " on" : "");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function go(dir) {
+  var next = step + dir;
+  if (next < 0) return;
+  if (next > 2) return;
+  showStep(next);
+}
+
+async function load() {
+  if (!locId) { $("store-subtitle").textContent = "Invalid link — please re-scan the QR code."; return; }
+  try {
+    var res = await fetch("/api/gbp/public/review-options/" + encodeURIComponent(locId));
+    var json = await res.json();
+    if (!json.success) throw new Error(json.error || "Store not found");
+    var d = json.data;
+    storeName = d.storeName;
+    writeReviewUrl = d.writeReviewUrl;
+    $("store-name").textContent = d.storeName;
+    buildPills("cat-pills", d.categories, function () {
+      var s = pillsSelected("cat-pills");
+      selected.category = s[0] || "";
+    });
+    buildPills("brand-pills", d.brands, function () {
+      var s = pillsSelected("brand-pills");
+      selected.brand = s[0] || "";
+    });
+    buildPills("exp-pills", d.experiences, function () {
+      selected.experiences = pillsSelected("exp-pills");
+    });
+  } catch (e) {
+    $("store-subtitle").textContent = "Couldn't load store. Please re-scan the QR code.";
+  }
+}
+
+async function callGenerate(variation) {
+  var res = await fetch("/api/gbp/public/review/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      locationId: locId,
+      category: selected.category || undefined,
+      brand: selected.brand || undefined,
+      experiences: selected.experiences,
+      customText: $("custom-text").value.trim() || undefined,
+      language: selected.language,
+      variation: variation
+    })
+  });
+  var json = await res.json();
+  if (!json.success) throw new Error(json.error || "Generation failed");
+  if (json.data.writeReviewUrl) writeReviewUrl = json.data.writeReviewUrl;
+  return json.data.review;
+}
+
+async function generate() {
+  var btn = $("gen-btn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Writing your review...';
+  $("result-msg").textContent = "";
+  try {
+    $("review-text").value = await callGenerate("standard");
+    $("result-card").style.display = "block";
+    $("handoff-hint").innerHTML = "Step 2: on Google, give a <span class='stars-note'>★★★★★</span> star rating and tap Post.";
+    document.querySelector("#result-card").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    $("result-msg").className = "error";
+    $("result-msg").textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Generate my review";
+  }
+}
+
+async function regenerate(variation) {
+  $("result-msg").className = "hint";
+  $("result-msg").innerHTML = '<span class="spinner"></span>Regenerating...';
+  try {
+    $("review-text").value = await callGenerate(variation);
+    $("result-msg").className = "hint";
+    $("result-msg").textContent = "New version ready — edit it, then copy & open Google.";
+  } catch (e) {
+    $("result-msg").className = "error";
+    $("result-msg").textContent = e.message;
+  }
+}
+
+function copyAndOpen() {
+  var text = $("review-text").value.trim();
+  if (!text) return;
+  var done = function () { window.open(writeReviewUrl, "_blank"); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, function () {
+      fallbackCopy(text);
+      done();
+    });
+  } else {
+    fallbackCopy(text);
+    done();
+  }
+  $("copy-btn").textContent = "Copied! Now paste it on Google ✓";
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+
+function backToEdit() {
+  $("result-card").style.display = "none";
+  showStep(2);
+}
+
+showStep(0);
+load();
+</script>
+</body>
+</html>
