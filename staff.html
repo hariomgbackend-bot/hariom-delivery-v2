@@ -1965,7 +1965,7 @@ async function loadDeliveries() {
   const list = document.getElementById("deliveriesList");
   list.innerHTML = skeletons(3);
   try {
-    const from = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10);
+    const from = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
     const res  = await authFetch(`${BASE_URL}/deliveries?startDate=${from}`);
     const data = await res.json();
     allDeliveries = data;
