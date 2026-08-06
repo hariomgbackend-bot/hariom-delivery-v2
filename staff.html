@@ -1966,7 +1966,7 @@ async function loadDeliveries() {
   list.innerHTML = skeletons(3);
   try {
     const from = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-    const res  = await authFetch(`${BASE_URL}/deliveries?startDate=${from}`);
+    const res  = await authFetch(`${BASE_URL}/deliveries?startDate=${from}&store=all`);
     const data = await res.json();
     allDeliveries = data;
     renderDeliveries(data);
