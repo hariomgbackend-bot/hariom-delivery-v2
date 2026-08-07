@@ -709,6 +709,10 @@ async function resetTags(btn) {
     panel.querySelector('[data-field="categories"]').value = (d.categories || []).join("\n");
     panel.querySelector('[data-field="brands"]').value = (d.brands || []).join("\n");
     panel.querySelector('[data-field="experiences"]').value = (d.experiences || []).join("\n");
+    if (d.subFirm) {
+      panel.querySelector("#subfirm-enabled").checked = !!d.subFirm.enabled;
+      panel.querySelector("#subfirm-name").value = d.subFirm.name || "";
+    }
     status.textContent = "Reset to defaults — press Save to keep.";
   } catch (e) {
     status.textContent = e.message;
@@ -746,6 +750,13 @@ async function renderReviewOptions() {
     reviewOptionsFieldRow("Categories", "categories", "Add a category…") +
     reviewOptionsFieldRow("Brands", "brands", "Add a brand…") +
     reviewOptionsFieldRow("What did you love?", "experiences", "Add an experience…") +
+    '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0" />' +
+    '<label style="font-size:12px;color:var(--muted)">Sub-firm inside the store (e.g. a mobile shop)</label>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:6px 0 4px">' +
+    '<input type="checkbox" id="subfirm-enabled" style="width:18px;height:18px" />' +
+    '<span style="font-size:13px">Show the sub-firm toggle in the review wizard</span>' +
+    "</div>" +
+    '<input id="subfirm-name" placeholder="Corner Mobile Shoppee" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px" />' +
     '<div class="actions">' +
     '<button class="btn btn-success small" data-save-tags="common">Save tags</button>' +
     '<button type="button" class="btn secondary small" data-reset-tags="common">Reset to defaults</button>' +
@@ -761,6 +772,10 @@ async function renderReviewOptions() {
     panel.querySelector('[data-field="categories"]').value = (d.categories || []).join("\n");
     panel.querySelector('[data-field="brands"]').value = (d.brands || []).join("\n");
     panel.querySelector('[data-field="experiences"]').value = (d.experiences || []).join("\n");
+    if (d.subFirm) {
+      panel.querySelector("#subfirm-enabled").checked = !!d.subFirm.enabled;
+      panel.querySelector("#subfirm-name").value = d.subFirm.name || "";
+    }
   } catch (e) {
     panel.querySelector("[data-tags-status]").textContent = e.message;
   }
@@ -775,6 +790,8 @@ async function saveTags(btn) {
     categories: split('[data-field="categories"]'),
     brands: split('[data-field="brands"]'),
     experiences: split('[data-field="experiences"]'),
+    subFirmEnabled: !!panel.querySelector("#subfirm-enabled").checked,
+    subFirmName: panel.querySelector("#subfirm-name").value.trim(),
   };
   btn.disabled = true;
   try {

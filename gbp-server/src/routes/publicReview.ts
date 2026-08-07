@@ -59,7 +59,11 @@ interface ReviewWidgetOptions {
   categories?: string[];
   brands?: string[];
   experiences?: string[];
+  subFirmEnabled?: boolean;
+  subFirmName?: string;
 }
+
+const DEFAULT_SUB_FIRM_NAME = "Corner Mobile Shoppee";
 
 const COMMON_WIDGET_DOC = "_common_";
 
@@ -71,6 +75,32 @@ async function getWidgetOptions(): Promise<ReviewWidgetOptions> {
   } catch (e) {
     log.warn("Could not read review widget options", e);
     return {};
+  }
+}
+
+// Salesmen = staff users with role "staff". Cached briefly (the wizard is public).
+const SALESMEN_CACHE: { data: { id: string; name: string }[]; expiry: number } = {
+  data: [],
+  expiry: 0,
+};
+const SALESMEN_TTL = 5 * 60 * 1000;
+
+async function getSalesmen(): Promise<{ id: string; name: string }[]> {
+  const now = Date.now();
+  if (now < SALESMEN_CACHE.expiry) return SALESMEN_CACHE.data;
+  try {
+    const db = getDb();
+    const snap = await db.collection("staff_users").where("role", "==", "staff").get();
+    const list = snap.docs
+      .map((d) => ({ id: d.id, name: String(d.data().name || "").trim() }))
+      .filter((s) => s.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    SALESMEN_CACHE.data = list;
+    SALESMEN_CACHE.expiry = now + SALESMEN_TTL;
+    return list;
+  } catch (e) {
+    log.warn("Could not load salesmen list", e);
+    return SALESMEN_CACHE.data.length ? SALESMEN_CACHE.data : [];
   }
 }
 
@@ -228,6 +258,11 @@ router.get("/public/review-options/:locationId", async (req: Request, res: Respo
         categories: widget.categories?.length ? widget.categories : DEFAULT_CATEGORIES,
         brands: widget.brands?.length ? widget.brands : DEFAULT_BRANDS,
         experiences: widget.experiences?.length ? widget.experiences : DEFAULT_EXPERIENCES,
+        subFirm: {
+          enabled: widget.subFirmEnabled === false ? false : true,
+          name: widget.subFirmName || DEFAULT_SUB_FIRM_NAME,
+        },
+        salesmen: await getSalesmen(),
       },
     } satisfies ApiResponse);
   } catch (e) {
@@ -246,7 +281,7 @@ router.post("/public/review/generate", async (req: Request, res: Response) => {
       return;
     }
 
-    const { locationId, category, brand, experiences, customText, customerName, language, variation } = req.body || {};
+    const { locationId, category, brand, experiences, customText, customerName, language, variation, subFirm, salesmanName } = req.body || {};
     if (!locationId || typeof locationId !== "string") {
       res.status(400).json({ success: false, error: "Missing locationId" } satisfies ApiResponse);
       return;
@@ -273,6 +308,15 @@ router.post("/public/review/generate", async (req: Request, res: Response) => {
     const validVariations = ["standard", "short", "casual", "detailed"] as const;
     const variationValue = validVariations.includes(variation) ? variation : "standard";
 
+    // Resolve sub-firm name from the admin config when the customer enabled the toggle.
+    let subFirmName: string | undefined;
+    if (subFirm === true) {
+      const widget = await getWidgetOptions();
+      if (widget.subFirmEnabled === true) {
+        subFirmName = widget.subFirmName || DEFAULT_SUB_FIRM_NAME;
+      }
+    }
+
     const review = await generateCuratedReview({
       storeName: location.name,
       category: typeof category === "string" ? category : undefined,
@@ -282,6 +326,9 @@ router.post("/public/review/generate", async (req: Request, res: Response) => {
       customerName: typeof customerName === "string" && customerName.trim() ? customerName.trim() : undefined,
       language: lang,
       variation: variationValue,
+      subFirmName,
+      salesmanName:
+        typeof salesmanName === "string" && salesmanName.trim() ? salesmanName.trim().slice(0, 80) : undefined,
     });
 
     const staffId =
@@ -331,6 +378,10 @@ router.get("/review-options", authenticate, async (_req: Request, res: Response)
         categories: widget.categories?.length ? widget.categories : DEFAULT_CATEGORIES,
         brands: widget.brands?.length ? widget.brands : DEFAULT_BRANDS,
         experiences: widget.experiences?.length ? widget.experiences : DEFAULT_EXPERIENCES,
+        subFirm: {
+          enabled: widget.subFirmEnabled === false ? false : true,
+          name: widget.subFirmName || DEFAULT_SUB_FIRM_NAME,
+        },
       },
     } satisfies ApiResponse);
   } catch (e) {
@@ -344,11 +395,16 @@ router.get("/review-options", authenticate, async (_req: Request, res: Response)
  */
 router.put("/review-options", authenticate, async (req: Request, res: Response) => {
   try {
-    const { categories, brands, experiences } = req.body || {};
+    const { categories, brands, experiences, subFirmEnabled, subFirmName } = req.body || {};
     const data = {
       categories: cleanTags(categories),
       brands: cleanTags(brands),
       experiences: cleanTags(experiences),
+      subFirmEnabled: subFirmEnabled === true,
+      subFirmName:
+        typeof subFirmName === "string" && subFirmName.trim()
+          ? subFirmName.trim().slice(0, 80)
+          : DEFAULT_SUB_FIRM_NAME,
       updatedAt: new Date(),
     };
     await getDb().collection("gbp_review_widgets").doc(COMMON_WIDGET_DOC).set(data, { merge: true });
@@ -373,6 +429,7 @@ router.delete("/review-options", authenticate, async (_req: Request, res: Respon
         categories: DEFAULT_CATEGORIES,
         brands: DEFAULT_BRANDS,
         experiences: DEFAULT_EXPERIENCES,
+        subFirm: { enabled: true, name: DEFAULT_SUB_FIRM_NAME },
       },
       message: "Reset to defaults",
     } satisfies ApiResponse);

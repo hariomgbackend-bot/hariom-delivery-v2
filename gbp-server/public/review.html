@@ -76,6 +76,13 @@
   .lang-box { margin-bottom: 14px; }
   .lang-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
   .stars-note { color: #fbbc04; font-size: 15px; letter-spacing: 2px; }
+  select, .subfirm-toggle {
+    width: 100%; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  .subfirm-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
+  .subfirm-toggle input { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 </style>
 </head>
 <body>
@@ -100,6 +107,7 @@
 
   <div class="progress" id="progress">
     <div class="dot on"></div>
+    <div class="dot"></div>
     <div class="dot"></div>
     <div class="dot"></div>
   </div>
@@ -132,6 +140,27 @@
       <div style="margin-top:16px">
         <label style="font-size:13px;color:var(--muted)">Anything else in your own words (optional)</label>
         <textarea id="custom-text" style="margin-top:8px" placeholder="e.g. The delivery boy installed the fridge and explained everything patiently."></textarea>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="go(-1)">Back</button>
+        <button type="button" class="btn" onclick="go(1)">Next</button>
+      </div>
+    </div>
+
+    <div class="card step" data-step="3">
+      <h2>Anything to add?</h2>
+      <p class="desc">All optional — skip straight to your review if you like.</p>
+      <div id="subfirm-box" style="display:none">
+        <label class="subfirm-toggle">
+          <span id="subfirm-label">I bought this from the mobile shop inside the store</span>
+          <input type="checkbox" id="subfirm-check" onchange="selected.subFirm = this.checked" />
+        </label>
+      </div>
+      <div style="margin-top:16px">
+        <label class="lang-label">Who helped you? (optional)</label>
+        <select id="salesman-select" onchange="selected.salesmanName = this.value">
+          <option value="">Skip / No one</option>
+        </select>
       </div>
       <div class="actions">
         <button type="button" class="btn secondary" onclick="go(-1)">Back</button>
@@ -172,7 +201,7 @@ var _staff = _qp.get("staff") || "";
 var _staffName = _qp.get("staffName") || "";
 var storeName = "Our Store";
 var writeReviewUrl = "";
-var selected = { category: "", brand: "", experiences: [], language: "english" };
+var selected = { category: "", brand: "", experiences: [], language: "english", subFirm: false, salesmanName: "" };
 var step = 0;
 
 var $ = function (id) { return document.getElementById(id); };
@@ -224,7 +253,7 @@ function showStep(n) {
 function go(dir) {
   var next = step + dir;
   if (next < 0) return;
-  if (next > 2) return;
+  if (next > 3) return;
   showStep(next);
 }
 
@@ -249,6 +278,20 @@ async function load() {
     buildPills("exp-pills", d.experiences, function () {
       selected.experiences = pillsSelected("exp-pills");
     });
+
+    if (d.subFirm && d.subFirm.enabled) {
+      $("subfirm-label").textContent = "I bought this from " + d.subFirm.name + " (the mobile shop inside the store)";
+      $("subfirm-box").style.display = "block";
+    }
+
+    var sm = $("salesman-select");
+    sm.innerHTML = '<option value="">Skip / No one</option>';
+    (d.salesmen || []).forEach(function (s) {
+      var o = document.createElement("option");
+      o.value = s.name;
+      o.textContent = s.name;
+      sm.appendChild(o);
+    });
   } catch (e) {
     $("store-subtitle").textContent = "Couldn't load store. Please re-scan the QR code.";
   }
@@ -267,7 +310,9 @@ async function callGenerate(variation) {
       language: selected.language,
       variation: variation,
       staffId: _staff || undefined,
-      staffName: _staffName || undefined
+      staffName: _staffName || undefined,
+      subFirm: selected.subFirm ? true : undefined,
+      salesmanName: selected.salesmanName || undefined
     })
   });
   var json = await res.json();
@@ -337,7 +382,7 @@ function fallbackCopy(text) {
 
 function backToEdit() {
   $("result-card").style.display = "none";
-  showStep(2);
+  showStep(3);
 }
 
 showStep(0);
