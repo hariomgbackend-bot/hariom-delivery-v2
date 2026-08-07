@@ -78,6 +78,16 @@ async function getWidgetOptions(): Promise<ReviewWidgetOptions> {
   }
 }
 
+// The sub-firm feature is ON by default when the field is missing (docs that
+// predate it). Only an explicit `false` disables it — this must match how the
+// wizard options and the generate route resolve the feature.
+function resolveSubFirm(widget: ReviewWidgetOptions): { enabled: boolean; name: string } {
+  return {
+    enabled: widget.subFirmEnabled === false ? false : true,
+    name: widget.subFirmName || DEFAULT_SUB_FIRM_NAME,
+  };
+}
+
 // Salesmen = staff users with role "staff". Cached briefly (the wizard is public).
 const SALESMEN_CACHE: { data: { id: string; name: string }[]; expiry: number } = {
   data: [],
@@ -258,10 +268,7 @@ router.get("/public/review-options/:locationId", async (req: Request, res: Respo
         categories: widget.categories?.length ? widget.categories : DEFAULT_CATEGORIES,
         brands: widget.brands?.length ? widget.brands : DEFAULT_BRANDS,
         experiences: widget.experiences?.length ? widget.experiences : DEFAULT_EXPERIENCES,
-        subFirm: {
-          enabled: widget.subFirmEnabled === false ? false : true,
-          name: widget.subFirmName || DEFAULT_SUB_FIRM_NAME,
-        },
+        subFirm: resolveSubFirm(widget),
         salesmen: await getSalesmen(),
       },
     } satisfies ApiResponse);
@@ -309,17 +316,18 @@ router.post("/public/review/generate", async (req: Request, res: Response) => {
     const variationValue = validVariations.includes(variation) ? variation : "standard";
 
     // Resolve sub-firm name from the admin config when the customer enabled the toggle.
+    const subFirmOn = subFirm === true;
     let subFirmName: string | undefined;
-    if (subFirm === true) {
-      const widget = await getWidgetOptions();
-      if (widget.subFirmEnabled === true) {
-        subFirmName = widget.subFirmName || DEFAULT_SUB_FIRM_NAME;
-      }
+    if (subFirmOn) {
+      const firm = resolveSubFirm(await getWidgetOptions());
+      if (firm.enabled) subFirmName = firm.name;
     }
 
     const review = await generateCuratedReview({
       storeName: location.name,
-      category: typeof category === "string" ? category : undefined,
+      // Corner Mobile Shoppee only sells phones — force the category so the
+      // review always reads as a phone/mobile purchase from the sub-firm.
+      category: subFirmOn ? "Mobile" : typeof category === "string" ? category : undefined,
       brand: typeof brand === "string" ? brand : undefined,
       experiences: expList,
       customText: typeof customText === "string" && customText.trim() ? customText.trim() : undefined,
@@ -378,10 +386,7 @@ router.get("/review-options", authenticate, async (_req: Request, res: Response)
         categories: widget.categories?.length ? widget.categories : DEFAULT_CATEGORIES,
         brands: widget.brands?.length ? widget.brands : DEFAULT_BRANDS,
         experiences: widget.experiences?.length ? widget.experiences : DEFAULT_EXPERIENCES,
-        subFirm: {
-          enabled: widget.subFirmEnabled === false ? false : true,
-          name: widget.subFirmName || DEFAULT_SUB_FIRM_NAME,
-        },
+        subFirm: resolveSubFirm(widget),
       },
     } satisfies ApiResponse);
   } catch (e) {

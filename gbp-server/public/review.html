@@ -99,6 +99,24 @@
   .switch input:checked + .slider { background: var(--green); }
   .switch input:checked + .slider:before { transform: translateX(20px); }
   .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  .photo-btn {
+    width: 100%; background: #fff; border: 2px dashed var(--border); border-radius: 12px;
+    padding: 26px 14px; font-size: 15px; cursor: pointer; color: var(--primary);
+    font-weight: 600; transition: all .12s;
+  }
+  .photo-btn:hover { border-color: var(--primary); background: #f8faff; }
+  .photo-box { display: none; margin-top: 14px; }
+  .photo-box img {
+    width: 100%; border-radius: 12px; border: 1px solid var(--border);
+    display: block; max-height: 320px; object-fit: cover; background: #f1f3f8;
+  }
+  .photo-actions { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
+  .photo-actions .link-btn {
+    flex: 1; background: #eef1f6; border: none; border-radius: 10px; padding: 11px;
+    font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer;
+  }
+  .photo-actions .save-btn { background: var(--green); color: #fff; }
+  .photo-hint { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -123,6 +141,7 @@
 
   <div class="progress" id="progress">
     <div class="dot on"></div>
+    <div class="dot"></div>
     <div class="dot"></div>
     <div class="dot"></div>
     <div class="dot"></div>
@@ -170,7 +189,7 @@
         <label class="subfirm-toggle">
           <span class="label" id="subfirm-label">I bought this from the mobile shop inside the store</span>
           <span class="switch">
-            <input type="checkbox" id="subfirm-check" onchange="selected.subFirm = this.checked" />
+            <input type="checkbox" id="subfirm-check" onchange="onSubFirmToggle()" />
             <span class="slider"></span>
           </span>
         </label>
@@ -181,6 +200,25 @@
           <option value="">Skip / No one</option>
         </select>
       </div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="go(-1)">Back</button>
+        <button type="button" class="btn" onclick="go(1)">Next</button>
+      </div>
+    </div>
+
+    <div class="card step" data-step="4">
+      <h2>Add a photo (optional)</h2>
+      <p class="desc">Snap what you bought — we'll save it to your phone so you can add it on Google without retaking it.</p>
+      <button type="button" class="photo-btn" id="photo-btn" onclick="openCamera()">📷 Take photo</button>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" />
+      <div class="photo-box" id="photo-box">
+        <img id="photo-preview" alt="Your photo" />
+        <div class="photo-actions">
+          <button type="button" class="link-btn" onclick="openCamera()">Re-take</button>
+          <button type="button" class="link-btn save-btn" id="photo-save" onclick="savePhoto()">Save to phone</button>
+        </div>
+      </div>
+      <div class="photo-hint" id="photo-hint"></div>
       <div class="actions">
         <button type="button" class="btn secondary" onclick="go(-1)">Back</button>
         <button type="button" class="btn green" id="gen-btn" onclick="generate()">Generate my review</button>
@@ -220,7 +258,7 @@ var _staff = _qp.get("staff") || "";
 var _staffName = _qp.get("staffName") || "";
 var storeName = "Our Store";
 var writeReviewUrl = "";
-var selected = { category: "", brand: "", experiences: [], language: "english", subFirm: false, salesmanName: "" };
+var selected = { category: "", brand: "", experiences: [], language: "english", subFirm: false, salesmanName: "", photo: null };
 var step = 0;
 
 var $ = function (id) { return document.getElementById(id); };
@@ -259,6 +297,69 @@ function pillsSelected(containerId) {
   );
 }
 
+function onSubFirmToggle() {
+  selected.subFirm = $("subfirm-check").checked;
+  if (selected.subFirm && !selected.category) {
+    var cat = document.querySelector('#cat-pills .pill');
+    var pills = document.querySelectorAll("#cat-pills .pill");
+    for (var i = 0; i < pills.length; i++) {
+      if (/mobile/i.test(pills[i].textContent)) {
+        cat = pills[i];
+        break;
+      }
+    }
+    if (cat) {
+      cat.classList.add("selected");
+      selected.category = cat.textContent;
+    }
+  }
+}
+
+function openCamera() {
+  var input = $("photo-input");
+  input.value = "";
+  input.click();
+}
+
+function pickPhoto(e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+  selected.photo = file;
+  $("photo-preview").src = URL.createObjectURL(file);
+  $("photo-box").style.display = "block";
+  $("photo-btn").style.display = "none";
+  var photoHint = $("photo-hint");
+  var ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  photoHint.textContent = ios
+    ? "We'll save the photo to the Files app on iPhone. On Google's review page tap the photo icon → Browse and pick it (or open Files → this photo → tap Save Image first)."
+    : "We'll save the photo to your phone's gallery (Downloads). On Google's review page just tap the photo icon and pick it from the gallery.";
+}
+
+async function savePhoto() {
+  if (!selected.photo) return;
+  var name = "review-photo-" + Date.now() + ".jpg";
+  try {
+    if (window.showSaveFilePicker) {
+      var handle = await window.showSaveFilePicker({ suggestedName: name });
+      var writable = await handle.createWritable();
+      await writable.write(selected.photo);
+      await writable.close();
+    } else {
+      var url = URL.createObjectURL(selected.photo);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    $("photo-hint").textContent = "Saved! Now open Google and upload it from your gallery.";
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    $("photo-hint").textContent = "Couldn't save — tap Save to phone again and choose a location.";
+  }
+}
+
 function showStep(n) {
   step = n;
   var cards = document.querySelectorAll(".card.step");
@@ -272,7 +373,7 @@ function showStep(n) {
 function go(dir) {
   var next = step + dir;
   if (next < 0) return;
-  if (next > 3) return;
+  if (next > 4) return;
   showStep(next);
 }
 
@@ -346,9 +447,14 @@ async function generate() {
   btn.innerHTML = '<span class="spinner"></span>Writing your review...';
   $("result-msg").textContent = "";
   try {
+    if (selected.photo) await savePhoto();
     $("review-text").value = await callGenerate("standard");
     $("result-card").style.display = "block";
-    $("handoff-hint").innerHTML = "Step 2: on Google, give a <span class='stars-note'>★★★★★</span> star rating and tap Post.";
+    var handoff = "Step 2: on Google, give a <span class='stars-note'>★★★★★</span> star rating and tap Post.";
+    if (selected.photo) {
+      handoff += " Then tap the <b>photo icon</b> and upload the photo we saved to your phone.";
+    }
+    $("handoff-hint").innerHTML = handoff;
     document.querySelector("#result-card").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
     $("result-msg").className = "error";
@@ -401,9 +507,10 @@ function fallbackCopy(text) {
 
 function backToEdit() {
   $("result-card").style.display = "none";
-  showStep(3);
+  showStep(4);
 }
 
+$("photo-input").addEventListener("change", pickPhoto);
 showStep(0);
 load();
 </script>

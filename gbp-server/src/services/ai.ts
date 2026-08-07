@@ -204,7 +204,7 @@ const COMMON_ANTI_AI: string[] = [
   `Do NOT begin the review with "I recently...", "I recently bought/purchased...", or "I bought a ... for my home".`,
   `The first sentence must not mention the product or the brand — get to those later in the review.`,
   `Do NOT use emojis, hashtags, or placeholders like [Store Name].`,
-  `Do NOT invent specific facts: prices, dates, staff names (other than the salesman given), or product faults.`,
+  `Do NOT invent specific facts: prices, dates, staff names (other than the salesman given), product faults, or the store's physical size/layout/appearance (e.g. "small place", "big showroom", number of floors) or its location relative to the road (e.g. "easy to miss from the road", "off the main road", "down a lane").`,
   `Sound like a modest real person typing quickly — not a marketing ad. Occasional casual phrasing is fine.`,
   `Do not be uniformly glowing; one mild honest observation is okay as long as it does not invent facts.`,
   `Write like a normal Google review a customer would type in two minutes — imperfect flow is fine.`,
@@ -227,15 +227,15 @@ const OPENING_STYLES: string[] = [
   "Walked in with a rough idea and walked out with exactly what I needed.",
   "Three shops in one day — this was the only one where I felt comfortable.",
   "Did not expect to buy anything, but the deal was hard to say no to.",
-  "The shop is easy to miss from the road, but it is worth finding.",
-  "Been passing by this store for months and finally stepped in.",
+  "I almost skipped it, but it turned out to be worth the stop.",
+  "Finally made time to visit after hearing good things for a while.",
   "I came for a small thing and ended up getting good advice too.",
   "If you are tired of pushy salesmen, this place is the opposite.",
   "Called ahead, reached quickly, and the whole thing was painless.",
   "My family has bought here before, so I trusted it from the start.",
   "For the price I paid, I did not expect this kind of attention.",
   "I went with a list of doubts; came out with everything answered.",
-  "Not the flashiest shop in town, but the service is what counts.",
+  "Not the flashiest place, but the service is what counts.",
   "The shop was busy, yet nobody made me feel rushed.",
   "A relative in the area recommended it, and it held up.",
   "First time here, and honestly I was pleasantly surprised.",
@@ -243,7 +243,7 @@ const OPENING_STYLES: string[] = [
   "I have had mixed luck with electronics shops, so this was a relief.",
   "Started with just a quick look, ended up buying on the spot.",
   "Good thing I did not ignore the shop and go straight online.",
-  "Small place, but they had everything I was searching for.",
+  "There was no pressure at all, and every question got a straight answer.",
   "I came in nervous about the price; I left feeling it was fair.",
   "After months of research, the final step here was the easiest.",
   "This is the kind of service that makes you come back for the next purchase.",
@@ -547,7 +547,7 @@ async function generateOnce(
       : "";
 
   const subFirmInstruction = subFirmName
-    ? `The purchase was made at "${subFirmName}", a mobile shop that operates inside "${storeName}". Mention clearly (once or twice) that you bought it from ${subFirmName} inside the store — e.g., "got my phone from ${subFirmName} inside the store". Keep "${subFirmName}" exactly as written (Latin script).`
+    ? `The purchase was made at "${subFirmName}", a mobile shop that operates inside "${storeName}". It sells ONLY phones/mobile devices. Mention clearly (once or twice) that you bought your phone from ${subFirmName} inside the store — e.g., "got my phone from ${subFirmName} inside the store". Keep "${subFirmName}" exactly as written (Latin script).`
     : "";
 
   const salesmanInstruction = salesmanName
