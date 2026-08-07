@@ -149,49 +149,52 @@ const VARIATION_MODIFIERS: Record<ReviewVariation, string> = {
     "Length: about 80-100 words, still in a few short sentences. Add concrete but generic specifics about the product, the guidance the staff gave, and the service after the sale.",
 };
 
-// Budgets include ~110 token headroom for gpt-oss reasoning before content.
+// Budgets include generous headroom for gpt-oss reasoning before content, so
+// short/detailed outputs never truncate mid-sentence.
 const VARIATION_MAX_TOKENS: Record<ReviewVariation, number> = {
-  standard: 260,
-  short: 200,
-  casual: 320,
-  detailed: 400,
+  standard: 300,
+  short: 300,
+  casual: 340,
+  detailed: 420,
 };
 
 const LANGUAGE_INSTRUCTION: Record<"english" | "hindi" | "marathi", string> = {
   english: "Write entirely in English.",
-  hindi: `Write entirely in Hindi using Devanagari script (हिंदी). Use natural, everyday spoken Hindi with correct grammar:
-- Correct gendered verb/noun agreement and natural word order.
-- Never translate word-for-word from English; write the way a native Hindi speaker actually talks.
+  hindi: `Write entirely in Hindi using Devanagari script (हिंदी), but make it SOUND CASUAL — like a person typing a quick message to a friend, not writing an essay:
+- Use short, simple, everyday sentences. Keep the tone light and chatty — बहुत अच्छा लगा, सच में, बस, आख़िरकार जैसे स्वाभाविक शब्दों से लिखो.
+- Colloquial markers that sound natural in spoken Hindi: सच में, यार (sparingly), बहुत, आराम से, ईमानदारी से, साफ़-साफ़, अच्छा लगा, बढ़िया, मज़ा आया.
+- Never sound like Google Translate or a textbook. Awkward-but-natural beats perfect-but-stiff.
+- Correct gendered verb/noun agreement and natural word order, but write the way a native speaker actually talks rather than strict textbook Hindi.
 - Keep brand, firm, and person names in English/Latin script.
 - No Roman-script Hindi and no English words except brand/firm/person names.
-- Warm, conversational register — like a real customer typing on a phone, not a textbook or Google Translate output.
 - Never invent words: if you are not fully sure a Hindi word exists, use a simpler everyday Hindi word you are certain is correct.`,
-  marathi: `Write entirely in Marathi using Devanagari script (मराठी). Use natural, everyday spoken Marathi with correct grammar:
-- Correct gendered verb/noun agreement and natural word order.
-- Never translate word-for-word from English; write the way a native Marathi speaker actually talks.
+  marathi: `Write entirely in Marathi using Devanagari script (मराठी), but make it SOUND CASUAL — like a person typing a quick message to a friend, not writing an essay:
+- Use short, simple, everyday sentences. Keep the tone light and chatty — छान, खरंच, बघा, म्हणजे, आता, जरा, हो, सगळं असं नैसर्गिक शब्द वापर.
+- Colloquial markers that sound natural in spoken Marathi: खरंच, अगदी, बघा, आता, थोडं, जरा, सगळं ठीक, मस्त, आवडलं, म्हणजे.
+- Never sound like Google Translate or a textbook. Awkward-but-natural beats perfect-but-stiff.
+- Correct gendered verb/noun agreement and natural word order, but write the way a native speaker actually talks rather than strict textbook Marathi.
 - Keep brand, firm, and person names in English/Latin script.
 - No Roman-script Marathi and no English words except brand/firm/person names.
-- Warm, conversational register — like a real customer typing on a phone, not a textbook or Google Translate output.
 - Never invent words: if you are not fully sure a Marathi word exists, use a simpler everyday Marathi word you are certain is correct.`,
 };
 
 // 2-3 varied style references per language so a random one is picked each time.
 const NON_EN_EXAMPLES: Record<"hindi" | "marathi", string[]> = {
   hindi: [
-    `Example (standard):
-"पहले तो दुकान देखकर ही अच्छा लगा, सब कुछ साफ-सुथरा था। स्टाफ ने बहुत धैर्य से मेरी हर बात सुनी और समझाया कि कौन सा फ्रिज मेरे घर के लिए सही रहेगा। Samsung का मॉडल भी काफी अच्छे दाम में मिल गया। डिलीवरी के समय भी लड़के ने फ्रिज लगाकर पूरा इस्तेमाल समझाया। कुल मिलाकर खरीदारी का अच्छा अनुभव रहा।"`,
+    `Example (standard, casual):
+"पहले तो दुकान देखकर ही अच्छा लगा, सब कुछ साफ़-सुथरा। स्टाफ ने बहुत धैर्य से समझाया कि कौन सा फ्रिज मेरे घर के लिए सही रहेगा। Samsung का मॉडल भी अच्छे दाम में मिल गया। डिलीवरी के समय लड़के ने फ्रिज लगाकर पूरा इस्तेमाल समझाया। कुल मिलाकर बढ़िया रहा, ज़रूरत पड़े तो फिर यहीं आऊँगा।"`,
     `Example (short, casual):
-"दुकान में गया तो स्टाफ ने तुरंत ध्यान दिया। मुझे Samsung वाला phone चाहिए था और उन्होंने दो-तीन मॉडल दिखाकर फ़ायदा-नुकसान समझा दिया। कीमत भी ठीक थी। वापस ज़रूर आऊँगा।"`,
-    `Example (weaving a firm and a salesman):
-"मुझे अपना phone Corner Mobile Shoppee से ही लेना था और यहाँ वो अंदर ही है। राहुल भाई ने बहुत अच्छे से समझाया कि कौन सा मॉडल लेना चाहिए। कीमत उचित थी और बिल भी साफ़-साफ़ मिला। अच्छा अनुभव रहा।"`,
+"दुकान में गया तो स्टाफ ने तुरंत ध्यान दिया। Samsung वाला phone चाहिए था, दो-तीन मॉडल दिखाकर फ़ायदा-नुकसान समझा दिया। कीमत भी ठीक रही। वापस ज़रूर आऊँगा।"`,
+    `Example (weaving a firm and a salesman, casual):
+"मुझे अपना phone Corner Mobile Shoppee से ही लेना था और वो यहाँ अंदर ही है। राहुल भाई ने बहुत अच्छे से समझाया कि कौन सा मॉडल लेना चाहिए। कीमत उचित थी और बिल भी साफ़-साफ़ मिला। अच्छा अनुभव रहा।"`,
   ],
   marathi: [
-    `Example (standard):
-"दुकानात गेलो तेव्हा स्टाफने लगेच लक्ष दिलं. कितीही प्रश्न विचारले तरी अगदी शांतपणे समजावलं आणि घराला कोणता refrigerator चांगला पडेल हेही सांगितलं. Samsung चा model सुद्धा छान दामात मिळाला. डिलिव्हरीच्या वेळी बॉयने फ्रिज बसवून संपूर्ण माहिती दिली. एकूण अनुभव खूप छान होता."`,
+    `Example (standard, casual):
+"दुकानात गेलो तेव्हा स्टाफने लगेच लक्ष दिलं. कितीही प्रश्न विचारले तरी अगदी शांतपणे समजावलं आणि घराला कोणता refrigerator चांगला पडेल हेही सांगितलं. Samsung चा model सुद्धा छान दामात मिळाला. डिलिव्हरीच्या वेळी बॉयने फ्रिज बसवून संपूर्ण माहिती दिली. एकूण अनुभव खूप छान होता, पुन्हा गरज पडली तर नक्की इथेच येईन."`,
     `Example (short, casual):
 "दुकानात गेलो तेव्हा लगेच विचारलं काय हवंय. Samsung चा phone दाखवून चांगलं समजावलं. दाम देखील योग्य होता. पुन्हा नक्की येईन."`,
-    `Example (weaving a firm and a salesman):
-"मला phone Corner Mobile Shoppee मधूनच घ्यायचा होता आणि ते इथेच दुकानात आहे. अभिजीतने मला कोणता मॉडल घ्यावा हे छान समजावलं. किंमत उचित होती आणि बिल सुद्धा स्पष्ट होतं. छान अनुभव होता."`,
+    `Example (weaving a firm and a salesman, casual):
+"मला phone Corner Mobile Shoppee मधूनच घ्यायचा होता आणि ते इथेच दुकानात आहे. अभिजीतने कोणता मॉडल घ्यावा हे छान समजावलं. किंमत उचित होती आणि बिल सुद्धा स्पष्ट होतं. छान अनुभव होता."`,
   ],
 };
 
@@ -344,6 +347,17 @@ function hasAiClichés(text: string): boolean {
   return AI_CLICHE_PATTERNS.some((re) => re.test(text));
 }
 
+// Currency amounts / dates are the classic invented facts the model sneaks in.
+const INVENTED_FACT_PATTERNS: RegExp[] = [
+  /\b(?:₹|Rs\.?|INR)\s?\d[\d,]*(?:\.\d+)?/i,
+  /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i,
+  /\b(?:₹)\s?\d/i,
+];
+
+function hasInventedFacts(text: string): boolean {
+  return INVENTED_FACT_PATTERNS.some((re) => re.test(text));
+}
+
 function sentenceStartsOk(text: string): boolean {
   const sentences = text
     .split(/(?<=[.!?])\s+/)
@@ -391,12 +405,12 @@ function latinLeakRatio(text: string): number {
   return latin / (latin + dev);
 }
 
-// Any Hangul / CJK / Arabic / Cyrillic etc. is a sign the model drifted out of
-// Devanagari+Latin (brand names) and mixed in another script.
+// Any character that is not ASCII, Devanagari, or Latin-1/Latin-Extended means
+// the model drifted into another script (Katakana, Hiragana, Hangul, CJK,
+// Arabic, Cyrillic, Thai, etc.). Devanagari + Latin (brand names) is all a
+// Hindi/Marathi review should ever contain.
 function hasForeignScript(text: string): boolean {
-  return /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]|[\u4E00-\u9FFF]|[\u0600-\u06FF]|[\u0400-\u04FF]|[\u0E00-\u0E7F]/u.test(
-    text
-  );
+  return /[^\u0000-\u007F\u0900-\u097F\u00A0-\u024F]/u.test(text);
 }
 
 // Some models echo the instruction back ("हिंदी लिखें") as a first line.
@@ -519,7 +533,10 @@ async function generateOnce(
     : "";
 
   const humanTouches = shuffle(HUMAN_TOUCHES).slice(0, Math.random() < 0.6 ? 1 : 2);
-  const humanTouchInstruction = `You may use ONE of these casual touches somewhere, only if it fits naturally: ${humanTouches.join(" / ")}.`;
+  const humanTouchInstruction =
+    language === "english"
+      ? `You may use ONE of these casual touches somewhere, only if it fits naturally: ${humanTouches.join(" / ")}.`
+      : ""; // Hindi/Marathi casual markers come from LANGUAGE_INSTRUCTION instead
 
   const nonEnExamples = language !== "english" ? NON_EN_EXAMPLES[language] : [];
   const nonEnExample = nonEnExamples.length ? pickRandom(nonEnExamples) : "";
@@ -641,8 +658,12 @@ export async function generateCuratedReview(
       problems.push("script-mix");
     }
     if (hasAiClichés(text)) problems.push("cliche");
+    if (hasInventedFacts(text)) problems.push("invented-facts");
     if (!sentenceStartsOk(text)) problems.push("sentence-starts");
     if (maxSimilarity(text) > 0.75) problems.push("similar-to-recent");
+    const wordCount = text.trim().split(/\s+/).length;
+    const minWords = params.variation === "short" ? 12 : 18;
+    if (wordCount < minWords) problems.push("too-short");
 
     if (problems.length === 0) {
       pushRecent(text);
