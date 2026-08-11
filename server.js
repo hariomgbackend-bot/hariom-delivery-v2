@@ -372,22 +372,28 @@ function _tallyExtractDebugFromXml(xml = "") {
   };
   const tag = (t) => tagAll(t)[0] || "";
 
-  const route =
-    tag("HARIOMTFTYPE") || tag("HARIOMTFSERIALNO") || tag("HARIOMTFDESCRIPTION")
-      ? "/tally/ticket"
-      : "/tally/voucher";
+  const anyTag = (...names) => names.map(tag).find(Boolean) || "";
+
+  // Ticket payloads from all three TDL variants carry a type/serial/description
+  // tag — complaint (HARIOMCF), demo-install (HARIOMIF), legacy (HARIOMTF).
+  const isTicket =
+    anyTag("HARIOMTFTYPE", "HARIOMCFTYPE", "HARIOMIFTYPE") ||
+    anyTag("HARIOMTFSERIALNO", "HARIOMCFSERIALNO", "HARIOMIFSERIALNO") ||
+    anyTag("HARIOMTFDESCRIPTION", "HARIOMCFDESCRIPTION", "HARIOMIFDESCRIPTION");
+
+  const route = isTicket ? "/tally/ticket" : "/tally/voucher";
 
   const invoice_number =
-    tag("HARIOMTFVOUCHERNO") ||
+    anyTag("HARIOMTFVOUCHERNO", "HARIOMCFVOUCHERNO", "HARIOMIFVOUCHERNO") ||
     tag("HARIOMFVOUCHERNO") ||
     null;
 
   const customer_name =
-    tag("HARIOMTFPARTY") ||
+    anyTag("HARIOMTFPARTY", "HARIOMCFPARTY", "HARIOMIFPARTY") ||
     tag("HARIOMFPARTY") ||
     null;
 
-  const items = tagAll("HARIOMTFITEM");
+  const items = tagAll("HARIOMTFITEM").concat(tagAll("HARIOMCFITEM")).concat(tagAll("HARIOMIFITEM"));
   const voucherItems = tagAll("HARIOMFITEM");
 
   return {
@@ -396,9 +402,9 @@ function _tallyExtractDebugFromXml(xml = "") {
     invoice_number,
     customer_name,
     item_count: items.length || voucherItems.length || null,
-    ticket_type: tag("HARIOMTFTYPE") || null,
-    priority: tag("HARIOMTFPRIORITY") || null,
-    serial_number: tag("HARIOMTFSERIALNO") || null,
+    ticket_type: anyTag("HARIOMTFTYPE", "HARIOMCFTYPE", "HARIOMIFTYPE") || null,
+    priority: anyTag("HARIOMTFPRIORITY", "HARIOMCFPRIORITY", "HARIOMIFPRIORITY") || null,
+    serial_number: anyTag("HARIOMTFSERIALNO", "HARIOMCFSERIALNO", "HARIOMIFSERIALNO") || null,
   };
 }
 
@@ -910,29 +916,34 @@ app.post(
         return out;
       };
       const tag = (t) => tagAll(t)[0] || "";
+      // Ticket payloads arrive from complaint (HARIOMCF*), demo-install
+      // (HARIOMIF*), or legacy (HARIOMTF*) TDLs — accept all three.
+      const anyTag = (...names) => names.map(tag).find(Boolean) || "";
+      const anyItem = () =>
+        tagAll("HARIOMTFITEM").concat(tagAll("HARIOMCFITEM")).concat(tagAll("HARIOMIFITEM"));
 
-      const voucher_number = tag("HARIOMTFVOUCHERNO");
-      const customer_name  = tag("HARIOMTFPARTY");
-      const raw_address    = tag("HARIOMTFADDRESS");
-      const mobile         = tag("HARIOMTFMOBILE");
-      const store_branch   = tag("HARIOMTFSTOREBRANCH");
+      const voucher_number = anyTag("HARIOMTFVOUCHERNO", "HARIOMCFVOUCHERNO", "HARIOMIFVOUCHERNO");
+      const customer_name  = anyTag("HARIOMTFPARTY", "HARIOMCFPARTY", "HARIOMIFPARTY");
+      const raw_address    = anyTag("HARIOMTFADDRESS", "HARIOMCFADDRESS", "HARIOMIFADDRESS");
+      const mobile         = anyTag("HARIOMTFMOBILE", "HARIOMCFMOBILE", "HARIOMIFMOBILE");
+      const store_branch   = anyTag("HARIOMTFSTOREBRANCH", "HARIOMCFSTOREBRANCH", "HARIOMIFSTOREBRANCH");
 
       const phonesInAddr  = raw_address.match(/\b[6-9]\d{9}\b/g) || [];
       const clean_address = raw_address.replace(/,?\s*[6-9]\d{9}/g, "").trim();
       const addrPhone     = phonesInAddr[0] || "";
 
-      const phone     = mobile || tag("HARIOMTFPHONE") || addrPhone || "";
+      const phone     = mobile || anyTag("HARIOMTFPHONE", "HARIOMCFPHONE", "HARIOMIFPHONE") || addrPhone || "";
       const alt_phone = (addrPhone && addrPhone !== phone) ? addrPhone : (phonesInAddr[1] || "");
 
-      const product_name = (tagAll("HARIOMTFITEM")[0] || "").toUpperCase();
+      const product_name = (anyItem()[0] || "").toUpperCase();
 
-      const serial_number = tag("HARIOMTFSERIALNO");
-      const description   = tag("HARIOMTFDESCRIPTION") || "Not Working";
+      const serial_number = anyTag("HARIOMTFSERIALNO", "HARIOMCFSERIALNO", "HARIOMIFSERIALNO");
+      const description   = anyTag("HARIOMTFDESCRIPTION", "HARIOMCFDESCRIPTION", "HARIOMIFDESCRIPTION") || "Not Working";
 
-      let type = (tag("HARIOMTFTYPE") || "complaint").toLowerCase();
+      let type = (anyTag("HARIOMTFTYPE", "HARIOMCFTYPE", "HARIOMIFTYPE") || "complaint").toLowerCase();
       if (!["installation", "complaint"].includes(type)) type = "complaint";
 
-      let priority = (tag("HARIOMTFPRIORITY") || "normal").toLowerCase();
+      let priority = (anyTag("HARIOMTFPRIORITY", "HARIOMCFPRIORITY", "HARIOMIFPRIORITY") || "normal").toLowerCase();
       if (!["normal", "high"].includes(priority)) priority = "normal";
 
       if (!voucher_number) {
@@ -2272,19 +2283,185 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
 });
 
 /* ════════════════════════════════════════════════
+   INSTALLATION-TICKET FLAG for deliveries
+   Attaches `installation_ticket_status` to each delivery so the
+   accountant DO table can show whether a demo-installation ticket
+   has been raised — without cross-checking the service panel.
+   Matching: a linked_delivery_id is authoritative; otherwise a ticket
+   must fall inside the DO's timeline window, match phone OR name, and
+   have corroborating product info.
+════════════════════════════════════════════════ */
+
+const INSTALL_WINDOW_DAYS      = 14;
+const INSTALL_LOOKBACK_MS      = 24 * 60 * 60 * 1000;      // 1 day before DO creation
+const INSTALL_WINDOW_SCAN_CAP  = 90 * 24 * 60 * 60 * 1000; // skip fallback scan for DOs older than this
+
+function normalizePhone(v) {
+  let s = String(v || "").replace(/\D/g, "");
+  if (s.length > 10) {
+    if (s.startsWith("91")) s = s.slice(2);
+    if (s.startsWith("0")) s = s.slice(1);
+  }
+  return s;
+}
+
+function normalizeName(v) {
+  return String(v || "")
+    .toLowerCase()
+    .replace(/\b(mr|mrs|ms|smt|shri|shrimati|shree)\.?\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function productBucket(name) {
+  const n = String(name || "").toUpperCase();
+  if (/\bWM\b|WASHING/.test(n))               return "WASHING";
+  if (/\bAC\b|AIR.?COND/.test(n))             return "AC";
+  if (/\bREF\b|FRIDGE|REFRIG/.test(n))        return "REFRIG";
+  const sizeMatch = n.match(/\b(\d{2,})\s*"/);
+  if (sizeMatch && parseInt(sizeMatch[1], 10) >= 32 &&
+      /\bLED\b|\bTV\b|TELEVISION/.test(n))    return "LED_TV";
+  return "OTHER";
+}
+
+function significantTokens(v) {
+  return String(v || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(t => t.length >= 3);
+}
+
+function namesMatch(a, b) {
+  const an = normalizeName(a), bn = normalizeName(b);
+  if (!an || !bn) return false;
+  if (an === bn || an.includes(bn) || bn.includes(an)) return true;
+  const at = an.split(" ").filter(t => t.length >= 3);
+  const bt = bn.split(" ").filter(t => t.length >= 3);
+  if (!at.length || !bt.length) return false;
+  // identical token sets even when order differs ("Amit Sharma" vs "Sharma Amit")
+  if (at.length === bt.length && at.every(t => bt.includes(t))) return true;
+  // meaningful overlap on longer names (>=3 tokens each, >=2 shared)
+  return at.length >= 3 && bt.length >= 3 && at.filter(t => bt.includes(t)).length >= 2;
+}
+
+function phonesMatch(del, t) {
+  const collect = vals => {
+    const set = new Set();
+    vals.forEach(v => { const n = normalizePhone(v); if (n && n.length >= 6) set.add(n); });
+    return set;
+  };
+  const a = collect([del.phone, del.alternate_phone]);
+  const b = collect([t.phone, t.alternate_phone]);
+  if (!a.size || !b.size) return false;
+  for (const p of a) if (b.has(p)) return true;
+  return false;
+}
+
+function productMatches(delName, ticketName) {
+  const db = productBucket(delName), tb = productBucket(ticketName);
+  if (db === tb && db !== "OTHER") return true;
+  const dt = significantTokens(delName);
+  const tt = significantTokens(ticketName);
+  if (!dt.length || !tt.length) return false;
+  return dt.filter(t => tt.includes(t)).length >= 2;
+}
+
+function tsMs(v) {
+  if (!v) return 0;
+  if (typeof v.toMillis === "function") return v.toMillis();
+  if (typeof v.toDate === "function") return v.toDate().getTime();
+  if (v.seconds) return v.seconds * 1000;
+  const n = new Date(v).getTime();
+  return isNaN(n) ? 0 : n;
+}
+
+function matchInstallationTicket(delivery, tickets) {
+  const createdMs   = tsMs(delivery.created_timestamp);
+  const resolvedMs  = tsMs(delivery.delivered_timestamp) || createdMs || 0;
+  const windowStart = createdMs ? createdMs - INSTALL_LOOKBACK_MS : 0;
+  const windowEnd   = resolvedMs ? resolvedMs + INSTALL_WINDOW_DAYS * 24 * 60 * 60 * 1000 : 0;
+  let best = null, bestCreated = 0;
+  for (const t of tickets) {
+    if (t.type !== "installation") continue;
+    const tm = tsMs(t.created_at);
+    if (t.linked_delivery_id && t.linked_delivery_id === delivery.id) {
+      if (!best || tm > bestCreated) { best = t; bestCreated = tm; }
+      continue;
+    }
+    if (windowStart && tm < windowStart) continue;
+    if (windowEnd && tm > windowEnd) continue;
+    if (!phonesMatch(delivery, t) && !namesMatch(delivery.customer_name, t.customer_name)) continue;
+    if (!productMatches(delivery.product_name, t.product_name)) continue;
+    if (!best || tm > bestCreated) { best = t; bestCreated = tm; }
+  }
+  return best;
+}
+
+async function attachInstallationTicketStatus(deliveryList) {
+  if (!Array.isArray(deliveryList) || !deliveryList.length) return;
+  const ids = deliveryList.map(d => d.id).filter(Boolean);
+  const ticketsById = new Map();
+
+  const addTickets = docs => docs.forEach(s => {
+    const data = s.data();
+    if (data.type === "installation") ticketsById.set(s.id, { id: s.id, ...data });
+  });
+
+  // Exact link — authoritative (composite index already used elsewhere).
+  for (let i = 0; i < ids.length; i += 30) {
+    const chunk = ids.slice(i, i + 30);
+    try {
+      const snap = await getDocs(query(
+        collection(db, "service_tickets"),
+        where("linked_delivery_id", "in", chunk),
+        where("type", "==", "installation")
+      ));
+      addTickets(snap.docs);
+    } catch (e) { console.warn("[ticket flag] exact query:", e.message); }
+  }
+
+  // Fallback window scan — bounded to recent DOs so old pages stay cheap.
+  let minCreated = Infinity, maxEnd = 0;
+  deliveryList.forEach(d => {
+    const c = tsMs(d.created_timestamp);
+    if (c && c < minCreated) minCreated = c;
+    const e = tsMs(d.delivered_timestamp) || c || 0;
+    const end = e ? e + INSTALL_WINDOW_DAYS * 24 * 60 * 60 * 1000 : 0;
+    if (end > maxEnd) maxEnd = end;
+  });
+  if (minCreated !== Infinity && minCreated > Date.now() - INSTALL_WINDOW_SCAN_CAP) {
+    const start = new Date(minCreated - INSTALL_LOOKBACK_MS);
+    try {
+      const snap = await getDocs(query(
+        collection(db, "service_tickets"),
+        where("created_at", ">=", Timestamp.fromDate(start)),
+        ...(maxEnd ? [where("created_at", "<=", new Timestamp(Math.floor(maxEnd / 1000), 0))] : [])
+      ));
+      addTickets(snap.docs);
+    } catch (e) { console.warn("[ticket flag] window query:", e.message); }
+  }
+
+  const tickets = Array.from(ticketsById.values());
+  deliveryList.forEach(d => {
+    const m = matchInstallationTicket(d, tickets);
+    d.installation_ticket_status = m ? m.status : null;
+  });
+}
+
+/* ════════════════════════════════════════════════
    GET DELIVERIES
 ════════════════════════════════════════════════ */
 
 app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
   try {
-    const { startDate, endDate, force, page, pageSize, search, status, priority, selfPickup, route, driver } = req.query;
+    const { startDate, endDate, force, page, pageSize, search, status, priority, selfPickup, route, driver, ticketStatus } = req.query;
     const hasDateRange = startDate || endDate;
     const isPaginated = page !== undefined;
     const p = Math.max(1, parseInt(page) || 1);
     const ps = Math.min(200, Math.max(1, parseInt(pageSize) || 50));
 
     // Cache only applies to unfiltered, non-paginated requests (no store override)
-    if (!force && !hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver && !req.query.store) {
+    if (!force && !hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver && !ticketStatus && !req.query.store) {
       if (Date.now() < deliveriesCache.expiry) {
         return res.json(deliveriesCache.data);
       }
@@ -2464,7 +2641,7 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
     trackReads("deliveries", deliveries.length);
 
     // Cache unfiltered, non-paginated results (no store override)
-    if (!hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver && !req.query.store) {
+    if (!hasDateRange && !isPaginated && !search && !status && !priority && !selfPickup && !route && !driver && !ticketStatus && !req.query.store) {
       deliveriesCache = { data: deliveries, expiry: Date.now() + DELIVERIES_CACHE_TTL };
     }
 
@@ -2473,9 +2650,11 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       const totalPages = Math.max(1, Math.ceil(total / ps));
       const start = (p - 1) * ps;
       const pageData = deliveries.slice(start, start + ps);
+      if (ticketStatus) await attachInstallationTicketStatus(pageData);
       return res.json({ data: pageData, total, page: p, pageSize: ps, totalPages });
     }
 
+    if (ticketStatus) await attachInstallationTicketStatus(deliveries);
     res.json(deliveries);
   } catch (error) {
     console.error("/deliveries error:", error);
@@ -2487,7 +2666,9 @@ app.get("/delivery/:id", authenticate, async (req, res) => {
   try {
     const snap = await getDoc(doc(db, "deliveries", req.params.id));
     if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
-    res.json({ id: snap.id, ...snap.data() });
+    const delivery = { id: snap.id, ...snap.data() };
+    if (req.query.ticketStatus) await attachInstallationTicketStatus([delivery]);
+    res.json(delivery);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
