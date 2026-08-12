@@ -654,11 +654,6 @@
     }
     .pg-card-header { display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px; }
     .pg-name { font-size:15px;font-weight:700;color:var(--on-surface);line-height:1.3;flex:1; }
-    .pg-slab-badge {
-      font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
-      padding:3px 10px;border-radius:20px;background:rgba(245,158,11,0.15);color:var(--amber);
-      white-space:nowrap;flex-shrink:0;
-    }
     .pg-quote-row { display:grid;grid-template-columns:repeat(5,1fr);gap:8px; }
     .pg-quote-row.two-col { grid-template-columns:1fr 1fr; }
     .pg-quote-btn {
@@ -676,6 +671,20 @@
     .pg-quote-btn.band-good { background:rgba(255,138,101,0.07);border:1px solid rgba(255,138,101,0.25); }
     .pg-quote-btn.band-excellent { background:rgba(230,105,234,0.07);border:1px solid rgba(230,105,234,0.25); }
     .pg-quote-btn.active { outline:2.5px solid var(--primary);outline-offset:-2.5px;background:rgba(173,198,255,0.12); }
+    .pg-price-tooltip {
+      position:fixed;background:var(--surface-container-highest);color:var(--on-surface);
+      font-family:'Inter',sans-serif;font-size:15px;font-weight:800;
+      padding:6px 14px;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,0.4);
+      border:1px solid rgba(173,198,255,0.25);pointer-events:none;white-space:nowrap;
+      letter-spacing:0.3px;
+    }
+    .pg-price-tooltip::after {
+      content:'';position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);
+      border:6px solid transparent;border-top-color:var(--surface-container-highest);
+    }
+    .pg-price-tooltip.below::after {
+      top:-5px;bottom:auto;border-top-color:transparent;border-bottom-color:var(--surface-container-highest);
+    }
     .pg-quote-strip {
       display:none;margin-top:8px;padding:12px 16px;border-radius:12px;
       background:linear-gradient(135deg,rgba(77,142,255,0.12),rgba(78,222,163,0.06));
@@ -1172,8 +1181,7 @@
       <div class="search-wrap icon-search">
         <input class="search-input" id="pgSearch" placeholder="      Search product…" autocomplete="search" oninput="stPgFilter()">
       </div>
-      <div class="pg-chip-row" id="stPgCatRow"></div>
-      <div class="pg-chip-row" id="stPgChipRow"></div>
+      <div class="pg-chip-row" id="stPgFirstWordRow"></div>
       <div id="pgList"></div>
     </div>
 
@@ -1558,12 +1566,8 @@ let currentLead      = null;
 let staffPerms       = {};
 let staffWeeklyOff   = "";
 let priceGuideData   = [];
-let stPgSlabMap     = {};
-let stPmMspGlobal   = true;
 let stPgActiveCard  = null;
-let stPgFilterSlab  = null;
-let stPgFilterCat   = null;
-let stPgCatList     = [];
+let stPgFilterFirstWord = null;
 let calendarEvents   = [];
 let calStaffList     = [];
 let selectedCalendarDate = null;
@@ -1827,13 +1831,12 @@ function updateHomeCounts() {
   document.getElementById("hcLeads").textContent = allLeads.length || "—";
   document.getElementById("hcPrices").textContent = priceGuideData.length || "—";
   document.getElementById("hcCalendar").textContent = calendarEvents.length || "—";
-  document.getElementById("hcSlabs").textContent = Object.keys(stPgSlabMap).length || "—";
 }
 
 function doLogout() {
   staffToken = null; staffId = null; staffName = ""; staffWeeklyOff = ""; staffColor = "";
   allDeliveries = []; allLeads = []; staffPerms = {};
-  priceGuideData = []; stPgSlabMap = {}; calendarEvents = [];
+  priceGuideData = []; calendarEvents = [];
   localStorage.removeItem("staffToken");
   localStorage.removeItem("staffId");
   localStorage.removeItem("staffName");
@@ -3104,18 +3107,8 @@ async function stPgLoadData() {
   const list = document.getElementById("pgList");
   list.innerHTML = skeletons(3);
   try {
-    const [pgRes, slabsRes, mspRes, catRes] = await Promise.all([
-      authFetch(`${BASE_URL}/price-guide`),
-      authFetch(`${BASE_URL}/slabs`),
-      authFetch(`${BASE_URL}/price-guide/msp-global`),
-      authFetch(`${BASE_URL}/categories`)
-    ]);
+    const pgRes = await authFetch(`${BASE_URL}/price-guide`);
     priceGuideData = (pgRes.ok ? await pgRes.json() : []).filter(stPgHasFullBands);
-    const slabs = slabsRes.ok ? await slabsRes.json() : [];
-    stPgSlabMap = {};
-    slabs.forEach(s => stPgSlabMap[s.id] = s.slabName);
-    stPmMspGlobal = mspRes.ok ? (await mspRes.json()).mspGlobalEnabled : true;
-    stPgCatList = catRes.ok ? await catRes.json() : [];
     stPgRender(priceGuideData);
     updateHomeCounts();
   } catch(e) {
@@ -3146,13 +3139,28 @@ function stPgBandButtons(p) {
 }
 
 function stPgPress(btn, show) {
-  const priceEl = btn.querySelector('.price');
-  if (!priceEl) return;
   const price = btn.dataset.price;
   if (show && price) {
-    priceEl.textContent = '₹' + Number(price).toLocaleString('en-IN');
+    if (btn.dataset.pgTooltip) return; // already showing
+    const tip = document.createElement('div');
+    tip.className = 'pg-price-tooltip';
+    tip.textContent = '₹' + Number(price).toLocaleString('en-IN');
+    btn.dataset.pgTooltip = '1';
+    // position above the button, centered; flip below if not enough room
+    const r = btn.getBoundingClientRect();
+    const above = r.top > 90;
+    tip.style.position = 'fixed';
+    tip.style.left = (r.left + r.width / 2) + 'px';
+    tip.style.top = above ? (r.top - 8) + 'px' : (r.bottom + 8) + 'px';
+    tip.style.transform = above ? 'translate(-50%, -100%)' : 'translate(-50%, 0)';
+    tip.classList.toggle('below', !above);
+    tip.style.zIndex = 9999;
+    tip.style.pointerEvents = 'none';
+    document.body.appendChild(tip);
   } else {
-    priceEl.textContent = '•••';
+    if (!btn.dataset.pgTooltip) return;
+    delete btn.dataset.pgTooltip;
+    document.querySelectorAll('.pg-price-tooltip').forEach(t => t.remove());
   }
 }
 
@@ -3163,18 +3171,15 @@ function stPgRender(data) {
     list.innerHTML = `<div class="empty-state"><div class="icon">🏷️</div><p>No prices found</p></div>`;
     return;
   }
-  // rebuild chips to reflect current filtered data set
-  stPgBuildChips();
-  stPgBuildCatTabs();
+  // rebuild first-word tabs to reflect current data set
+  stPgBuildFirstWordTabs();
   list.innerHTML = data.map(p => {
-    const slabName = stPgSlabMap[p.slabId] || '';
     const b = p.bands || {};
     const excellentTo = b.excellent ? Number(b.excellent.to) : 0;
     return `
     <div class="pg-card" data-id="${esc(p.id || p._id)}" data-max="${excellentTo}">
       <div class="pg-card-header">
         <div class="pg-name">${esc(p.productName)}</div>
-        ${slabName ? `<span class="pg-slab-badge">${esc(slabName)}</span>` : ''}
       </div>
       ${stPgBandButtons(p)}
       <div class="pg-quote-strip" id="qs_${esc(p.id || p._id)}">
@@ -3187,19 +3192,16 @@ function stPgRender(data) {
   }).join("");
 }
 
-function stPgBuildChips() {
-  const row = document.getElementById('stPgChipRow');
-  if (!row) return;
-  const slabIds = [...new Set(priceGuideData.map(i => i.slabId).filter(Boolean))];
-  row.innerHTML = `<button class="pg-chip${!stPgFilterSlab ? ' active' : ''}" onclick="stPgFilterSlab=null;stPgFilterCat=null;stPgBuildCatTabs();stPgFilter();">All</button>` +
-    slabIds.map(sid => `<button class="pg-chip${stPgFilterSlab === sid ? ' active' : ''}" onclick="stPgFilterSlab='${sid}';stPgFilterCat=null;stPgBuildCatTabs();stPgFilter();">${esc(stPgSlabMap[sid] || sid)}</button>`).join('');
+function stPgFirstWord(p) {
+  return String(p.productName || '').trim().split(/\s+/)[0].toUpperCase();
 }
 
-function stPgBuildCatTabs() {
-  const row = document.getElementById('stPgCatRow');
+function stPgBuildFirstWordTabs() {
+  const row = document.getElementById('stPgFirstWordRow');
   if (!row) return;
-  row.innerHTML = `<button class="pg-chip${!stPgFilterCat ? ' active' : ''}" onclick="stPgFilterCat=null;stPgFilterSlab=null;stPgBuildChips();stPgFilter();">All</button>` +
-    stPgCatList.map(c => `<button class="pg-chip${stPgFilterCat === c.name ? ' active' : ''}" onclick="stPgFilterCat='${c.name}';stPgFilterSlab=null;stPgBuildChips();stPgFilter();">${esc(c.name)}</button>`).join('');
+  const words = [...new Set(priceGuideData.map(stPgFirstWord).filter(Boolean))].sort();
+  row.innerHTML = `<button class="pg-chip${!stPgFilterFirstWord ? ' active' : ''}" onclick="stPgFilterFirstWord=null;stPgFilter();">All</button>` +
+    words.map(w => `<button class="pg-chip${stPgFilterFirstWord === w ? ' active' : ''}" onclick="stPgFilterFirstWord='${esc(w)}';stPgFilter();">${esc(w)}</button>`).join('');
 }
 
 function stPgQuote(btn, label, price, cardId) {
@@ -3245,14 +3247,8 @@ function stPgQuote(btn, label, price, cardId) {
 function stPgFilter() {
   const q = document.getElementById("pgSearch").value.toLowerCase().trim();
   let f = priceGuideData;
-  if (stPgFilterCat) {
-    const cat = stPgFilterCat;
-    f = f.filter(p => {
-      const pCat = p.category || (p.productName || '').trim().toUpperCase().split(/\s+/)[0];
-      return pCat === cat;
-    });
-  } else if (stPgFilterSlab) {
-    f = f.filter(p => p.slabId === stPgFilterSlab);
+  if (stPgFilterFirstWord) {
+    f = f.filter(p => stPgFirstWord(p) === stPgFilterFirstWord);
   }
   if (q) f = f.filter(p => (p.productName || '').toLowerCase().includes(q));
   stPgRender(f);
@@ -3269,6 +3265,7 @@ async function stSlLoadData() {
     const res = await authFetch(`${BASE_URL}/slabs`);
     const slabs = res.ok ? await res.json() : [];
     document.getElementById("stSlBadge").textContent = slabs.length;
+    document.getElementById("hcSlabs").textContent = slabs.length || "—";
     updateHomeCounts();
     if (!slabs.length) {
       list.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No slabs defined yet</p></div>`;
