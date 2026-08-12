@@ -1361,6 +1361,28 @@
     .sl-inline-form textarea { resize:vertical;min-height:50px; }
     .sl-inline-form input:focus,.sl-inline-form textarea:focus { outline:2px solid var(--primary); }
     .sl-inline-form .actions { display:flex;gap:8px; }
+
+    /* ── Stores (attendance geofence) ── */
+    .st-card { background:var(--surface-container-low);border:1px solid var(--outline-variant);border-radius:16px;padding:20px;margin-bottom:14px; }
+    .st-name { font-size:17px;font-weight:800;color:var(--on-surface);margin-bottom:2px; }
+    .st-meta { font-size:12px;color:var(--on-surface-variant);margin-bottom:12px; }
+    .st-row { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px; }
+    .st-row label { font-size:11px;font-weight:700;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:0.5px; }
+    .st-input { width:140px;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:var(--font-mono);font-size:13px;color:var(--on-surface);outline:none; }
+    .st-input:focus { outline:2px solid var(--primary); }
+    .st-actions { display:flex;gap:8px; }
+
+    /* ── Attendance (admin) ── */
+    .att-toolbar { display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap; }
+    .att-toolbar input[type="date"], .att-toolbar select {
+      padding:9px 12px;background:var(--surface-container-high);border:none;border-radius:8px;
+      font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;
+    }
+    .att-table-wrap { overflow-x:auto; }
+    .att-table { width:100%;border-collapse:collapse;font-size:13px; }
+    .att-table th { text-align:left;padding:10px 12px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--on-surface-variant);border-bottom:1px solid var(--border);white-space:nowrap; }
+    .att-table td { padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle; }
+    .att-photo { width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:pointer; }
     .cat-inline-form { background:var(--surface-container-low);border:1px solid var(--outline-variant);border-radius:16px;padding:20px;margin-bottom:16px;display:none; }
     .cat-inline-form .row { display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px; }
     .cat-inline-form input { flex:1;min-width:160px;padding:9px 12px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none; }
@@ -1546,6 +1568,16 @@
     <button class="sidebar-item" id="nav-slabs" onclick="showView('slabs')">
       <span class="material-symbols-outlined">layers</span>
       Slabs
+    </button>
+
+    <button class="sidebar-item" id="nav-stores" onclick="showView('stores')">
+      <span class="material-symbols-outlined">storefront</span>
+      Stores
+    </button>
+
+    <button class="sidebar-item" id="nav-attendance" onclick="showView('attendance')">
+      <span class="material-symbols-outlined">fact_check</span>
+      Attendance
     </button>
 
     <a class="sidebar-item" href="drivers.html">
@@ -2604,6 +2636,34 @@
       <div class="sl-grid" id="slGrid"></div>
     </section>
 
+    <!-- ════ VIEW: STORES ════ -->
+    <section id="view-stores" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Stores</div>
+          <div class="section-subtitle">Set store location + radius for staff attendance geofencing</div>
+        </div>
+        <button class="pg-btn pg-btn-outline" onclick="stLoadData()">↻ Refresh</button>
+      </div>
+      <div id="stGrid"></div>
+    </section>
+
+    <!-- ════ VIEW: ATTENDANCE ════ -->
+    <section id="view-attendance" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Staff Attendance</div>
+          <div class="section-subtitle">Check-ins with GPS + selfie proof</div>
+        </div>
+        <button class="pg-btn pg-btn-outline" onclick="attLoadData()">↻ Refresh</button>
+      </div>
+      <div class="att-toolbar">
+        <input type="date" id="attDate" onchange="attLoadData()">
+        <select id="attStoreFilter" onchange="attLoadData()"><option value="">All Stores</option></select>
+      </div>
+      <div class="att-table-wrap" id="attTableWrap"></div>
+    </section>
+
     <!-- ════ VIEW: PANEL LINKS ════ -->
     <section id="view-links" style="display:none;">
       <div class="section-heading">
@@ -2920,6 +2980,8 @@ const VIEW_LABELS = {
   brands:          'Brand Management',
   'price-guide':   'Price Guide',
   slabs:           'Slabs',
+  stores:          'Stores',
+  attendance:      'Staff Attendance',
   permissions:     'Staff Permissions',
   'leads-admin':   'Leads Pipeline',
   'product-normalizer': 'Product Name Cleanup',
@@ -2934,7 +2996,7 @@ let currentAdminView = 'deliveries';
 function showView(view) {
   currentAdminView = view;
   ['categories','models'].forEach(k => { const n = document.getElementById('nav-' + k); if (n) n.classList.remove('active'); });
-  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','permissions','leads-admin','product-normalizer','incentive','sales-analytics','links','gbpilot','activity-log'].forEach(v => {
+  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','stores','attendance','permissions','leads-admin','product-normalizer','incentive','sales-analytics','links','gbpilot','activity-log'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) {
       el.style.display = v === view ? '' : 'none';
@@ -2956,6 +3018,8 @@ function showView(view) {
   if (view === 'brands')          { loadBrands(); }
   if (view === 'price-guide')     { pgLoadData(); }
   if (view === 'slabs')           { slLoadData(); }
+  if (view === 'stores')          { stLoadData(); }
+  if (view === 'attendance')      { attLoadData(); }
   if (view === 'permissions')     { loadPermissions(); }
   if (view === 'leads-admin')     { loadLeadsAdmin(); }
   if (view === 'product-normalizer') { loadProductNormalizer(); }
@@ -7327,6 +7391,107 @@ async function slSaveEdit(id) {
 function slDelete(id, name) {
   if (!confirm(`Delete slab "${name}"? This will not remove the slab reference from products.`)) return;
   authFetch(`${BASE_URL}/slabs/${id}`, { method: 'DELETE' }).then(r => { if (r.ok) slLoadData(); else showToast('Delete failed', 'error'); }).catch(e => showToast('Delete failed: ' + e.message, 'error'));
+}
+
+/* ════ STORES (attendance geofence config) ════ */
+async function stLoadData() {
+  const grid = document.getElementById('stGrid');
+  grid.innerHTML = 'Loading…';
+  try {
+    const res = await authFetch(`${BASE_URL}/api/stores`);
+    const stores = res.ok ? await res.json() : [];
+    if (!stores.length) { grid.innerHTML = '<div class="empty-state"><div class="icon">🏬</div><p>No stores found</p></div>'; return; }
+    grid.innerHTML = stores.map(s => `
+      <div class="st-card" data-id="${s.id}">
+        <div class="st-name">${escHtml(s.name)}</div>
+        <div class="st-meta">${escHtml(s.address || '')} · ${escHtml(s.phone || '')}</div>
+        <div class="st-row">
+          <label>Lat</label><input class="st-input" id="stLat_${s.id}" value="${escHtml(s.lat ?? '')}" inputmode="decimal" placeholder="e.g. 18.653">
+          <label>Lng</label><input class="st-input" id="stLng_${s.id}" value="${escHtml(s.lng ?? '')}" inputmode="decimal" placeholder="e.g. 73.829">
+          <label>Radius (m)</label><input class="st-input" id="stRad_${s.id}" value="${escHtml(s.radiusM ?? 150)}" inputmode="numeric" style="width:90px;">
+        </div>
+        <div class="st-actions">
+          <button class="pg-btn pg-btn-outline" onclick="stUseMyLocation('${s.id}')">📍 Use my location</button>
+          <button class="pg-btn pg-btn-primary" onclick="stSave('${s.id}')">Save</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="padding:30px;text-align:center;color:var(--error);">Error: ${e.message}</div>`;
+  }
+}
+
+function stUseMyLocation(id) {
+  if (!navigator.geolocation) { showToast('Geolocation not supported', 'error'); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    document.getElementById('stLat_' + id).value = pos.coords.latitude.toFixed(6);
+    document.getElementById('stLng_' + id).value = pos.coords.longitude.toFixed(6);
+    showToast('Location filled — press Save', 'info');
+  }, err => showToast('Location error: ' + err.message, 'error'), { enableHighAccuracy: true, timeout: 10000 });
+}
+
+async function stSave(id) {
+  const lat = parseFloat(document.getElementById('stLat_' + id).value);
+  const lng = parseFloat(document.getElementById('stLng_' + id).value);
+  const radiusM = parseFloat(document.getElementById('stRad_' + id).value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) { showToast('Valid lat/lng required', 'error'); return; }
+  try {
+    const res = await authFetch(`${BASE_URL}/api/stores/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat, lng, radiusM: Number.isFinite(radiusM) ? radiusM : 150 })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast('Store saved', 'success');
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
+}
+
+/* ════ ATTENDANCE (admin view) ════ */
+async function attLoadData() {
+  const wrap = document.getElementById('attTableWrap');
+  const dateInput = document.getElementById('attDate');
+  if (dateInput && !dateInput.value) dateInput.value = new Date(new Date().getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  wrap.innerHTML = 'Loading…';
+  try {
+    // Fill store filter once
+    const filterSel = document.getElementById('attStoreFilter');
+    if (filterSel && !filterSel.dataset.loaded) {
+      const sRes = await authFetch(`${BASE_URL}/api/stores`);
+      const stores = sRes.ok ? await sRes.json() : [];
+      filterSel.innerHTML = '<option value="">All Stores</option>' + stores.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+      filterSel.dataset.loaded = '1';
+    }
+    const date = dateInput.value;
+    const storeId = document.getElementById('attStoreFilter').value;
+    let url = `${BASE_URL}/attendance?date=${encodeURIComponent(date)}`;
+    if (storeId) url += `&storeId=${encodeURIComponent(storeId)}`;
+    const res = await authFetch(url);
+    const items = res.ok ? await res.json() : [];
+    if (!items.length) { wrap.innerHTML = '<div class="empty-state"><div class="icon">📍</div><p>No attendance records for this date</p></div>'; return; }
+    wrap.innerHTML = `<table class="att-table"><thead><tr>
+      <th>Staff</th><th>Store</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Location</th><th>Photo</th>
+    </tr></thead><tbody>` + items.map(a => {
+      const inTime = a.checkIn ? new Date(a.checkIn.seconds ? a.checkIn.seconds * 1000 : a.checkIn).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—';
+      const outTime = a.checkOut ? new Date(a.checkOut.seconds ? a.checkOut.seconds * 1000 : a.checkOut).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : (a.status === 'open' ? '<span style="color:var(--amber);">Open</span>' : '—');
+      const hours = a.hoursWorked != null ? a.hoursWorked.toFixed(1) + 'h' : '—';
+      const loc = (a.checkInLocation && a.checkInLocation.lat != null)
+        ? `${a.checkInLocation.lat.toFixed(4)}, ${a.checkInLocation.lng.toFixed(4)}`
+        : '—';
+      const photo = a.checkInPhotoUrl
+        ? `<a href="${a.checkInPhotoUrl}" target="_blank" rel="noopener"><img src="${a.checkInPhotoUrl}" class="att-photo" alt="selfie"></a>`
+        : '—';
+      return `<tr>
+        <td><b>${escHtml(a.staffName || a.staffId || '—')}</b></td>
+        <td>${escHtml(a.storeName || a.storeId || '—')}</td>
+        <td>${inTime}</td>
+        <td>${outTime}</td>
+        <td><b>${hours}</b></td>
+        <td style="font-family:var(--font-mono);font-size:11px;">${loc}</td>
+        <td>${photo}</td>
+      </tr>`;
+    }).join('') + `</tbody></table>`;
+  } catch(e) {
+    wrap.innerHTML = `<div style="padding:30px;text-align:center;color:var(--error);">Error: ${e.message}</div>`;
+  }
 }
 
 function pgOrigVal(oid, field) {

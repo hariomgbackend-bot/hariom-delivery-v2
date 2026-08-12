@@ -5552,7 +5552,7 @@ app.get("/api/stores", authenticate, authorize(["admin", "accountant", "service"
 
 app.post("/api/stores", authenticate, authorize(["admin"]), async (req, res) => {
   try {
-    const { key, name, address, phone, altPhone } = req.body;
+    const { key, name, address, phone, altPhone, lat, lng, radiusM } = req.body;
     if (!key || !name) return res.status(400).json({ error: "Store key and name required" });
     const docRef = await addDoc(collection(db, "stores"), {
       key: key.toLowerCase().trim(),
@@ -5560,6 +5560,9 @@ app.post("/api/stores", authenticate, authorize(["admin"]), async (req, res) => 
       address: address || "",
       phone: phone || "",
       altPhone: altPhone || "",
+      lat: lat !== undefined ? Number(lat) : null,
+      lng: lng !== undefined ? Number(lng) : null,
+      radiusM: radiusM !== undefined ? Number(radiusM) : 150,
       created_at: Timestamp.now()
     });
     invalidateRefCache("stores");
@@ -5574,9 +5577,12 @@ app.put("/api/stores/:id", authenticate, authorize(["admin"]), async (req, res) 
     const refDoc = doc(db, "stores", req.params.id);
     const snap = await getDoc(refDoc);
     if (!snap.exists()) return res.status(404).json({ error: "Store not found" });
-    const allowed = ["key", "name", "address", "phone", "altPhone"];
+    const allowed = ["key", "name", "address", "phone", "altPhone", "lat", "lng", "radiusM"];
     const updates = {};
-    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    allowed.forEach(k => {
+      if (req.body[k] === undefined) return;
+      updates[k] = (k === "lat" || k === "lng" || k === "radiusM") ? Number(req.body[k]) : req.body[k];
+    });
     await updateDoc(refDoc, updates);
     invalidateRefCache("stores");
     res.json({ success: true });
@@ -5608,6 +5614,195 @@ app.post("/api/stores/seed", authenticate, authorize(["admin"]), async (req, res
     }
     invalidateRefCache("stores");
     res.json({ success: true, message: "Default stores seeded" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   ATTENDANCE HELPERS
+   Haversine distance + store geofence check
+════════════════════════════════════════════════ */
+function haversineMeters(aLat, aLng, bLat, bLng) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function isWithinStoreGeofence(store, lat, lng) {
+  if (!store || store.lat == null || store.lng == null) {
+    return { ok: false, error: "Store location not configured by admin" };
+  }
+  const radius = Number(store.radiusM) || 150;
+  const d = haversineMeters(Number(store.lat), Number(store.lng), Number(lat), Number(lng));
+  return d <= radius
+    ? { ok: true, distanceM: Math.round(d) }
+    : { ok: false, error: `You are ${Math.round(d)}m from the store (limit ${radius}m)` };
+}
+
+function attendanceDateIST(ts = new Date()) {
+  return new Date(ts.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+function attendanceHoursWorked(a) {
+  if (!a || !a.checkIn || !a.checkOut) return null;
+  const ms = a.checkOut.seconds ? a.checkOut.seconds * 1000 - a.checkIn.seconds * 1000 : a.checkOut - a.checkIn;
+  return Math.max(0, Math.round(ms / 60000) / 60);
+}
+
+/* ════════════════════════════════════════════════
+   ATTENDANCE — check-in / check-out / list
+   POST /attendance/checkin   (multipart, photo required)
+   POST /attendance/checkout  (multipart, photo optional)
+   GET  /attendance           (admin/accountant, ?storeId&date&staffId)
+   GET  /attendance/my        (staff, own history)
+════════════════════════════════════════════════ */
+app.post("/attendance/checkin", authenticate, upload.single("photo"), async (req, res) => {
+  try {
+    if (req.user.role !== "staff") return res.status(403).json({ error: "Staff only" });
+    const staffId = req.user.staff_id;
+    if (!staffId) return res.status(401).json({ error: "Staff ID missing from token" });
+
+    const lat = Number(req.body.lat);
+    const lng = Number(req.body.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: "Valid lat/lng required" });
+    }
+    if (!req.file?.buffer) return res.status(400).json({ error: "Selfie photo required" });
+
+    const storeId = req.user.storeId || "";
+    const storeRef = doc(db, "stores", storeId);
+    const storeSnap = await getDoc(storeRef);
+    const store = storeSnap.exists() ? storeSnap.data() : null;
+
+    const fence = isWithinStoreGeofence(store, lat, lng);
+    if (!fence.ok) return res.status(400).json({ error: fence.error });
+
+    const date = attendanceDateIST();
+    // One open check-in per staff per day
+    const openQuery = await getDocs(query(
+      collection(db, "attendance"),
+      where("staffId", "==", staffId),
+      where("date", "==", date),
+      where("status", "==", "open"),
+      limit(1)
+    ));
+    if (!openQuery.empty) {
+      return res.status(400).json({ error: "You already have an open check-in today. Check out first." });
+    }
+
+    const storageRef = ref(storage, "attendance_selfies/checkin_" + staffId + "_" + Date.now());
+    await uploadBytes(storageRef, req.file.buffer);
+    const photoUrl = await getDownloadURL(storageRef);
+
+    const docRef = await addDoc(collection(db, "attendance"), {
+      staffId,
+      staffName: req.user.name || "",
+      storeId,
+      storeName: store?.name || "",
+      date,
+      checkIn: Timestamp.now(),
+      checkOut: null,
+      checkInLocation: { lat, lng },
+      checkOutLocation: null,
+      checkInPhotoUrl: photoUrl,
+      checkOutPhotoUrl: null,
+      checkInAccuracy: req.body.accuracy ? Number(req.body.accuracy) : null,
+      status: "open"
+    });
+    res.json({ success: true, attendanceId: docRef.id, distanceM: fence.distanceM });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/attendance/checkout", authenticate, upload.single("photo"), async (req, res) => {
+  try {
+    if (req.user.role !== "staff") return res.status(403).json({ error: "Staff only" });
+    const staffId = req.user.staff_id;
+    if (!staffId) return res.status(401).json({ error: "Staff ID missing from token" });
+
+    const lat = Number(req.body.lat);
+    const lng = Number(req.body.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: "Valid lat/lng required" });
+    }
+
+    // Find open check-in by id (preferred) or staffId+date
+    let attRef = null;
+    if (req.body.attendanceId) {
+      const refDoc = doc(db, "attendance", req.body.attendanceId);
+      const s = await getDoc(refDoc);
+      if (s.exists() && s.data().staffId === staffId && s.data().status === "open") attRef = refDoc;
+    }
+    if (!attRef) {
+      const date = attendanceDateIST();
+      const q = await getDocs(query(
+        collection(db, "attendance"),
+        where("staffId", "==", staffId),
+        where("date", "==", date),
+        where("status", "==", "open"),
+        limit(1)
+      ));
+      if (q.empty) return res.status(400).json({ error: "No open check-in found. Check in first." });
+      attRef = doc(db, "attendance", q.docs[0].id);
+    }
+
+    const updates = {
+      checkOut: Timestamp.now(),
+      checkOutLocation: { lat, lng },
+      status: "complete"
+    };
+    if (req.file?.buffer) {
+      const storageRef = ref(storage, "attendance_selfies/checkout_" + staffId + "_" + Date.now());
+      await uploadBytes(storageRef, req.file.buffer);
+      updates.checkOutPhotoUrl = await getDownloadURL(storageRef);
+    }
+    await updateDoc(attRef, updates);
+
+    const full = (await getDoc(attRef)).data();
+    res.json({ success: true, attendanceId: attRef.id, hoursWorked: attendanceHoursWorked(full) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/attendance", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const date = req.query.date || attendanceDateIST();
+    const conds = [where("date", "==", date)];
+    if (req.query.storeId) conds.push(where("storeId", "==", req.query.storeId));
+    if (req.query.staffId) conds.push(where("staffId", "==", req.query.staffId));
+    const q = query(collection(db, "attendance"), ...conds);
+    const snap = await getDocs(q);
+    trackReads("attendance", snap.size);
+    const items = snap.docs.map(d => {
+      const a = { id: d.id, ...d.data() };
+      a.hoursWorked = attendanceHoursWorked(a);
+      return a;
+    });
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/attendance/my", authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== "staff") return res.status(403).json({ error: "Staff only" });
+    const staffId = req.user.staff_id;
+    const q = query(collection(db, "attendance"), where("staffId", "==", staffId), orderBy("checkIn", "desc"), limit(60));
+    const snap = await getDocs(q);
+    const items = snap.docs.map(d => {
+      const a = { id: d.id, ...d.data() };
+      a.hoursWorked = attendanceHoursWorked(a);
+      return a;
+    });
+    res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

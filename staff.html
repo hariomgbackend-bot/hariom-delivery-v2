@@ -685,6 +685,33 @@
     .pg-price-tooltip.below::after {
       top:-5px;bottom:auto;border-top-color:transparent;border-bottom-color:var(--surface-container-highest);
     }
+
+    /* ── Attendance ── */
+    .att-card {
+      background:var(--surface-container-low);border:1px solid var(--border);border-radius:18px;
+      padding:20px;margin-bottom:12px;
+    }
+    .att-status { font-size:14px;font-weight:600;color:var(--on-surface);margin-bottom:14px;line-height:1.4; }
+    .att-btn-row { display:flex;gap:10px;margin-bottom:14px; }
+    .att-btn {
+      flex:1;padding:16px;border:none;border-radius:14px;font-family:'Inter',sans-serif;
+      font-size:16px;font-weight:800;cursor:pointer;transition:transform 0.12s;color:var(--on-primary-container);
+    }
+    .att-btn:active { transform:scale(0.97); }
+    .att-in  { background:linear-gradient(135deg,var(--primary-container),var(--primary)); }
+    .att-out { background:linear-gradient(135deg,rgba(255,138,101,0.25),rgba(255,138,101,0.45));color:var(--on-surface); }
+    .att-btn:disabled { opacity:0.5;cursor:not-allowed; }
+    .att-selfie { display:flex;align-items:center;gap:10px;flex-wrap:wrap; }
+    .att-selfie-preview { display:flex;align-items:center;gap:8px; }
+    .att-err { margin-top:12px;padding:10px 14px;border-radius:12px;background:rgba(234,67,53,0.12);color:var(--error);font-size:13px;font-weight:600; }
+    .att-week-row {
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      background:var(--surface-container-low);border:1px solid var(--border);border-radius:14px;
+      padding:12px 14px;margin-bottom:8px;
+    }
+    .att-week-date { font-size:13px;font-weight:700;color:var(--on-surface); }
+    .att-week-times { font-size:12px;color:var(--on-surface-variant); }
+    .att-week-hours { font-size:13px;font-weight:800;color:var(--primary);white-space:nowrap; }
     .pg-quote-strip {
       display:none;margin-top:8px;padding:12px 16px;border-radius:12px;
       background:linear-gradient(135deg,rgba(77,142,255,0.12),rgba(78,222,163,0.06));
@@ -910,6 +937,11 @@
           <div class="home-card-icon" style="background:rgba(173,198,255,0.12);">📅</div>
           <div class="home-card-label">Calendar</div>
           <div class="home-card-count" id="hcCalendar">—</div>
+        </div>
+        <div class="home-card" onclick="switchTab('attendance')">
+          <div class="home-card-icon" style="background:rgba(78,222,163,0.12);">📍</div>
+          <div class="home-card-label">Attendance</div>
+          <div class="home-card-count muted" id="hcAttendance">tap to check in</div>
         </div>
         <div class="home-card" onclick="switchTab('slabs')">
           <div class="home-card-icon" style="background:rgba(255,179,0,0.12);">🏆</div>
@@ -1183,6 +1215,36 @@
       </div>
       <div class="pg-chip-row" id="stPgFirstWordRow"></div>
       <div id="pgList"></div>
+    </div>
+
+    <!-- TAB: ATTENDANCE -->
+    <div id="tabAttendance" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">📍 Attendance</div>
+
+      <div class="att-card">
+        <div class="att-status" id="attStatus">Getting location…</div>
+        <div class="att-btn-row">
+          <button class="att-btn att-in" id="attCheckInBtn" onclick="attCheckIn()">Check In</button>
+          <button class="att-btn att-out" id="attCheckOutBtn" onclick="attCheckOut()" style="display:none;">Check Out</button>
+        </div>
+        <div class="att-selfie">
+          <input type="file" id="attSelfie" accept="image/*" capture="user" style="display:none;">
+          <button class="pg-quote-btn" id="attSelfieBtn" onclick="document.getElementById('attSelfie').click()" style="min-height:44px;font-size:13px;">
+            📸 Add selfie
+          </button>
+          <div class="att-selfie-preview" id="attSelfiePreview" style="display:none;">
+            <img id="attSelfieImg" alt="selfie" style="width:72px;height:72px;border-radius:12px;object-fit:cover;border:1px solid var(--border);">
+            <button class="pg-chip" onclick="attClearSelfie()">✕ Remove</button>
+          </div>
+        </div>
+        <div class="att-err" id="attErr" style="display:none;"></div>
+      </div>
+
+      <div class="section-title" style="margin-top:20px;">This Week</div>
+      <div id="attWeekList"></div>
     </div>
 
     <!-- TAB: SLABS INFO -->
@@ -1852,7 +1914,7 @@ function doLogout() {
 /* ── TAB SWITCH ── */
 function switchTab(tab) {
   currentTab = tab;
-  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview" };
+  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", attendance:"tabAttendance", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview" };
   Object.keys(idMap).forEach(k => {
     const el = document.getElementById(idMap[k]);
     if (el) el.style.display = k === tab ? "" : "none";
@@ -1862,6 +1924,7 @@ function switchTab(tab) {
   if (tab === "deliveries") loadDeliveries();
   if (tab === "calendar") { if (staffCalendar) { staffCalendar.render(); updateFullCalendar(); } else initStaffCalendar(); }
   if (tab === "prices") stPgRender(priceGuideData);
+  if (tab === "attendance") attInit();
   if (tab === "slabs") stSlLoadData();
   if (tab === "takeReview") trRender();
 }
@@ -3253,6 +3316,236 @@ function stPgFilter() {
   if (q) f = f.filter(p => (p.productName || '').toLowerCase().includes(q));
   stPgRender(f);
 }
+
+/* ════════════════════════════════════════════════
+   ATTENDANCE (geotagged check-in/check-out)
+════════════════════════════════════════════════ */
+let attStoreCoords = null;   // { lat, lng, radiusM } for my store
+let attLastPos     = null;   // { lat, lng, accuracy }
+let attOpenId      = null;   // open attendance doc id for today
+let attSelfieFile  = null;
+let attBusy        = false;
+
+async function attInit() {
+  attSelfieFile = null;
+  attClearSelfie();
+  document.getElementById("attErr").style.display = "none";
+  document.getElementById("attCheckInBtn").disabled = false;
+  document.getElementById("attCheckOutBtn").disabled = false;
+  document.getElementById("attStatus").textContent = "Loading store location…";
+  try {
+    const storesRes = await authFetch(`${BASE_URL}/api/stores`);
+    const stores = storesRes.ok ? await storesRes.json() : [];
+    const mine = stores.find(s => s.id === staffStoreId) || stores.find(s => s.key === (staffStoreId || "").toLowerCase());
+    attStoreCoords = mine ? { lat: mine.lat, lng: mine.lng, radiusM: mine.radiusM || 150, name: mine.name } : null;
+    if (!attStoreCoords || attStoreCoords.lat == null) {
+      document.getElementById("attStatus").textContent = "Store location not configured. Ask admin to set it.";
+      return;
+    }
+    // Load today's open check-in
+    const myRes = await authFetch(`${BASE_URL}/attendance/my`);
+    const my = myRes.ok ? await myRes.json() : [];
+    const today = attTodayIST();
+    const open = my.find(a => a.date === today && a.status === "open");
+    attOpenId = open ? open.id : null;
+    attRefreshButtons();
+    attLoadWeek(my);
+    attRefreshPosition();
+  } catch (e) {
+    document.getElementById("attStatus").textContent = "Failed to load: " + e.message;
+  }
+}
+
+function attTodayIST() {
+  const d = new Date();
+  return new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+function attRefreshButtons() {
+  const inBtn = document.getElementById("attCheckInBtn");
+  const outBtn = document.getElementById("attCheckOutBtn");
+  inBtn.style.display = attOpenId ? "none" : "";
+  outBtn.style.display = attOpenId ? "" : "none";
+  const status = document.getElementById("attStatus");
+  if (attOpenId) status.textContent = "Checked in. Tap Check Out when leaving.";
+  else status.textContent = "You're not checked in yet.";
+  document.getElementById("hcAttendance").textContent = attOpenId ? "checked in" : "not checked in";
+}
+
+function attRefreshPosition() {
+  if (!navigator.geolocation) {
+    document.getElementById("attStatus").textContent = "Geolocation not supported on this device.";
+    return;
+  }
+  if (!attOpenId) document.getElementById("attStatus").textContent = "Getting location…";
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      attLastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+      if (attStoreCoords && attStoreCoords.lat != null) {
+        const d = attHaversine(attStoreCoords.lat, attStoreCoords.lng, attLastPos.lat, attLastPos.lng);
+        const ok = d <= attStoreCoords.radiusM;
+        const base = ok ? "✅ You are at the store (" + Math.round(d) + "m)" : "⚠️ You are " + Math.round(d) + "m from the store";
+        const acc = attLastPos.accuracy ? " · accuracy ±" + Math.round(attLastPos.accuracy) + "m" : "";
+        const el = document.getElementById("attStatus");
+        if (attOpenId) el.textContent = "Checked in. Tap Check Out when leaving. " + base + acc;
+        else el.textContent = base + acc;
+      }
+    },
+    err => {
+      const el = document.getElementById("attStatus");
+      if (attOpenId) el.textContent = "Checked in. Location refresh failed (" + err.message + ").";
+      else el.textContent = "Location unavailable: " + err.message + ". Check In may fail.";
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+  );
+}
+
+function attHaversine(aLat, aLng, bLat, bLng) {
+  const R = 6371000, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function attOnSelfie(ev) {
+  const f = ev.target.files?.[0];
+  if (!f) return;
+  attSelfieFile = f;
+  const img = document.getElementById("attSelfieImg");
+  img.src = URL.createObjectURL(f);
+  document.getElementById("attSelfiePreview").style.display = "flex";
+  document.getElementById("attSelfieBtn").style.display = "none";
+}
+
+function attClearSelfie() {
+  attSelfieFile = null;
+  const inp = document.getElementById("attSelfie");
+  if (inp) inp.value = "";
+  const prev = document.getElementById("attSelfiePreview");
+  if (prev) prev.style.display = "none";
+  const btn = document.getElementById("attSelfieBtn");
+  if (btn) btn.style.display = "";
+}
+
+function attErr(msg) {
+  const el = document.getElementById("attErr");
+  el.textContent = msg;
+  el.style.display = msg ? "" : "none";
+}
+
+function attEnsurePos() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("Geolocation not supported"));
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+      reject,
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
+  });
+}
+
+async function attCheckIn() {
+  if (attBusy) return;
+  attErr("");
+  if (!attSelfieFile) return attErr("Add a selfie first — it's required for check-in.");
+  attBusy = true;
+  document.getElementById("attCheckInBtn").disabled = true;
+  document.getElementById("attStatus").textContent = "Checking location…";
+  try {
+    const pos = await attEnsurePos();
+    const fd = new FormData();
+    fd.append("photo", attSelfieFile);
+    fd.append("lat", pos.lat);
+    fd.append("lng", pos.lng);
+    if (pos.accuracy) fd.append("accuracy", pos.accuracy);
+    const res = await authFetch(`${BASE_URL}/attendance/checkin`, { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Check-in failed");
+    attOpenId = data.attendanceId;
+    document.getElementById("attStatus").textContent = "✅ Checked in! Distance from store: " + data.distanceM + "m";
+    attRefreshButtons();
+    attLoadWeek();
+  } catch (e) {
+    attErr(e.message);
+    document.getElementById("attStatus").textContent = "Check-in failed.";
+  } finally {
+    attBusy = false;
+    document.getElementById("attCheckInBtn").disabled = false;
+  }
+}
+
+async function attCheckOut() {
+  if (attBusy) return;
+  attErr("");
+  attBusy = true;
+  document.getElementById("attCheckOutBtn").disabled = true;
+  document.getElementById("attStatus").textContent = "Checking out…";
+  try {
+    const pos = await attEnsurePos();
+    const fd = new FormData();
+    if (attSelfieFile) fd.append("photo", attSelfieFile);
+    fd.append("attendanceId", attOpenId || "");
+    fd.append("lat", pos.lat);
+    fd.append("lng", pos.lng);
+    const res = await authFetch(`${BASE_URL}/attendance/checkout`, { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Check-out failed");
+    attOpenId = null;
+    attClearSelfie();
+    const h = data.hoursWorked != null ? data.hoursWorked.toFixed(1) + "h" : "";
+    document.getElementById("attStatus").textContent = "✅ Checked out" + (h ? " — worked " + h : "");
+    attRefreshButtons();
+    attLoadWeek();
+  } catch (e) {
+    attErr(e.message);
+    document.getElementById("attStatus").textContent = "Check-out failed.";
+  } finally {
+    attBusy = false;
+    document.getElementById("attCheckOutBtn").disabled = false;
+  }
+}
+
+async function attLoadWeek(preloaded) {
+  const list = document.getElementById("attWeekList");
+  list.innerHTML = "Loading…";
+  let my = preloaded;
+  if (!my) {
+    try {
+      const res = await authFetch(`${BASE_URL}/attendance/my`);
+      my = res.ok ? await res.json() : [];
+    } catch (e) { my = []; }
+  }
+  if (!my.length) { list.innerHTML = '<div class="empty-state"><div class="icon">📍</div><p>No attendance yet this week</p></div>'; return; }
+  const today = attTodayIST();
+  const week = my.filter(a => a.date >= attWeekStart(today));
+  if (!week.length) { list.innerHTML = '<div class="empty-state"><div class="icon">📍</div><p>No attendance yet this week</p></div>'; return; }
+  list.innerHTML = week.map(a => {
+    const inTime = a.checkIn ? attFmtTime(a.checkIn) : "—";
+    const outTime = a.checkOut ? attFmtTime(a.checkOut) : "open";
+    const h = a.hoursWorked != null ? a.hoursWorked.toFixed(1) + "h" : "—";
+    return `<div class="att-week-row">
+      <div>
+        <div class="att-week-date">${a.date === today ? "Today" : a.date}</div>
+        <div class="att-week-times">${inTime} → ${outTime} ${a.status === "open" ? "· ⏳ open" : ""}</div>
+      </div>
+      <div class="att-week-hours">${h}</div>
+    </div>`;
+  }).join("");
+}
+
+function attWeekStart(today) {
+  const d = new Date(today + "T00:00:00");
+  const day = d.getDay() || 7; // Mon=1..Sun=7
+  d.setDate(d.getDate() - day + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function attFmtTime(t) {
+  const ms = t.seconds ? t.seconds * 1000 : new Date(t).getTime();
+  return new Date(ms).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
+document.getElementById("attSelfie")?.addEventListener("change", attOnSelfie);
 
 /* ════════════════════════════════════════════════
    SLABS INFO
