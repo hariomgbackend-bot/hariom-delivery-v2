@@ -1472,7 +1472,12 @@ async function loadStores() {
   if (!window.authGetToken) { setTimeout(loadStores, 200); return; }
   try {
     const res = await authFetch(`${BASE_URL}/api/stores`);
-    if (res.ok) _stores = await res.json();
+    if (res.ok) {
+      _stores = await res.json();
+      if (selectedStore && selectedStore !== "all" && !_stores.some(s => s.id === selectedStore)) {
+        selectedStore = getDefaultStore();
+      }
+    }
     updateAccountantStoreBadge();
   } catch {}
 }
@@ -1650,9 +1655,12 @@ function showWelcomeOnce() {
 // Computed fresh each time so it can't capture a stale/empty selectedStore.
 function getDefaultStore() {
   const raw = getUserStoreIdFromToken() || getUserStoreFromToken();
-  if (!raw) return "all";
-  const resolved = _stores ? (_stores.find(s => s.id === raw) || _stores.find(s => s.name === raw)) : null;
-  return resolved ? resolved.id : "all";
+  if (raw && _stores) {
+    const resolved = _stores.find(s => s.id === raw) || _stores.find(s => s.name === raw);
+    if (resolved) return resolved.id;
+  }
+  if (_stores && _stores.length) return _stores[0].id;
+  return "all";
 }
 
 function updateAccountantStoreBadge() {
@@ -3803,6 +3811,13 @@ function toggleBooked() {
   });
 }
 
+function installFlag(d) {
+  if (d.installation_ticket_status) {
+    return `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:rgba(22,163,74,0.12);color:#16a34a;border:1px solid rgba(22,163,74,0.35);white-space:nowrap;" title="Demo-installation ticket raised (${escHtml(d.installation_ticket_status)})">✓ Demo-install</span>`;
+  }
+  return `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:rgba(100,116,139,0.12);color:var(--outline);border:1px solid rgba(100,116,139,0.28);white-space:nowrap;" title="No demo-installation ticket raised yet">Demo-install —</span>`;
+}
+
 function makeDeliveryRow(d, i, phonePositions) {
   const isBatched = d.phone && batchPhones.includes(d.phone);
   let batchTag = "";
@@ -3841,6 +3856,7 @@ function makeDeliveryRow(d, i, phonePositions) {
       <span class="badge badge-${d.status}">${d.status}</span>
       ${d.is_self_pickup?`<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>`:""}
       ${(d.status!=="delivered"&&d.status!=="failed"&&d.status!=="booked"&&d.estimated_delivery_time&&new Date(d.estimated_delivery_time)<new Date())?`<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>`:""}
+      ${installFlag(d)}
       ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
     </td>
     <td><button class="btn ${d.status==='failed'?'btn-danger':'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status==="failed"?"⚠ Action":"View"}</button></td>
@@ -3872,8 +3888,8 @@ async function _doLoadDeliveries(showSkeleton = true) {
       const fq = fp.length ? "&" + fp.join("&") : "";
 
       const [bookedRes, restRes] = await Promise.all([
-        authFetch(`${BASE_URL}/deliveries?status=booked${fq}`),
-        authFetch(`${BASE_URL}/deliveries?status=pending,loaded,delivered&page=${currentPage}&pageSize=${PAGE_SIZE}${fq}`)
+        authFetch(`${BASE_URL}/deliveries?status=booked&ticketStatus=1${fq}`),
+        authFetch(`${BASE_URL}/deliveries?status=pending,loaded,delivered&page=${currentPage}&pageSize=${PAGE_SIZE}&ticketStatus=1${fq}`)
       ]);
       if (bookedRes.status === 429 || restRes.status === 429) { _deliveriesInflight = false; return; }
 
@@ -3895,7 +3911,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
 
       pageData = [...bookedData, ...restData];
     } else {
-      let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
+      let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}&ticketStatus=1`;
 
       const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
       if (currentFilter === "past")             url += `&status=delivered,failed`;
@@ -4146,6 +4162,9 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
         <div class="mob-card-badges">
           <span class="badge badge-${d.status}">${d.status}</span>
           ${d.priority === "urgent" ? `<span class="badge" style="background:rgba(255,180,171,0.15);color:var(--error);">🔥</span>` : ""}
+          ${d.installation_ticket_status
+            ? `<span style="display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:rgba(22,163,74,0.12);color:#16a34a;border:1px solid rgba(22,163,74,0.35);" title="Demo-installation ticket raised (${escHtml(d.installation_ticket_status)})">✓ Demo-install</span>`
+            : `<span style="display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:rgba(100,116,139,0.12);color:var(--outline);border:1px solid rgba(100,116,139,0.28);" title="No demo-installation ticket raised yet">Demo-install —</span>`}
         </div>
       </div>
       <div class="mob-card-meta">
@@ -4202,6 +4221,9 @@ function renderMobileCardsSubset(finalData, container, opts) {
         <div class="mob-card-badges">
           <span class="badge badge-${d.status}">${d.status}</span>
           ${d.priority === "urgent" ? `<span class="badge" style="background:rgba(255,180,171,0.15);color:var(--error);">🔥</span>` : ""}
+          ${d.installation_ticket_status
+            ? `<span style="display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:rgba(22,163,74,0.12);color:#16a34a;border:1px solid rgba(22,163,74,0.35);" title="Demo-installation ticket raised (${escHtml(d.installation_ticket_status)})">✓ Demo-install</span>`
+            : `<span style="display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:rgba(100,116,139,0.12);color:var(--outline);border:1px solid rgba(100,116,139,0.28);" title="No demo-installation ticket raised yet">Demo-install —</span>`}
         </div>
       </div>
       <div class="mob-card-meta">
@@ -4270,6 +4292,11 @@ function openViewPopup(id) {
 
     <div class="section-title">Delivery Info</div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${delivery.status}">${delivery.status}</span></span></div>
+    <div class="detail-row"><b>Demo-Install</b><span>${
+      delivery.installation_ticket_status
+        ? `<span style="color:#16a34a;font-weight:600;">✓ Ticket raised (${escHtml(delivery.installation_ticket_status)})</span>`
+        : `<span style="color:var(--outline);">— Not raised</span>`
+    }</span></div>
     <div class="detail-row"><b>Priority</b><span>${delivery.priority}</span></div>
     ${!delivery.is_self_pickup ? `
     <div class="detail-row" id="driverDetailRow">
@@ -4390,9 +4417,9 @@ function openViewPopup(id) {
       <div style="margin-top:12px;padding:14px;background:rgba(78,222,163,0.07);border:1.5px solid rgba(78,222,163,0.2);border-radius:12px;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--tertiary);margin-bottom:10px;">🔧 After-Sales</div>
         <div id="afterSalesActions" style="display:flex;gap:8px;flex-wrap:wrap;">
-          ${delivery.installation_ticket_id
+          ${delivery.installation_ticket_status
             ? `<button class="btn btn-gray btn-sm" disabled style="opacity:0.65;cursor:not-allowed;">
-                ✅ Installation Already Requested
+                ✅ Demo-install Ticket Raised
                </button>`
             : `<button class="btn btn-success btn-sm" id="btnRaiseInstall" onclick="showInstallForm('${escHtml(delivery.id)}')">
                 🔧 Raise Installation

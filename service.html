@@ -1949,11 +1949,19 @@ async function submitCreateTicket() {
 
   msg.style.color = "var(--primary)"; msg.textContent = "Saving...";
   btn.disabled = true;
+  btn.style.cursor = "wait";
   btn.innerHTML = '<span class="btn-spinner"></span> Saving...';
   const useTally = document.getElementById("ctTallySearch")?.checked;
+  const saveController = new AbortController();
+  const saveTimer = setTimeout(() => saveController.abort(), 25000);
+  const restoreSaveBtn = () => {
+    btn.disabled = false;
+    btn.style.cursor = "";
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
+  };
   try {
     const res = await authFetch(`${BASE_URL}/service/ticket`, {
-      method: "POST", headers: {"Content-Type":"application/json"},
+      method: "POST", headers: {"Content-Type":"application/json"}, signal: saveController.signal,
       body: JSON.stringify({
         type,
         linked_delivery_id: document.getElementById("ctLinkedDeliveryId").value || null,
@@ -1974,12 +1982,9 @@ async function submitCreateTicket() {
     const data = await res.json();
     if (!res.ok) {
       msg.style.color="var(--error)"; msg.textContent=data.error||"Failed.";
-      btn.disabled = false;
-      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
       return;
     }
     msg.style.color = "var(--tertiary)"; msg.textContent = "Ticket created!";
-    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
     // Build local ticket from form data
     const firstName = useTally ? document.getElementById("ctTallyName").value.trim().toUpperCase() : document.getElementById("ctFirstName").value.trim();
     const middleName = useTally ? "" : document.getElementById("ctMiddleName").value.trim();
@@ -2005,9 +2010,11 @@ async function submitCreateTicket() {
     try { updateStats(); } catch(e) { console.error("updateStats error:", e); }
   } catch(e) {
     console.error("submitCreateTicket error:", e);
-    msg.style.color = "var(--error)"; msg.textContent = e.message || "Network error.";
-    btn.disabled = false;
-    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Ticket';
+    msg.style.color = "var(--error)";
+    msg.textContent = (e && e.name === "AbortError") ? "Request timed out. Please try again." : (e.message || "Network error.");
+  } finally {
+    clearTimeout(saveTimer);
+    restoreSaveBtn();
   }
 }
 
