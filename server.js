@@ -25,6 +25,7 @@ import cron from "node-cron";
 import Groq from "groq-sdk";
 import whatsappRouter from "./routes/whatsapp.js";
 import { createApp as createGbpApp } from "./gbp-server/dist/app.js";
+import { searchPlace } from "./gbp-server/dist/services/places.js";
 
 dotenv.config();
 
@@ -5614,6 +5615,30 @@ app.post("/api/stores/seed", authenticate, authorize(["admin"]), async (req, res
     }
     invalidateRefCache("stores");
     res.json({ success: true, message: "Default stores seeded" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   GOOGLE PLACES STORE SEARCH
+   GET /api/stores/search?q=<text>
+   Returns matching Google Maps places (name, address, lat/lng)
+   so the admin can fill store coordinates from the listing.
+════════════════════════════════════════════════ */
+app.get("/api/stores/search", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  const q = (req.query.q || "").toString().trim();
+  if (!q) return res.json([]);
+  try {
+    const place = await searchPlace(q);
+    if (!place) return res.json([]);
+    res.json([{
+      placeId: place.placeId,
+      name: place.name,
+      address: place.address,
+      lat: place.latitude,
+      lng: place.longitude
+    }]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

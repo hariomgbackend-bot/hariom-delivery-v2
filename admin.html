@@ -1366,6 +1366,11 @@
     .st-card { background:var(--surface-container-low);border:1px solid var(--outline-variant);border-radius:16px;padding:20px;margin-bottom:14px; }
     .st-name { font-size:17px;font-weight:800;color:var(--on-surface);margin-bottom:2px; }
     .st-meta { font-size:12px;color:var(--on-surface-variant);margin-bottom:12px; }
+    .st-search-row { display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap; }
+    .st-search { flex:1;min-width:200px; }
+    .st-search-results { margin-bottom:10px; }
+    .st-result { padding:8px 12px;background:var(--surface-container-high);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:13px;cursor:pointer; }
+    .st-result:hover { border-color:var(--primary); }
     .st-row { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px; }
     .st-row label { font-size:11px;font-weight:700;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:0.5px; }
     .st-input { width:140px;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:var(--font-mono);font-size:13px;color:var(--on-surface);outline:none; }
@@ -7405,6 +7410,11 @@ async function stLoadData() {
       <div class="st-card" data-id="${s.id}">
         <div class="st-name">${escHtml(s.name)}</div>
         <div class="st-meta">${escHtml(s.address || '')} · ${escHtml(s.phone || '')}</div>
+        <div class="st-search-row">
+          <input class="st-input st-search" id="stSearch_${s.id}" placeholder="Find on Google Maps (type store name)…" autocomplete="off" onkeydown="if(event.key==='Enter')stSearch('${s.id}')">
+          <button class="pg-btn pg-btn-outline" onclick="stSearch('${s.id}')">🔍 Search</button>
+        </div>
+        <div class="st-search-results" id="stResults_${s.id}"></div>
         <div class="st-row">
           <label>Lat</label><input class="st-input" id="stLat_${s.id}" value="${escHtml(s.lat ?? '')}" inputmode="decimal" placeholder="e.g. 18.653">
           <label>Lng</label><input class="st-input" id="stLng_${s.id}" value="${escHtml(s.lng ?? '')}" inputmode="decimal" placeholder="e.g. 73.829">
@@ -7419,6 +7429,35 @@ async function stLoadData() {
   } catch(e) {
     grid.innerHTML = `<div style="padding:30px;text-align:center;color:var(--error);">Error: ${e.message}</div>`;
   }
+}
+
+async function stSearch(id) {
+  const q = document.getElementById('stSearch_' + id).value.trim();
+  const resultsEl = document.getElementById('stResults_' + id);
+  if (!q) { resultsEl.innerHTML = ''; return; }
+  resultsEl.innerHTML = '<div class="st-result" style="opacity:0.6;">Searching…</div>';
+  try {
+    const res = await authFetch(`${BASE_URL}/api/stores/search?q=${encodeURIComponent(q)}`);
+    const places = res.ok ? await res.json() : [];
+    if (!places.length) { resultsEl.innerHTML = '<div class="st-result">No match found — try the store name + city.</div>'; return; }
+    resultsEl.innerHTML = places.map(p => `
+      <div class="st-result" onclick="stPickPlace('${id}','${escHtml(String(p.lat ?? ''))}','${escHtml(String(p.lng ?? ''))}','${escHtml(p.name || '')}','${escHtml(p.address || '')}')">
+        <b>${escHtml(p.name)}</b><span style="color:var(--on-surface-variant);font-size:11px;"> ${escHtml(p.address || '')}</span>
+      </div>
+    `).join('');
+  } catch(e) {
+    resultsEl.innerHTML = `<div class="st-result" style="color:var(--error);">Error: ${e.message}</div>`;
+  }
+}
+
+function stPickPlace(id, lat, lng, name, address) {
+  if (lat) document.getElementById('stLat_' + id).value = lat;
+  if (lng) document.getElementById('stLng_' + id).value = lng;
+  const meta = document.querySelector(`.st-card[data-id="${id}"] .st-meta`);
+  if (meta && name) meta.textContent = name + (address ? ' · ' + address : '');
+  document.getElementById('stResults_' + id).innerHTML = '';
+  document.getElementById('stSearch_' + id).value = '';
+  showToast('Coordinates filled from Google — press Save', 'info');
 }
 
 function stUseMyLocation(id) {
