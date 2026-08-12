@@ -659,7 +659,7 @@
       padding:3px 10px;border-radius:20px;background:rgba(245,158,11,0.15);color:var(--amber);
       white-space:nowrap;flex-shrink:0;
     }
-    .pg-quote-row { display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px; }
+    .pg-quote-row { display:grid;grid-template-columns:repeat(5,1fr);gap:8px; }
     .pg-quote-row.two-col { grid-template-columns:1fr 1fr; }
     .pg-quote-btn {
       padding:10px 8px;border:none;border-radius:14px;font-family:'Inter',sans-serif;
@@ -669,9 +669,12 @@
     }
     .pg-quote-btn:active { transform:scale(0.96); }
     .pg-quote-btn .label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--on-surface-variant); }
-    .pg-quote-btn .price { font-size:18px;font-weight:900; }
-    .pg-quote-btn.mop-btn { background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.2); }
-    .pg-quote-btn.msp-btn { background:rgba(78,222,163,0.06);border:1px solid rgba(78,222,163,0.2); }
+    .pg-quote-btn .price { font-size:16px;font-weight:900; }
+    .pg-quote-btn.band-min { background:rgba(78,222,163,0.08);border:1px solid rgba(78,222,163,0.25); }
+    .pg-quote-btn.band-low { background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.2); }
+    .pg-quote-btn.band-target { background:rgba(255,183,77,0.07);border:1px solid rgba(255,183,77,0.25); }
+    .pg-quote-btn.band-good { background:rgba(255,138,101,0.07);border:1px solid rgba(255,138,101,0.25); }
+    .pg-quote-btn.band-excellent { background:rgba(230,105,234,0.07);border:1px solid rgba(230,105,234,0.25); }
     .pg-quote-btn.active { outline:2.5px solid var(--primary);outline-offset:-2.5px;background:rgba(173,198,255,0.12); }
     .pg-quote-strip {
       display:none;margin-top:8px;padding:12px 16px;border-radius:12px;
@@ -3089,6 +3092,14 @@ function collapseLeadForm() {
    PRICE GUIDE
 ════════════════════════════════════════════════ */
 
+const stPgBands = [
+  { key: 'minimum', label: 'MIN', cls: 'band-min' },
+  { key: 'low', label: 'LOW', cls: 'band-low' },
+  { key: 'target', label: 'TGT', cls: 'band-target' },
+  { key: 'good', label: 'GOOD', cls: 'band-good' },
+  { key: 'excellent', label: 'EXC', cls: 'band-excellent' }
+];
+
 async function stPgLoadData() {
   const list = document.getElementById("pgList");
   list.innerHTML = skeletons(3);
@@ -3099,7 +3110,7 @@ async function stPgLoadData() {
       authFetch(`${BASE_URL}/price-guide/msp-global`),
       authFetch(`${BASE_URL}/categories`)
     ]);
-    priceGuideData = pgRes.ok ? await pgRes.json() : [];
+    priceGuideData = (pgRes.ok ? await pgRes.json() : []).filter(stPgHasFullBands);
     const slabs = slabsRes.ok ? await slabsRes.json() : [];
     stPgSlabMap = {};
     slabs.forEach(s => stPgSlabMap[s.id] = s.slabName);
@@ -3109,6 +3120,39 @@ async function stPgLoadData() {
     updateHomeCounts();
   } catch(e) {
     list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load prices</p><button onclick="stPgLoadData()" style="margin-top:12px;padding:10px 24px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Retry</button></div>`;
+  }
+}
+
+const stPgFullBandKeys = ['minimum', 'low', 'target', 'good', 'excellent'];
+function stPgHasFullBands(p) {
+  const b = p.bands || {};
+  return stPgFullBandKeys.every(k => b[k] && b[k].from != null && b[k].to != null);
+}
+
+function stPgBandButtons(p) {
+  const b = p.bands || {};
+  const hasBands = stPgHasFullBands(p);
+  if (!hasBands) return `<div class="pg-quote-row two-col">
+    ${p.mrp ? `<button class="pg-quote-btn" onclick="stPgQuote(this,'MRP',${p.mrp},'${esc(p.id || p._id)}')"><span class="label">MRP</span><span class="price">•••</span></button>` : ''}
+    ${p.msp ? `<button class="pg-quote-btn band-excellent" onclick="stPgQuote(this,'MSP',${p.msp},'${esc(p.id || p._id)}')"><span class="label">MSP</span><span class="price">•••</span></button>` : ''}
+  </div>`;
+  return `<div class="pg-quote-row">` + stPgBands.map(x => {
+    const to = Number(b[x.key].to);
+    return `<button class="pg-quote-btn ${x.cls}" data-price="${to}" onclick="stPgQuote(this,'${x.label}',${to},'${esc(p.id || p._id)}')" ontouchstart="stPgPress(this,true)" ontouchend="stPgPress(this,false)" ontouchcancel="stPgPress(this,false)" onmousedown="stPgPress(this,true)" onmouseup="stPgPress(this,false)" onmouseleave="stPgPress(this,false)">
+      <span class="label">${x.label}</span>
+      <span class="price">•••</span>
+    </button>`;
+  }).join('') + `</div>`;
+}
+
+function stPgPress(btn, show) {
+  const priceEl = btn.querySelector('.price');
+  if (!priceEl) return;
+  const price = btn.dataset.price;
+  if (show && price) {
+    priceEl.textContent = '₹' + Number(price).toLocaleString('en-IN');
+  } else {
+    priceEl.textContent = '•••';
   }
 }
 
@@ -3124,31 +3168,15 @@ function stPgRender(data) {
   stPgBuildCatTabs();
   list.innerHTML = data.map(p => {
     const slabName = stPgSlabMap[p.slabId] || '';
-    const mrp = p.mrp || 0;
-    const mop = p.mop || 0;
-    const msp = p.msp || 0;
-    const mspVisible = stPmMspGlobal && p.mspEnabled !== false;
-    const cols = mspVisible ? '1fr 1fr 1fr' : '1fr 1fr';
+    const b = p.bands || {};
+    const excellentTo = b.excellent ? Number(b.excellent.to) : 0;
     return `
-    <div class="pg-card" data-id="${esc(p.id || p._id)}" data-mrp="${mrp}">
+    <div class="pg-card" data-id="${esc(p.id || p._id)}" data-max="${excellentTo}">
       <div class="pg-card-header">
         <div class="pg-name">${esc(p.productName)}</div>
         ${slabName ? `<span class="pg-slab-badge">${esc(slabName)}</span>` : ''}
       </div>
-      <div class="pg-quote-row${!mspVisible ? ' two-col' : ''}">
-        <button class="pg-quote-btn" onclick="stPgQuote(this,'MRP',${mrp},'${esc(p.id || p._id)}')">
-          <span class="label">MRP</span>
-          <span class="price">₹${mrp.toLocaleString("en-IN")}</span>
-        </button>
-        <button class="pg-quote-btn mop-btn" onclick="stPgQuote(this,'MOP',${mop},'${esc(p.id || p._id)}')">
-          <span class="label">MOP</span>
-          <span class="price">₹${mop.toLocaleString("en-IN")}</span>
-        </button>
-        ${mspVisible ? `<button class="pg-quote-btn msp-btn" onclick="stPgQuote(this,'MSP',${msp},'${esc(p.id || p._id)}')">
-          <span class="label">MSP</span>
-          <span class="price">₹${msp.toLocaleString("en-IN")}</span>
-        </button>` : ''}
-      </div>
+      ${stPgBandButtons(p)}
       <div class="pg-quote-strip" id="qs_${esc(p.id || p._id)}">
         <div class="qlabel" id="qsl_${esc(p.id || p._id)}"></div>
         <div class="qprice" id="qsp_${esc(p.id || p._id)}"></div>
@@ -3183,25 +3211,35 @@ function stPgQuote(btn, label, price, cardId) {
     if (prevCard) prevCard.querySelectorAll('.pg-quote-btn').forEach(b => b.classList.remove('active'));
   }
   stPgActiveCard = cardId;
-  const strip = document.getElementById('qs_' + cardId);
-  const mrp = Number(document.querySelector(`.pg-card[data-id="${cardId}"]`)?.dataset.mrp || 0);
+  const card = document.querySelector(`.pg-card[data-id="${cardId}"]`);
+  const max = Number(card?.dataset.max || 0);
+  const prod = priceGuideData.find(x => (x.id || x._id) === cardId);
+  const bands = (prod && prod.bands) || {};
+  const bandMeta = stPgBands.find(x => x.label === label);
+  const range = bandMeta && bands[bandMeta.key];
   const priceNum = Number(price);
-  document.getElementById('qsl_' + cardId).textContent = 'Quoting at ' + label;
+  const strip = document.getElementById('qs_' + cardId);
+  document.getElementById('qsl_' + cardId).textContent = 'Quoting at ' + label + (range ? ' · ₹' + Number(range.from).toLocaleString('en-IN') + ' – ₹' + Number(range.to).toLocaleString('en-IN') : '');
   document.getElementById('qsp_' + cardId).textContent = '₹' + priceNum.toLocaleString('en-IN');
-  const saving = mrp - priceNum;
+  const saving = max - priceNum;
   if (saving > 0) {
-    document.getElementById('qss_' + cardId).textContent = 'Saving ₹' + saving.toLocaleString('en-IN') + ' vs MRP';
+    document.getElementById('qss_' + cardId).textContent = 'Saving ₹' + saving.toLocaleString('en-IN') + ' vs EXCELLENT top';
     document.getElementById('qss_' + cardId).style.display = '';
     document.getElementById('qmr_' + cardId).textContent = '';
   } else {
     document.getElementById('qss_' + cardId).textContent = '';
-    document.getElementById('qmr_' + cardId).textContent = 'Full MRP';
+    document.getElementById('qmr_' + cardId).textContent = 'At highest band';
   }
   strip.style.display = '';
   // toggle active button
-  const card = document.querySelector(`.pg-card[data-id="${cardId}"]`);
   if (card) card.querySelectorAll('.pg-quote-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+  // prefill lead quote with this product/price
+  const prodName = (prod && prod.productName) || '';
+  if (prodName && priceNum > 0) {
+    expandLeadForm();
+    addLeadProduct(prodName, priceNum);
+  }
 }
 
 function stPgFilter() {

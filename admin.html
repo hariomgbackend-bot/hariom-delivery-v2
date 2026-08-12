@@ -1308,6 +1308,9 @@
     .pg-cell-editable { width:100%;padding:5px 7px;background:var(--surface-container-high);border:1px solid transparent;border-radius:6px;font-family:'Inter',sans-serif;font-size:12px;color:var(--on-surface);outline:none;transition:border-color 0.15s;min-width:50px;box-sizing:border-box; }
     .pg-cell-editable:focus { border-color:var(--primary);background:var(--surface-container);outline:none; }
     .pg-cell-editable.num { text-align:right;font-weight:600; }
+    .pg-band-cell { display:flex;align-items:center;gap:4px;white-space:nowrap; }
+    .pg-band-cell .pg-cell-editable { min-width:62px; }
+    .pg-band-dash { color:var(--outline);font-weight:700;font-size:11px; }
     .pg-cell-select { width:100%;padding:5px 4px;background:var(--surface-container-high);border:1px solid transparent;border-radius:6px;font-family:'Inter',sans-serif;font-size:11px;color:var(--on-surface);outline:none;cursor:pointer;min-width:80px; }
     .pg-cell-select:focus { border-color:var(--primary); }
     .pg-row-dirty { background:rgba(245,158,11,0.08) !important;border-left:3px solid var(--amber); }
@@ -1323,6 +1326,9 @@
     .pg-add-grid { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px; }
     .pg-add-field { width:100%;padding:10px 12px;background:var(--surface-container-high);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;box-sizing:border-box; }
     .pg-add-field:focus { outline:2px solid var(--primary); }
+    .pg-add-bands { display:grid;gap:10px; }
+    .pg-add-band { display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center; }
+    .pg-add-band-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--on-surface-variant);white-space:nowrap; }
     .pg-add-full { grid-column:1/-1; }
     .pg-excel-card { background:var(--surface-container-low);border:1px solid var(--outline-variant);border-radius:16px;padding:16px;margin-bottom:14px; }
     .pg-excel-card .title { font-size:12px;font-weight:700;color:var(--on-surface);margin-bottom:8px; }
@@ -2505,7 +2511,7 @@
       <div class="section-heading">
         <div>
           <div class="section-title-lg">Price Guide</div>
-          <div class="section-subtitle">Manage product MRP, MOP, MSP &amp; slab assignment</div>
+          <div class="section-subtitle">Manage product selling bands (MINIMUM→EXCELLENT) &amp; slab assignment</div>
         </div>
         <button onclick="pgLoadData()" class="pg-btn pg-btn-outline">↻ Refresh</button>
       </div>
@@ -2563,9 +2569,13 @@
           <div class="pg-add-grid">
             <input class="pg-add-field pg-add-full" id="pgAddName" placeholder="Product name *" autocomplete="off">
             <select class="pg-add-field pg-add-full" id="pgAddSlab"><option value="">No slab</option></select>
-            <input class="pg-add-field" id="pgAddMrp" type="number" step="0.01" placeholder="MRP *">
-            <input class="pg-add-field" id="pgAddMop" type="number" step="0.01" placeholder="MOP">
-            <input class="pg-add-field pg-add-full" id="pgAddMsp" type="number" step="0.01" placeholder="MSP">
+            <div class="pg-add-full pg-add-bands" id="pgAddBandsGrid">
+              <div class="pg-add-band"><span class="pg-add-band-label">MINIMUM</span><input class="pg-add-field" id="pgAddMinF" type="number" step="0.01" min="0" placeholder="From *"><input class="pg-add-field" id="pgAddMinT" type="number" step="0.01" min="0" placeholder="To *"></div>
+              <div class="pg-add-band"><span class="pg-add-band-label">LOW</span><input class="pg-add-field" id="pgAddLowF" type="number" step="0.01" min="0" placeholder="From"><input class="pg-add-field" id="pgAddLowT" type="number" step="0.01" min="0" placeholder="To"></div>
+              <div class="pg-add-band"><span class="pg-add-band-label">TARGET</span><input class="pg-add-field" id="pgAddTgtF" type="number" step="0.01" min="0" placeholder="From"><input class="pg-add-field" id="pgAddTgtT" type="number" step="0.01" min="0" placeholder="To"></div>
+              <div class="pg-add-band"><span class="pg-add-band-label">GOOD</span><input class="pg-add-field" id="pgAddGoodF" type="number" step="0.01" min="0" placeholder="From"><input class="pg-add-field" id="pgAddGoodT" type="number" step="0.01" min="0" placeholder="To"></div>
+              <div class="pg-add-band"><span class="pg-add-band-label">EXCELLENT</span><input class="pg-add-field" id="pgAddExcF" type="number" step="0.01" min="0" placeholder="From"><input class="pg-add-field" id="pgAddExcT" type="number" step="0.01" min="0" placeholder="To"></div>
+            </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
             <span style="font-size:13px;font-weight:600;color:var(--on-surface-variant);">MSP Enabled</span>
@@ -6956,9 +6966,11 @@ function pgRender(items) {
     <th style="min-width:160px;">Product</th>
     <th style="min-width:90px;">Category</th>
     <th style="min-width:100px;">Slab</th>
-    <th style="min-width:90px;">MRP</th>
-    <th style="min-width:90px;">MOP</th>
-    <th style="min-width:90px;">MSP</th>
+    <th style="min-width:130px;">MINIMUM</th>
+    <th style="min-width:110px;">LOW</th>
+    <th style="min-width:110px;">TARGET</th>
+    <th style="min-width:110px;">GOOD</th>
+    <th style="min-width:110px;">EXCELLENT</th>
     <th style="min-width:70px;">MSP On</th>
     <th style="width:44px;"></th>
   </tr></thead><tbody>`;
@@ -6966,15 +6978,18 @@ function pgRender(items) {
     const oid = item.id || item._id;
     const isDirty = pgState.dirty.has(oid);
     const isSelected = pgState.selected.has(oid);
+    const bands = item.bands || {};
     html += `<tr class="${isDirty ? 'pg-row-dirty' : ''}" data-id="${oid}">
       ${pgState.massMode ? `<td><input type="checkbox" class="pg-checkbox" ${isSelected ? 'checked' : ''} onchange="pgToggleSelect('${oid}',this.checked)"></td>` : ''}
       <td style="color:var(--outline);font-family:var(--font-mono);font-weight:700;font-size:11px;">${idx + 1}</td>
       <td><span class="pg-cell-readonly">${escHtml(item.productName || '')}</span></td>
       <td>${pgCategorySelect(oid, item.category || '')}</td>
       <td>${pgSlabSelect(oid, item.slabId || '')}</td>
-      <td>${pgMakeCell(oid, 'mrp', item.mrp, 'num')}</td>
-      <td>${pgMakeCell(oid, 'mop', item.mop, 'num')}</td>
-      <td>${pgMakeCell(oid, 'msp', item.msp, 'num')}</td>
+      <td>${pgMakeBandCell(oid, 'minimum', bands.minimum)}</td>
+      <td>${pgMakeBandCell(oid, 'low', bands.low)}</td>
+      <td>${pgMakeBandCell(oid, 'target', bands.target)}</td>
+      <td>${pgMakeBandCell(oid, 'good', bands.good)}</td>
+      <td>${pgMakeBandCell(oid, 'excellent', bands.excellent)}</td>
       <td style="text-align:center;"><button class="pg-toggle-cell ${(item.mspEnabled !== false) ? 'on' : ''}" onclick="pgToggleMspCell('${oid}',this)"></button></td>
       <td><span class="material-symbols-outlined" style="font-size:18px;color:var(--error);cursor:pointer;opacity:0.4;transition:opacity 0.15s;" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0.4" onclick="pgDelete('${oid}','${escHtml(item.productName || '').replace(/'/g,"\\'")}')">delete</span></td>
     </tr>`;
@@ -6997,6 +7012,17 @@ function pgCategorySelect(oid, current) {
 function pgMakeCell(oid, field, val, cls) {
   const v = val ?? '';
   return `<input class="pg-cell-editable ${cls}" type="text" inputmode="decimal" value="${escHtml(String(v))}" data-oid="${oid}" data-field="${field}" onfocus="this.select()" oninput="pgMarkDirty('${oid}')">`;
+}
+
+function pgMakeBandCell(oid, bandKey, band) {
+  const b = band || {};
+  const f = b.from ?? '';
+  const t = b.to ?? '';
+  return `<div class="pg-band-cell">
+    <input class="pg-cell-editable num" type="text" inputmode="decimal" value="${escHtml(String(f))}" data-oid="${oid}" data-field="bands.${bandKey}.from" onfocus="this.select()" oninput="pgMarkDirty('${oid}')">
+    <span class="pg-band-dash">–</span>
+    <input class="pg-cell-editable num" type="text" inputmode="decimal" value="${escHtml(String(t))}" data-oid="${oid}" data-field="bands.${bandKey}.to" onfocus="this.select()" oninput="pgMarkDirty('${oid}')">
+  </div>`;
 }
 
 function pgMarkDirty(oid) {
@@ -7032,13 +7058,27 @@ async function pgSaveChanges() {
     if (!row) continue;
     const payload = { updatedAt: new Date().toISOString(), updatedBy: 'admin' };
     // Read regular inputs
+    const bfs = {};
     row.querySelectorAll('.pg-cell-editable, .pg-cell-select').forEach(inp => {
       const f = inp.dataset.field;
       const raw = inp.value.trim();
+      if (f && f.startsWith('bands.')) {
+        const parts = f.split('.');
+        const bandKey = parts[1], edge = parts[2];
+        if (!bfs[bandKey]) bfs[bandKey] = {};
+        bfs[bandKey][edge] = raw === '' ? null : Number(raw);
+        return;
+      }
       if (f === 'slabId') payload[f] = raw;
       else if (raw === '') payload[f] = null;
       else payload[f] = isNaN(Number(raw)) ? raw : Number(raw);
     });
+    const bandKeys = ['minimum', 'low', 'target', 'good', 'excellent'];
+    const completeBands = bandKeys.every(k => bfs[k] && Number.isFinite(bfs[k].from) && Number.isFinite(bfs[k].to));
+    if (completeBands) {
+      payload.bands = {};
+      bandKeys.forEach(k => { payload.bands[k] = { from: bfs[k].from, to: bfs[k].to }; });
+    }
     // Read MSP toggle
     const toggleCell = row.querySelector('.pg-toggle-cell');
     if (toggleCell) payload.mspEnabled = toggleCell.classList.contains('on');
@@ -7142,7 +7182,8 @@ function pgOpenAddModal() {
 
 function pgCloseAddModal() {
   document.getElementById('pgAddModal').style.display = 'none';
-  ['pgAddName','pgAddMrp','pgAddMop','pgAddMsp'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pgAddName').value = '';
+  ['pgAddMinF','pgAddMinT','pgAddLowF','pgAddLowT','pgAddTgtF','pgAddTgtT','pgAddGoodF','pgAddGoodT','pgAddExcF','pgAddExcT'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('pgAddSlab').value = '';
   const mspToggle = document.getElementById('pgAddMspEnabled');
   if (mspToggle) mspToggle.classList.add('on');
@@ -7150,12 +7191,16 @@ function pgCloseAddModal() {
 
 async function pgSubmitAdd() {
   const name = document.getElementById('pgAddName').value.trim();
-  const mrp = parseFloat(document.getElementById('pgAddMrp').value);
-  if (!name || !mrp) { showToast('Product name and MRP are required', 'info'); return; }
+  if (!name) { showToast('Product name is required', 'info'); return; }
+  const bands = {};
+  const bandDefs = [['minimum', 'pgAddMinF', 'pgAddMinT'], ['low', 'pgAddLowF', 'pgAddLowT'], ['target', 'pgAddTgtF', 'pgAddTgtT'], ['good', 'pgAddGoodF', 'pgAddGoodT'], ['excellent', 'pgAddExcF', 'pgAddExcT']];
+  for (const [key, fId, tId] of bandDefs) {
+    const from = parseFloat(document.getElementById(fId).value);
+    const to = parseFloat(document.getElementById(tId).value);
+    if (Number.isFinite(from) && Number.isFinite(to)) bands[key] = { from, to };
+  }
   const payload = {
-    productName: name, mrp,
-    mop: parseFloat(document.getElementById('pgAddMop').value) || 0,
-    msp: parseFloat(document.getElementById('pgAddMsp').value) || 0,
+    productName: name, bands,
     slabId: document.getElementById('pgAddSlab').value || '',
     mspEnabled: document.getElementById('pgAddMspEnabled').classList.contains('on')
   };
@@ -7164,6 +7209,15 @@ async function pgSubmitAdd() {
     if (!res.ok) throw new Error(await res.text());
     pgCloseAddModal(); pgLoadData();
   } catch(e) { showToast('Add failed: ' + e.message, 'error'); }
+}
+
+function pgParseRangeStr(v) {
+  const s = String(v ?? '').replace(/[₹,\s]/g, '');
+  const m = s.match(/(\d+(?:\.\d+)?)[-–—](\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  const from = Number(m[1]), to = Number(m[2]);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return null;
+  return { from, to };
 }
 
 async function pgHandleExcel() {
@@ -7184,9 +7238,12 @@ async function pgHandleExcel() {
     const map = h => {
       const l = h.toLowerCase().replace(/[\s_-]+/g,'');
       if (l.includes('product')||l.includes('name')||l.includes('item')) return 'productName';
-      if (l.includes('mrp')) return 'mrp';
-      if (l.includes('mop')) return 'mop';
-      if (l.includes('msp')) return 'msp';
+      if (l.includes('category')) return 'category';
+      if (l.includes('minimum')) return 'bands.minimum';
+      if (l.includes('excellent')) return 'bands.excellent';
+      if (l.includes('target')) return 'bands.target';
+      if (l.includes('good')) return 'bands.good';
+      if (l.includes('low')) return 'bands.low';
       return null;
     };
     const colMap = {};
@@ -7201,9 +7258,12 @@ async function pgHandleExcel() {
       if (found) {
         const hasChanges = Object.keys(colMap).some(k => {
           if (k === 'productName') return false;
-          const excelVal = String(row[colMap[k]]).trim();
-          const curVal = String(found[k] ?? '').trim();
-          return excelVal !== curVal;
+          if (k === 'category') return String(row[colMap[k]]).trim() !== String(found.category ?? '').trim();
+          const excelRange = pgParseRangeStr(row[colMap[k]]);
+          const curBand = (found.bands || {})[k.replace('bands.','')];
+          if (!excelRange) return false;
+          if (!curBand) return true;
+          return Number(excelRange.from) !== Number(curBand.from) || Number(excelRange.to) !== Number(curBand.to);
         });
         if (hasChanges) { matched++; html += `<div class="diff-item"><span class="diff-matched">\u270E ${escHtml(pn)}</span><span style="color:var(--amber);">will update</span></div>`; }
         else { unchanged++; }
@@ -7228,17 +7288,25 @@ async function pgConfirmSync() {
     const pn = String(row[colMap.productName]).trim();
     const found = pgState.items.find(e => (e.productName || '').toLowerCase() === pn.toLowerCase());
     const payload = { updatedAt: new Date().toISOString(), updatedBy: 'admin', mspEnabled: true };
+    const bands = {};
     Object.keys(colMap).forEach(k => {
       if (k === 'productName') return;
+      if (k === 'category') { const v = String(row[colMap[k]]).trim(); if (v) payload.category = v; return; }
+      if (k.startsWith('bands.')) {
+        const range = pgParseRangeStr(row[colMap[k]]);
+        if (range) bands[k.replace('bands.','')] = range;
+        return;
+      }
       const v = String(row[colMap[k]]).trim();
       payload[k] = v === '' ? null : (isNaN(Number(v)) ? v : Number(v));
     });
+    if (Object.keys(bands).length) payload.bands = bands;
     try {
       if (found) {
         const res = await authFetch(`${BASE_URL}/price-guide/${found.id || found._id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (res.ok) ok++; else fail++;
       } else {
-        payload.productName = pn; payload.mrp = payload.mrp || 0;
+        payload.productName = pn;
         const res = await authFetch(`${BASE_URL}/price-guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (res.ok) ok++; else fail++;
       }
@@ -7346,6 +7414,17 @@ function slDelete(id, name) {
   authFetch(`${BASE_URL}/slabs/${id}`, { method: 'DELETE' }).then(r => { if (r.ok) slLoadData(); else showToast('Delete failed', 'error'); }).catch(e => showToast('Delete failed: ' + e.message, 'error'));
 }
 
+function pgOrigVal(oid, field) {
+  const orig = pgState.originals[oid];
+  if (!orig || !field) return '';
+  if (field.startsWith('bands.')) {
+    const parts = field.split('.');
+    const b = orig.bands ? orig.bands[parts[1]] : null;
+    return b ? String(b[parts[2]] ?? '') : '';
+  }
+  return String(orig[field] ?? '');
+}
+
 /* keyboard navigation for price guide spreadsheet */
 document.addEventListener('keydown', function(e) {
   const active = document.activeElement;
@@ -7357,13 +7436,13 @@ document.addEventListener('keydown', function(e) {
       const orig = pgState.originals[oid];
       if (orig) {
         const field = active.dataset.field;
-        active.value = orig[field] ?? '';
+        active.value = pgOrigVal(oid, field);
         pgState.dirty.delete(oid);
         const row = document.querySelector(`tr[data-id="${oid}"]`);
-        if (row && !row.querySelector('.pg-cell-editable').value !== (orig[active.dataset.field] ?? '')) {
+        if (row) {
           // recheck all fields in row
           let stillDirty = false;
-          row.querySelectorAll('.pg-cell-editable').forEach(inp => { if (inp.value !== String(pgState.originals[oid][inp.dataset.field] ?? '')) stillDirty = true; });
+          row.querySelectorAll('.pg-cell-editable').forEach(inp => { if (inp.value !== pgOrigVal(oid, inp.dataset.field)) stillDirty = true; });
           if (!stillDirty) { row.classList.remove('pg-row-dirty'); pgState.dirty.delete(oid); }
         }
         document.getElementById('pgDirtyCount').textContent = pgState.dirty.size + ' unsaved change' + (pgState.dirty.size !== 1 ? 's' : '');

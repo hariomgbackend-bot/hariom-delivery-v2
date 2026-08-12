@@ -7154,14 +7154,40 @@ app.get('/cloud-invoices/file/:id', authenticate, authorize(['accountant', 'admi
 
 /* ── Incentive module removed ── */
 
+// Normalize the 5-band price structure used by the price guide.
+// Each band is a selling-price range { from, to } (₹), e.g. MINIMUM +5–7.5% over GST-inclusive price.
+function normalizeBands(raw) {
+  if (raw == null || typeof raw !== "object") return null;
+  const keys = ["minimum", "low", "target", "good", "excellent"];
+  const bands = {};
+  for (const k of keys) {
+    const b = raw[k];
+    if (!b) return null;
+    const from = Number(b.from);
+    const to = Number(b.to);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return null;
+    bands[k] = { from, to };
+  }
+  return bands;
+}
+
+function deriveCategory(productName) {
+  const first = String(productName || "").trim().split(/\s+/)[0].toUpperCase();
+  return /^(LED|REF|WM)$/.test(first) ? first : "";
+}
+
 app.post("/price-guide/bulk", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
   try {
     const { items } = req.body;
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "items array required" });
     const results = [];
     for (const item of items) {
+      const productName = item.productName || item.product_name || "";
+      const bands = normalizeBands(item.bands);
       const docRef = await addDoc(collection(db, "price_guide"), {
-        productName: item.productName || item.product_name || "",
+        productName,
+        ...(bands ? { bands } : {}),
+        category: item.category || deriveCategory(productName),
         mrp: Number(item.mrp) || 0,
         mop: Number(item.mop) || 0,
         msp: Number(item.msp) || 0,
@@ -7169,7 +7195,7 @@ app.post("/price-guide/bulk", authenticate, authorize(["admin", "accountant"]), 
         mspEnabled: item.mspEnabled !== undefined ? item.mspEnabled : true,
         updatedAt: Timestamp.now(), updatedBy: req.user.name || "admin"
       });
-      results.push({ id: docRef.id, productName: item.productName });
+      results.push({ id: docRef.id, productName });
     }
     invalidateRefCache("price-guide");
     res.json({ success: true, count: results.length, items: results });
@@ -7321,8 +7347,11 @@ app.post("/price-guide", authenticate, authorize(["admin", "accountant"]), async
   try {
     const { productName, mrp, mop, msp, slabId, mspEnabled } = req.body;
     if (!productName) return res.status(400).json({ error: "Product name required" });
+    const bands = normalizeBands(req.body.bands);
     const docRef = await addDoc(collection(db, "price_guide"), {
       productName,
+      ...(bands ? { bands } : {}),
+      category: req.body.category || deriveCategory(productName),
       mrp: Number(mrp) || 0, mop: Number(mop) || 0, msp: Number(msp) || 0,
       slabId: slabId || "", mspEnabled: mspEnabled !== undefined ? mspEnabled : true,
       updatedAt: Timestamp.now(), updatedBy: req.user.name || "admin"
@@ -7364,6 +7393,12 @@ app.put("/price-guide/:id", authenticate, authorize(["admin", "accountant"]), as
     if (!(await getDoc(ref)).exists()) return res.status(404).json({ error: "Not found" });
     const clean = { ...req.body };
     delete clean.id;
+    if (req.body.bands !== undefined) {
+      const bands = normalizeBands(req.body.bands);
+      if (!bands) return res.status(400).json({ error: "Invalid bands — each of minimum/low/target/good/excellent needs numeric from/to" });
+      clean.bands = bands;
+    }
+    if (clean.productName && clean.category === undefined) clean.category = deriveCategory(clean.productName);
     await updateDoc(ref, { ...clean, updatedAt: Timestamp.now(), updatedBy: req.user.name || "admin" });
     invalidateRefCache("price-guide");
     res.json({ success: true });
