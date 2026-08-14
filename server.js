@@ -939,13 +939,16 @@ app.post(
       const product_name = (anyItem()[0] || "").toUpperCase();
 
       const serial_number = anyTag("HARIOMTFSERIALNO", "HARIOMCFSERIALNO", "HARIOMIFSERIALNO");
-      const description   = anyTag("HARIOMTFDESCRIPTION", "HARIOMCFDESCRIPTION", "HARIOMIFDESCRIPTION") || "Not Working";
 
       let type = (anyTag("HARIOMTFTYPE", "HARIOMCFTYPE", "HARIOMIFTYPE") || "complaint").toLowerCase();
       if (!["installation", "complaint"].includes(type)) type = "complaint";
 
       let priority = (anyTag("HARIOMTFPRIORITY", "HARIOMCFPRIORITY", "HARIOMIFPRIORITY") || "normal").toLowerCase();
       if (!["normal", "high"].includes(priority)) priority = "normal";
+
+      const description =
+        anyTag("HARIOMTFDESCRIPTION", "HARIOMCFDESCRIPTION", "HARIOMIFDESCRIPTION") ||
+        (type === "installation" ? "Demo-installation" : "Not working");
 
       if (!voucher_number) {
         res.set("Content-Type", "text/xml");
