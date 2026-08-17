@@ -4400,7 +4400,7 @@ async function loadAdmin() {
         ${d.status === "failed" ? `<div style="font-size:11px;color:#dc2626;margin-top:2px;">${escHtml(d.failure_reason || "")}</div>` : ""}
       </td>
       <td style="text-align:center;">${stCircle}</td>
-      <td style="color:var(--muted)">${escHtml(d.assigned_driver_name || "—")}</td>
+      <td style="color:var(--muted)">${d.delivery_mode === "porter" ? "📦 Porter" : escHtml(d.assigned_driver_name || "—")}</td>
       <td>${escHtml(d.product_name || "")}</td>
       <td>
         <span class="badge badge-${escHtml(d.status)}">${escHtml(d.status)}</span>
@@ -4563,7 +4563,7 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
         </div>
       </div>
       <div class="mob-dc-meta">
-        <span>🚚 ${escHtml(d.assigned_driver_name || "—")}</span>
+        <span>🚚 ${d.delivery_mode === "porter" ? "📦 Porter" : escHtml(d.assigned_driver_name || "—")}</span>
         <span>⏱ ${fmtETA(d.estimated_delivery_time)}</span>
         ${d.phone ? `<span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>` : ""}
       </div>
@@ -4676,7 +4676,13 @@ function viewDetails(d) {
     <div class="detail-row"><b>Priority</b><span><span class="badge badge-${escHtml(d.priority || "normal")}">${escHtml(d.priority || "normal")}</span></span></div>
     <div class="detail-row"><b>ETA</b><span>${d.estimated_delivery_time ? new Date(d.estimated_delivery_time).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}) : "—"}</span></div>
     <div class="detail-row"><b>Delivery Rating</b><span>${(() => { if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—"; const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000; if (diff<=-10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">\u26a1 Early (' + Math.abs(Math.round(diff)) + 'm early)</span>'; if (diff<=10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">\u2705 On Time</span>'; if (diff<=30) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">\ud83d\udd50 Late (' + Math.round(diff) + 'm)</span>'; return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">\ud83d\udd34 Very Late (' + Math.round(diff) + 'm)</span>'; })()}</span></div>
-    <div class="detail-row"><b>Driver</b><span>${escHtml(d.assigned_driver_name || "—")}</span></div>
+    <div class="detail-row"><b>Driver</b><span>${d.delivery_mode === "porter" ? "📦 Porter App" : escHtml(d.assigned_driver_name || "—")}</span></div>
+    ${d.delivery_mode === "porter" ? `
+    <div class="detail-row"><b>Porter Invoice/Order No</b><span>${escHtml(d.porter_invoice_number) || "—"}</span></div>
+    <div class="detail-row"><b>Vehicle Reg No</b><span>${escHtml(d.porter_vehicle_number) || "—"}</span></div>
+    <div class="detail-row"><b>Courier Name</b><span>${escHtml(d.porter_courier_name) || "—"}</span></div>
+    <div class="detail-row"><b>Courier Phone</b><span>${escHtml(d.porter_phone) || "—"}</span></div>
+    ` : ""}
     <div class="detail-row"><b>Driver Instructions</b><span>${d.driver_instructions && d.driver_instructions !== "none" ? escHtml(d.driver_instructions) : "—"}</span></div>
     <div class="detail-row"><b>Store</b><span>${escHtml(storeDisplayName(d.storeId)) || "—"}</span></div>
     <div class="detail-row"><b>Pickup From</b><span>${escHtml(d.pickup_from) || "—"}</span></div>
@@ -4767,6 +4773,18 @@ function enableEdit() {
             📞 On-Demand Delivery
           </label>
         </div>
+        <div style="margin-bottom:8px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--on-surface);text-transform:none;letter-spacing:0;">
+            <input type="checkbox" id="edit_is_porter" onchange="toggleAdminPorter()" ${(d.delivery_mode === "porter" || d.assigned_driver_name === "Porter") ? "checked" : ""}>
+            📦 Porter App Delivery
+          </label>
+        </div>
+        <div id="adminPorterWrap" style="display:${(d.delivery_mode === "porter" || d.assigned_driver_name === "Porter") ? "block" : "none"};">
+          <div class="edit-field"><label>Porter Invoice / Order No</label><input id="edit_porter_invoice_number" value="${escHtml(d.porter_invoice_number || "")}"></div>
+          <div class="edit-field"><label>Vehicle Reg No</label><input id="edit_porter_vehicle_number" value="${escHtml(d.porter_vehicle_number || "")}"></div>
+          <div class="edit-field"><label>Courier Name</label><input id="edit_porter_courier_name" value="${escHtml(d.porter_courier_name || "")}"></div>
+          <div class="edit-field"><label>Courier Phone</label><input id="edit_porter_phone" value="${escHtml(d.porter_phone || "")}"></div>
+        </div>
         <div id="adminEtaWrap" style="display:${d.estimated_delivery_time === "On-Demand" ? "none" : "block"};">
           <div class="edit-field"><label>ETA</label><input type="datetime-local" id="edit_eta" value="${formatEtaForInput(d.estimated_delivery_time)}"></div>
         </div>
@@ -4846,6 +4864,11 @@ function toggleEditProductMode() {
 function toggleAdminOnDemand() {
   const checked = document.getElementById("edit_is_on_demand").checked;
   document.getElementById("adminEtaWrap").style.display = checked ? "none" : "block";
+  if (checked) {
+    // Mutually exclusive with Porter
+    document.getElementById("edit_is_porter").checked = false;
+    document.getElementById("adminPorterWrap").style.display = "none";
+  }
   if (!checked) {
     var d = new Date(Date.now() + 2 * 3600000);
     var def = d.getFullYear() + '-' +
@@ -4854,6 +4877,16 @@ function toggleAdminOnDemand() {
       String(d.getHours()).padStart(2, '0') + ':' +
       String(d.getMinutes()).padStart(2, '0');
     document.getElementById("edit_eta").value = def;
+  }
+}
+
+function toggleAdminPorter() {
+  const checked = document.getElementById("edit_is_porter").checked;
+  document.getElementById("adminPorterWrap").style.display = checked ? "block" : "none";
+  if (checked) {
+    // Mutually exclusive with On-Demand; keep ETA visible (optional for Porter)
+    document.getElementById("edit_is_on_demand").checked = false;
+    document.getElementById("adminEtaWrap").style.display = "block";
   }
 }
 function formatEtaForInput(eta) {
@@ -4892,13 +4925,20 @@ async function updateDelivery(id) {
       ? (document.getElementById("edit_product_tally_input")?.value?.trim()?.toUpperCase() || "")
       : (document.getElementById("edit_product")?.value?.trim()?.toUpperCase() || "");
 
-    // Resolve driver — from dropdown (has id + name)
-    const driverSel  = document.getElementById("edit_driver_select");
-    const isOnDemand = document.getElementById("edit_is_on_demand")?.checked;
-    const driverName = isOnDemand ? "" : driverSel
-      ? driverSel.options[driverSel.selectedIndex]?.text
-      : (document.getElementById("edit_driver")?.value || "");
-    const driverId   = isOnDemand ? "" : driverSel ? driverSel.value : d?.assigned_driver_id;
+    // Resolve driver — from dropdown (has id + name). Porter overrides to the Porter special driver.
+    const driverSel   = document.getElementById("edit_driver_select");
+    const isOnDemand  = document.getElementById("edit_is_on_demand")?.checked;
+    const isPorter    = document.getElementById("edit_is_porter")?.checked;
+    const porterOpt   = isPorter && driverSel
+      ? [...driverSel.options].find(o => o.text === "Porter") : null;
+    const driverName  = isOnDemand ? "" : isPorter
+      ? "Porter"
+      : driverSel
+        ? driverSel.options[driverSel.selectedIndex]?.text
+        : (document.getElementById("edit_driver")?.value || "");
+    const driverId    = isOnDemand ? "" : isPorter
+      ? (porterOpt?.value || d?.assigned_driver_id || "")
+      : driverSel ? driverSel.value : d?.assigned_driver_id;
 
     const res = await authFetch(`${BASE_URL}/delivery/${id}`, {
       method: "PUT",
@@ -4914,7 +4954,13 @@ async function updateDelivery(id) {
         estimated_delivery_time: isOnDemand ? "On-Demand" : document.getElementById("edit_eta").value,
         product_serial_number:   document.getElementById("edit_serial").value,
         storeId:           document.getElementById("editStoreId")?.value || "",
-        pickup_from:             document.getElementById("edit_pickup_from")?.value?.trim() || ""
+        pickup_from:             document.getElementById("edit_pickup_from")?.value?.trim() || "",
+        is_self_pickup:          isPorter ? true : false,
+        delivery_mode:           isPorter ? "porter" : "",
+        porter_invoice_number:   isPorter ? document.getElementById("edit_porter_invoice_number")?.value?.trim() || "" : "",
+        porter_vehicle_number:   isPorter ? document.getElementById("edit_porter_vehicle_number")?.value?.trim() || "" : "",
+        porter_courier_name:     isPorter ? document.getElementById("edit_porter_courier_name")?.value?.trim() || "" : "",
+        porter_phone:            isPorter ? document.getElementById("edit_porter_phone")?.value?.trim() || "" : ""
       })
     });
     if (!res.ok) {

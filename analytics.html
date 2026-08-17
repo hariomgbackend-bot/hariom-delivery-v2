@@ -1124,11 +1124,12 @@ function buildAllCharts(data) {
   });
 
   // ── Method ──
-  const selfPickup = data.filter(d=>d.is_self_pickup).length;
-  const driverDel  = data.length - selfPickup;
+  const porter     = data.filter(d=>d.delivery_mode === "porter").length;
+  const selfPickup = data.filter(d=>d.is_self_pickup && d.delivery_mode !== "porter").length;
+  const driverDel  = data.length - porter - selfPickup;
   makeChart("chartMethod", {
     type:"doughnut",
-    data:{ labels:["Driver Delivery","Self Pickup"], datasets:[{ data:[driverDel,selfPickup], backgroundColor:[C.tertiary,C.sky], borderColor:"rgba(0,0,0,0.2)", borderWidth:2 }] },
+    data:{ labels:["Driver Delivery","Self Pickup","Porter"], datasets:[{ data:[driverDel,selfPickup,porter], backgroundColor:[C.tertiary,C.sky,C.purple], borderColor:"rgba(0,0,0,0.2)", borderWidth:2 }] },
     options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:"bottom",labels:{color:C.textColor,padding:12,font:{size:11}}} } }
   });
 
@@ -1159,7 +1160,7 @@ function buildAllCharts(data) {
   // ── Driver volume ──
   const driverVol = {};
   data.forEach(d => { const nm = d.assigned_driver_name||"Unassigned"; driverVol[nm]=(driverVol[nm]||0)+1; });
-  const driverEntries = Object.entries(driverVol).sort((a,b)=>b[1]-a[1]).filter(([k])=>k!=="Unassigned");
+  const driverEntries = Object.entries(driverVol).sort((a,b)=>b[1]-a[1]).filter(([k])=>k!=="Unassigned" && k!=="Porter");
   const driverColors  = [C.primary, C.tertiary, C.amber, C.sky, C.purple, C.error, C.pink, C.teal];
   makeChart("chartDriverVolume", {
     type:"bar",
@@ -1172,7 +1173,7 @@ function buildAllCharts(data) {
 
   // ── Driver success rate ──
   const driverSuccess = {};
-  data.filter(d=>d.assigned_driver_name && d.assigned_driver_name!=="Unassigned").forEach(d => {
+  data.filter(d=>d.assigned_driver_name && d.assigned_driver_name!=="Unassigned" && d.assigned_driver_name!=="Porter").forEach(d => {
     const nm = d.assigned_driver_name;
     if (!driverSuccess[nm]) driverSuccess[nm] = {del:0, fail:0};
     if (d.status==="delivered") driverSuccess[nm].del++;

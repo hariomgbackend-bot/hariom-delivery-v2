@@ -2130,6 +2130,7 @@ function openDelivPopup(id) {
       <div class="popup-status-row">
         <span class="badge badge-${esc(d.status)}">${esc(d.status)}</span>
         ${warranty ? warranty : ""}
+        ${d.delivery_mode === "porter" ? `<span class="badge badge-selfpickup" style="background:rgba(77,142,255,0.15);color:#4d8eff;border:1px solid rgba(77,142,255,0.3);">📦 Porter</span>` : ""}
         ${d.is_self_pickup ? `<span class="badge badge-selfpickup" style="background:rgba(22,163,74,0.15);color:#16a34a;border:1px solid rgba(22,163,74,0.3);">🏪 Self Pickup</span>` : ""}
       </div>
       <div class="popup-name">${esc(d.customer_name)}${storeDisplayName(d.storeId)?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(storeDisplayName(d.storeId))}</span>`:""}</div>

@@ -1069,6 +1069,7 @@
       <button class="filter-btn" data-filter="failed"    onclick="setFilter('failed')" style="color:var(--error);border-color:rgba(255,180,171,0.3);">❌ Failed <span class="filter-count" id="fc-failed"></span></button>
       <button class="filter-btn" data-filter="urgent"    onclick="setFilter('urgent')">🔥 Urgent <span class="filter-count" id="fc-urgent"></span></button>
       <button class="filter-btn" data-filter="self_pickup" onclick="setFilter('self_pickup')" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);">🏪 Self Pickup <span class="filter-count" id="fc-self_pickup"></span></button>
+      <button class="filter-btn" data-filter="porter" onclick="setFilter('porter')" style="color:#4d8eff;border-color:rgba(77,142,255,0.3);">📦 Porter <span class="filter-count" id="fc-porter"></span></button>
       <button class="filter-btn" data-filter="today"     onclick="setFilter('today')">Today <span class="filter-count" id="fc-today"></span></button>
       <button class="filter-btn" data-filter="yesterday" onclick="setFilter('yesterday')">Yesterday</button>
       <button class="filter-btn" data-filter="datepicker" onclick="toggleDatePicker()" id="customerFilterBtn">📅 Date Picker</button>
@@ -1260,6 +1261,28 @@
     <div class="checkbox-row" style="margin-top:10px;">
       <input type="checkbox" id="is_self_pickup" onchange="toggleSelfPickup()">
       <label for="is_self_pickup">🏪 Self Pickup (customer collects from shop)</label>
+    </div>
+
+    <!-- PORTER APP TOGGLE -->
+    <div class="checkbox-row" style="margin-top:6px;">
+      <input type="checkbox" id="is_porter" onchange="togglePorter()">
+      <label for="is_porter">📦 Porter App Delivery</label>
+    </div>
+
+    <div id="porterWrap" style="display:none;margin-bottom:8px;">
+      <div class="section-title">Expected Handover Date &amp; Time <span style="font-size:11px;color:var(--text-muted,#888);font-weight:400;">(optional)</span></div>
+      <input type="datetime-local" id="porter_date" style="width:100%;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div style="font-size:12px;font-weight:600;color:var(--on-surface-variant);">Porter Details</div>
+        <div style="font-size:11px;color:var(--text-muted,#888);">Optional</div>
+      </div>
+      <input id="porter_invoice_number" placeholder="Porter Invoice / Order No" style="width:100%;margin-bottom:6px;">
+      <input id="porter_vehicle_number" placeholder="Vehicle Reg No" style="width:100%;margin-bottom:6px;">
+      <input id="porter_courier_name" placeholder="Courier Name" style="width:100%;margin-bottom:6px;">
+      <input id="porter_phone" placeholder="Courier Phone" style="width:100%;">
+      <div style="font-size:11px;color:var(--text-muted,#888);margin-top:4px;">
+        Delivery handed to Porter app courier — no in-house driver assigned.
+      </div>
     </div>
 
     <div id="selfPickupWrap" style="display:none;margin-bottom:8px;">
@@ -3059,8 +3082,27 @@ function toggleSelfPickup() {
   const checked   = document.getElementById("is_self_pickup").checked;
   document.getElementById("selfPickupWrap").style.display    = checked ? "" : "none";
   document.getElementById("normalDeliveryWrap").style.display = checked ? "none" : "";
-  // Reset driver/ETA when switching
+  // Mutually exclusive with Porter + On-Demand
   if (checked) {
+    document.getElementById("is_porter").checked = false;
+    document.getElementById("porterWrap").style.display = "none";
+    document.getElementById("is_on_demand").checked = false;
+    document.getElementById("createEtaWrap").style.display = "";
+    document.getElementById("driver").value        = "";
+    document.getElementById("estimated_time").value = "";
+  }
+}
+
+function togglePorter() {
+  const checked = document.getElementById("is_porter").checked;
+  document.getElementById("porterWrap").style.display = checked ? "" : "none";
+  // Porter behaves like self-pickup — no in-house driver, optional ETA
+  document.getElementById("selfPickupWrap").style.display    = checked ? "none" : (document.getElementById("is_self_pickup").checked ? "" : "none");
+  document.getElementById("normalDeliveryWrap").style.display = checked ? "none" : "";
+  if (checked) {
+    document.getElementById("is_self_pickup").checked = false;
+    document.getElementById("is_on_demand").checked = false;
+    document.getElementById("createEtaWrap").style.display = "";
     document.getElementById("driver").value        = "";
     document.getElementById("estimated_time").value = "";
   }
@@ -3071,6 +3113,11 @@ function toggleCreateOnDemand() {
   document.getElementById("createEtaWrap").style.display = checked ? "none" : "";
   if (checked) {
     document.getElementById("driver").value = "";
+    // Mutually exclusive with Self Pickup + Porter
+    document.getElementById("is_self_pickup").checked = false;
+    document.getElementById("selfPickupWrap").style.display = "none";
+    document.getElementById("is_porter").checked = false;
+    document.getElementById("porterWrap").style.display = "none";
   } else {
     var d = new Date(Date.now() + 2 * 3600000);
     var def = d.getFullYear() + '-' +
@@ -3405,6 +3452,7 @@ async function createDelivery() {
   const etaEl        = document.getElementById("estimated_time");
   const isSelfPickup = document.getElementById("is_self_pickup").checked;
   const isOnDemand   = document.getElementById("is_on_demand").checked;
+  const isPorter     = document.getElementById("is_porter").checked;
 
   if (!firstNameEl.value.trim()) {
     showToast("First name is required", "info"); return;
@@ -3415,7 +3463,7 @@ async function createDelivery() {
   if (!addr1El.value.trim()) {
     showToast("Address Line 1 is required", "info"); return;
   }
-  if (!isSelfPickup && !isOnDemand) {
+  if (!isSelfPickup && !isOnDemand && !isPorter) {
     if (!driverEl.value) {
       showToast("Please assign a driver", "info"); return;
     }
@@ -3529,14 +3577,19 @@ async function createDelivery() {
     alternate_phone:         document.getElementById("alt_phone").value || "",
     address:                 capitalizeWords(fullAddress),
     priority:                document.getElementById("priority").value,
-    estimated_delivery_time: isOnDemand ? "On-Demand" : isSelfPickup ? (document.getElementById("pickup_date").value || null) : etaEl.value,
-    assigned_driver_id:      isOnDemand || isSelfPickup ? "" : driverSel.value,
-    assigned_driver_name:    isOnDemand || isSelfPickup ? "" : driverSel.options[driverSel.selectedIndex].text,
+    estimated_delivery_time: isOnDemand ? "On-Demand" : isPorter ? (document.getElementById("porter_date").value || null) : isSelfPickup ? (document.getElementById("pickup_date").value || null) : etaEl.value,
+    assigned_driver_id:      isOnDemand || isSelfPickup || isPorter ? "" : driverSel.value,
+    assigned_driver_name:    isOnDemand || isSelfPickup || isPorter ? "" : driverSel.options[driverSel.selectedIndex].text,
     driver_instructions:     hasInstruction ? document.getElementById("instruction").value.trim() : "none",
     freight_charged:         freightCharged,
     freight_amount:          freightCharged ? document.getElementById("freight_amount").value : "",
     freight_set_by:          freightCharged ? "accountant" : "",
     is_self_pickup:          isSelfPickup,
+    delivery_mode:           isPorter ? "porter" : "",
+    porter_invoice_number:   isPorter ? document.getElementById("porter_invoice_number").value.trim() : "",
+    porter_vehicle_number:   isPorter ? document.getElementById("porter_vehicle_number").value.trim() : "",
+    porter_courier_name:     isPorter ? document.getElementById("porter_courier_name").value.trim() : "",
+    porter_phone:            isPorter ? document.getElementById("porter_phone").value.trim() : "",
     sold_by_id:              document.getElementById("sold_by").value || "",
     sold_by_name:            document.getElementById("sold_by").options[document.getElementById("sold_by").selectedIndex].text || "Others",
     sale_price:              parseFloat(document.getElementById("sale_price").value) || 0,
@@ -3679,6 +3732,15 @@ function resetForm() {
   document.getElementById("is_self_pickup").checked = false;
   document.getElementById("selfPickupWrap").style.display = "none";
   document.getElementById("normalDeliveryWrap").style.display = "";
+
+  // Reset Porter
+  document.getElementById("is_porter").checked = false;
+  document.getElementById("porterWrap").style.display = "none";
+  document.getElementById("porter_date").value = "";
+  document.getElementById("porter_invoice_number").value = "";
+  document.getElementById("porter_vehicle_number").value = "";
+  document.getElementById("porter_courier_name").value = "";
+  document.getElementById("porter_phone").value = "";
 
   const cityEl  = document.getElementById("city");
   const stateEl = document.getElementById("state_field");
@@ -3850,11 +3912,12 @@ function makeDeliveryRow(d, i, phonePositions) {
     <td><a class='phone-link' href='tel:${escHtml(d.phone)}'>${escHtml(d.phone)}</a></td>
     <td>${escHtml(d.product_name)}</td>
     <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${escHtml(d.address)||'—'}</span></td>
-    <td>${d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—'}</td>
+    <td>${d.delivery_mode === "porter" ? '📦 Porter' : (d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—')}</td>
     <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
     <td>
       <span class="badge badge-${d.status}">${d.status}</span>
-      ${d.is_self_pickup?`<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>`:""}
+      ${d.delivery_mode === "porter" ? `<span class="badge badge-selfpickup" style="margin-left:4px;background:rgba(77,142,255,0.12);color:#4d8eff;">📦 Porter</span>` : ""}
+      ${d.is_self_pickup && d.delivery_mode !== "porter" ? `<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>`:""}
       ${(d.status!=="delivered"&&d.status!=="failed"&&d.status!=="booked"&&d.estimated_delivery_time&&new Date(d.estimated_delivery_time)<new Date())?`<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>`:""}
       ${installFlag(d)}
       ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
@@ -3918,6 +3981,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
       else if (statusMap[currentFilter])        url += `&status=${statusMap[currentFilter]}`;
       if (currentFilter === "urgent")           url += `&priority=urgent`;
       if (currentFilter === "self_pickup")      url += `&selfPickup=true`;
+      if (currentFilter === "porter")           url += `&porter=true`;
 
       if (currentFilter === "today") {
         const t = new Date().toISOString().slice(0,10);
@@ -3958,7 +4022,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
     // Counts from server endpoint
     const sc = await countsPromise;
     if (sc) {
-      ["all","booked","pending","loaded","delivered","failed","urgent","self_pickup","today"].forEach(k => {
+      ["all","booked","pending","loaded","delivered","failed","urgent","self_pickup","porter","today"].forEach(k => {
         const el = document.getElementById("fc-"+k);
         if (el) el.innerText = sc[k] || "";
       });
@@ -4169,7 +4233,7 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
       </div>
       <div class="mob-card-meta">
         <span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>
-        <span>🚚 ${d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—'}</span>
+        <span>🚚 ${d.delivery_mode === "porter" ? '📦 Porter' : (d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—')}</span>
         <span>⏱ ${formatDate(d.estimated_delivery_time)}</span>
       </div>
     `;
@@ -4228,7 +4292,7 @@ function renderMobileCardsSubset(finalData, container, opts) {
       </div>
       <div class="mob-card-meta">
         <span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>
-        <span>🚚 ${d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—'}</span>
+        <span>🚚 ${d.delivery_mode === "porter" ? '📦 Porter' : (d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—')}</span>
         <span>⏱ ${formatDate(d.estimated_delivery_time)}</span>
       </div>
     `;
@@ -4311,9 +4375,18 @@ function openViewPopup(id) {
       </span>
     </div>
     <div id="inlineDriverChangeArea" style="display:none;padding:10px 0 4px 0;"></div>
+    ` : delivery.delivery_mode === "porter" ? `
+    <div class="detail-row"><b>Driver</b><span style="color:#4d8eff;font-weight:600;">📦 Porter App — Handover at shop</span></div>
     ` : `
     <div class="detail-row"><b>Driver</b><span style="color:#f59e0b;font-weight:600;">🏪 Self Pickup — No driver needed</span></div>
     `}
+    ${delivery.delivery_mode === "porter" ? `
+    <div class="section-title">Porter Details</div>
+    <div class="detail-row"><b>Porter Invoice/Order No</b><span>${escHtml(delivery.porter_invoice_number) || "—"}</span></div>
+    <div class="detail-row"><b>Vehicle Reg No</b><span>${escHtml(delivery.porter_vehicle_number) || "—"}</span></div>
+    <div class="detail-row"><b>Courier Name</b><span>${escHtml(delivery.porter_courier_name) || "—"}</span></div>
+    <div class="detail-row"><b>Courier Phone</b><span>${escHtml(delivery.porter_phone) || "—"}</span></div>
+    ` : ""}
     <div class="detail-row"><b>ETA</b><span>${formatDate(delivery.estimated_delivery_time)}</span></div>
     <div class="detail-row"><b>Instruction</b><span>${escHtml(delivery.driver_instructions) || "—"}</span></div>
     <div class="detail-row"><b>Pickup From</b><span>${escHtml(delivery.pickup_from) || "—"}</span></div>
@@ -4939,11 +5012,34 @@ async function editDelivery(id) {
     <input id="edit_serial" value="${escHtml(delivery.product_serial_number) || ""}" style="${inputStyle}">
     <!-- SELF-PICKUP TOGGLE -->
     <div class="checkbox-row" style="margin-top:10px;">
-      <input type="checkbox" id="edit_is_self_pickup" onchange="toggleEditSelfPickup()" ${delivery.is_self_pickup ? "checked" : ""}>
+      <input type="checkbox" id="edit_is_self_pickup" onchange="toggleEditSelfPickup()" ${delivery.is_self_pickup && delivery.delivery_mode !== "porter" ? "checked" : ""}>
       <label for="edit_is_self_pickup">🏪 Self Pickup (customer collects from shop)</label>
     </div>
 
-    <div id="editNormalDeliveryWrap" style="display:${delivery.is_self_pickup ? "none" : "block"};">
+    <!-- PORTER APP TOGGLE -->
+    <div class="checkbox-row" style="margin-top:6px;">
+      <input type="checkbox" id="edit_is_porter" onchange="toggleEditPorter()" ${delivery.delivery_mode === "porter" || delivery.assigned_driver_name === "Porter" ? "checked" : ""}>
+      <label for="edit_is_porter">📦 Porter App Delivery</label>
+    </div>
+
+    <div id="editPorterWrap" style="display:${(delivery.delivery_mode === "porter" || delivery.assigned_driver_name === "Porter") ? "block" : "none"};margin-bottom:8px;">
+      <div style="font-size:12px;font-weight:600;color:var(--on-surface-variant);margin-bottom:6px;">Expected Handover Date &amp; Time (optional)</div>
+      <input type="datetime-local" id="edit_porter_date" value="${formatEtaForInput(delivery.estimated_delivery_time)}" style="${inputStyle}">
+      <div style="font-size:12px;font-weight:600;color:var(--on-surface-variant);margin:10px 0 6px;">Porter Details</div>
+      <input id="edit_porter_invoice_number" placeholder="Porter Invoice / Order No"
+        value="${escHtml(delivery.porter_invoice_number) || ""}" style="${inputStyle}">
+      <input id="edit_porter_vehicle_number" placeholder="Vehicle Reg No"
+        value="${escHtml(delivery.porter_vehicle_number) || ""}" style="${inputStyle}">
+      <input id="edit_porter_courier_name" placeholder="Courier Name"
+        value="${escHtml(delivery.porter_courier_name) || ""}" style="${inputStyle}">
+      <input id="edit_porter_phone" placeholder="Courier Phone"
+        value="${escHtml(delivery.porter_phone) || ""}" style="${inputStyle}">
+      <div style="font-size:11px;color:var(--text-muted,#888);margin-top:4px;">
+        Delivery handed to Porter app courier — no in-house driver assigned.
+      </div>
+    </div>
+
+    <div id="editNormalDeliveryWrap" style="display:${(delivery.is_self_pickup || delivery.delivery_mode === "porter" || delivery.assigned_driver_name === "Porter") ? "none" : "block"};">
       <div class="checkbox-row" style="margin-top:10px;">
         <input type="checkbox" id="edit_is_on_demand" onchange="toggleEditOnDemand()" ${delivery.estimated_delivery_time === "On-Demand" ? "checked" : ""}>
         <label for="edit_is_on_demand">📞 On-Demand Delivery</label>
@@ -4956,7 +5052,7 @@ async function editDelivery(id) {
       <select id="edit_driver" style="${inputStyle}"></select>
     </div>
 
-    <div id="editSelfPickupWrap" style="display:${delivery.is_self_pickup ? "block" : "none"};margin-bottom:8px;">
+    <div id="editSelfPickupWrap" style="display:${delivery.is_self_pickup && delivery.delivery_mode !== "porter" ? "block" : "none"};margin-bottom:8px;">
       <div class="section-title">Expected Pickup Date &amp; Time</div>
         <input type="datetime-local" id="edit_pickup_date" value="${formatEtaForInput(delivery.estimated_delivery_time)}" style="${inputStyle}">
       <div style="font-size:11px;color:var(--text-muted,#888);margin-top:4px;">
@@ -5017,12 +5113,39 @@ function toggleEditSelfPickup() {
   const checked = document.getElementById("edit_is_self_pickup").checked;
   document.getElementById("editNormalDeliveryWrap").style.display = checked ? "none" : "block";
   document.getElementById("editSelfPickupWrap").style.display = checked ? "block" : "none";
+  // Mutually exclusive with Porter + On-Demand
+  if (checked) {
+    document.getElementById("edit_is_porter").checked = false;
+    document.getElementById("editPorterWrap").style.display = "none";
+    document.getElementById("edit_is_on_demand").checked = false;
+    document.getElementById("editEtaWrap").style.display = "block";
+  }
+}
+
+function toggleEditPorter() {
+  const checked = document.getElementById("edit_is_porter").checked;
+  document.getElementById("editPorterWrap").style.display = checked ? "block" : "none";
+  if (checked) {
+    document.getElementById("edit_is_self_pickup").checked = false;
+    document.getElementById("editSelfPickupWrap").style.display = "none";
+    document.getElementById("editNormalDeliveryWrap").style.display = "none";
+    document.getElementById("edit_is_on_demand").checked = false;
+  } else {
+    // Restore normal delivery wrap unless self-pickup is active
+    document.getElementById("editNormalDeliveryWrap").style.display =
+      document.getElementById("edit_is_self_pickup").checked ? "none" : "block";
+  }
 }
 
 function toggleEditOnDemand() {
   const checked = document.getElementById("edit_is_on_demand").checked;
   document.getElementById("editEtaWrap").style.display = checked ? "none" : "block";
-  if (!checked) {
+  if (checked) {
+    document.getElementById("edit_is_self_pickup").checked = false;
+    document.getElementById("editSelfPickupWrap").style.display = "none";
+    document.getElementById("edit_is_porter").checked = false;
+    document.getElementById("editPorterWrap").style.display = "none";
+  } else {
     var d = new Date(Date.now() + 2 * 3600000);
     var def = d.getFullYear() + '-' +
       String(d.getMonth() + 1).padStart(2, '0') + '-' +
@@ -5039,6 +5162,7 @@ async function saveDelivery(id) {
   const freightCharged    = document.getElementById("edit_freight_charged").checked;
   const isSelfPickup      = document.getElementById("edit_is_self_pickup").checked;
   const isOnDemand        = document.getElementById("edit_is_on_demand").checked;
+  const isPorter          = document.getElementById("edit_is_porter").checked;
   const updated = {
     customer_name:           document.getElementById("edit_name").value,
     phone:                   document.getElementById("edit_phone").value,
@@ -5046,16 +5170,23 @@ async function saveDelivery(id) {
     address:                 document.getElementById("edit_address").value,
     product_name:            document.getElementById("edit_product").value.trim().toUpperCase(),
     product_serial_number:   document.getElementById("edit_serial").value,
-    estimated_delivery_time: isOnDemand ? "On-Demand" : isSelfPickup
-      ? document.getElementById("edit_pickup_date").value
-      : document.getElementById("edit_eta").value,
-    assigned_driver_id:      isOnDemand || isSelfPickup ? "" : driverSelect.value,
-    assigned_driver_name:    isOnDemand || isSelfPickup ? "" : driverSelect.options[driverSelect.selectedIndex].text,
+    estimated_delivery_time: isOnDemand ? "On-Demand" : isPorter
+      ? document.getElementById("edit_porter_date").value
+      : isSelfPickup
+        ? document.getElementById("edit_pickup_date").value
+        : document.getElementById("edit_eta").value,
+    assigned_driver_id:      isOnDemand || isSelfPickup || isPorter ? "" : driverSelect.value,
+    assigned_driver_name:    isOnDemand || isSelfPickup || isPorter ? "" : driverSelect.options[driverSelect.selectedIndex].text,
     driver_instructions:     hasInstruction ? document.getElementById("edit_instruction").value.trim() : "none",
     freight_charged:         freightCharged,
     freight_amount:          freightCharged ? document.getElementById("edit_freight_amount").value : "",
     freight_set_by:          freightCharged ? "accountant" : "",
-    is_self_pickup:          isSelfPickup
+    is_self_pickup:          isSelfPickup || isPorter,
+    delivery_mode:           isPorter ? "porter" : "",
+    porter_invoice_number:   isPorter ? document.getElementById("edit_porter_invoice_number").value.trim() : "",
+    porter_vehicle_number:   isPorter ? document.getElementById("edit_porter_vehicle_number").value.trim() : "",
+    porter_courier_name:     isPorter ? document.getElementById("edit_porter_courier_name").value.trim() : "",
+    porter_phone:            isPorter ? document.getElementById("edit_porter_phone").value.trim() : ""
   };
 
   try {

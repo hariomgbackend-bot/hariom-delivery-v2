@@ -1256,6 +1256,40 @@ async function runStartupMigration() {
 }
 
 /* ════════════════════════════════════════════════
+   PORTER SPECIAL DRIVER — seeds the "Porter" driver
+   record (like "Unassigned") so Porter App deliveries
+   can be assigned to it. PIN is set by admin via the
+   normal driver-management UI after seeding.
+   Runs every deploy; safe to repeat (idempotent).
+════════════════════════════════════════════════ */
+async function runPorterDriverMigration() {
+  try {
+    const migrationRef = doc(db, "_migrations", "porter_driver_v1");
+    const migrationSnap = await getDoc(migrationRef);
+    if (migrationSnap.exists() && migrationSnap.data().done) {
+      return;
+    }
+    const snap = await getDocs(query(collection(db, "drivers"), where("driver_name", ">=", "p"), where("driver_name", "<", "q"), limit(20)));
+    const found = snap.docs.find(d => d.data().driver_name?.trim().toLowerCase() === "porter");
+    if (!found) {
+      await addDoc(collection(db, "drivers"), {
+        driver_name: "Porter",
+        phone: "",
+        vehicle_number: "",
+        vehicle_make: "Porter App",
+        vehicle_model: "",
+        storeId: "",
+        created_timestamp: Timestamp.now()
+      });
+      console.log("[MIGRATION] Seeded Porter special driver");
+    }
+    await setDoc(migrationRef, { done: true, at: Timestamp.now() });
+  } catch (err) {
+    console.error("[MIGRATION] Porter driver error:", err.message);
+  }
+}
+
+/* ════════════════════════════════════════════════
    RATE LIMITING
    - Global limiter: 200 req / 15 min per IP (generous for internal use)
    - Driver PIN limiter: 10 attempts / 15 min per IP (brute-force protection)
@@ -1955,10 +1989,14 @@ app.post("/models", async (req, res) => {
 app.post("/createDelivery", writeLimiter, authenticate, async (req, res) => {
   try {
     const data = req.body;
+    const isPorter = data.delivery_mode === "porter";
 
-    if (!data.estimated_delivery_time) return res.status(400).json({ error: "ETA is required" });
-    if (new Date(data.estimated_delivery_time) < new Date()) {
-      return res.status(400).json({ error: "ETA cannot be in the past" });
+    // Porter / self-pickup deliveries treat ETA as optional (server defaults to end-of-day)
+    if (!isPorter && data.is_self_pickup !== true) {
+      if (!data.estimated_delivery_time) return res.status(400).json({ error: "ETA is required" });
+      if (new Date(data.estimated_delivery_time) < new Date()) {
+        return res.status(400).json({ error: "ETA cannot be in the past" });
+      }
     }
 
     // Duplicate check — same customer + phone + product in last 60 seconds
@@ -1982,6 +2020,18 @@ app.post("/createDelivery", writeLimiter, authenticate, async (req, res) => {
       data.storeId = req.user.storeId;
     }
 
+    if (isPorter) {
+      // Porter App delivery — assign to the "Porter" special driver, behave like self-pickup
+      if (!data.estimated_delivery_time) {
+        const eod = new Date();
+        eod.setHours(23, 59, 0, 0);
+        data.estimated_delivery_time = eod.toISOString().slice(0, 16);
+      }
+      data.assigned_driver_id   = await getPorterDriverId();
+      data.assigned_driver_name = "Porter";
+      data.is_self_pickup       = true;
+    }
+
     const docRef = await addDoc(collection(db, "deliveries"), {
       ...data,
       priority: data.priority || "normal",
@@ -1990,8 +2040,8 @@ app.post("/createDelivery", writeLimiter, authenticate, async (req, res) => {
       status: statusForETA(data.estimated_delivery_time)
     });
 
-    // Push to assigned driver
-    if (data.assigned_driver_id) {
+    // Push to assigned driver (skip Porter — it has no push token)
+    if (data.assigned_driver_id && !isPorter) {
       const driverSnap = await getDoc(doc(db, "drivers", data.assigned_driver_id));
       if (driverSnap.exists()) {
         const { pushToken } = driverSnap.data();
@@ -2025,8 +2075,9 @@ app.post("/createDeliveries", writeLimiter, authenticate, async (req, res) => {
       return res.status(400).json({ error: "shared payload and products array required" });
     }
     const isSelfPickup = shared.is_self_pickup === true;
+    const isPorter     = shared.delivery_mode === "porter";
 
-    if (!isSelfPickup) {
+    if (!isSelfPickup && !isPorter) {
       // Normal delivery — ETA and driver are required
       if (!shared.estimated_delivery_time) {
         return res.status(400).json({ error: "ETA is required" });
@@ -2035,15 +2086,22 @@ app.post("/createDeliveries", writeLimiter, authenticate, async (req, res) => {
         return res.status(400).json({ error: "ETA cannot be in the past" });
       }
     } else {
-      // Self-pickup — assign to "Unassigned" driver so it appears in dispatcher panel
+      // Self-pickup / Porter — assign to the special driver so it appears in dispatcher panel
       if (!shared.estimated_delivery_time) {
         const eod = new Date();
         eod.setHours(23, 59, 0, 0);
         shared.estimated_delivery_time = eod.toISOString().slice(0, 16);
       }
-      // Look up the real "Unassigned" driver doc so dispatcher panel picks it up
-      shared.assigned_driver_id   = await getUnassignedDriverId();
-      shared.assigned_driver_name = "Unassigned";
+      if (isPorter) {
+        // Porter App delivery — assign to the "Porter" special driver
+        shared.assigned_driver_id   = await getPorterDriverId();
+        shared.assigned_driver_name = "Porter";
+        shared.is_self_pickup       = true;
+      } else {
+        // Look up the real "Unassigned" driver doc so dispatcher panel picks it up
+        shared.assigned_driver_id   = await getUnassignedDriverId();
+        shared.assigned_driver_name = "Unassigned";
+      }
     }
 
     // Auto-set storeId from user's store if not provided
@@ -2103,7 +2161,7 @@ app.post("/createDeliveries", writeLimiter, authenticate, async (req, res) => {
     // Background notifications — failures here don't affect the client
     (async () => {
       try {
-        if (shared.assigned_driver_id) {
+        if (shared.assigned_driver_id && shared.delivery_mode !== "porter") {
           const driverSnap = await getDoc(doc(db, "drivers", shared.assigned_driver_id));
           if (driverSnap.exists()) {
             const { pushToken } = driverSnap.data();
@@ -2194,6 +2252,29 @@ function invalidateUnassignedDriverCache() {
   _unassignedDriverCache = { id: null, expiry: 0 };
 }
 
+// ── Cached "Porter" special driver ID (mirrors Unassigned; used for Porter App deliveries) ──
+let _porterDriverCache = { id: null, expiry: 0 };
+const PORTER_DRIVER_CACHE_TTL = 300_000; // 5 minutes
+
+async function getPorterDriverId() {
+  if (Date.now() < _porterDriverCache.expiry && _porterDriverCache.id) {
+    return _porterDriverCache.id;
+  }
+  try {
+    const snap = await getDocs(query(collection(db, "drivers"), where("driver_name", ">=", "p"), where("driver_name", "<", "q"), limit(20)));
+    const found = snap.docs.find(d => d.data().driver_name?.trim().toLowerCase() === "porter");
+    _porterDriverCache.id = found?.id || "porter";
+    _porterDriverCache.expiry = Date.now() + PORTER_DRIVER_CACHE_TTL;
+    return _porterDriverCache.id;
+  } catch {
+    return "porter";
+  }
+}
+
+function invalidatePorterDriverCache() {
+  _porterDriverCache = { id: null, expiry: 0 };
+}
+
 // ── Cached storeId resolution (avoids stores collection query on every Tally push) ──
 let _storeIdCache = { data: {}, expiry: 0 };
 const STORE_ID_CACHE_TTL = 300_000; // 5 minutes
@@ -2249,7 +2330,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
     addStoreFilter(storeCond, req.user, undefined, req);
 
     const [
-      total, booked, pending, loaded, delivered, failed, urgent, manualCount, tallyTdlCount, importFileCount
+      total, booked, pending, loaded, delivered, failed, urgent, porterCount, manualCount, tallyTdlCount, importFileCount
     ] = await Promise.all([
       countQuery(query(deliveriesRef, ...storeCond)),
       countQuery(query(deliveriesRef, where("status", "==", "booked"), ...storeCond)),
@@ -2258,6 +2339,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
       countQuery(query(deliveriesRef, where("status", "==", "delivered"), ...storeCond)),
       countQuery(query(deliveriesRef, where("status", "==", "failed"), ...storeCond)),
       countQuery(query(deliveriesRef, where("priority", "==", "urgent"), ...storeCond)),
+      countQuery(query(deliveriesRef, where("delivery_mode", "==", "porter"), ...storeCond)),
       countQuery(query(deliveriesRef, where("created_timestamp", ">=", todayStart), where("source", "==", "manual"), ...storeCond)),
       countQuery(query(deliveriesRef, where("created_timestamp", ">=", todayStart), where("source", "==", "tally_tdl"), ...storeCond)),
       countQuery(query(deliveriesRef, where("created_timestamp", ">=", todayStart), where("source", "==", "import_file"), ...storeCond))
@@ -2273,6 +2355,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
       delivered,
       failed,
       urgent,
+      porter: porterCount,
       today: todayTotal,
       sourceToday: { manual: manualCount, tally_tdl: tallyTdlCount, import_file: importFileCount }
     };
@@ -2505,6 +2588,10 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       constraints.push(where("is_self_pickup", "==", true));
     }
 
+    if (req.query.porter === "true") {
+      constraints.push(where("delivery_mode", "==", "porter"));
+    }
+
     if (constraints.length > 0) {
       q = query(q, ...constraints);
     }
@@ -2694,7 +2781,9 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
     "product_serial_number", "invoice_number", "priority",
     "driver_instructions", "assigned_driver_id", "assigned_driver_name",
     "is_self_pickup", "pickup_from", "storeId", "sale_price",
-    "sold_by_name", "freight_charged", "freight_amount"
+    "sold_by_name", "freight_charged", "freight_amount",
+    "delivery_mode", "porter_invoice_number", "porter_vehicle_number",
+    "porter_courier_name", "porter_phone"
   ];
   const update = {};
   for (const field of ALLOWED) {
@@ -3108,6 +3197,9 @@ app.post("/driverDeliveries", pinLimiter, async (req, res) => {
     }
   }
 
+  if (!driverData.pinHash) {
+    return res.status(401).json({ error: "This driver has no PIN set. Ask the admin to set it." });
+  }
   const match = await bcrypt.compare(pin, driverData.pinHash);
   if (!match) {
     const newAttempts = failedAttempts + 1;
@@ -3141,7 +3233,14 @@ app.post("/driverDeliveries", pinLimiter, async (req, res) => {
   ));
   trackReads("driverDeliveries", snapshot.docs.length);
 
-  res.json({ deliveries: snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status !== "booked" && !d.is_self_pickup), sessionToken });
+  const porterDriverId = await getPorterDriverId();
+  const isPorterDriver = driver_id === porterDriverId;
+
+  res.json({
+    deliveries: snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => d.status !== "booked" && (isPorterDriver || !d.is_self_pickup)),
+    sessionToken
+  });
 });
 
 /* ════════════════════════════════════════════════
@@ -5852,6 +5951,7 @@ app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req
     if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
 
     const delivery = snap.data();
+    const isPorter = delivery.delivery_mode === "porter";
     if (!delivery.is_self_pickup)        return res.status(400).json({ error: "Not a self-pickup delivery" });
     if (delivery.status === "delivered") return res.status(409).json({ error: "Already marked as delivered" });
     if (delivery.status !== "pending" && delivery.status !== "booked")
@@ -5865,9 +5965,17 @@ app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req
     }
 
     // Upload proof photo
-    const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + "_selfpickup");
+    const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + (isPorter ? "_porter" : "_selfpickup"));
     await uploadBytes(storageRef, req.file.buffer, { contentType: req.file.mimetype });
     const url = await getDownloadURL(storageRef);
+
+    // Porter details can be filled at handover time even if left blank at creation
+    const porterUpdates = isPorter ? {
+      ...(["porter_invoice_number", "porter_vehicle_number", "porter_courier_name", "porter_phone"].reduce((acc, f) => {
+        if (req.body[f]) acc[f] = req.body[f];
+        return acc;
+      }, {}))
+    } : {};
 
     await updateDoc(refDoc, {
       status:                  "delivered",
@@ -5875,7 +5983,8 @@ app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req
       delivered_timestamp:     Timestamp.now(),
       photo_delivered_url:     url,
       pickup_confirmed_by:     req.body.confirmed_by || "staff",
-      is_self_pickup:          true
+      is_self_pickup:          true,
+      ...porterUpdates
     });
 
     res.json({ success: true });
@@ -5885,7 +5994,10 @@ app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req
       try {
         const freshSnap = await getDoc(refDoc);
         const d         = freshSnap.data();
-        await sendAccountantPush("🏪 Self Pickup Confirmed", `${d.customer_name} - ${d.product_name}`);
+        await sendAccountantPush(
+          isPorter ? "📦 Porter Handover Confirmed" : "🏪 Self Pickup Confirmed",
+          `${d.customer_name} - ${d.product_name}`
+        );
         await autoCreateServiceTicket(d, refDoc.id);
       } catch (bgErr) {
         console.warn("[markSelfPickup] bg error:", bgErr.message);
@@ -7967,6 +8079,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running on port ${PORT}`);
   runStartupMigration();
+  runPorterDriverMigration();
   startSelfPing();
 
   // Backfill deliveries with null storeId (e.g., from failed resolveStoreIdCached before the fix)

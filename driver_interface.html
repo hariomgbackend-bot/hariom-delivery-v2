@@ -2445,7 +2445,33 @@ async function openDelivery(id) {
   currentStatus       = (d.status || "").toLowerCase();
 
   let uploadSection = "";
-  if (currentStatus === "pending") {
+  const isPorterDelivery = d.delivery_mode === "porter";
+  if (isPorterDelivery && (currentStatus === "pending" || currentStatus === "booked")) {
+    // Porter handover — single-step confirm (serial + proof photo), like self-pickup
+    const serialField = d.product_serial_number
+      ? `<div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value">${d.product_serial_number}</span></div>`
+      : `<label class="upload-label">Serial Number *</label>
+         <div class="serial-input-row">
+           <input class="serial-input" id="serialInput" placeholder="Enter or scan serial number" inputmode="text" autocomplete="off">
+           <button class="btn-scan" onclick="triggerBarcodePhoto()" type="button">
+             <span style="font-size:18px;">&#x1F4F7;</span> Scan
+           </button>
+           <button class="btn-scan btn-night-scan" onclick="openNightScan()" type="button" title="Night scan — take a photo with flash">🌙</button>
+         </div>
+         <input type="file" id="nightScanInput" accept="image/*" capture="environment" style="display:none;">`;
+
+    uploadSection = `
+      <div class="upload-section">
+        ${serialField}
+        <label class="upload-label">Porter Handover Proof Photo *</label>
+        <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
+        <label class="upload-label" style="margin-top:10px;">Porter Details (optional)</label>
+        <input class="serial-input" id="porterInvoiceInput" placeholder="Porter Invoice / Order No" style="margin-bottom:6px;">
+        <input class="serial-input" id="porterVehicleInput" placeholder="Vehicle Reg No" style="margin-bottom:6px;">
+        <input class="serial-input" id="porterCourierInput" placeholder="Courier Name" style="margin-bottom:6px;">
+        <input class="serial-input" id="porterPhoneInput" placeholder="Courier Phone">
+      </div>`;
+  } else if (currentStatus === "pending") {
     const serialField = d.product_serial_number
       ? `<div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value">${d.product_serial_number}</span></div>`
       : `<label class="upload-label">Serial Number *</label>
@@ -2476,7 +2502,14 @@ async function openDelivery(id) {
 
   // Swipe-to-confirm widget instead of plain button
   let actionBtn = "";
-  if (currentStatus === "pending") {
+  if (isPorterDelivery && (currentStatus === "pending" || currentStatus === "booked")) {
+    actionBtn = `
+      <div class="swipe-container" id="swipeWidget" data-action="porter_handover">
+        <div class="swipe-fill swipe-delivered-fill" id="swipeFill" style="width:60px;"></div>
+        <div class="swipe-thumb swipe-delivered-thumb" id="swipeThumb">📦</div>
+        <div class="swipe-track" id="swipeTrack">Swipe to Confirm Porter Handover →</div>
+      </div>`;
+  } else if (currentStatus === "pending") {
     actionBtn = `
       <div class="swipe-container" id="swipeWidget" data-action="loaded">
         <div class="swipe-fill swipe-loaded-fill" id="swipeFill" style="width:60px;"></div>
@@ -2749,6 +2782,8 @@ async function compressImage(file) {
 async function updateDelivery() {
   if (isProcessingAction) return;
 
+  const isPorterDelivery = currentDeliveryData && currentDeliveryData.delivery_mode === "porter";
+
   const fileInput = document.getElementById("photo");
   if (!fileInput?.files?.length) { showToast("📷 Please upload a photo first"); return; }
   const file = fileInput.files[0];
@@ -2771,7 +2806,9 @@ async function updateDelivery() {
     });
   }
 
-  const actionType = currentStatus === "pending" ? "loaded" : "delivered";
+  const actionType = isPorterDelivery
+    ? "selfpickup"
+    : (currentStatus === "pending" ? "loaded" : "delivered");
 
   // Instructions acknowledgment check (loaded → delivered only)
   if (currentStatus === "loaded") {
@@ -2847,9 +2884,21 @@ async function updateDelivery() {
     formData.append("pin",       currentDriverPin);
 
     const serialInput = document.getElementById("serialInput");
-    if (currentStatus === "pending" && !currentDeliveryData.product_serial_number) {
+    if ((currentStatus === "pending" || isPorterDelivery) && !currentDeliveryData.product_serial_number) {
       if (!serialInput?.value?.trim()) { showToast("⚠ Serial number is required"); isProcessingAction = false; if(widget) widget.style.pointerEvents="auto"; return; }
       formData.append("serial", serialInput.value.trim());
+    }
+
+    // Porter handover — include optional Porter details + confirm via /markSelfPickup
+    if (isPorterDelivery) {
+      const pi = document.getElementById("porterInvoiceInput");
+      const pv = document.getElementById("porterVehicleInput");
+      const pc = document.getElementById("porterCourierInput");
+      const pp = document.getElementById("porterPhoneInput");
+      if (pi?.value) formData.append("porter_invoice_number", pi.value.trim());
+      if (pv?.value) formData.append("porter_vehicle_number", pv.value.trim());
+      if (pc?.value) formData.append("porter_courier_name", pc.value.trim());
+      if (pp?.value) formData.append("porter_phone", pp.value.trim());
     }
 
     // Freight is captured at delivery time (loaded → delivered)
@@ -2890,7 +2939,9 @@ async function updateDelivery() {
       }
     }
 
-    const endpoint = currentStatus === "pending" ? `/markLoaded/${currentDeliveryId}` : `/markDelivered/${currentDeliveryId}`;
+    const endpoint = isPorterDelivery
+      ? `/markSelfPickup/${currentDeliveryId}`
+      : (currentStatus === "pending" ? `/markLoaded/${currentDeliveryId}` : `/markDelivered/${currentDeliveryId}`);
 
     const fetchOpts = { method: "POST", body: formData };
     if (driverSessionToken) {
@@ -2901,7 +2952,9 @@ async function updateDelivery() {
         isProcessingAction = false;
         if (!res.ok) { showToast("⚠ Update failed. Try again."); if(widget) widget.style.pointerEvents="auto"; return; }
         vibrate([100, 50, 200]);
-        showToast(currentStatus === "pending" ? "✅ Marked as Loaded!" : "🎉 Marked as Delivered!");
+        showToast(isPorterDelivery
+          ? "📦 Porter handover confirmed!"
+          : (currentStatus === "pending" ? "✅ Marked as Loaded!" : "🎉 Marked as Delivered!"));
         closePopup();
         silentRefresh();   // lightweight — reuses session token, no PIN re-auth
       })
@@ -4038,6 +4091,9 @@ async function loadDispatcherDeliveries() {
     if (!delivRes.ok || !Array.isArray(allDeliveries)) throw new Error(allDeliveries?.error || "Deliveries request failed");
     if (!driverRes.ok || !Array.isArray(allDrivers)) throw new Error(allDrivers?.error || "Drivers request failed");
 
+    // Keep the full list available so handover-confirm lookups work for self-pickup AND Porter deliveries
+    allDeliveriesData = allDeliveries;
+
     // Cache driver list (exclude the "Unassigned" driver itself)
     dispatcherDriverList = allDrivers.filter(d => d.driver_name.trim().toLowerCase() !== "unassigned");
 
@@ -4241,7 +4297,18 @@ function buildDispatcherCard(d) {
       <!-- ── Footer ── -->
       <div id="dcard_footer_${d.id}" style="padding:0 16px 14px;display:${selectionMode && canSelect ? "none" : "block"};">
         ${d.is_self_pickup ? `
+          ${d.delivery_mode === "porter" ? `
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#4d8eff;margin-bottom:8px;">📦 Porter App — Handover to Porter Courier</div>
+          ${d.porter_invoice_number || d.porter_vehicle_number || d.porter_courier_name || d.porter_phone ? `
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px 10px;background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);border-radius:8px;">
+            ${d.porter_invoice_number ? `<span style="color:var(--on-surface-variant);">Invoice/Order</span><span style="font-weight:500;">${escHtml(d.porter_invoice_number)}</span>` : ""}
+            ${d.porter_vehicle_number ? `<span style="color:var(--on-surface-variant);">Vehicle Reg</span><span style="font-weight:500;">${escHtml(d.porter_vehicle_number)}</span>` : ""}
+            ${d.porter_courier_name ? `<span style="color:var(--on-surface-variant);">Courier</span><span style="font-weight:500;">${escHtml(d.porter_courier_name)}</span>` : ""}
+            ${d.porter_phone ? `<span style="color:var(--on-surface-variant);">Phone</span><span style="font-weight:500;">${escHtml(d.porter_phone)}</span>` : ""}
+          </div>` : ""}
+          ` : `
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#16a34a;margin-bottom:8px;">🏪 Self Pickup — Customer Collects at Shop</div>
+          `}
           <div id="sp_form_${d.id}">
             ${!d.product_serial_number ? `
               <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Serial Number *</label>
@@ -4264,9 +4331,20 @@ function buildDispatcherCard(d) {
             <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Proof Photo *</label>
             <input type="file" id="sp_photo_${d.id}" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
               style="display:block;width:100%;box-sizing:border-box;margin-top:4px;margin-bottom:10px;font-size:13px;">
+            ${d.delivery_mode === "porter" ? `
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Porter Details (optional)</label>
+            <input id="sp_porter_invoice_${d.id}" placeholder="Porter Invoice / Order No" value="${escHtml(d.porter_invoice_number) || ""}"
+              style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-top:4px;margin-bottom:6px;">
+            <input id="sp_porter_vehicle_${d.id}" placeholder="Vehicle Reg No" value="${escHtml(d.porter_vehicle_number) || ""}"
+              style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:6px;">
+            <input id="sp_porter_courier_${d.id}" placeholder="Courier Name" value="${escHtml(d.porter_courier_name) || ""}"
+              style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:6px;">
+            <input id="sp_porter_phone_${d.id}" placeholder="Courier Phone" value="${escHtml(d.porter_phone) || ""}"
+              style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:10px;">
+            ` : ""}
             <button type="button" onclick="confirmSelfPickup('${d.id}')"
-              style="width:100%;padding:12px;background:#16a34a;color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-              ✅ Mark as Collected
+              style="width:100%;padding:12px;background:${d.delivery_mode === "porter" ? "#4d8eff" : "#16a34a"};color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+              ${d.delivery_mode === "porter" ? "📦 Confirm Porter Handover" : "✅ Mark as Collected"}
             </button>
           </div>
         ` : `
@@ -4621,6 +4699,8 @@ async function confirmSelfPickup(deliveryId) {
   const msg       = document.getElementById("dcard_msg_" + deliveryId);
   const photoInput = document.getElementById("sp_photo_" + deliveryId);
   const serialInput = document.getElementById("sp_serial_" + deliveryId); // null if serial already set
+  const delivery  = allDeliveriesData.find(d => String(d.id) === String(deliveryId));
+  const isPorter  = delivery && delivery.delivery_mode === "porter";
 
   // Validate
   if (!photoInput?.files?.length) {
@@ -4685,6 +4765,17 @@ async function confirmSelfPickup(deliveryId) {
     if (serialInput) {
       formData.append("serial", serialInput.value.trim());
     }
+    // Porter details can be filled/updated at handover time
+    if (isPorter) {
+      const pi = document.getElementById("sp_porter_invoice_" + deliveryId);
+      const pv = document.getElementById("sp_porter_vehicle_" + deliveryId);
+      const pc = document.getElementById("sp_porter_courier_" + deliveryId);
+      const pp = document.getElementById("sp_porter_phone_" + deliveryId);
+      if (pi?.value) formData.append("porter_invoice_number", pi.value.trim());
+      if (pv?.value) formData.append("porter_vehicle_number", pv.value.trim());
+      if (pc?.value) formData.append("porter_courier_name", pc.value.trim());
+      if (pp?.value) formData.append("porter_phone", pp.value.trim());
+    }
 
     const fetchOpts = { method: "POST", body: formData };
     if (driverSessionToken) fetchOpts.headers = { "Authorization": "Bearer " + driverSessionToken };
@@ -4698,9 +4789,9 @@ async function confirmSelfPickup(deliveryId) {
     }
 
     // Success
-    if (msg) { msg.style.color = "#16a34a"; msg.textContent = "✅ Marked as collected!"; }
+    if (msg) { msg.style.color = isPorter ? "#4d8eff" : "#16a34a"; msg.textContent = isPorter ? "📦 Porter handover confirmed!" : "✅ Marked as collected!"; }
     vibrate([100, 50, 200]);
-    showToast("🏪 Self pickup confirmed!");
+    showToast(isPorter ? "📦 Porter handover confirmed!" : "🏪 Self pickup confirmed!");
 
     // Animate card out then reload
     setTimeout(() => {

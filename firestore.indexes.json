@@ -193,6 +193,22 @@
         { "fieldPath": "storeId", "order": "ASCENDING" },
         { "fieldPath": "created_by", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "deliveries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "storeId", "order": "ASCENDING" },
+        { "fieldPath": "delivery_mode", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "deliveries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "delivery_mode", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
