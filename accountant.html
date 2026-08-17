@@ -1271,17 +1271,10 @@
 
     <div id="porterWrap" style="display:none;margin-bottom:8px;">
       <div class="section-title">Expected Handover Date &amp; Time <span style="font-size:11px;color:var(--text-muted,#888);font-weight:400;">(optional)</span></div>
-      <input type="datetime-local" id="porter_date" style="width:100%;margin-bottom:6px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div style="font-size:12px;font-weight:600;color:var(--on-surface-variant);">Porter Details</div>
-        <div style="font-size:11px;color:var(--text-muted,#888);">Optional</div>
-      </div>
-      <input id="porter_invoice_number" placeholder="Porter Invoice / Order No" style="width:100%;margin-bottom:6px;">
-      <input id="porter_vehicle_number" placeholder="Vehicle Reg No" style="width:100%;margin-bottom:6px;">
-      <input id="porter_courier_name" placeholder="Courier Name" style="width:100%;margin-bottom:6px;">
-      <input id="porter_phone" placeholder="Courier Phone" style="width:100%;">
+      <input type="datetime-local" id="porter_date" style="width:100%;">
       <div style="font-size:11px;color:var(--text-muted,#888);margin-top:4px;">
         Delivery handed to Porter app courier — no in-house driver assigned.
+        Porter details (invoice no, vehicle, courier) are filled by the Porter driver at handover.
       </div>
     </div>
 
@@ -3586,10 +3579,6 @@ async function createDelivery() {
     freight_set_by:          freightCharged ? "accountant" : "",
     is_self_pickup:          isSelfPickup,
     delivery_mode:           isPorter ? "porter" : "",
-    porter_invoice_number:   isPorter ? document.getElementById("porter_invoice_number").value.trim() : "",
-    porter_vehicle_number:   isPorter ? document.getElementById("porter_vehicle_number").value.trim() : "",
-    porter_courier_name:     isPorter ? document.getElementById("porter_courier_name").value.trim() : "",
-    porter_phone:            isPorter ? document.getElementById("porter_phone").value.trim() : "",
     sold_by_id:              document.getElementById("sold_by").value || "",
     sold_by_name:            document.getElementById("sold_by").options[document.getElementById("sold_by").selectedIndex].text || "Others",
     sale_price:              parseFloat(document.getElementById("sale_price").value) || 0,
@@ -3737,10 +3726,6 @@ function resetForm() {
   document.getElementById("is_porter").checked = false;
   document.getElementById("porterWrap").style.display = "none";
   document.getElementById("porter_date").value = "";
-  document.getElementById("porter_invoice_number").value = "";
-  document.getElementById("porter_vehicle_number").value = "";
-  document.getElementById("porter_courier_name").value = "";
-  document.getElementById("porter_phone").value = "";
 
   const cityEl  = document.getElementById("city");
   const stateEl = document.getElementById("state_field");
@@ -5025,17 +5010,9 @@ async function editDelivery(id) {
     <div id="editPorterWrap" style="display:${(delivery.delivery_mode === "porter" || delivery.assigned_driver_name === "Porter") ? "block" : "none"};margin-bottom:8px;">
       <div style="font-size:12px;font-weight:600;color:var(--on-surface-variant);margin-bottom:6px;">Expected Handover Date &amp; Time (optional)</div>
       <input type="datetime-local" id="edit_porter_date" value="${formatEtaForInput(delivery.estimated_delivery_time)}" style="${inputStyle}">
-      <div style="font-size:12px;font-weight:600;color:var(--on-surface-variant);margin:10px 0 6px;">Porter Details</div>
-      <input id="edit_porter_invoice_number" placeholder="Porter Invoice / Order No"
-        value="${escHtml(delivery.porter_invoice_number) || ""}" style="${inputStyle}">
-      <input id="edit_porter_vehicle_number" placeholder="Vehicle Reg No"
-        value="${escHtml(delivery.porter_vehicle_number) || ""}" style="${inputStyle}">
-      <input id="edit_porter_courier_name" placeholder="Courier Name"
-        value="${escHtml(delivery.porter_courier_name) || ""}" style="${inputStyle}">
-      <input id="edit_porter_phone" placeholder="Courier Phone"
-        value="${escHtml(delivery.porter_phone) || ""}" style="${inputStyle}">
       <div style="font-size:11px;color:var(--text-muted,#888);margin-top:4px;">
         Delivery handed to Porter app courier — no in-house driver assigned.
+        Porter details (invoice no, vehicle, courier) are filled by the Porter driver at handover.
       </div>
     </div>
 
@@ -5182,11 +5159,7 @@ async function saveDelivery(id) {
     freight_amount:          freightCharged ? document.getElementById("edit_freight_amount").value : "",
     freight_set_by:          freightCharged ? "accountant" : "",
     is_self_pickup:          isSelfPickup || isPorter,
-    delivery_mode:           isPorter ? "porter" : "",
-    porter_invoice_number:   isPorter ? document.getElementById("edit_porter_invoice_number").value.trim() : "",
-    porter_vehicle_number:   isPorter ? document.getElementById("edit_porter_vehicle_number").value.trim() : "",
-    porter_courier_name:     isPorter ? document.getElementById("edit_porter_courier_name").value.trim() : "",
-    porter_phone:            isPorter ? document.getElementById("edit_porter_phone").value.trim() : ""
+    delivery_mode:           isPorter ? "porter" : ""
   };
 
   try {

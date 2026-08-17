@@ -4780,10 +4780,9 @@ function enableEdit() {
           </label>
         </div>
         <div id="adminPorterWrap" style="display:${(d.delivery_mode === "porter" || d.assigned_driver_name === "Porter") ? "block" : "none"};">
-          <div class="edit-field"><label>Porter Invoice / Order No</label><input id="edit_porter_invoice_number" value="${escHtml(d.porter_invoice_number || "")}"></div>
-          <div class="edit-field"><label>Vehicle Reg No</label><input id="edit_porter_vehicle_number" value="${escHtml(d.porter_vehicle_number || "")}"></div>
-          <div class="edit-field"><label>Courier Name</label><input id="edit_porter_courier_name" value="${escHtml(d.porter_courier_name || "")}"></div>
-          <div class="edit-field"><label>Courier Phone</label><input id="edit_porter_phone" value="${escHtml(d.porter_phone || "")}"></div>
+          <div style="font-size:11px;color:var(--on-surface-variant);margin:4px 0 8px;">
+            📦 Porter App — details (invoice no, vehicle, courier) are filled by the Porter driver at handover.
+          </div>
         </div>
         <div id="adminEtaWrap" style="display:${d.estimated_delivery_time === "On-Demand" ? "none" : "block"};">
           <div class="edit-field"><label>ETA</label><input type="datetime-local" id="edit_eta" value="${formatEtaForInput(d.estimated_delivery_time)}"></div>
@@ -4956,11 +4955,7 @@ async function updateDelivery(id) {
         storeId:           document.getElementById("editStoreId")?.value || "",
         pickup_from:             document.getElementById("edit_pickup_from")?.value?.trim() || "",
         is_self_pickup:          isPorter ? true : false,
-        delivery_mode:           isPorter ? "porter" : "",
-        porter_invoice_number:   isPorter ? document.getElementById("edit_porter_invoice_number")?.value?.trim() || "" : "",
-        porter_vehicle_number:   isPorter ? document.getElementById("edit_porter_vehicle_number")?.value?.trim() || "" : "",
-        porter_courier_name:     isPorter ? document.getElementById("edit_porter_courier_name")?.value?.trim() || "" : "",
-        porter_phone:            isPorter ? document.getElementById("edit_porter_phone")?.value?.trim() || "" : ""
+        delivery_mode:           isPorter ? "porter" : ""
       })
     });
     if (!res.ok) {

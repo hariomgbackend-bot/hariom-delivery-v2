@@ -1763,6 +1763,10 @@ async function syncPendingActions() {
           const spBlob = await getPhotoFromIdb(photoIdbKey(action.id, "selfpickup"));
           if (spBlob) formData.append("photo", spBlob, "selfpickup.jpg");
           if (action.serial) formData.append("serial", action.serial);
+          // Porter details captured offline at handover time
+          ["porter_invoice_number", "porter_vehicle_number", "porter_courier_name", "porter_phone"].forEach(f => {
+            if (action[f]) formData.append(f, action[f]);
+          });
 
           fetchOptions = { method: "POST", body: formData };
           if (driverSessionToken) fetchOptions.headers = { "Authorization": "Bearer " + driverSessionToken };
@@ -2465,11 +2469,11 @@ async function openDelivery(id) {
         ${serialField}
         <label class="upload-label">Porter Handover Proof Photo *</label>
         <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
-        <label class="upload-label" style="margin-top:10px;">Porter Details (optional)</label>
-        <input class="serial-input" id="porterInvoiceInput" placeholder="Porter Invoice / Order No" style="margin-bottom:6px;">
-        <input class="serial-input" id="porterVehicleInput" placeholder="Vehicle Reg No" style="margin-bottom:6px;">
-        <input class="serial-input" id="porterCourierInput" placeholder="Courier Name" style="margin-bottom:6px;">
-        <input class="serial-input" id="porterPhoneInput" placeholder="Courier Phone">
+        <label class="upload-label" style="margin-top:10px;">Porter Details *</label>
+        <input class="serial-input" id="porterInvoiceInput" placeholder="Porter Invoice / Order No *" style="margin-bottom:6px;">
+        <input class="serial-input" id="porterVehicleInput" placeholder="Vehicle Reg No *" style="margin-bottom:6px;">
+        <input class="serial-input" id="porterCourierInput" placeholder="Courier Name *" style="margin-bottom:6px;">
+        <input class="serial-input" id="porterPhoneInput" placeholder="Courier Phone *">
       </div>`;
   } else if (currentStatus === "pending") {
     const serialField = d.product_serial_number
@@ -2819,6 +2823,24 @@ async function updateDelivery() {
     }
   }
 
+  // Porter handover — all Porter details are required
+  if (isPorterDelivery) {
+    const required = {
+      porterInvoiceInput:  "Porter Invoice / Order No",
+      porterVehicleInput:  "Vehicle Reg No",
+      porterCourierInput:  "Courier Name",
+      porterPhoneInput:    "Courier Phone"
+    };
+    for (const [id, label] of Object.entries(required)) {
+      const el = document.getElementById(id);
+      if (!el?.value?.trim()) {
+        showToast("⚠ Please enter " + label);
+        if (el) el.focus();
+        return;
+      }
+    }
+  }
+
   if (!isOnline()) {
     isProcessingAction = true;
 
@@ -2840,7 +2862,13 @@ async function updateDelivery() {
       // Capture GPS at action time so sync can submit real coordinates
       gps: cachedGpsPosition
         ? { lat: cachedGpsPosition.coords.latitude, lng: cachedGpsPosition.coords.longitude }
-        : null
+        : null,
+      ...(isPorterDelivery ? {
+        porter_invoice_number: document.getElementById("porterInvoiceInput")?.value?.trim() || "",
+        porter_vehicle_number: document.getElementById("porterVehicleInput")?.value?.trim() || "",
+        porter_courier_name:   document.getElementById("porterCourierInput")?.value?.trim() || "",
+        porter_phone:          document.getElementById("porterPhoneInput")?.value?.trim() || ""
+      } : {})
     };
 
     addOfflineAction(currentDeliveryId, actionType, extraData);
@@ -4332,14 +4360,14 @@ function buildDispatcherCard(d) {
             <input type="file" id="sp_photo_${d.id}" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
               style="display:block;width:100%;box-sizing:border-box;margin-top:4px;margin-bottom:10px;font-size:13px;">
             ${d.delivery_mode === "porter" ? `
-            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Porter Details (optional)</label>
-            <input id="sp_porter_invoice_${d.id}" placeholder="Porter Invoice / Order No" value="${escHtml(d.porter_invoice_number) || ""}"
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Porter Details *</label>
+            <input id="sp_porter_invoice_${d.id}" placeholder="Porter Invoice / Order No *" value="${escHtml(d.porter_invoice_number) || ""}"
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-top:4px;margin-bottom:6px;">
-            <input id="sp_porter_vehicle_${d.id}" placeholder="Vehicle Reg No" value="${escHtml(d.porter_vehicle_number) || ""}"
+            <input id="sp_porter_vehicle_${d.id}" placeholder="Vehicle Reg No *" value="${escHtml(d.porter_vehicle_number) || ""}"
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:6px;">
-            <input id="sp_porter_courier_${d.id}" placeholder="Courier Name" value="${escHtml(d.porter_courier_name) || ""}"
+            <input id="sp_porter_courier_${d.id}" placeholder="Courier Name *" value="${escHtml(d.porter_courier_name) || ""}"
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:6px;">
-            <input id="sp_porter_phone_${d.id}" placeholder="Courier Phone" value="${escHtml(d.porter_phone) || ""}"
+            <input id="sp_porter_phone_${d.id}" placeholder="Courier Phone *" value="${escHtml(d.porter_phone) || ""}"
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:10px;">
             ` : ""}
             <button type="button" onclick="confirmSelfPickup('${d.id}')"
@@ -4712,6 +4740,23 @@ async function confirmSelfPickup(deliveryId) {
     serialInput.focus();
     return;
   }
+  // Porter handover — all Porter details are required
+  if (isPorter) {
+    const required = {
+      sp_porter_invoice_:  "Porter Invoice / Order No",
+      sp_porter_vehicle_:  "Vehicle Reg No",
+      sp_porter_courier_:  "Courier Name",
+      sp_porter_phone_:    "Courier Phone"
+    };
+    for (const [prefix, label] of Object.entries(required)) {
+      const el = document.getElementById(prefix + deliveryId);
+      if (!el?.value?.trim()) {
+        if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Please enter " + label; }
+        if (el) el.focus();
+        return;
+      }
+    }
+  }
 
   const btn = document.querySelector(`#sp_form_${deliveryId} button[onclick]`);
   const origText = btn?.textContent;
@@ -4731,7 +4776,13 @@ async function confirmSelfPickup(deliveryId) {
 
     addOfflineAction(deliveryId, "selfpickup", {
       serial: serialInput ? serialInput.value.trim() : null,
-      photoStored: true
+      photoStored: true,
+      ...(isPorter ? {
+        porter_invoice_number: document.getElementById("sp_porter_invoice_" + deliveryId)?.value?.trim() || "",
+        porter_vehicle_number: document.getElementById("sp_porter_vehicle_" + deliveryId)?.value?.trim() || "",
+        porter_courier_name:   document.getElementById("sp_porter_courier_" + deliveryId)?.value?.trim() || "",
+        porter_phone:          document.getElementById("sp_porter_phone_" + deliveryId)?.value?.trim() || ""
+      } : {})
     });
 
     // Optimistically update local delivery status so card disappears
