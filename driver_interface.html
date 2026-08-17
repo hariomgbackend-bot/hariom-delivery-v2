@@ -2249,6 +2249,15 @@ async function unlockDriver() {
 ═══════════════════════════════════════ */
 let allDeliveriesData = [];
 
+/* Porter delivery detection — robust: delivery_mode flag OR assigned to the Porter driver.
+   Legacy DOs assigned to Porter (before the flag existed) still behave like Porter. */
+function isPorterDel(d) {
+  if (!d) return false;
+  return d.delivery_mode === "porter"
+      || d.assigned_driver_name === "Porter"
+      || d.assigned_driver_id === "porter";
+}
+
 function filterDeliveryCards() {
   const q = document.getElementById("deliverySearch").value.toLowerCase().trim();
   if (!q) {
@@ -2370,7 +2379,9 @@ function renderDeliveries(data) {
       <div class="card-footer">
         <div class="card-address">${d.address}</div>
         ${etaLabel ? `<div class="card-eta">⏱ ${etaLabel}</div>` : ""}
-        ${d.status === "loaded"
+        ${isPorterDel(d)
+          ? `<button class="card-cta" style="background:#4d8eff;" onclick="event.stopPropagation();openDelivery('${d.id}')">📦 Porter Handover</button>`
+          : d.status === "loaded"
           ? `<button class="card-cta" onclick="event.stopPropagation();openDelivery('${d.id}')">✅ Deliver</button>`
           : d.status === "pending"
           ? `<button class="card-cta card-cta-load" onclick="event.stopPropagation();openDelivery('${d.id}')">📦 Load</button>`
@@ -2449,7 +2460,7 @@ async function openDelivery(id) {
   currentStatus       = (d.status || "").toLowerCase();
 
   let uploadSection = "";
-  const isPorterDelivery = d.delivery_mode === "porter";
+  const isPorterDelivery = isPorterDel(d);
   if (isPorterDelivery && (currentStatus === "pending" || currentStatus === "booked")) {
     // Porter handover — single-step confirm (serial + proof photo), like self-pickup
     const serialField = d.product_serial_number
@@ -2786,7 +2797,7 @@ async function compressImage(file) {
 async function updateDelivery() {
   if (isProcessingAction) return;
 
-  const isPorterDelivery = currentDeliveryData && currentDeliveryData.delivery_mode === "porter";
+  const isPorterDelivery = isPorterDel(currentDeliveryData);
 
   const fileInput = document.getElementById("photo");
   if (!fileInput?.files?.length) { showToast("📷 Please upload a photo first"); return; }
@@ -4325,7 +4336,7 @@ function buildDispatcherCard(d) {
       <!-- ── Footer ── -->
       <div id="dcard_footer_${d.id}" style="padding:0 16px 14px;display:${selectionMode && canSelect ? "none" : "block"};">
         ${d.is_self_pickup ? `
-          ${d.delivery_mode === "porter" ? `
+          ${isPorterDel(d) ? `
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#4d8eff;margin-bottom:8px;">📦 Porter App — Handover to Porter Courier</div>
           ${d.porter_invoice_number || d.porter_vehicle_number || d.porter_courier_name || d.porter_phone ? `
           <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px 10px;background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);border-radius:8px;">
@@ -4359,7 +4370,7 @@ function buildDispatcherCard(d) {
             <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Proof Photo *</label>
             <input type="file" id="sp_photo_${d.id}" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
               style="display:block;width:100%;box-sizing:border-box;margin-top:4px;margin-bottom:10px;font-size:13px;">
-            ${d.delivery_mode === "porter" ? `
+            ${isPorterDel(d) ? `
             <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Porter Details *</label>
             <input id="sp_porter_invoice_${d.id}" placeholder="Porter Invoice / Order No *" value="${escHtml(d.porter_invoice_number) || ""}"
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-top:4px;margin-bottom:6px;">
@@ -4371,8 +4382,8 @@ function buildDispatcherCard(d) {
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:10px;">
             ` : ""}
             <button type="button" onclick="confirmSelfPickup('${d.id}')"
-              style="width:100%;padding:12px;background:${d.delivery_mode === "porter" ? "#4d8eff" : "#16a34a"};color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-              ${d.delivery_mode === "porter" ? "📦 Confirm Porter Handover" : "✅ Mark as Collected"}
+              style="width:100%;padding:12px;background:${isPorterDel(d) ? "#4d8eff" : "#16a34a"};color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+              ${isPorterDel(d) ? "📦 Confirm Porter Handover" : "✅ Mark as Collected"}
             </button>
           </div>
         ` : `
@@ -4728,7 +4739,7 @@ async function confirmSelfPickup(deliveryId) {
   const photoInput = document.getElementById("sp_photo_" + deliveryId);
   const serialInput = document.getElementById("sp_serial_" + deliveryId); // null if serial already set
   const delivery  = allDeliveriesData.find(d => String(d.id) === String(deliveryId));
-  const isPorter  = delivery && delivery.delivery_mode === "porter";
+  const isPorter  = isPorterDel(delivery);
 
   // Validate
   if (!photoInput?.files?.length) {

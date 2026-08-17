@@ -1290,6 +1290,43 @@ async function runPorterDriverMigration() {
 }
 
 /* ════════════════════════════════════════════════
+   PORTER BACKFILL — marks deliveries already assigned
+   to the "Porter" driver (but missing delivery_mode)
+   as Porter so they behave like self-pickups.
+   Runs every deploy; safe to repeat (idempotent).
+════════════════════════════════════════════════ */
+async function runPorterBackfillMigration() {
+  try {
+    const migrationRef = doc(db, "_migrations", "porter_backfill_v1");
+    const migrationSnap = await getDoc(migrationRef);
+    if (migrationSnap.exists() && migrationSnap.data().done) {
+      return;
+    }
+    const porterDriverId = await getPorterDriverId();
+    // Deliveries assigned to the Porter driver by name but lacking the Porter flag
+    const snap = await getDocs(query(
+      collection(db, "deliveries"),
+      where("assigned_driver_id", "==", porterDriverId)
+    ));
+    let backfilled = 0;
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (data.delivery_mode !== "porter" || !data.is_self_pickup) {
+        await updateDoc(doc(db, "deliveries", d.id), {
+          delivery_mode:  "porter",
+          is_self_pickup: true
+        });
+        backfilled++;
+      }
+    }
+    console.log(`[MIGRATION] Porter backfill: flagged ${backfilled} deliveries`);
+    await setDoc(migrationRef, { done: true, at: Timestamp.now() });
+  } catch (err) {
+    console.error("[MIGRATION] Porter backfill error:", err.message);
+  }
+}
+
+/* ════════════════════════════════════════════════
    RATE LIMITING
    - Global limiter: 200 req / 15 min per IP (generous for internal use)
    - Driver PIN limiter: 10 attempts / 15 min per IP (brute-force protection)
@@ -1393,10 +1430,22 @@ app.post("/assignDelivery/:id", authenticate, async (req, res) => {
     const snap = await getDoc(deliveryRef);
     if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
 
-    await updateDoc(deliveryRef, {
+    // Assigning to the Porter driver makes this a Porter delivery (self-pickup-style).
+    // Assigning away from Porter clears the Porter mode so it behaves like a normal delivery.
+    const isPorterDriverName = (driver_name || "").toLowerCase() === "porter";
+    const update = {
       assigned_driver_id:   driver_id,
       assigned_driver_name: driver_name
-    });
+    };
+    if (isPorterDriverName) {
+      update.delivery_mode  = "porter";
+      update.is_self_pickup = true;
+    } else {
+      update.delivery_mode  = "";
+      update.is_self_pickup = false;
+    }
+
+    await updateDoc(deliveryRef, update);
 
     invalidateDeliveriesCache();
     res.json({ success: true });
@@ -2848,6 +2897,12 @@ app.post("/batch/deliveries", authenticate, authorize(["admin", "accountant"]), 
         const update = {};
         if (driverId) update.assigned_driver_id = driverId;
         if (driverName) update.assigned_driver_name = driverName;
+        // Assigning to Porter makes it a Porter delivery; assigning away clears Porter mode
+        if (driverName) {
+          const isPorterDriverName = driverName.toLowerCase() === "porter";
+          update.delivery_mode  = isPorterDriverName ? "porter" : "";
+          update.is_self_pickup = isPorterDriverName ? true : false;
+        }
         if (status) update.status = status;
         if (Object.keys(update).length) {
           await updateDoc(refDoc, update);
@@ -8080,6 +8135,7 @@ app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running on port ${PORT}`);
   runStartupMigration();
   runPorterDriverMigration();
+  runPorterBackfillMigration();
   startSelfPing();
 
   // Backfill deliveries with null storeId (e.g., from failed resolveStoreIdCached before the fix)
