@@ -3007,14 +3007,19 @@ app.post("/markLoaded/:id", authenticate, upload.single("photo"), async (req, re
     await uploadBytes(storageRef, req.file.buffer);
     const url = await getDownloadURL(storageRef);
 
-    await updateDoc(refDoc, {
+    const loadedUpdate = {
       status: "loaded",
       product_serial_number: finalSerial,
       loaded_timestamp: Timestamp.now(),
       loaded_location: { lat: req.body.lat, lng: req.body.lng },
       photo_loaded_url: url
       // Freight is captured at delivery time (markDelivered), not here
-    });
+    };
+    // Optional: driver confirmed a product name via OCR matching
+    if (req.body.product_name && String(req.body.product_name).trim()) {
+      loadedUpdate.product_name = String(req.body.product_name).trim().toUpperCase();
+    }
+    await updateDoc(refDoc, loadedUpdate);
 
     // Update inventory_serials: set location to in_transit, status to assigned
     const serialSnap = await getDocs(query(
@@ -6566,6 +6571,138 @@ app.post("/api/extract-models", authenticate, authorize(["admin", "accountant"])
   } catch (error) {
     console.error("❌ Model extraction error:", error);
     res.status(500).json({ error: "Failed to extract model numbers: " + error.message });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   LOADED-PHOTO OCR — MODEL + SERIAL + PRODUCT MATCH
+   POST /api/loaded-ocr  (multipart: photo)
+   Used by the driver app when a loaded photo (carton
+   label / BEE sticker) is taken for a DO. Extracts the
+   model number + serial number via Groq vision, then
+   matches the model against the tally_products index
+   + models master to suggest product names.
+   ────────────────────────────────────────────── */
+
+async function extractWithGroqLoadedPhoto(base64, mimetype, prompt) {
+  const completion = await groq.chat.completions.create({
+    messages: [{
+      role: "user",
+      content: [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: `data:${mimetype};base64,${base64}` } }
+      ]
+    }],
+    model: "qwen/qwen3.6-27b",
+    temperature: 0,
+    max_tokens: 500
+  });
+
+  let raw = completion.choices[0].message.content
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+  raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      return {
+        modelNumber:  parsed.modelNumber  || parsed.model_number  || parsed.model || null,
+        serialNumber: parsed.serialNumber || parsed.serial_number || parsed.serial || parsed.serialNo || null,
+      };
+    }
+  } catch {
+    // non-JSON response — try to salvage with regex below
+  }
+  // Fallback: pull alphanumeric tokens if the model didn't return clean JSON
+  const modelMatch = raw.match(/[A-Z][A-Z0-9\-]{5,19}/);
+  return { modelNumber: modelMatch ? modelMatch[0] : null, serialNumber: null };
+}
+
+// Rank product names from tally_products + models master against an extracted model number.
+async function matchModelToProducts(modelNumber) {
+  if (!modelNumber) return [];
+  const needle = modelNumber.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  // Load tally product names + models master with a short TTL cache
+  const tallyCache = getRefCache("ocr-tally-products", 5 * 60 * 1000);
+  let tallyNames = [];
+  if (Date.now() < tallyCache.expiry && tallyCache.data) {
+    tallyNames = tallyCache.data;
+  } else {
+    try {
+      const snap = await getDoc(doc(db, "tally_products", "index"));
+      tallyNames = (snap.exists() ? (snap.data().names || []) : []);
+      tallyCache.data = tallyNames;
+      tallyCache.expiry = Date.now() + tallyCache.ttl;
+    } catch { tallyNames = []; }
+  }
+
+  const modelsCache = getRefCache("ocr-models-master", 5 * 60 * 1000);
+  let modelNames = [];
+  if (Date.now() < modelsCache.expiry && modelsCache.data) {
+    modelNames = modelsCache.data;
+  } else {
+    try {
+      const snap = await getDocs(collection(db, "models"));
+      modelNames = snap.docs.map(d => d.data().name || "").filter(Boolean);
+      modelsCache.data = modelNames;
+      modelsCache.expiry = Date.now() + modelsCache.ttl;
+    } catch { modelNames = []; }
+  }
+
+  const allNames = Array.from(new Set([...tallyNames, ...modelNames]));
+
+  const scored = [];
+  for (const name of allNames) {
+    if (!name) continue;
+    const upper = name.toUpperCase();
+    // Strip non-alphanumerics for a robust contains-check (handles "/", "-", spaces)
+    const compact = upper.replace(/[^A-Z0-9]/g, "");
+    if (!compact.includes(needle)) continue;
+
+    // Prefer exact-token matches: "WW80TA046AB1" appearing as its own word
+    const tokenMatch = new RegExp(`(?:^|[^A-Z0-9])${needle}(?:[^A-Z0-9]|$)`, "i").test(upper);
+    scored.push({ productName: name, score: tokenMatch ? 1 : 0.9 });
+  }
+
+  scored.sort((a, b) => b.score - a.score || a.productName.length - b.productName.length);
+  return scored.slice(0, 5);
+}
+
+app.post("/api/loaded-ocr", authenticate, upload.single("photo"), async (req, res) => {
+  try {
+    if (!req.file?.buffer) return res.status(400).json({ error: "No image uploaded" });
+    const { mimetype, buffer } = req.file;
+    if (!mimetype.startsWith("image/")) {
+      return res.status(415).json({ error: "Only image files are supported (JPEG/PNG)" });
+    }
+
+    const base64 = buffer.toString("base64");
+
+    const primaryPrompt = "You are looking at a photo of an electronics product carton label / BEE energy sticker / serial sticker. Extract the product MODEL NUMBER and the SERIAL NUMBER (S/N) printed on it. Return ONLY JSON with two keys: \"modelNumber\" (string or null) and \"serialNumber\" (string or null). The model number looks like an alphanumeric code e.g. \"UA75U8300HULXL\", \"WW80TA046AB1\", \"HRD-618SS\". The serial number is the S/N / SERIAL NO value, usually a longer string of letters and digits. Do not confuse the model with the serial. No markdown, no explanation.";
+
+    let result = await extractWithGroqLoadedPhoto(base64, mimetype, primaryPrompt);
+
+    // Retry with a simpler prompt if the model number is empty
+    if (!result.modelNumber) {
+      const fallbackPrompt = "This is a photo of an electronics carton/label. Return ONLY JSON: {\"modelNumber\": string|null, \"serialNumber\": string|null}. Find the model number (alphanumeric product code) and the serial number if visible. No markdown.";
+      result = await extractWithGroqLoadedPhoto(base64, mimetype, fallbackPrompt);
+    }
+
+    // Normalize: uppercase model, strip obvious noise
+    let modelNumber = result.modelNumber ? String(result.modelNumber).toUpperCase().trim() : null;
+    let serialNumber = result.serialNumber ? String(result.serialNumber).trim() : null;
+    if (modelNumber && modelNumber.length > 24) modelNumber = null;
+
+    const matches = await matchModelToProducts(modelNumber);
+
+    res.json({ modelNumber, serialNumber, matches, rawText: "" });
+
+  } catch (error) {
+    console.error("❌ Loaded-photo OCR error:", error);
+    res.status(500).json({ error: "Failed to extract from photo: " + error.message });
   }
 });
 

@@ -2503,7 +2503,17 @@ async function openDelivery(id) {
       <div class="upload-section">
         ${serialField}
         <label class="upload-label">Loaded Photo *</label>
-        <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
+        <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment" onchange="onLoadedPhotoPicked(event)">
+        <div id="ocrPanel" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);border-radius:10px;">
+          <div id="ocrStatus" style="font-size:12px;font-weight:600;color:#4d8eff;margin-bottom:8px;">🔍 Reading label…</div>
+          <div id="ocrMatchWrap" style="display:none;">
+            <label class="upload-label">Product (from label)</label>
+            <select class="serial-input" id="ocrProductSelect" style="margin-bottom:8px;"></select>
+          </div>
+          <label class="upload-label">Serial Number (from label)</label>
+          <input class="serial-input" id="ocrSerialInput" placeholder="Detected serial — confirm or edit" style="margin-bottom:4px;">
+          <div id="ocrHint" style="font-size:11px;color:var(--muted);margin-top:4px;">Match found — confirm below, or clear to enter manually.</div>
+        </div>
       </div>`;
   } else if (currentStatus === "loaded") {
     uploadSection = `
@@ -2791,6 +2801,78 @@ async function compressImage(file) {
   });
 }
 
+/* ── LOADED-PHOTO OCR (model + serial extraction) ──
+   When the driver picks the loaded photo, auto-run OCR via
+   /api/loaded-ocr, show a review panel with product suggestion
+   + detected serial. Non-blocking: if OCR fails, driver can still
+   type the serial manually and proceed as before. */
+async function onLoadedPhotoPicked(evt) {
+  const panel = document.getElementById("ocrPanel");
+  const status = document.getElementById("ocrStatus");
+  const file = evt.target?.files?.[0];
+  if (!panel || !status || !file) return;
+
+  panel.style.display = "block";
+  status.textContent = "🔍 Reading label…";
+  status.style.color = "#4d8eff";
+  document.getElementById("ocrMatchWrap").style.display = "none";
+
+  // Reset the serial field in the main form so OCR doesn't fight manual entry
+  const serialInput = document.getElementById("serialInput");
+  const ocrSerialInput = document.getElementById("ocrSerialInput");
+  const ocrProductSelect = document.getElementById("ocrProductSelect");
+  const ocrHint = document.getElementById("ocrHint");
+  if (ocrSerialInput) ocrSerialInput.value = "";
+  if (ocrProductSelect) ocrProductSelect.innerHTML = "";
+
+  try {
+    // Compress the same way updateDelivery does, then send to OCR endpoint
+    const compressed = await compressImage(file);
+    const fd = new FormData();
+    fd.append("photo", compressed, "loaded.jpg");
+
+    const fetchOpts = { method: "POST", body: fd };
+    if (driverSessionToken) fetchOpts.headers = { "Authorization": "Bearer " + driverSessionToken };
+
+    const res = await fetch(`${BASE_URL}/api/loaded-ocr`, fetchOpts);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "OCR failed");
+
+    const matches = Array.isArray(data.matches) ? data.matches : [];
+    const modelNum = data.modelNumber || "";
+    const serialNum = data.serialNumber || "";
+
+    if (matches.length > 0) {
+      document.getElementById("ocrMatchWrap").style.display = "block";
+      const options = ['<option value="">— Not right —</option>'];
+      matches.forEach(m => {
+        options.push(`<option value="${escHtml(m.productName)}">${escHtml(m.productName)}</option>`);
+      });
+      ocrProductSelect.innerHTML = options.join("");
+      if (matches[0]?.productName) ocrProductSelect.value = matches[0].productName;
+
+      status.textContent = `✅ Model found: ${modelNum}`;
+      status.style.color = "#16a34a";
+      if (ocrHint) ocrHint.textContent = "Select the right product (or '— Not right —' to keep the DO product).";
+    } else {
+      status.textContent = modelNum ? `⚠ Model "${modelNum}" not in product list` : "⚠ No model/serial detected";
+      status.style.color = "#f59e0b";
+      if (ocrHint) ocrHint.textContent = "Enter the serial manually below and continue.";
+    }
+
+    if (serialNum && serialInput) {
+      serialInput.value = serialNum;
+    }
+    if (ocrSerialInput) ocrSerialInput.value = serialNum;
+
+  } catch (e) {
+    status.textContent = "⚠ Could not read label — enter manually";
+    status.style.color = "#f59e0b";
+    if (ocrHint) ocrHint.textContent = "OCR unavailable. Type the serial and continue.";
+    console.warn("[Loaded OCR]", e.message);
+  }
+}
+
 /* ═══════════════════════════════════════
    UPDATE DELIVERY
 ═══════════════════════════════════════ */
@@ -2926,6 +3008,14 @@ async function updateDelivery() {
     if ((currentStatus === "pending" || isPorterDelivery) && !currentDeliveryData.product_serial_number) {
       if (!serialInput?.value?.trim()) { showToast("⚠ Serial number is required"); isProcessingAction = false; if(widget) widget.style.pointerEvents="auto"; return; }
       formData.append("serial", serialInput.value.trim());
+    }
+
+    // Loaded-photo OCR: if the driver confirmed a product suggestion, apply it to the DO
+    if (currentStatus === "pending" && !isPorterDelivery) {
+      const ocrSel = document.getElementById("ocrProductSelect");
+      if (ocrSel?.value) {
+        formData.append("product_name", ocrSel.value.trim());
+      }
     }
 
     // Porter handover — include optional Porter details + confirm via /markSelfPickup
