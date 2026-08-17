@@ -210,6 +210,33 @@ function selfPickupETA() {
 }
 
 /* ════════════════════════════════════════════════
+   TALLY AUTO INVOICE NUMBER NORMALIZATION
+   Tally sometimes pushes invoice numbers like
+   "2026-27/2000188<Auto>" (or "&lt;Auto&gt;") when
+   auto-numbering is on. The <Auto> marker means Tally
+   assigned the number itself — the actual invoice is the
+   NEXT number. So we strip everything after the numeric
+   part and increment it: "2026-27/2000188<Auto>" →
+   "2026-27/2000189".
+   Only applies when the <Auto> marker is present; plain
+   numbers like "2026-27/1002120" pass through untouched.
+════════════════════════════════════════════════ */
+function normalizeTallyInvoiceNumber(inv) {
+  if (!inv) return inv;
+  const s = String(inv).trim();
+  // HTML-escaped <Auto> (from XML) or raw <Auto> (from JSON/TDL)
+  if (!/<Auto>|&lt;Auto&gt;/i.test(s)) return s;
+
+  // Match "<series>/<numeric>" e.g. "2026-27/2000188" — increment the trailing numeric part
+  const m = s.match(/^(.*?)(\d+)(?:\s*<Auto>|\s*&lt;Auto&gt;)?$/i);
+  if (!m) return s.replace(/<Auto>|&lt;Auto&gt;/gi, "").trim();
+  const prefix = m[1];
+  const num    = m[2];
+  const incremented = String(parseInt(num, 10) + 1).padStart(num.length, "0");
+  return prefix + incremented;
+}
+
+/* ════════════════════════════════════════════════
    CRON — 6:00 AM IST daily
    Flips booked → pending when delivery date arrives
 ════════════════════════════════════════════════ */
@@ -538,7 +565,7 @@ app.post(
       };
       const tag = (t) => tagAll(t)[0] || "";
 
-      const voucher_number = tag("HARIOMFVOUCHERNO");
+      const voucher_number = normalizeTallyInvoiceNumber(tag("HARIOMFVOUCHERNO"));
       const customer_name  = tag("HARIOMFPARTY");
       const raw_address    = tag("HARIOMFADDRESS");
       const mobile         = tag("HARIOMFMOBILE"); // ledger's mobile — always the primary phone
@@ -695,7 +722,7 @@ return res.send(`
     // This is a header-only push (no line items) — creates a single DO
     if (req.body?.invoice_no) {
       const b              = req.body;
-      const voucher_number = b.invoice_no || "";
+      const voucher_number = normalizeTallyInvoiceNumber(b.invoice_no || "");
       const customer_name  = b.customer_name || "Unknown";
       const bill_date      = b.bill_date || "";
 
@@ -782,8 +809,9 @@ return res.send(`
     }
 
     // Invoice number
-    const invoice_number =
-      voucher.vouchernumber || voucher.VOUCHERNUMBER || "";
+    const invoice_number = normalizeTallyInvoiceNumber(
+      voucher.vouchernumber || voucher.VOUCHERNUMBER || ""
+    );
 
     // Customer name
     const name =

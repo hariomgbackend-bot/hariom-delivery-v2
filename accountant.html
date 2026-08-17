@@ -2265,7 +2265,7 @@ async function _parseXMLForUnifiedImport(file) {
   const name = tag("PARTYLEDGERNAME", text) || "Unknown Customer";
 
   // Invoice number + date
-  const invoiceNumber = tag("VOUCHERNUMBER", text) || "";
+  const invoiceNumber = normalizeTallyInvoice(tag("VOUCHERNUMBER", text) || "");
   const rawDate = tag("DATE", text) || "";
 
   // Products — from ALLINVENTORYENTRIES.LIST blocks
@@ -6279,6 +6279,17 @@ function tallyGoBack() {
 //   - Phone/Address NOT in voucher — in Ledger master (we skip gracefully)
 //   - Multiple products per voucher supported via multiple ALLINVENTORYENTRIES.LIST
 
+// Normalize Tally auto invoice numbers: "2026-27/2000188<Auto>" →
+// "2026-27/2000189". Only when the <Auto> / &lt;Auto&gt; marker is present.
+function normalizeTallyInvoice(inv) {
+  if (!inv) return inv;
+  const s = String(inv).trim();
+  if (!/<Auto>|&lt;Auto&gt;/i.test(s)) return s;
+  const m = s.match(/^(.*?)(\d+)(?:\s*<Auto>|\s*&lt;Auto&gt;)?$/i);
+  if (!m) return s.replace(/<Auto>|&lt;Auto&gt;/gi, "").trim();
+  return m[1] + String(parseInt(m[2], 10) + 1).padStart(m[2].length, "0");
+}
+
 function parseTallyXML(xmlText) {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlText, "application/xml");
@@ -6298,9 +6309,9 @@ function parseTallyXML(xmlText) {
     const voucher = {};
 
     // ── Invoice number ──
-    voucher.invoice_number = (
-      v.getElementsByTagName("VOUCHERNUMBER")[0]?.textContent || ""
-    ).trim();
+    voucher.invoice_number = normalizeTallyInvoice(
+      (v.getElementsByTagName("VOUCHERNUMBER")[0]?.textContent || "").trim()
+    );
 
     // ── Date (YYYYMMDD → display) ──
     const rawDate = (v.getElementsByTagName("DATE")[0]?.textContent || "").trim();
