@@ -3019,6 +3019,21 @@ app.post("/markLoaded/:id", authenticate, upload.single("photo"), async (req, re
     if (req.body.product_name && String(req.body.product_name).trim()) {
       loadedUpdate.product_name = String(req.body.product_name).trim().toUpperCase();
     }
+    // Optional: OCR metadata for the accountant's review popup
+    if (req.body.ocr_serial_candidates) {
+      let cands = req.body.ocr_serial_candidates;
+      if (typeof cands === "string") { try { cands = JSON.parse(cands); } catch { cands = []; } }
+      if (Array.isArray(cands) && cands.length) {
+        loadedUpdate.ocr_serial_candidates = cands.map(c => String(c).trim()).filter(Boolean).slice(0, 10);
+      }
+    }
+    if (req.body.ocr_match_percent) {
+      const pct = parseInt(req.body.ocr_match_percent, 10);
+      if (!isNaN(pct)) loadedUpdate.ocr_match_percent = pct;
+    }
+    if (req.body.ocr_model_number && String(req.body.ocr_model_number).trim()) {
+      loadedUpdate.ocr_model_number = String(req.body.ocr_model_number).trim().toUpperCase();
+    }
     await updateDoc(refDoc, loadedUpdate);
 
     // Update inventory_serials: set location to in_transit, status to assigned
@@ -6608,8 +6623,12 @@ async function extractWithGroqLoadedPhoto(base64, mimetype, prompt) {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object") {
       return {
-        modelNumber:  parsed.modelNumber  || parsed.model_number  || parsed.model || null,
-        serialNumber: parsed.serialNumber || parsed.serial_number || parsed.serial || parsed.serialNo || null,
+        modelNumber:      parsed.modelNumber  || parsed.model_number  || parsed.model || null,
+        serialCandidates: Array.isArray(parsed.serialCandidates)
+          ? parsed.serialCandidates
+          : (parsed.serialNumber || parsed.serial_number || parsed.serial || parsed.serialNo
+            ? [parsed.serialNumber || parsed.serial_number || parsed.serial || parsed.serialNo]
+            : []),
       };
     }
   } catch {
@@ -6617,7 +6636,11 @@ async function extractWithGroqLoadedPhoto(base64, mimetype, prompt) {
   }
   // Fallback: pull alphanumeric tokens if the model didn't return clean JSON
   const modelMatch = raw.match(/[A-Z][A-Z0-9\-]{5,19}/);
-  return { modelNumber: modelMatch ? modelMatch[0] : null, serialNumber: null };
+  const serialTokens = raw.match(/[A-Za-z0-9]{8,40}/g) || [];
+  return {
+    modelNumber: modelMatch ? modelMatch[0] : null,
+    serialCandidates: Array.from(new Set(serialTokens)),
+  };
 }
 
 // Rank product names from tally_products + models master against an extracted model number.
@@ -6681,24 +6704,47 @@ app.post("/api/loaded-ocr", authenticate, upload.single("photo"), async (req, re
 
     const base64 = buffer.toString("base64");
 
-    const primaryPrompt = "You are looking at a photo of an electronics product carton label / BEE energy sticker / serial sticker. Extract the product MODEL NUMBER and the SERIAL NUMBER (S/N) printed on it. Return ONLY JSON with two keys: \"modelNumber\" (string or null) and \"serialNumber\" (string or null). The model number looks like an alphanumeric code e.g. \"UA75U8300HULXL\", \"WW80TA046AB1\", \"HRD-618SS\". The serial number is the S/N / SERIAL NO value, usually a longer string of letters and digits. Do not confuse the model with the serial. No markdown, no explanation.";
+    const primaryPrompt = "You are looking at a photo of an electronics product carton label / BEE energy sticker / serial sticker. Extract the product MODEL NUMBER and ALL long alphanumeric SERIAL-LIKE STRINGS printed on it. Return ONLY JSON: {\"modelNumber\": string|null, \"serialCandidates\": string[]}. The model number looks like an alphanumeric code e.g. \"UA75U8300HULXL\", \"WW80TA046AB1\", \"HRD-618SS\". serialCandidates: every long string of letters+digits (usually 8-30 chars) that could be a serial number / S/N / IMEI — list ALL of them, do not pick just one. Exclude the model number itself, the brand name, and short words. If none, []. No markdown, no explanation.";
 
     let result = await extractWithGroqLoadedPhoto(base64, mimetype, primaryPrompt);
 
     // Retry with a simpler prompt if the model number is empty
-    if (!result.modelNumber) {
-      const fallbackPrompt = "This is a photo of an electronics carton/label. Return ONLY JSON: {\"modelNumber\": string|null, \"serialNumber\": string|null}. Find the model number (alphanumeric product code) and the serial number if visible. No markdown.";
+    if (!result.modelNumber && (!result.serialCandidates || !result.serialCandidates.length)) {
+      const fallbackPrompt = "This is a photo of an electronics carton/label. Return ONLY JSON: {\"modelNumber\": string|null, \"serialCandidates\": string[]}. Find the model number (alphanumeric product code) and ALL long serial-like strings. No markdown.";
       result = await extractWithGroqLoadedPhoto(base64, mimetype, fallbackPrompt);
     }
 
     // Normalize: uppercase model, strip obvious noise
     let modelNumber = result.modelNumber ? String(result.modelNumber).toUpperCase().trim() : null;
-    let serialNumber = result.serialNumber ? String(result.serialNumber).trim() : null;
     if (modelNumber && modelNumber.length > 24) modelNumber = null;
+
+    // All long-string candidates — dedupe, drop the model itself + noise
+    const serialCandidates = Array.from(new Set(
+      (Array.isArray(result.serialCandidates) ? result.serialCandidates : [])
+        .map(s => String(s).trim())
+        .filter(s => s.length >= 8 && s.length <= 40)
+        .filter(s => /[A-Za-z]/.test(s) && /\d/.test(s)) // must mix letters + digits
+    )).slice(0, 10);
 
     const matches = await matchModelToProducts(modelNumber);
 
-    res.json({ modelNumber, serialNumber, matches, rawText: "" });
+    // Match% vs the DO's product name (if supplied) — token-overlap similarity
+    let matchPercent = null;
+    const doProduct = (req.body.product_name || "").toString().trim().toUpperCase();
+    if (modelNumber && doProduct) {
+      const modelCompact = modelNumber.replace(/[^A-Z0-9]/g, "");
+      const productCompact = doProduct.replace(/[^A-Z0-9]/g, "");
+      if (productCompact.includes(modelCompact)) {
+        matchPercent = 100;
+      } else {
+        const modelTokens = new Set(modelCompact.match(/[A-Z0-9]{2,}/g) || []);
+        let hit = 0;
+        modelTokens.forEach(t => { if (productCompact.includes(t)) hit++; });
+        matchPercent = modelTokens.size ? Math.round((hit / modelTokens.size) * 100) : 0;
+      }
+    }
+
+    res.json({ modelNumber, serialCandidates, serialNumber: serialCandidates[0] || null, matches, matchPercent });
 
   } catch (error) {
     console.error("❌ Loaded-photo OCR error:", error);

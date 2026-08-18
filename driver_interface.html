@@ -2510,9 +2510,11 @@ async function openDelivery(id) {
             <label class="upload-label">Product (from label)</label>
             <select class="serial-input" id="ocrProductSelect" style="margin-bottom:8px;"></select>
           </div>
-          <label class="upload-label">Serial Number (from label)</label>
-          <input class="serial-input" id="ocrSerialInput" placeholder="Detected serial — confirm or edit" style="margin-bottom:4px;">
-          <div id="ocrHint" style="font-size:11px;color:var(--muted);margin-top:4px;">Match found — confirm below, or clear to enter manually.</div>
+          <div id="ocrSerialWrap" style="display:none;">
+            <label class="upload-label">Serial (from label)</label>
+            <select class="serial-input" id="ocrSerialSelect" style="margin-bottom:8px;"></select>
+          </div>
+          <div id="ocrHint" style="font-size:11px;color:var(--muted);margin-top:4px;">Confirm below, or clear to enter manually.</div>
         </div>
       </div>`;
   } else if (currentStatus === "loaded") {
@@ -2801,11 +2803,15 @@ async function compressImage(file) {
   });
 }
 
-/* ── LOADED-PHOTO OCR (model + serial extraction) ──
+/* ── LOADED-PHOTO OCR (model + serial candidates) ──
    When the driver picks the loaded photo, auto-run OCR via
-   /api/loaded-ocr, show a review panel with product suggestion
-   + detected serial. Non-blocking: if OCR fails, driver can still
-   type the serial manually and proceed as before. */
+   /api/loaded-ocr, show a review panel with product suggestion +
+   serial candidate dropdown. Non-blocking: if OCR fails, driver can
+   still type the serial manually and proceed as before.
+   Stores the last OCR result so updateDelivery() can send metadata
+   (candidates, match%) with the markLoaded submit. */
+let lastOcrResult = null;
+
 async function onLoadedPhotoPicked(evt) {
   const panel = document.getElementById("ocrPanel");
   const status = document.getElementById("ocrStatus");
@@ -2816,20 +2822,23 @@ async function onLoadedPhotoPicked(evt) {
   status.textContent = "🔍 Reading label…";
   status.style.color = "#4d8eff";
   document.getElementById("ocrMatchWrap").style.display = "none";
+  document.getElementById("ocrSerialWrap").style.display = "none";
 
-  // Reset the serial field in the main form so OCR doesn't fight manual entry
   const serialInput = document.getElementById("serialInput");
-  const ocrSerialInput = document.getElementById("ocrSerialInput");
   const ocrProductSelect = document.getElementById("ocrProductSelect");
+  const ocrSerialSelect = document.getElementById("ocrSerialSelect");
   const ocrHint = document.getElementById("ocrHint");
-  if (ocrSerialInput) ocrSerialInput.value = "";
   if (ocrProductSelect) ocrProductSelect.innerHTML = "";
+  if (ocrSerialSelect) ocrSerialSelect.innerHTML = "";
+  lastOcrResult = null;
 
   try {
     // Compress the same way updateDelivery does, then send to OCR endpoint
     const compressed = await compressImage(file);
     const fd = new FormData();
     fd.append("photo", compressed, "loaded.jpg");
+    // Send the DO's product name so the server can compute a match%
+    if (currentDeliveryData?.product_name) fd.append("product_name", currentDeliveryData.product_name);
 
     const fetchOpts = { method: "POST", body: fd };
     if (driverSessionToken) fetchOpts.headers = { "Authorization": "Bearer " + driverSessionToken };
@@ -2840,7 +2849,8 @@ async function onLoadedPhotoPicked(evt) {
 
     const matches = Array.isArray(data.matches) ? data.matches : [];
     const modelNum = data.modelNumber || "";
-    const serialNum = data.serialNumber || "";
+    const candidates = Array.isArray(data.serialCandidates) ? data.serialCandidates : [];
+    lastOcrResult = { modelNumber: modelNum || null, serialCandidates: candidates, matchPercent: data.matchPercent ?? null };
 
     if (matches.length > 0) {
       document.getElementById("ocrMatchWrap").style.display = "block";
@@ -2855,15 +2865,23 @@ async function onLoadedPhotoPicked(evt) {
       status.style.color = "#16a34a";
       if (ocrHint) ocrHint.textContent = "Select the right product (or '— Not right —' to keep the DO product).";
     } else {
-      status.textContent = modelNum ? `⚠ Model "${modelNum}" not in product list` : "⚠ No model/serial detected";
+      status.textContent = modelNum ? `⚠ Model "${modelNum}" not in product list` : "⚠ No model detected";
       status.style.color = "#f59e0b";
       if (ocrHint) ocrHint.textContent = "Enter the serial manually below and continue.";
     }
 
-    if (serialNum && serialInput) {
-      serialInput.value = serialNum;
+    // Serial candidates dropdown — driver picks one, or leaves empty to type manually
+    if (candidates.length > 0) {
+      document.getElementById("ocrSerialWrap").style.display = "block";
+      const opts = ['<option value="">— Type manually —</option>'];
+      candidates.forEach(c => { opts.push(`<option value="${escHtml(c)}">${escHtml(c)}</option>`); });
+      ocrSerialSelect.innerHTML = opts.join("");
+      ocrSerialSelect.onchange = () => {
+        if (serialInput) serialInput.value = ocrSerialSelect.value;
+      };
+      // Preload the top candidate into the serial field
+      if (serialInput) serialInput.value = candidates[0];
     }
-    if (ocrSerialInput) ocrSerialInput.value = serialNum;
 
   } catch (e) {
     status.textContent = "⚠ Could not read label — enter manually";
@@ -3015,6 +3033,18 @@ async function updateDelivery() {
       const ocrSel = document.getElementById("ocrProductSelect");
       if (ocrSel?.value) {
         formData.append("product_name", ocrSel.value.trim());
+      }
+      // Attach OCR metadata (serial candidates + match%) so the accountant can review later
+      if (lastOcrResult) {
+        if (lastOcrResult.serialCandidates?.length) {
+          formData.append("ocr_serial_candidates", JSON.stringify(lastOcrResult.serialCandidates));
+        }
+        if (lastOcrResult.matchPercent != null) {
+          formData.append("ocr_match_percent", lastOcrResult.matchPercent);
+        }
+        if (lastOcrResult.modelNumber) {
+          formData.append("ocr_model_number", lastOcrResult.modelNumber);
+        }
       }
     }
 
