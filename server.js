@@ -2845,9 +2845,15 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
   // (e.g. accountant taps an OCR candidate chip on a self-pickup/porter DO).
   // All other edits and all staff edits remain pending/booked-only.
   const isAdminAcct = req.user.role === "admin" || req.user.role === "accountant";
-  const onlySerial  = req.body && Object.keys(req.body).length === 1 && req.body.product_serial_number !== undefined;
+  // Admin/accountant may fix the serial + OCR metadata on delivered/failed
+  // deliveries (e.g. accountant taps an OCR candidate chip). Allow a body
+  // that touches only serial-related fields.
+  const serialOnlyFields = ["product_serial_number", "ocr_serial_candidates", "ocr_model_number", "ocr_match_percent"];
+  const touchesOnlySerial = req.body && Object.keys(req.body).length > 0 &&
+    Object.keys(req.body).every(f => serialOnlyFields.includes(f)) &&
+    req.body.product_serial_number !== undefined;
   if (delivery.status !== "pending" && delivery.status !== "booked") {
-    if (!(isAdminAcct && onlySerial && (delivery.status === "delivered" || delivery.status === "failed"))) {
+    if (!(isAdminAcct && touchesOnlySerial && (delivery.status === "delivered" || delivery.status === "failed"))) {
       return res.status(400).json({ error: "Only pending or booked deliveries can be edited" });
     }
   }
