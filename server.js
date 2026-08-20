@@ -213,11 +213,10 @@ function selfPickupETA() {
    TALLY AUTO INVOICE NUMBER NORMALIZATION
    Tally sometimes pushes invoice numbers like
    "2026-27/2000188<Auto>" (or "&lt;Auto&gt;") when
-   auto-numbering is on. The <Auto> marker means Tally
-   assigned the number itself — the actual invoice is the
-   NEXT number. So we strip everything after the numeric
-   part and increment it: "2026-27/2000188<Auto>" →
-   "2026-27/2000189".
+   auto-numbering is on. The <Auto> marker just means Tally
+   assigned the number itself — we strip the marker and keep
+   the number as-is: "2026-27/2000188<Auto>" →
+   "2026-27/2000188". (No +1 — the marker value is the number.)
    Only applies when the <Auto> marker is present; plain
    numbers like "2026-27/1002120" pass through untouched.
 ════════════════════════════════════════════════ */
@@ -227,13 +226,8 @@ function normalizeTallyInvoiceNumber(inv) {
   // HTML-escaped <Auto> (from XML) or raw <Auto> (from JSON/TDL)
   if (!/<Auto>|&lt;Auto&gt;/i.test(s)) return s;
 
-  // Match "<series>/<numeric>" e.g. "2026-27/2000188" — increment the trailing numeric part
-  const m = s.match(/^(.*?)(\d+)(?:\s*<Auto>|\s*&lt;Auto&gt;)?$/i);
-  if (!m) return s.replace(/<Auto>|&lt;Auto&gt;/gi, "").trim();
-  const prefix = m[1];
-  const num    = m[2];
-  const incremented = String(parseInt(num, 10) + 1).padStart(num.length, "0");
-  return prefix + incremented;
+  // Strip the marker, keep the number as-is (no +1)
+  return s.replace(/<Auto>|&lt;Auto&gt;/gi, "").trim();
 }
 
 /* ════════════════════════════════════════════════
@@ -2847,8 +2841,15 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
   const snap = await getDoc(refDoc);
   if (!snap.exists()) return res.status(404).json({ error: "Not found" });
   const delivery = snap.data();
+  // Admin/accountant may fix ONLY the serial on delivered/failed deliveries
+  // (e.g. accountant taps an OCR candidate chip on a self-pickup/porter DO).
+  // All other edits and all staff edits remain pending/booked-only.
+  const isAdminAcct = req.user.role === "admin" || req.user.role === "accountant";
+  const onlySerial  = req.body && Object.keys(req.body).length === 1 && req.body.product_serial_number !== undefined;
   if (delivery.status !== "pending" && delivery.status !== "booked") {
-    return res.status(400).json({ error: "Only pending or booked deliveries can be edited" });
+    if (!(isAdminAcct && onlySerial && (delivery.status === "delivered" || delivery.status === "failed"))) {
+      return res.status(400).json({ error: "Only pending or booked deliveries can be edited" });
+    }
   }
   if (!req.user.isSuperAdmin && req.user.storeId && delivery.storeId && delivery.storeId !== req.user.storeId) {
     return res.status(403).json({ error: "Store access denied" });
@@ -6080,7 +6081,7 @@ app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req
       }, {}))
     } : {};
 
-    await updateDoc(refDoc, {
+    const deliveredUpdate = {
       status:                  "delivered",
       product_serial_number:   finalSerial,
       delivered_timestamp:     Timestamp.now(),
@@ -6088,7 +6089,29 @@ app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req
       pickup_confirmed_by:     req.body.confirmed_by || "staff",
       is_self_pickup:          true,
       ...porterUpdates
-    });
+    };
+    // Optional: driver confirmed a product name via OCR matching
+    if (req.body.product_name && String(req.body.product_name).trim()) {
+      deliveredUpdate.product_name = String(req.body.product_name).trim().toUpperCase();
+    }
+    // Optional: OCR metadata for the accountant's review popup (mirror /markLoaded)
+    if (req.body.ocr_serial_candidates) {
+      let cands = req.body.ocr_serial_candidates;
+      if (typeof cands === "string") { try { cands = JSON.parse(cands); } catch { cands = []; } }
+      if (Array.isArray(cands) && cands.length) {
+        deliveredUpdate.ocr_serial_candidates = cands.map(c => String(c).trim()).filter(Boolean).slice(0, 10);
+      }
+    }
+    if (req.body.ocr_match_percent) {
+      const pct = parseInt(req.body.ocr_match_percent, 10);
+      if (!isNaN(pct)) deliveredUpdate.ocr_match_percent = pct;
+    }
+    if (req.body.ocr_model_number && String(req.body.ocr_model_number).trim()) {
+      deliveredUpdate.ocr_model_number = String(req.body.ocr_model_number).trim().toUpperCase();
+    }
+
+    await updateDoc(refDoc, deliveredUpdate);
+    invalidateDeliveriesCache();
 
     res.json({ success: true });
 
@@ -6749,6 +6772,84 @@ app.post("/api/loaded-ocr", authenticate, upload.single("photo"), async (req, re
   } catch (error) {
     console.error("❌ Loaded-photo OCR error:", error);
     res.status(500).json({ error: "Failed to extract from photo: " + error.message });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   ACCOUNTANT LABEL VERIFICATION
+   POST /verify-label/:id  (no body — reads stored delivery photo)
+   Accountant taps "Verify label" on a delivery popup. The server pulls
+   the stored loaded/handover photo from Storage, runs the same OCR
+   extraction, persists the results (model, serial candidates, match%)
+   on the delivery doc, and returns them so the accountant can review
+   and correct the serial. Works on any delivery with a photo.
+   ────────────────────────────────────────────── */
+app.post("/verify-label/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const refDoc = doc(db, "deliveries", req.params.id);
+    const snap = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    const delivery = snap.data();
+    const photoUrl = delivery.photo_loaded_url || delivery.photo_delivered_url;
+    if (!photoUrl) return res.status(400).json({ error: "No photo on this delivery to verify" });
+
+    // Download the stored photo
+    const photoRes = await fetch(photoUrl);
+    if (!photoRes.ok) return res.status(502).json({ error: "Failed to fetch stored photo" });
+    const buf = photoRes.arrayBuffer ? Buffer.from(await photoRes.arrayBuffer()) : Buffer.from(await photoRes.buffer());
+    const mimetype = photoRes.headers.get("content-type") || "image/jpeg";
+    const base64 = buf.toString("base64");
+
+    const primaryPrompt = "You are looking at a photo of an electronics product carton label / BEE energy sticker / serial sticker. Extract the product MODEL NUMBER and ALL long alphanumeric SERIAL-LIKE STRINGS printed on it. Return ONLY JSON: {\"modelNumber\": string|null, \"serialCandidates\": string[]}. The model number looks like an alphanumeric code e.g. \"UA75U8300HULXL\", \"WW80TA046AB1\", \"HRD-618SS\". serialCandidates: every long string of letters+digits (usually 8-30 chars) that could be a serial number / S/N / IMEI — list ALL of them, do not pick just one. Exclude the model number itself, the brand name, and short words. If none, []. No markdown, no explanation.";
+
+    let result = await extractWithGroqLoadedPhoto(base64, mimetype, primaryPrompt);
+    if (!result.modelNumber && (!result.serialCandidates || !result.serialCandidates.length)) {
+      const fallbackPrompt = "This is a photo of an electronics carton/label. Return ONLY JSON: {\"modelNumber\": string|null, \"serialCandidates\": string[]}. Find the model number (alphanumeric product code) and ALL long serial-like strings. No markdown.";
+      result = await extractWithGroqLoadedPhoto(base64, mimetype, fallbackPrompt);
+    }
+
+    let modelNumber = result.modelNumber ? String(result.modelNumber).toUpperCase().trim() : null;
+    if (modelNumber && modelNumber.length > 24) modelNumber = null;
+
+    const serialCandidates = Array.from(new Set(
+      (Array.isArray(result.serialCandidates) ? result.serialCandidates : [])
+        .map(s => String(s).trim())
+        .filter(s => s.length >= 8 && s.length <= 40)
+        .filter(s => /[A-Za-z]/.test(s) && /\d/.test(s))
+    )).slice(0, 10);
+
+    const matches = await matchModelToProducts(modelNumber);
+
+    let matchPercent = null;
+    const doProduct = (delivery.product_name || "").toString().trim().toUpperCase();
+    if (modelNumber && doProduct) {
+      const modelCompact = modelNumber.replace(/[^A-Z0-9]/g, "");
+      const productCompact = doProduct.replace(/[^A-Z0-9]/g, "");
+      if (productCompact.includes(modelCompact)) {
+        matchPercent = 100;
+      } else {
+        const modelTokens = new Set(modelCompact.match(/[A-Z0-9]{2,}/g) || []);
+        let hit = 0;
+        modelTokens.forEach(t => { if (productCompact.includes(t)) hit++; });
+        matchPercent = modelTokens.size ? Math.round((hit / modelTokens.size) * 100) : 0;
+      }
+    }
+
+    // Persist the verification result on the delivery for the accountant's review popup
+    const update = {
+      ocr_model_number: modelNumber,
+      ocr_serial_candidates: serialCandidates,
+      ocr_match_percent: matchPercent
+    };
+    await updateDoc(refDoc, update);
+    invalidateDeliveriesCache();
+
+    res.json({ modelNumber, serialCandidates, serialNumber: serialCandidates[0] || null, matches, matchPercent });
+
+  } catch (error) {
+    console.error("❌ /verify-label error:", error);
+    res.status(500).json({ error: "Failed to verify label: " + error.message });
   }
 });
 

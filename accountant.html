@@ -4339,8 +4339,8 @@ function openViewPopup(id) {
     <div class="detail-row"><b>Serial</b><span>${escHtml(delivery.product_serial_number) || "—"}</span></div>
     <div class="detail-row"><b>Invoice</b><span>${escHtml(delivery.invoice_number) || "—"}</span></div>
 
+    <div class="section-title">Label OCR</div>
     ${delivery.ocr_model_number || delivery.ocr_match_percent != null ? `
-    <div class="section-title">Label OCR (loaded photo)</div>
     ${delivery.ocr_match_percent != null ? `
     <div class="detail-row"><b>Match</b><span>${
       delivery.ocr_match_percent >= 90
@@ -4365,6 +4365,10 @@ function openViewPopup(id) {
     <div style="font-size:11px;color:var(--text-muted,#888);margin-top:2px;">Tap a candidate to set it as the delivery serial number.</div>
     ` : ""}
     ` : ""}
+    <button onclick="verifyDeliveryLabel('${escHtml(delivery.id)}', this)"
+      style="margin-top:8px;width:100%;padding:10px;background:var(--accent,#4d8eff);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">
+      🔍 Verify label
+    </button>
 
     <div class="section-title">Delivery Info</div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${delivery.status}">${delivery.status}</span></span></div>
@@ -4559,6 +4563,29 @@ function openViewPopup(id) {
 
 function closeViewPopup() {
   document.getElementById("viewPopup").classList.remove("is-open");
+}
+
+// Verify the label OCR on demand — runs against the stored delivery photo
+// and persists the result (model, serial candidates, match%) for review.
+async function verifyDeliveryLabel(deliveryId, btn) {
+  if (!deliveryId) return;
+  const original = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "🔍 Reading label…"; }
+  try {
+    const res = await authFetch(`${BASE_URL}/verify-label/${deliveryId}`, { method: "POST" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      showToast(d.error || "Failed to verify label", "error");
+      if (btn) { btn.disabled = false; btn.textContent = original; }
+      return;
+    }
+    showToast("Label verified", "success");
+    // Refresh the popup so the OCR section shows the new result
+    openViewPopup(deliveryId);
+  } catch (e) {
+    showToast("Network error. Please try again.", "error");
+    if (btn) { btn.disabled = false; btn.textContent = original; }
+  }
 }
 
 // Set the delivery serial to one of the OCR-extracted candidates (from the loaded-photo label)
