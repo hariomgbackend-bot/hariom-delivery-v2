@@ -4335,25 +4335,27 @@ function openViewPopup(id) {
     <div class="detail-row"><b>Address</b><span>${escHtml(delivery.address)}</span></div>
 
     <div class="section-title">Product Details</div>
-    <div class="detail-row"><b>Product</b><span>${escHtml(delivery.product_name)}</span></div>
+    <div class="detail-row"><b>Product</b><span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;">
+      ${escHtml(delivery.product_name)}
+      ${delivery.ocr_match_percent != null ? `
+        ${
+          delivery.ocr_match_percent >= 90
+            ? `<span style="padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(22,163,74,0.15);color:#16a34a;border:1px solid rgba(22,163,74,0.35);">✓ ${delivery.ocr_match_percent}% match</span>`
+            : delivery.ocr_match_percent >= 60
+            ? `<span style="padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.35);">⚠ ${delivery.ocr_match_percent}% match</span>`
+            : `<span style="padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.35);">✗ ${delivery.ocr_match_percent}% match</span>`
+        }` : ""}
+    </span></div>
     <div class="detail-row"><b>Serial</b><span>${escHtml(delivery.product_serial_number) || "—"}</span></div>
     <div class="detail-row"><b>Invoice</b><span>${escHtml(delivery.invoice_number) || "—"}</span></div>
 
-    <div class="section-title">Label OCR</div>
-    ${delivery.ocr_model_number || delivery.ocr_match_percent != null ? `
-    ${delivery.ocr_match_percent != null ? `
-    <div class="detail-row"><b>Match</b><span>${
-      delivery.ocr_match_percent >= 90
-        ? `<span style="padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(22,163,74,0.15);color:#16a34a;border:1px solid rgba(22,163,74,0.35);">✓ ${delivery.ocr_match_percent}% match</span>`
-        : delivery.ocr_match_percent >= 60
-        ? `<span style="padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.35);">⚠ ${delivery.ocr_match_percent}% match</span>`
-        : `<span style="padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.35);">✗ ${delivery.ocr_match_percent}% match</span>`
-    }</span></div>
-    ${delivery.ocr_match_percent < 60 ? `
-    <div style="margin:4px 0 8px;padding:8px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;font-size:12px;color:#ef4444;font-weight:600;">
+    ${delivery.ocr_match_percent != null && delivery.ocr_match_percent < 60 ? `
+    <div style="margin:0 0 10px;padding:8px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;font-size:12px;color:#ef4444;font-weight:600;">
       ⚠ Label model doesn't match the DO product — please verify.
     </div>` : ""}
-    ` : ""}
+
+    ${delivery.ocr_model_number || delivery.ocr_match_percent != null || (delivery.photo_loaded_url || delivery.photo_delivered_url) ? `
+    <div class="section-title">Label OCR</div>
     ${delivery.ocr_model_number ? `<div class="detail-row"><b>Model from label</b><span style="font-family:'JetBrains Mono',monospace;font-size:12px;">${escHtml(delivery.ocr_model_number)}</span></div>` : ""}
     ${Array.isArray(delivery.ocr_serial_candidates) && delivery.ocr_serial_candidates.length ? `
     <div class="detail-row"><b>Serial from label</b><span>
@@ -4363,12 +4365,12 @@ function openViewPopup(id) {
       ).join("")}
     </span></div>
     <div style="font-size:11px;color:var(--text-muted,#888);margin-top:2px;">Tap a candidate to set it as the delivery serial number.</div>
+    ` : delivery.ocr_match_percent != null ? `
+    <div style="font-size:12px;color:var(--muted);">Label read — no serial candidates found. Serial can be typed manually.</div>
+    ` : `
+    <div style="font-size:12px;color:#4d8eff;font-weight:600;">🔍 Reading label…</div>
+    `}
     ` : ""}
-    ` : ""}
-    <button onclick="verifyDeliveryLabel('${escHtml(delivery.id)}', this)"
-      style="margin-top:8px;width:100%;padding:10px;background:var(--accent,#4d8eff);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">
-      🔍 Verify label
-    </button>
 
     <div class="section-title">Delivery Info</div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${delivery.status}">${delivery.status}</span></span></div>
@@ -4559,49 +4561,56 @@ function openViewPopup(id) {
   document.getElementById("viewPopup").classList.add("is-open");
   // Populate issue dropdown in complaint form if rendered
   populateViewIssueDropdown();
+
+  // Auto-run label OCR when the popup opens: if the delivery has a photo
+  // but no OCR result yet, verify it in the background and re-render.
+  const hasPhoto = delivery.photo_loaded_url || delivery.photo_delivered_url;
+  const noOcrYet = !delivery.ocr_model_number && delivery.ocr_match_percent == null;
+  if (hasPhoto && noOcrYet) {
+    verifyDeliveryLabel(id);
+  }
 }
 
 function closeViewPopup() {
   document.getElementById("viewPopup").classList.remove("is-open");
 }
 
-// Verify the label OCR on demand — runs against the stored delivery photo
-// and persists the result (model, serial candidates, match%) for review.
-async function verifyDeliveryLabel(deliveryId, btn) {
+// Verify the label OCR automatically when the popup opens (no button).
+// Runs against the stored delivery photo and persists the result.
+async function verifyDeliveryLabel(deliveryId) {
   if (!deliveryId) return;
-  const original = btn?.textContent;
-  if (btn) { btn.disabled = true; btn.textContent = "🔍 Reading label…"; }
   try {
     const res = await authFetch(`${BASE_URL}/verify-label/${deliveryId}`, { method: "POST" });
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
-      showToast(d.error || "Failed to verify label", "error");
-      if (btn) { btn.disabled = false; btn.textContent = original; }
+      // No photo / failure — just re-render to drop the "Reading label…" state
+      openViewPopup(deliveryId);
       return;
     }
-    showToast("Label verified", "success");
-    // Refresh the popup so the OCR section shows the new result
     openViewPopup(deliveryId);
   } catch (e) {
-    showToast("Network error. Please try again.", "error");
-    if (btn) { btn.disabled = false; btn.textContent = original; }
+    openViewPopup(deliveryId);
   }
 }
 
-// Set the delivery serial to one of the OCR-extracted candidates (from the loaded-photo label)
+// Set the delivery serial to one of the OCR-extracted candidates.
+// Saves the chosen one and discards the rest (clears ocr_serial_candidates).
 async function setOcrSerial(deliveryId, serial) {
   if (!serial || !serial.trim()) return;
   try {
     const res = await authFetch(`${BASE_URL}/delivery/${deliveryId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product_serial_number: serial.trim() })
+      body: JSON.stringify({ product_serial_number: serial.trim(), ocr_serial_candidates: [] })
     });
     if (!res.ok) { const d = await res.json(); showToast(d.error || "Failed to set serial", "error"); return; }
-    showToast("Serial updated", "success");
-    // Refresh the popup so the updated serial shows
+    showToast("Serial saved", "success");
+    // Refresh the popup so the updated serial shows and candidates are gone
     const d = currentAccountantData.find(x => x.id === deliveryId);
-    if (d) { d.product_serial_number = serial.trim(); }
+    if (d) {
+      d.product_serial_number = serial.trim();
+      d.ocr_serial_candidates = [];
+    }
     openViewPopup(deliveryId);
   } catch (e) {
     showToast("Network error. Please try again.", "error");

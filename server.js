@@ -2861,7 +2861,8 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
     "is_self_pickup", "pickup_from", "storeId", "sale_price",
     "sold_by_name", "freight_charged", "freight_amount",
     "delivery_mode", "porter_invoice_number", "porter_vehicle_number",
-    "porter_courier_name", "porter_phone"
+    "porter_courier_name", "porter_phone",
+    "ocr_serial_candidates", "ocr_model_number", "ocr_match_percent"
   ];
   const update = {};
   for (const field of ALLOWED) {
