@@ -4366,10 +4366,15 @@ function openViewPopup(id) {
     </span></div>
     <div style="font-size:11px;color:var(--text-muted,#888);margin-top:2px;">Tap a candidate to set it as the delivery serial number.</div>
     ` : delivery.ocr_match_percent != null ? `
-    <div style="font-size:12px;color:var(--muted);">Label read — no serial candidates found. Serial can be typed manually.</div>
+    <div style="font-size:12px;color:var(--muted);">No serial candidates found — see raw text below or type manually.</div>
     ` : `
     <div style="font-size:12px;color:#4d8eff;font-weight:600;">🔍 Reading label…</div>
     `}
+    ${delivery.ocr_raw_text ? `
+    <details style="margin-top:8px;">
+      <summary style="font-size:11px;color:var(--muted);cursor:pointer;">Raw OCR text</summary>
+      <div style="margin-top:4px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);white-space:pre-wrap;max-height:140px;overflow:auto;">${escHtml(delivery.ocr_raw_text)}</div>
+    </details>` : ""}
     ` : ""}
 
     <div class="section-title">Delivery Info</div>
@@ -4577,19 +4582,20 @@ function closeViewPopup() {
 
 // Verify the label OCR automatically when the popup opens (no button).
 // Runs against the stored delivery photo and persists the result.
+// Only re-renders the popup if it's still open (don't reopen after close).
 async function verifyDeliveryLabel(deliveryId) {
   if (!deliveryId) return;
   try {
     const res = await authFetch(`${BASE_URL}/verify-label/${deliveryId}`, { method: "POST" });
     if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      // No photo / failure — just re-render to drop the "Reading label…" state
-      openViewPopup(deliveryId);
       return;
     }
-    openViewPopup(deliveryId);
+    const popup = document.getElementById("viewPopup");
+    if (popup?.classList.contains("is-open")) {
+      openViewPopup(deliveryId);
+    }
   } catch (e) {
-    openViewPopup(deliveryId);
+    // ignore — popup state is not forced
   }
 }
 

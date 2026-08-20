@@ -23,6 +23,9 @@ import path from "path";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import Groq from "groq-sdk";
+import { createWorker } from "tesseract.js";
+import sharp from "sharp";
+import { readBarcodes } from "zxing-wasm/reader";
 import whatsappRouter from "./routes/whatsapp.js";
 import { createApp as createGbpApp } from "./gbp-server/dist/app.js";
 import { searchPlace } from "./gbp-server/dist/services/places.js";
@@ -6629,6 +6632,131 @@ app.post("/api/extract-models", authenticate, authorize(["admin", "accountant"])
    + models master to suggest product names.
    ────────────────────────────────────────────── */
 
+/* ──────────────────────────────────────────────
+   LOCAL OCR — extract all text from a label photo
+   using tesseract.js (WASM, no AI). Deterministic.
+   Organizes the raw text into a model number +
+   serial candidates with pattern rules, and returns
+   the raw text as a fallback so the accountant can
+   still see what was read.
+   ────────────────────────────────────────────── */
+
+// Persistent worker for reuse (creating one per call is slow). Created lazily.
+let _ocrWorkerPromise = null;
+async function getOcrWorker() {
+  if (!_ocrWorkerPromise) {
+    _ocrWorkerPromise = createWorker("eng").catch(e => {
+      _ocrWorkerPromise = null;
+      throw e;
+    });
+  }
+  return _ocrWorkerPromise;
+}
+
+// Clean a token: strip surrounding noise, keep [A-Z0-9-/.]
+function cleanToken(s) {
+  return String(s)
+    .replace(/[^A-Za-z0-9\-/.]/g, "")
+    .replace(/^[\-/.]+|[\-/.]+$/g, "")
+    .trim();
+}
+
+// Guess the model number from the raw text (first plausible product-code line).
+function findModelNumber(lines, tokens) {
+  // 1) Explicit "Model No / Model :" lines
+  for (const l of lines) {
+    const m = l.match(/(?:model\s*(?:no\.?|number)?\s*[:#]?\s*)([A-Z0-9][A-Z0-9\-]{4,})/i);
+    if (m) return m[1].toUpperCase();
+  }
+  // 2) First token matching a typical product code: letters+digits, 5-24 chars
+  for (const t of tokens) {
+    if (/^[A-Z]{2,}\d{2,}[A-Z0-9\-]*$/i.test(t) && t.length <= 24) return t.toUpperCase();
+  }
+  // 3) Fallback: first long alphanumeric token
+  for (const t of tokens) {
+    if (/[A-Za-z]/.test(t) && /\d/.test(t) && t.length >= 6) return t.toUpperCase();
+  }
+  return null;
+}
+
+// Collect serial-like candidates from the raw text.
+function findSerialCandidates(lines, tokens, modelNumber) {
+  const out = new Set();
+  const modelNorm = modelNumber ? modelNumber.replace(/[^A-Z0-9]/g, "").toUpperCase() : null;
+
+  const consider = (t) => {
+    if (!t) return;
+    const c = cleanToken(t).toUpperCase();
+    if (c.length < 8 || c.length > 40) return;
+    // Must look serial-like: digits + letters, OR digits-only long codes.
+    // Loose on punctuation (allows "2026-27/102108").
+    if (!(/\d/.test(c) && /[A-Za-z]/.test(c)) && !/^\d{8,}$/.test(c)) return;
+    // Exclude the model number itself and obvious noise
+    if (modelNorm && c.replace(/[^A-Z0-9]/g, "") === modelNorm.replace(/[^A-Z0-9]/g, "")) return;
+    if (/^(WWW|HTTP|HTTPS|BEE|QR|INR|RS|GST|PAN|S\/N|SERIAL)$/i.test(c)) return;
+    out.add(c);
+  };
+
+  // 1) Explicit "S/N:" or "Serial No:" lines
+  for (const l of lines) {
+    const m = l.match(/(?:s\.?n\.?|serial\s*(?:no\.?|number)?)\s*[:#]?\s*([A-Z0-9\-/.]{8,})/i);
+    if (m) consider(m[1]);
+  }
+  // 2) Every token that looks like a code
+  for (const t of tokens) consider(t);
+
+  return Array.from(out).slice(0, 10);
+}
+
+async function extractLabelLocal(base64, mimetype) {
+  const worker = await getOcrWorker();
+  try {
+    const buf = Buffer.from(base64, "base64");
+
+    // 1) Barcode decode — serials live in Code-128 on the label.
+    //    EAN-13 (13 digits, starts 890) are product codes, NOT serials — drop them.
+    let barcodes = [];
+    try {
+      barcodes = (await readBarcodes(buf)).map(r => r.text).filter(Boolean);
+    } catch (e) {
+      console.warn("[OCR] barcode decode failed:", e.message);
+    }
+    const serialCandidates = Array.from(new Set(
+      barcodes.filter(b => {
+        if (b.length < 8 || b.length > 40 || !/\d/.test(b)) return false;
+        // EAN-13 product code: 13 digits, often starts with 890 (India)
+        if (/^\d{13}$/.test(b) && /^890/.test(b)) return false;
+        // Generic 13-digit numeric-only that looks like EAN/GTIN
+        if (/^\d{13}$/.test(b)) return false;
+        return true;
+      })
+    )).slice(0, 10);
+
+    // 2) Preprocessed OCR for the model number (best-effort).
+    let rawText = "";
+    let modelNumber = null;
+    try {
+      const pre = await sharp(buf)
+        .resize({ width: 2000, withoutEnlargement: true })
+        .grayscale()
+        .normalize()
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      const { data: { text } } = await worker.recognize(pre);
+      rawText = (text || "").trim();
+      const lines  = rawText.split("\n").map(l => l.trim()).filter(Boolean);
+      const tokens = rawText.split(/[\s\n]+/).map(cleanToken).filter(Boolean);
+      modelNumber = findModelNumber(lines, tokens);
+    } catch (e) {
+      console.warn("[OCR] tesseract failed:", e.message);
+    }
+
+    return { modelNumber, serialCandidates, rawText, barcodes };
+  } finally {
+    // Worker is reused; do not terminate.
+  }
+}
+
 async function extractWithGroqLoadedPhoto(base64, mimetype, prompt) {
   const completion = await groq.chat.completions.create({
     messages: [{
@@ -6808,23 +6936,8 @@ app.post("/verify-label/:id", authenticate, authorize(["admin", "accountant"]), 
     const mimetype = photoRes.headers.get("content-type") || "image/jpeg";
     const base64 = buf.toString("base64");
 
-    const primaryPrompt = "You are looking at a photo of an electronics product carton label / BEE energy sticker / serial sticker. Extract the product MODEL NUMBER and ALL long alphanumeric SERIAL-LIKE STRINGS printed on it. Return ONLY JSON: {\"modelNumber\": string|null, \"serialCandidates\": string[]}. The model number looks like an alphanumeric code e.g. \"UA75U8300HULXL\", \"WW80TA046AB1\", \"HRD-618SS\". serialCandidates: every long string of letters+digits (usually 8-30 chars) that could be a serial number / S/N / IMEI — list ALL of them, do not pick just one. Exclude the model number itself, the brand name, and short words. If none, []. No markdown, no explanation.";
-
-    let result = await extractWithGroqLoadedPhoto(base64, mimetype, primaryPrompt);
-    if (!result.modelNumber && (!result.serialCandidates || !result.serialCandidates.length)) {
-      const fallbackPrompt = "This is a photo of an electronics carton/label. Return ONLY JSON: {\"modelNumber\": string|null, \"serialCandidates\": string[]}. Find the model number (alphanumeric product code) and ALL long serial-like strings. No markdown.";
-      result = await extractWithGroqLoadedPhoto(base64, mimetype, fallbackPrompt);
-    }
-
-    let modelNumber = result.modelNumber ? String(result.modelNumber).toUpperCase().trim() : null;
-    if (modelNumber && modelNumber.length > 24) modelNumber = null;
-
-    const serialCandidates = Array.from(new Set(
-      (Array.isArray(result.serialCandidates) ? result.serialCandidates : [])
-        .map(s => String(s).trim())
-        .filter(s => s.length >= 8 && s.length <= 40)
-        .filter(s => /[A-Za-z]/.test(s) && /\d/.test(s))
-    )).slice(0, 10);
+    // Local OCR — deterministic, no AI. Extracts all text + organizes it.
+    const { modelNumber, serialCandidates, rawText, barcodes } = await extractLabelLocal(base64, mimetype);
 
     const matches = await matchModelToProducts(modelNumber);
 
@@ -6847,12 +6960,13 @@ app.post("/verify-label/:id", authenticate, authorize(["admin", "accountant"]), 
     const update = {
       ocr_model_number: modelNumber,
       ocr_serial_candidates: serialCandidates,
-      ocr_match_percent: matchPercent
+      ocr_match_percent: matchPercent,
+      ocr_raw_text: rawText
     };
     await updateDoc(refDoc, update);
     invalidateDeliveriesCache();
 
-    res.json({ modelNumber, serialCandidates, serialNumber: serialCandidates[0] || null, matches, matchPercent });
+    res.json({ modelNumber, serialCandidates, serialNumber: serialCandidates[0] || null, matches, matchPercent, rawText, barcodes });
 
   } catch (error) {
     console.error("❌ /verify-label error:", error);
