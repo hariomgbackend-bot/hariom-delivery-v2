@@ -604,6 +604,10 @@
           <div class="search-results-title">🔧 Tickets</div>
           <div id="srTickets"></div>
         </div>
+        <div class="search-results-section" id="srDeliveriesSection" style="display:none;">
+          <div class="search-results-title">🚚 Past Deliveries</div>
+          <div id="srDeliveries"></div>
+        </div>
       </div>
     </div>
 
@@ -623,8 +627,12 @@
         <button class="filter-btn" data-filter="logged"      onclick="setFilter('logged',this)">Logged <span class="filter-count" id="fc-logged"></span></button>
         <button class="filter-btn" data-filter="installation" onclick="setFilter('installation',this)">Demo-Installation <span class="filter-count" id="fc-installation"></span></button>
         <button class="filter-btn" data-filter="complaint"   onclick="setFilter('complaint',this)">Complaints <span class="filter-count" id="fc-complaint"></span></button>
+        <button class="filter-btn" data-filter="instock"     onclick="setFilter('instock',this)">📦 In Stock <span class="filter-count" id="fc-instock"></span></button>
         <select id="ticketStoreFilter" onchange="onTicketStoreFilter()" style="margin-left:6px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;cursor:pointer;">
           <option value="all">All Stores</option>
+        </select>
+        <select id="ticketBrandFilter" onchange="onTicketBrandFilter()" style="margin-left:6px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;cursor:pointer;">
+          <option value="all">All Brands</option>
         </select>
       </div>
 
@@ -892,6 +900,8 @@ let totalTickets = 0;
 let allDeliveries = [];
 let currentFilter = "all";
 let currentStoreFilter = "all";
+let currentBrandFilter = "all";
+let ticketBrands  = [];   // loaded from /brands for the brand dropdown
 let currentPage   = 1;
 const PAGE_SIZE   = 15;
 let _svcMessaging = null;
@@ -1007,6 +1017,7 @@ function showApp() {
 /* ── LOAD EVERYTHING ── */
 async function loadAll() {
   await loadTickets(); // deliveries loaded lazily when needed
+  loadTicketBrands();  // populate brand filter dropdown (non-blocking)
 }
 
 async function loadTickets(showSkeleton = true) {
@@ -1015,7 +1026,10 @@ async function loadTickets(showSkeleton = true) {
   const _sy = window.scrollY;
   if (showSkeleton && tbody) tbody.innerHTML = skeletons(3, "row");
   try {
-    const res   = await authFetch(`${BASE_URL}/service/tickets`);
+    // Fetch a larger window of tickets (first 300) so the list view spans
+    // far beyond the old 50-cap. Pagination within the client still applies
+    // to what is loaded; deeper pages keep the newest-first ordering.
+    const res   = await authFetch(`${BASE_URL}/service/tickets?pageSize=300`);
     const body  = await res.json();
     allTickets  = body.data || body;
     totalTickets = body.total || allTickets.length;
@@ -1100,8 +1114,9 @@ function updateStats() {
   allTickets.forEach(t => {
     counts[t.status === "open" ? "new" : t.status] = (counts[t.status === "open" ? "new" : t.status] || 0) + 1;
     counts[t.type]   = (counts[t.type]   || 0) + 1;
+    if (t.in_stock) counts.instock = (counts.instock || 0) + 1;
   });
-    ["all","new","logged","installation","complaint"].forEach(k => {
+    ["all","new","logged","installation","complaint","instock"].forEach(k => {
       const el = document.getElementById("fc-" + k);
       if (el) el.textContent = counts[k] || "";
     });
@@ -1121,13 +1136,52 @@ function onTicketStoreFilter() {
   renderTickets();
 }
 
+function onTicketBrandFilter() {
+  currentBrandFilter = document.getElementById("ticketBrandFilter").value;
+  currentPage = 1;
+  renderTickets();
+}
+
+// Load the brands list once for the brand filter dropdown.
+async function loadTicketBrands() {
+  try {
+    const res   = await authFetch(`${BASE_URL}/brands`);
+    const brands = await res.json();
+    ticketBrands = Array.isArray(brands) ? brands : [];
+    const sel = document.getElementById("ticketBrandFilter");
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="all">All Brands</option>' + ticketBrands
+      .map(b => `<option value="${esc(b.name)}">${esc(b.name)}</option>`).join("");
+    sel.value = currentBrandFilter || "all";
+  } catch (e) { /* brand filter just stays empty on failure */ }
+}
+
+// Brand of a ticket: prefer the persisted brand field (server-extracted,
+// word-boundary match), fall back to a keyword match for old/edge cases.
+function ticketBrandName(t) {
+  if (t.brand) return t.brand;
+  if (!ticketBrands.length) return null;
+  const productUpper = (t.product_name || "").toUpperCase();
+  const matched = ticketBrands.find(b => {
+    const kw = b.name.toUpperCase().trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!kw) return false;
+    return new RegExp(`\\b${kw}\\b`).test(productUpper);
+  });
+  return matched ? matched.name.toUpperCase() : null;
+}
+
 function getFilteredTickets() {
   let filtered = allTickets;
   if (currentStoreFilter !== "all")
     filtered = filtered.filter(t => t.storeId === currentStoreFilter);
+  if (currentBrandFilter !== "all")
+    filtered = filtered.filter(t => ticketBrandName(t) === currentBrandFilter);
   if (currentFilter === "all") return filtered;
   if (["new","logged"].includes(currentFilter))
     return filtered.filter(t => t.status === (currentFilter === "new" ? "open" : currentFilter));
+  if (currentFilter === "instock")
+    return filtered.filter(t => t.in_stock === true);
   if (["installation","complaint"].includes(currentFilter))
     return filtered.filter(t => t.type === currentFilter);
   return filtered;
@@ -1188,9 +1242,9 @@ function renderTicketsTable(tickets) {
   }
   tbody.innerHTML = tickets.map(t => `
     <tr class="clickable" onclick="openTicketDetail('${t.id}')">
-      <td><span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span></td>
+      <td><span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span>${t.in_stock ? ` <span class="badge" style="background:rgba(78,222,163,0.15);color:var(--tertiary);border:1px solid rgba(78,222,163,0.3);">📦 In Stock</span>` : ""}</td>
       <td style="font-weight:700;">${esc(t.customer_name)||"—"}${storeDisplayName(t.storeId)?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(storeDisplayName(t.storeId))}</span>`:""}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.product_name)||"—"}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.product_name)||"—"}${ticketBrandName(t) ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.12);color:#93c5fd;border:1px solid rgba(173,198,255,0.25);vertical-align:middle;">${esc(ticketBrandName(t))}</span>` : ""}</td>
       <td><a class="phone-link" href="tel:${esc(t.phone)}" onclick="event.stopPropagation()">${esc(t.phone)||"—"}</a></td>
       <td><span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace("_"," ")}</span></td>
       <td>${warrantyStr(t)}</td>
@@ -1214,10 +1268,10 @@ function renderTicketsMob(tickets) {
       <div class="mob-card-row">
         <div>
           <div class="mob-card-name">${esc(t.customer_name)||"—"}${storeDisplayName(t.storeId)?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(storeDisplayName(t.storeId))}</span>`:""}</div>
-          <div class="mob-card-product">${esc(t.product_name)||"—"}</div>
+          <div class="mob-card-product">${esc(t.product_name)||"—"}${ticketBrandName(t) ? ` <span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700;background:rgba(173,198,255,0.12);color:#93c5fd;border:1px solid rgba(173,198,255,0.25);">${esc(ticketBrandName(t))}</span>` : ""}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-          <span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span>
+          <span class="badge badge-${esc(t.type)}">${displayType(t.type)}${t.in_stock ? ` 📦` : ""}</span>
           <span class="badge badge-${esc(t.status)}">${t.status === "open" ? "new" : esc(t.status).replace("_"," ")}</span>
         </div>
       </div>
@@ -1385,6 +1439,7 @@ function openTicketDetail(id) {
   document.getElementById("ticketDetailContent").innerHTML = `
     <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span>
+      ${t.in_stock ? `<span class="badge" style="background:rgba(78,222,163,0.15);color:var(--tertiary);border:1px solid rgba(78,222,163,0.3);">📦 In Stock</span>` : ""}
       ${esc(t.customer_name) || "—"}
       ${storeDisplayName(t.storeId)?`<span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${esc(storeDisplayName(t.storeId))}</span>`:""}
     </h3>
@@ -1402,7 +1457,7 @@ function openTicketDetail(id) {
       </span>
     </div>
     <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${esc(t.address) || "—"}</span></div>
-    <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${esc(t.product_name) || "—"}</span></div>
+    <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${esc(t.product_name) || "—"}${ticketBrandName(t) ? ` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(173,198,255,0.12);color:#93c5fd;border:1px solid rgba(173,198,255,0.25);vertical-align:middle;">${esc(ticketBrandName(t))}</span>` : ""}</span></div>
     <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:var(--font-mono);font-size:12px;">${esc(t.serial_number) || "—"}</span></div>
     ${t.description ? `<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${esc(t.description)}</span></div>` : ""}
     ${t.priority && t.priority !== "normal" ? `<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value" style="color:var(--error);font-weight:700;">🔴 Urgent</span></div>` : (t.priority === "normal" ? `<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value">Normal</span></div>` : "")}
@@ -1976,6 +2031,7 @@ async function submitCreateTicket() {
         serial_number: document.getElementById("ctSerial").value.trim(),
         description:   desc,
         priority,
+        in_stock:      document.getElementById("ctInStock")?.checked || false,
         purchase_date: document.getElementById("ctPurchaseDate").value || null
       })
     });
@@ -1993,6 +2049,8 @@ async function submitCreateTicket() {
     const localAddr = [addr1, addr2, area, city, state && pincode ? state + " - " + pincode : (state || pincode)].filter(Boolean).join(", ");
     const localTicket = {
       id: data.id, type, status: "open",
+      in_stock: document.getElementById("ctInStock")?.checked || false,
+      brand: ticketBrandName({ product_name: productName }),
       linked_delivery_id: document.getElementById("ctLinkedDeliveryId").value || null,
       customer_name: localName, phone, alternate_phone: document.getElementById("ctAltPhone").value.trim(),
       address: localAddr, product_name: productName, serial_number: document.getElementById("ctSerial").value.trim(),
@@ -2034,7 +2092,7 @@ async function runSearch(q) {
   const cached = _searchCache.get(q);
   if (cached && Date.now() - cached.ts < _searchCacheTTL) {
     panel.style.display = "block";
-    renderSearchResults(cached.tickets);
+    renderSearchResults(cached.tickets, cached.deliveries);
     return;
   }
   panel.style.display = "block";
@@ -2042,18 +2100,22 @@ async function runSearch(q) {
     const res  = await authFetch(`${BASE_URL}/service/search?q=${encodeURIComponent(q)}`);
     const data = await res.json();
     const tickets = data.tickets || [];
-    _searchCache.set(q, { ts: Date.now(), tickets });
-    renderSearchResults(tickets);
+    const deliveries = data.deliveries || [];
+    _searchCache.set(q, { ts: Date.now(), tickets, deliveries });
+    renderSearchResults(tickets, deliveries);
   } catch (e) {
     panel.style.display = "none";
   }
 }
 
-function renderSearchResults(tickets) {
+function renderSearchResults(tickets, deliveries = []) {
   const tSec = document.getElementById("srTicketsSection");
   const tEl  = document.getElementById("srTickets");
+  const dSec = document.getElementById("srDeliveriesSection");
+  const dEl  = document.getElementById("srDeliveries");
 
   tSec.style.display = tickets.length ? "" : "none";
+  dSec.style.display = deliveries.length ? "" : "none";
 
   tickets.forEach(t => { if (!allTickets.find(x => x.id === t.id)) allTickets.push(t); });
 
@@ -2066,6 +2128,18 @@ function renderSearchResults(tickets) {
       <div style="display:flex;align-items:center;gap:6px;">
         <span class="badge badge-${esc(t.status)}">${esc(t.status).replace("_"," ")}</span>
         <span class="badge badge-${esc(t.type)}">${displayType(t.type)}</span>
+      </div>
+    </div>`).join("");
+
+  dEl.innerHTML = deliveries.map(d => `
+    <div class="search-result-row" onclick="prefillFromDelivery('${d.id}')" style="cursor:pointer;">
+      <div>
+        <div class="srr-name">${esc(d.customer_name)||"—"}</div>
+        <div class="srr-product">${esc(d.product_name)||"—"} ${d.status ? `<span class="badge badge-${esc(d.status)}">${esc(d.status)}</span>` : ""}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--on-surface-variant);">${d.delivered_timestamp?.seconds ? fmtDate(d.delivered_timestamp) : fmtDate(d.created_timestamp)}</span>
+        <span class="badge" style="background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);">Past DO</span>
       </div>
     </div>`).join("");
 }
@@ -2162,6 +2236,12 @@ function openEditTicket(id) {
       </select>
     </div>
     <div class="form-field">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+        <input type="checkbox" id="etInStock" ${t.in_stock ? "checked" : ""}>
+        📦 In Stock
+      </label>
+    </div>
+    <div class="form-field">
       <label>Description</label>
       <textarea class="form-input" id="et_desc" rows="3" style="resize:vertical;">${t.description || ""}</textarea>
     </div>
@@ -2199,6 +2279,8 @@ async function submitEditTicket(id) {
     description:     document.getElementById("et_desc").value.trim(),
     purchase_date:   document.getElementById("et_purchase_date").value || null,
     storeId:         document.getElementById("etStore").value || "",
+    in_stock:        document.getElementById("etInStock")?.checked || false,
+    brand:           ticketBrandName({ product_name: document.getElementById("et_product").value.trim() }) || null,
   };
   if (!updates.phone || updates.phone.length !== 10) {
     msg.style.color = "var(--error)"; msg.textContent = "Valid 10-digit phone required."; return;

@@ -1352,6 +1352,55 @@ async function runPorterBackfillMigration() {
 }
 
 /* ════════════════════════════════════════════════
+   BRANDS SEED — seeds the brands collection from the
+   canonical appliance brand list (same list used by
+   purchase-ingestion.html / listmaker.html) when empty.
+   Idempotent: only adds names that don't already exist,
+   so admin edits / added brands are never clobbered.
+════════════════════════════════════════════════ */
+async function runBrandsSeedMigration() {
+  try {
+    const migrationRef = doc(db, "_migrations", "brands_seed_v1");
+    const migrationSnap = await getDoc(migrationRef);
+    if (migrationSnap.exists() && migrationSnap.data().done) {
+      return;
+    }
+
+    const SEED_BRANDS = [
+      "SAMSUNG","LG","WHIRLPOOL","HAIER","VOLTAS","LLOYD","PANASONIC","SONY",
+      "BUSH","FOXSKY","NVY","TCL","SURYA","NOVEL","NAYAN","GODREJ","HITACHI",
+      "DAIKIN","BLUE STAR","VIDEOCON","ONIDA","MI","REALME","ONEPLUS","OPPO",
+      "VIVO","XIAOMI","INFINIX","TECHNO","MOTOROLA","NOKIA","ACER","DELL",
+      "HP","LENOVO","ASUS","IFB","MARQ","CROMPTON","ORIENT","HAVELLS",
+      "BAJAJ","USHA","BUTTERFLY","PRESTIGE","PHILIPS","BOSCH","BPL","AQUAGUARD",
+      "EUREKA","KENT","LUMINOUS","SU-KAM","INVERTEX","MICROTEK","APC","ATHENZA",
+      "AKAI","INTEX","KORYO","SYSTABUZZ","GREEN","ERGO"
+    ];
+
+    // Only add names that don't already exist (case-insensitive).
+    const snap = await getDocs(collection(db, "brands"));
+    const existing = new Set(snap.docs.map(d => (d.data().name || "").toUpperCase()));
+    let added = 0;
+    for (const name of SEED_BRANDS) {
+      if (existing.has(name.toUpperCase())) continue;
+      await addDoc(collection(db, "brands"), {
+        name,
+        installation_method: "whatsapp",
+        notes: "Auto-seeded brand list",
+        created_at: Timestamp.now()
+      });
+      added++;
+    }
+
+    console.log(`[MIGRATION] Brands seed: added ${added} brands (${snap.size} already existed)`);
+    invalidateRefCache("brands");
+    await setDoc(migrationRef, { done: true, at: Timestamp.now() });
+  } catch (err) {
+    console.error("[MIGRATION] Brands seed error:", err.message);
+  }
+}
+
+/* ════════════════════════════════════════════════
    RATE LIMITING
    - Global limiter: 200 req / 15 min per IP (generous for internal use)
    - Driver PIN limiter: 10 attempts / 15 min per IP (brute-force protection)
@@ -5175,7 +5224,7 @@ function computeSearchTokens(ticket) {
 
 app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
-    const cacheKey = `${req.user.role}_${req.user.storeId || ''}_${req.query.status || ''}_${req.query.type || ''}`;
+    const cacheKey = `${req.user.role}_${req.user.storeId || ''}_${req.query.status || ''}_${req.query.type || ''}_${req.query.in_stock || ''}_${req.query.page || ''}_${req.query.pageSize || ''}`;
     const existing = serviceTicketsCaches[cacheKey];
     if (existing && Date.now() < existing.expiry) {
       return res.json(existing.data);
@@ -5186,26 +5235,111 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
     }
     if (req.query.status) ticketConstraints.push(where("status", "==", req.query.status));
     if (req.query.type)   ticketConstraints.push(where("type", "==", req.query.type));
+    if (req.query.in_stock === "true") ticketConstraints.push(where("in_stock", "==", true));
     ticketConstraints.push(orderBy("created_at", "desc"));
-    ticketConstraints.push(limit(50));
 
-    const q = query(collection(db, "service_tickets"), ...ticketConstraints);
+    // Pagination — default 50/page (matches the previous hard cap).
+    const page     = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(300, Math.max(1, parseInt(req.query.pageSize) || 50));
+    const isPaginated = req.query.page !== undefined || req.query.pageSize !== undefined;
+
+    const q = query(collection(db, "service_tickets"), ...ticketConstraints, limit(page * pageSize));
     const snap   = await getDocs(q);
-    const tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    trackReads("service-tickets", snap.docs.length);
+    let tickets  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Backfill stock-complaint + brand flags on read: store-named complaints
+    // and brand keywords predate these fields. Classified on the fly and
+    // persisted lazily so the stored flags become real for future queries.
+    const brandNames = await getBrandNames();
+    for (const t of tickets) {
+      let needsUpdate = false;
+      const patch = {};
+      if (t.in_stock !== true && isStockComplaint(t.type, t.customer_name)) {
+        t.in_stock = true;
+        patch.in_stock = true;
+        needsUpdate = true;
+      }
+      if (!t.brand) {
+        const b = extractBrandFromNames(t.product_name, brandNames);
+        if (b) { t.brand = b; patch.brand = b; needsUpdate = true; }
+      }
+      if (needsUpdate) {
+        const refDoc = doc(db, "service_tickets", t.id);
+        updateDoc(refDoc, patch).catch(() => {});
+      }
+    }
 
     // Get total count (filtered)
-    const countSnap = await getCountFromServer(query(collection(db, "service_tickets"), ...ticketConstraints.slice(0, -2)));
+    const countSnap = await getCountFromServer(query(collection(db, "service_tickets"), ...ticketConstraints));
     const total = countSnap.data().count;
 
-    const result = { data: tickets, total };
+    trackReads("service-tickets", snap.docs.length);
+
+    const result = isPaginated
+      ? { data: tickets.slice((page - 1) * pageSize, page * pageSize), total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
+      : { data: tickets, total };
     serviceTicketsCaches[cacheKey] = { data: result, expiry: Date.now() + SERVICE_TICKETS_CACHE_TTL };
 
     res.json(result);
   } catch (err) {
+    console.error("/service/tickets error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
+// Complaints raised against the stores themselves (customer name is the
+// store: "Hariom Electronics - Alandi" / "... - Dhanore", plain
+// "Hari Om Electronics" / "Alandi" / "Dhanore", or "Stock Complaint")
+// are stock complaints — the unit sits in the shop, not at a customer's
+// home. Auto-flag them.
+function isStockComplaint(type, customerName) {
+  if (type !== "complaint") return false;
+  const n = String(customerName || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return n.includes("hariomelectronics") ||
+         n.includes("alandi") ||
+         n.includes("dhanore") ||
+         n.includes("stockcomplaint");
+}
+
+// Word-boundary brand match: "REF HAIER HRF-618SS" matches "HAIER", but a
+// short brand like "MI" never matches inside "MINI"/"MIXER"/"MICROMAX".
+function matchBrandKeyword(productName, brandName) {
+  const n = String(productName || "").toUpperCase();
+  const b = String(brandName || "").toUpperCase().trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!b) return false;
+  return new RegExp(`\\b${b}\\b`).test(n);
+}
+
+// First known brand whose name appears as a whole word in the product name.
+function extractBrandFromNames(productName, brandNames) {
+  for (const name of brandNames) {
+    if (matchBrandKeyword(productName, name)) return String(name).toUpperCase();
+  }
+  return null;
+}
+
+// Load brand names for extraction. Reuses the same 60s ref cache as GET /brands
+// so brand extraction never adds a Firestore read per ticket.
+async function getBrandNames() {
+  const cache = getRefCache("brands");
+  if (Date.now() < cache.expiry && Array.isArray(cache.data)) {
+    return cache.data.map(b => b.name || "").filter(Boolean);
+  }
+  try {
+    const snap = await getDocs(collection(db, "brands"));
+    cache.data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    cache.expiry = Date.now() + cache.ttl;
+    return cache.data.map(b => b.name || "").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+// Extract + persist-ready brand for a product name (or null when unknown).
+async function extractTicketBrand(productName) {
+  const brandNames = await getBrandNames();
+  return extractBrandFromNames(productName, brandNames);
+}
 
 app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "staff", "service"]), async (req, res) => {
   try {
@@ -5216,7 +5350,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       phone, alternate_phone, address,
       pincode, state, city, area, addr1, addr2,
       product_name, serial_number, description,
-      purchase_date
+      purchase_date, in_stock
     } = req.body;
 
     if (!type || !["installation", "complaint"].includes(type))
@@ -5270,10 +5404,19 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       }
     }
 
+    // Auto-flag stock complaints (customer name = a Hariom store).
+    // An explicitly checked "In Stock" box also stays true.
+    const effectiveInStock = in_stock === true || isStockComplaint(type, customer_name);
+
+    // Extract the brand (word-boundary match against the brands master).
+    const brand = await extractTicketBrand(product_name);
+
     const newTicket = {
       storeId:          req.body.storeId || req.user.storeId || "",
       type,
       status:             "open",
+      in_stock:           effectiveInStock,
+      brand:              brand,
       linked_delivery_id: linked_delivery_id || null,
       customer_name:      customer_name      || "",
       phone:              phone,
@@ -5333,10 +5476,15 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
       "brand_request_status", "brand_tracking_number",
       "customer_name", "phone", "alternate_phone", "address",
       "product_name", "serial_number", "purchase_date",
-      "storeId"
+      "storeId", "in_stock", "brand"
     ];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+
+    // Recompute brand whenever the product name changes (word-boundary match).
+    if (req.body.product_name !== undefined) {
+      updates.brand = await extractTicketBrand(req.body.product_name);
+    }
 
     // ── Recompute _search if name/phone fields changed ──
     const searchFields = ["customer_name", "phone", "alternate_phone"];
@@ -5644,6 +5792,8 @@ app.delete("/service/legacy-import-cleanup", authenticate, authorize(["admin"]),
 
 
 // Search across deliveries + tickets by phone or name
+// Returns ticket matches plus past deliveries (delivered/failed) so the
+// service panel can pull up customers from past orders.
 app.get("/service/search", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
     const q = (req.query.q || "").trim();
@@ -5663,10 +5813,33 @@ app.get("/service/search", authenticate, authorize(["admin", "accountant", "serv
 
     const tickets = ticketSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // Also try exact phone match on the phone field directly (catches partial phone numbers stored as tokens)
-    // This is handled by array-contains on _search_tokens since phone numbers are stored as individual tokens
+    // Past deliveries — delivered/failed orders matching the query on
+    // customer name or phone (client-side filter on a bounded recent set).
+    let pastDeliveries = [];
+    try {
+      const delConstraints = [...searchConstraints];
+      if (qNorm.length >= 10 && /^\d+$/.test(qNorm)) {
+        delConstraints.push(where("phone", "==", qNorm));
+      } else {
+        delConstraints.push(where("status", "in", ["delivered", "failed"]));
+      }
+      delConstraints.push(orderBy("created_timestamp", "desc"));
+      delConstraints.push(limit(50));
+      const delSnap = await getDocs(query(collection(db, "deliveries"), ...delConstraints));
+      const lowerQ = q.toLowerCase();
+      pastDeliveries = delSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(d =>
+          (d.customer_name || "").toLowerCase().includes(lowerQ) ||
+          (d.phone || "").includes(q) ||
+          (d.product_name || "").toLowerCase().includes(lowerQ)
+        )
+        .slice(0, 20);
+    } catch (e) {
+      console.warn("[service/search] deliveries lookup skipped:", e.message);
+    }
 
-    res.json({ tickets });
+    res.json({ tickets, deliveries: pastDeliveries });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -8580,6 +8753,7 @@ app.listen(PORT, "0.0.0.0", async () => {
   runStartupMigration();
   runPorterDriverMigration();
   runPorterBackfillMigration();
+  runBrandsSeedMigration();
   startSelfPing();
 
   // Backfill deliveries with null storeId (e.g., from failed resolveStoreIdCached before the fix)
