@@ -6639,19 +6639,14 @@ app.post("/api/extract-models", authenticate, authorize(["admin", "accountant"])
    serial candidates with pattern rules, and returns
    the raw text as a fallback so the accountant can
    still see what was read.
-   ────────────────────────────────────────────── */
 
-// Persistent worker for reuse (creating one per call is slow). Created lazily.
-let _ocrWorkerPromise = null;
-async function getOcrWorker() {
-  if (!_ocrWorkerPromise) {
-    _ocrWorkerPromise = createWorker("eng").catch(e => {
-      _ocrWorkerPromise = null;
-      throw e;
-    });
-  }
-  return _ocrWorkerPromise;
-}
+   On-demand only: OCR runs exclusively when the
+   accountant opens a specific DO popup and calls
+   /verify-label/:id for that single delivery. The
+   Tesseract worker is created per call and terminated
+   immediately afterwards so the heavy WASM heap is
+   never held between requests (Render 512 MB).
+   ────────────────────────────────────────────── */
 
 // Clean a token: strip surrounding noise, keep [A-Z0-9-/.]
 function cleanToken(s) {
@@ -6709,7 +6704,9 @@ function findSerialCandidates(lines, tokens, modelNumber) {
 }
 
 async function extractLabelLocal(base64, mimetype) {
-  const worker = await getOcrWorker();
+  // Create a fresh worker per call. Terminated below so the WASM heap
+  // is released as soon as OCR finishes (never held between requests).
+  const worker = await createWorker("eng");
   try {
     const buf = Buffer.from(base64, "base64");
 
@@ -6753,7 +6750,8 @@ async function extractLabelLocal(base64, mimetype) {
 
     return { modelNumber, serialCandidates, rawText, barcodes };
   } finally {
-    // Worker is reused; do not terminate.
+    // Release the WASM memory immediately — critical on 512 MB Render.
+    try { await worker.terminate(); } catch (_) {}
   }
 }
 
@@ -6913,60 +6911,99 @@ app.post("/api/loaded-ocr", authenticate, upload.single("photo"), async (req, re
 /* ──────────────────────────────────────────────
    ACCOUNTANT LABEL VERIFICATION
    POST /verify-label/:id  (no body — reads stored delivery photo)
-   Accountant taps "Verify label" on a delivery popup. The server pulls
-   the stored loaded/handover photo from Storage, runs the same OCR
-   extraction, persists the results (model, serial candidates, match%)
-   on the delivery doc, and returns them so the accountant can review
-   and correct the serial. Works on any delivery with a photo.
+   Runs ONLY when the accountant opens a specific DO popup and OCR
+   is needed for that one delivery. The server pulls the stored
+   loaded/handover photo from Storage, runs OCR extraction, persists
+   the results (model, serial candidates, match%) on the delivery doc,
+   and returns them for the accountant to review.
+
+   Guards:
+   - Per-delivery in-flight set: a second request for the same DO while
+     one OCR is running returns the in-flight marker instead of starting
+     a second OCR job. No unbounded queue.
+   - Completed results are reused: if the delivery already has OCR
+     results, the request returns them without re-running OCR, unless
+     ?force=1 is sent (the explicit "Scan Again" action).
    ────────────────────────────────────────────── */
+
+// Per-delivery in-flight guard. Bounded by the number of DOs whose
+// popup is open — entries are deleted the moment OCR finishes.
+const _ocrInFlight = new Set();
+
 app.post("/verify-label/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
   try {
-    const refDoc = doc(db, "deliveries", req.params.id);
+    const deliveryId = req.params.id;
+    const refDoc = doc(db, "deliveries", deliveryId);
     const snap = await getDoc(refDoc);
     if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
 
     const delivery = snap.data();
-    const photoUrl = delivery.photo_loaded_url || delivery.photo_delivered_url;
-    if (!photoUrl) return res.status(400).json({ error: "No photo on this delivery to verify" });
 
-    // Download the stored photo
-    const photoRes = await fetch(photoUrl);
-    if (!photoRes.ok) return res.status(502).json({ error: "Failed to fetch stored photo" });
-    const buf = photoRes.arrayBuffer ? Buffer.from(await photoRes.arrayBuffer()) : Buffer.from(await photoRes.buffer());
-    const mimetype = photoRes.headers.get("content-type") || "image/jpeg";
-    const base64 = buf.toString("base64");
-
-    // Local OCR — deterministic, no AI. Extracts all text + organizes it.
-    const { modelNumber, serialCandidates, rawText, barcodes } = await extractLabelLocal(base64, mimetype);
-
-    const matches = await matchModelToProducts(modelNumber);
-
-    let matchPercent = null;
-    const doProduct = (delivery.product_name || "").toString().trim().toUpperCase();
-    if (modelNumber && doProduct) {
-      const modelCompact = modelNumber.replace(/[^A-Z0-9]/g, "");
-      const productCompact = doProduct.replace(/[^A-Z0-9]/g, "");
-      if (productCompact.includes(modelCompact)) {
-        matchPercent = 100;
-      } else {
-        const modelTokens = new Set(modelCompact.match(/[A-Z0-9]{2,}/g) || []);
-        let hit = 0;
-        modelTokens.forEach(t => { if (productCompact.includes(t)) hit++; });
-        matchPercent = modelTokens.size ? Math.round((hit / modelTokens.size) * 100) : 0;
-      }
+    // Reuse completed OCR results unless the user explicitly asked to re-scan.
+    if (req.query.force !== "1" && (delivery.ocr_model_number || delivery.ocr_match_percent != null)) {
+      return res.json({
+        modelNumber: delivery.ocr_model_number || null,
+        serialCandidates: Array.isArray(delivery.ocr_serial_candidates) ? delivery.ocr_serial_candidates : [],
+        serialNumber: (Array.isArray(delivery.ocr_serial_candidates) && delivery.ocr_serial_candidates[0]) || null,
+        matches: [],
+        matchPercent: delivery.ocr_match_percent != null ? delivery.ocr_match_percent : null,
+        rawText: delivery.ocr_raw_text || "",
+        barcodes: [],
+        reused: true
+      });
     }
 
-    // Persist the verification result on the delivery for the accountant's review popup
-    const update = {
-      ocr_model_number: modelNumber,
-      ocr_serial_candidates: serialCandidates,
-      ocr_match_percent: matchPercent,
-      ocr_raw_text: rawText
-    };
-    await updateDoc(refDoc, update);
-    invalidateDeliveriesCache();
+    // Duplicate-request protection: never run two OCR jobs for the same DO.
+    if (_ocrInFlight.has(deliveryId)) {
+      return res.json({ inFlight: true, message: "OCR already running for this delivery" });
+    }
+    _ocrInFlight.add(deliveryId);
 
-    res.json({ modelNumber, serialCandidates, serialNumber: serialCandidates[0] || null, matches, matchPercent, rawText, barcodes });
+    try {
+      const photoUrl = delivery.photo_loaded_url || delivery.photo_delivered_url;
+      if (!photoUrl) return res.status(400).json({ error: "No photo on this delivery to verify" });
+
+      // Download the stored photo
+      const photoRes = await fetch(photoUrl);
+      if (!photoRes.ok) return res.status(502).json({ error: "Failed to fetch stored photo" });
+      const buf = photoRes.arrayBuffer ? Buffer.from(await photoRes.arrayBuffer()) : Buffer.from(await photoRes.buffer());
+      const mimetype = photoRes.headers.get("content-type") || "image/jpeg";
+      const base64 = buf.toString("base64");
+
+      // Local OCR — deterministic, no AI. Extracts all text + organizes it.
+      const { modelNumber, serialCandidates, rawText, barcodes } = await extractLabelLocal(base64, mimetype);
+
+      const matches = await matchModelToProducts(modelNumber);
+
+      let matchPercent = null;
+      const doProduct = (delivery.product_name || "").toString().trim().toUpperCase();
+      if (modelNumber && doProduct) {
+        const modelCompact = modelNumber.replace(/[^A-Z0-9]/g, "");
+        const productCompact = doProduct.replace(/[^A-Z0-9]/g, "");
+        if (productCompact.includes(modelCompact)) {
+          matchPercent = 100;
+        } else {
+          const modelTokens = new Set(modelCompact.match(/[A-Z0-9]{2,}/g) || []);
+          let hit = 0;
+          modelTokens.forEach(t => { if (productCompact.includes(t)) hit++; });
+          matchPercent = modelTokens.size ? Math.round((hit / modelTokens.size) * 100) : 0;
+        }
+      }
+
+      // Persist the verification result on the delivery for the accountant's review popup
+      const update = {
+        ocr_model_number: modelNumber,
+        ocr_serial_candidates: serialCandidates,
+        ocr_match_percent: matchPercent,
+        ocr_raw_text: rawText
+      };
+      await updateDoc(refDoc, update);
+      invalidateDeliveriesCache();
+
+      res.json({ modelNumber, serialCandidates, serialNumber: serialCandidates[0] || null, matches, matchPercent, rawText, barcodes });
+    } finally {
+      _ocrInFlight.delete(deliveryId);
+    }
 
   } catch (error) {
     console.error("❌ /verify-label error:", error);
@@ -8534,32 +8571,6 @@ app.post("/api/tally-proxy", express.text({ type: 'text/xml' }), async (req, res
       error: "Could not connect to TallyPrime.",
       details: error.message
     });
-  }
-});
-
-/* ════════════════════════════════════════════════
-   ALERT COUNT — lightweight badge count for other pages
-   GET /api/alert-count
-   Returns: { count: number }
-   Counts unassigned + overdue DOs + open tickets + new leads
-════════════════════════════════════════════════ */
-app.get("/api/alert-count", authenticate, async (req, res) => {
-  try {
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const [delSnap, ticketSnap, leadSnap] = await Promise.all([
-      getDocs(query(collection(db, "deliveries"), where("assigned_driver_name", "==", "Unassigned"))),
-      getDocs(query(collection(db, "service_tickets"), where("status", "==", "open"))),
-      getDocs(query(collection(db, "leads"), where("createdAt", ">=", today)))
-    ]);
-    const unassigned = delSnap.docs.filter(d => d.data().status === "booked" || d.data().status === "pending").length;
-    const tickets = ticketSnap.size;
-    const leads = leadSnap.size;
-    trackReads("alert-count", delSnap.docs.length + ticketSnap.size + leadSnap.size);
-    res.json({ count: unassigned + tickets + leads });
-    res.json({ count });
-  } catch (e) {
-    res.json({ count: 0 });
   }
 });
 

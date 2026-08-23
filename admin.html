@@ -1680,7 +1680,6 @@
     </div>
     <div class="topbar-right">
       <span id="lastUpdated"></span>
-      <button onclick="location.href='alerts.html'" style="position:relative;padding:6px 10px;border:none;border-radius:8px;background:transparent;cursor:pointer;font-size:18px;" title="Alerts">🔔<span id="alertBadge" style="display:none;position:absolute;top:0;right:0;min-width:16px;height:16px;border-radius:8px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;padding:0 4px;"></span></button>
       <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
       <button onclick="adminLogout()" style="padding:6px 12px;border:none;border-radius:8px;background:var(--error-container);color:var(--on-error-container);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.3px;">LOGOUT</button>
     </div>
@@ -3037,24 +3036,6 @@ function showView(view) {
   if (view === 'gbpilot')             { bootGbpilot(); }
   if (view === 'activity-log')        { loadActivityLog(); }
 }
-
-// ── ALERT BADGE ──────────────────────────────────────────────────
-async function fetchAlertBadge() {
-  try {
-    const r = await authFetch(`${BASE_URL}/api/alert-count`);
-    const data = await r.json();
-    const badge = document.getElementById("alertBadge");
-    if (!badge) return;
-    if (data.count > 0) {
-      badge.textContent = data.count > 99 ? "99+" : data.count;
-      badge.style.display = "inline";
-    } else {
-      badge.style.display = "none";
-    }
-  } catch (e) { /* ignore */ }
-}
-setInterval(fetchAlertBadge, 60000);
-fetchAlertBadge();
 
 /* Jump to a section inside Price Guide (Categories / Models) from the sidebar */
 function gotoPriceGuide(section) {

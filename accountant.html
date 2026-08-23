@@ -4375,6 +4375,18 @@ function openViewPopup(id) {
       <summary style="font-size:11px;color:var(--muted);cursor:pointer;">Raw OCR text</summary>
       <div style="margin-top:4px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);white-space:pre-wrap;max-height:140px;overflow:auto;">${escHtml(delivery.ocr_raw_text)}</div>
     </details>` : ""}
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      ${
+        delivery.ocr_model_number || delivery.ocr_match_percent != null
+          ? `<button class="btn btn-gray btn-sm" onclick="rescanDeliveryLabel('${escHtml(delivery.id)}')" style="cursor:pointer;">🔄 Scan Again</button>`
+          : `<button class="btn btn-primary btn-sm" onclick="verifyDeliveryLabel('${escHtml(delivery.id)}')" style="cursor:pointer;">🔍 Verify Label</button>`
+      }
+    </div>
+    ` : delivery.photo_loaded_url || delivery.photo_delivered_url ? `
+    <div class="section-title">Label OCR</div>
+    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" onclick="verifyDeliveryLabel('${escHtml(delivery.id)}')" style="cursor:pointer;">🔍 Verify Label</button>
+    </div>
     ` : ""}
 
     <div class="section-title">Delivery Info</div>
@@ -4566,29 +4578,44 @@ function openViewPopup(id) {
   document.getElementById("viewPopup").classList.add("is-open");
   // Populate issue dropdown in complaint form if rendered
   populateViewIssueDropdown();
-
-  // Auto-run label OCR when the popup opens: if the delivery has a photo
-  // but no OCR result yet, verify it in the background and re-render.
-  const hasPhoto = delivery.photo_loaded_url || delivery.photo_delivered_url;
-  const noOcrYet = !delivery.ocr_model_number && delivery.ocr_match_percent == null;
-  if (hasPhoto && noOcrYet) {
-    verifyDeliveryLabel(id);
-  }
 }
 
 function closeViewPopup() {
   document.getElementById("viewPopup").classList.remove("is-open");
 }
 
-// Verify the label OCR automatically when the popup opens (no button).
-// Runs against the stored delivery photo and persists the result.
-// Only re-renders the popup if it's still open (don't reopen after close).
+// ── OCR on demand (single DO) ─────────────────────────────────────
+// OCR never runs on page load, list refresh, SSE update or polling.
+// It starts only when the accountant explicitly taps "Verify Label"
+// in the popup of ONE specific DO, and reuses a completed result.
+let _ocrInFlightClient = null; // deliveryId currently being OCR'd
+
 async function verifyDeliveryLabel(deliveryId) {
   if (!deliveryId) return;
+  // Never start a second OCR job for a DO that is already being OCR'd.
+  if (_ocrInFlightClient === deliveryId) return;
+  _ocrInFlightClient = deliveryId;
   try {
     const res = await authFetch(`${BASE_URL}/verify-label/${deliveryId}`, { method: "POST" });
     if (!res.ok) {
+      const popup = document.getElementById("viewPopup");
+      if (popup?.classList.contains("is-open")) openViewPopup(deliveryId);
       return;
+    }
+    const data = await res.json();
+    // Server-side duplicate guard: another OCR job is already running
+    // for this DO — just wait for it by re-opening the popup later.
+    if (data.inFlight) {
+      setTimeout(() => { if (document.getElementById("viewPopup")?.classList.contains("is-open")) openViewPopup(deliveryId); }, 2500);
+      return;
+    }
+    // Update the cached delivery with the fresh OCR result.
+    const d = currentAccountantData.find(x => x.id === deliveryId);
+    if (d) {
+      d.ocr_model_number = data.modelNumber || null;
+      d.ocr_serial_candidates = Array.isArray(data.serialCandidates) ? data.serialCandidates : [];
+      d.ocr_match_percent = data.matchPercent != null ? data.matchPercent : null;
+      d.ocr_raw_text = data.rawText || "";
     }
     const popup = document.getElementById("viewPopup");
     if (popup?.classList.contains("is-open")) {
@@ -4596,7 +4623,22 @@ async function verifyDeliveryLabel(deliveryId) {
     }
   } catch (e) {
     // ignore — popup state is not forced
+  } finally {
+    _ocrInFlightClient = null;
   }
+}
+
+// Explicit "Scan Again" — force a fresh OCR run for this one DO.
+function rescanDeliveryLabel(deliveryId) {
+  if (!deliveryId) return;
+  const d = currentAccountantData.find(x => x.id === deliveryId);
+  if (d) {
+    d.ocr_model_number = null;
+    d.ocr_match_percent = null;
+    d.ocr_raw_text = "";
+  }
+  openViewPopup(deliveryId);
+  verifyDeliveryLabel(deliveryId);
 }
 
 // Set the delivery serial to one of the OCR-extracted candidates.
