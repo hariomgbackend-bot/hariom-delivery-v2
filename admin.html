@@ -1978,10 +1978,9 @@
           <option value="Alandi">🏪 Alandi</option>
           <option value="Dhanore">🏪 Dhanore</option>
         </select>
-        <label style="margin-left:6px;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--on-surface-variant);">
-          Limit
-          <input type="number" id="scTicketLimitInput" min="0" value="300" style="width:64px;padding:5px 6px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;" title="Ticket count to load. 0 or 'all' loads everything (up to 1000).">
-          <button type="button" onclick="applySCTicketLimit()" style="padding:5px 10px;border:none;border-radius:8px;background:var(--tertiary);color:#06281b;font-size:11px;font-weight:700;cursor:pointer;">Apply</button>
+        <label style="margin-left:6px;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--on-surface-variant);cursor:pointer;" title="Show all tickets (no limit). Affects both the admin and service panels on this device.">
+          <input type="checkbox" id="scAllTicketsToggle" onchange="applySCAllTickets(this.checked)" style="width:16px;height:16px;cursor:pointer;">
+          All tickets
         </label>
       </div>
 
@@ -3024,7 +3023,7 @@ function showView(view) {
   if (view === 'deliveries')      { loadAdmin(); }
   if (view === 'payout')          { loadPayoutDrivers(); }
   if (view === 'storage')         { loadStorageStats(); }
-  if (view === 'service-count')   { initSCTicketLimitInput(); loadServiceCount(); }
+  if (view === 'service-count')   { initSCAllTicketsToggle(); loadServiceCount(); }
   if (view === 'map')             { initMapView(); }
   if (view === 'staff')           { loadStaff(); }
   if (view === 'calendar')        { adCalLoadData(); }
@@ -6259,27 +6258,32 @@ document.addEventListener('click', e => {
 let allServiceTickets = [];
 let scFilter = 'all';
 let scStoreFilter = 'all';
-// How many newest tickets to load. Persisted per device; 0 = "all" (max 1000).
-let scTicketLimit = parseInt(localStorage.getItem('scTicketLimit') || '300', 10);
+// Shared ticket-scope setting: "all" => no limit, otherwise a positive
+// number (default 300). Kept in localStorage so the admin toggle and the
+// service panel (service.html) on this device both honour it.
+const STORE_KEY = 'serviceTicketScope';
+const DEFAULT_SCOPE = 300;
+function getTicketScope() {
+  const v = localStorage.getItem(STORE_KEY);
+  if (v === 'all') return 'all';
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_SCOPE;
+}
 
 function setSCStoreFilter(val) {
   scStoreFilter = val;
   loadServiceCount();
 }
 
-// Read the saved limit back into the input so the UI reflects it on load.
-function initSCTicketLimitInput() {
-  const el = document.getElementById('scTicketLimitInput');
-  if (el) el.value = scTicketLimit;
+// Reflect the saved scope on the admin toggle.
+function initSCAllTicketsToggle() {
+  const el = document.getElementById('scAllTicketsToggle');
+  if (el) el.checked = getTicketScope() === 'all';
 }
 
-// Apply a new limit from the input and reload.
-function applySCTicketLimit() {
-  const el = document.getElementById('scTicketLimitInput');
-  let v = el ? parseInt(el.value, 10) : 300;
-  if (isNaN(v) || v < 0) v = 0;   // 0 / empty => "all"
-  scTicketLimit = v;
-  localStorage.setItem('scTicketLimit', String(v));
+// Toggle on => "all", off => back to the default 300. Shared with service panel.
+function applySCAllTickets(on) {
+  localStorage.setItem(STORE_KEY, on ? 'all' : String(DEFAULT_SCOPE));
   loadServiceCount();
 }
 
@@ -6288,27 +6292,29 @@ async function loadServiceCount() {
   if (!tbody) return;
   tbody.innerHTML = skeletons(3, "row");
   try {
-    const storeQ = scStoreFilter && scStoreFilter !== "all" ? `?store=${encodeURIComponent(scStoreFilter)}` : "";
-    // pageSize=0 isn't sent; "all" maps to a large batch (1000, the server cap).
-    const limitQ = scTicketLimit > 0 ? `&pageSize=${scTicketLimit}` : `&pageSize=1000`;
-    const res  = await authFetch(`${BASE_URL}/service/tickets${storeQ}${limitQ}`);
+    const scope = getTicketScope();
+    // Build query params correctly: first param uses '?', the rest use '&'.
+    const params = [];
+    if (scStoreFilter && scStoreFilter !== "all") params.push(`store=${encodeURIComponent(scStoreFilter)}`);
+    // "all" maps to a large batch (1000, the server cap) — effectively no limit.
+    params.push(`pageSize=${scope === 'all' ? 1000 : scope}`);
+    const res  = await authFetch(`${BASE_URL}/service/tickets?${params.join('&')}`);
     const body = await res.json();
     allServiceTickets = body.data || body;
     updateSCStats();
     renderSCTable();
-    updateSCLimitNote(body.total);
+    updateSCLimitNote(body.total, scope);
   } catch(e) {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--error);">Failed to load</td></tr>';
   }
 }
 
 // Small "showing X of Y" hint near the table heading.
-function updateSCLimitNote(total) {
+function updateSCLimitNote(total, scope) {
   const note = document.getElementById('scLimitNote');
   if (!note) return;
   const loaded = allServiceTickets.length;
-  const label = scTicketLimit === 0 ? 'all' : loaded;
-  note.textContent = `Showing ${label === 'all' ? loaded : label} of ${total}`;
+  note.textContent = `Showing ${scope === 'all' ? loaded : loaded + ' of ' + total}` + (scope === 'all' ? ' of ' + total + ' (all)' : '');
 }
 
 function updateSCStats() {

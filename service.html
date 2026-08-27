@@ -1020,16 +1020,24 @@ async function loadAll() {
   loadTicketBrands();  // populate brand filter dropdown (non-blocking)
 }
 
+function getTicketScope() {
+  const v = localStorage.getItem("serviceTicketScope");
+  if (v === "all") return "all";
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n > 0 ? n : 300;
+}
+
 async function loadTickets(showSkeleton = true) {
   // Show skeleton immediately so screen isn't blank (only on explicit loads, not background polling)
   const tbody = document.getElementById("ticketsTableBody");
   const _sy = window.scrollY;
   if (showSkeleton && tbody) tbody.innerHTML = skeletons(3, "row");
   try {
-    // Fetch a larger window of tickets (first 300) so the list view spans
-    // far beyond the old 50-cap. Pagination within the client still applies
-    // to what is loaded; deeper pages keep the newest-first ordering.
-    const res   = await authFetch(`${BASE_URL}/service/tickets?pageSize=300`);
+    // Shared scope shared with the admin toggle: "all" (no limit, up to 1000)
+    // or a specific number of newest tickets (default 300).
+    const scope = getTicketScope();
+    const pageSize = scope === "all" ? 1000 : scope;
+    const res   = await authFetch(`${BASE_URL}/service/tickets?pageSize=${pageSize}`);
     const body  = await res.json();
     allTickets  = body.data || body;
     totalTickets = body.total || allTickets.length;
