@@ -1033,10 +1033,11 @@ async function loadTickets(showSkeleton = true) {
   const _sy = window.scrollY;
   if (showSkeleton && tbody) tbody.innerHTML = skeletons(3, "row");
   try {
-    // Shared scope shared with the admin toggle: "all" (no limit, up to 1000)
-    // or a specific number of newest tickets (default 300).
+    // Shared scope shared with the admin toggle: "all" (no limit) or a
+    // specific number of newest tickets (default 300). "all" requests a
+    // large batch (5000, the server cap) so the full set loads.
     const scope = getTicketScope();
-    const pageSize = scope === "all" ? 1000 : scope;
+    const pageSize = scope === "all" ? 5000 : scope;
     const res   = await authFetch(`${BASE_URL}/service/tickets?pageSize=${pageSize}`);
     const body  = await res.json();
     allTickets  = body.data || body;
@@ -1198,7 +1199,10 @@ function getFilteredTickets() {
 /* ── RENDER TICKETS with pagination ── */
 function renderTickets() {
   const all    = getFilteredTickets();
-  const total  = currentFilter === "all" && currentStoreFilter === "all" ? totalTickets : all.length;
+  // Page count is based on the LOADED set so navigation never overruns the
+  // data actually in memory. The full server total is shown as an
+  // informational count separately.
+  const total  = all.length;
   const pages  = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (currentPage > pages) currentPage = pages;
   const start  = (currentPage - 1) * PAGE_SIZE;

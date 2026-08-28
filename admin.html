@@ -6296,8 +6296,8 @@ async function loadServiceCount() {
     // Build query params correctly: first param uses '?', the rest use '&'.
     const params = [];
     if (scStoreFilter && scStoreFilter !== "all") params.push(`store=${encodeURIComponent(scStoreFilter)}`);
-    // "all" maps to a large batch (1000, the server cap) — effectively no limit.
-    params.push(`pageSize=${scope === 'all' ? 1000 : scope}`);
+    // "all" maps to a large batch (5000, the server cap) — effectively no limit.
+    params.push(`pageSize=${scope === 'all' ? 5000 : scope}`);
     const res  = await authFetch(`${BASE_URL}/service/tickets?${params.join('&')}`);
     const body = await res.json();
     allServiceTickets = body.data || body;

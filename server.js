@@ -5240,7 +5240,7 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
 
     // Pagination — default 50/page (matches the previous hard cap).
     const page     = Math.max(1, parseInt(req.query.page) || 1);
-    const pageSize = Math.min(1000, Math.max(1, parseInt(req.query.pageSize) || 50));
+    const pageSize = Math.min(5000, Math.max(1, parseInt(req.query.pageSize) || 50));
     const isPaginated = req.query.page !== undefined || req.query.pageSize !== undefined;
 
     const q = query(collection(db, "service_tickets"), ...ticketConstraints, limit(page * pageSize));
