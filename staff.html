@@ -3384,12 +3384,14 @@ function attRefreshPosition() {
       attLastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
       if (attStoreCoords && attStoreCoords.lat != null) {
         const d = attHaversine(attStoreCoords.lat, attStoreCoords.lng, attLastPos.lat, attLastPos.lng);
+        const acc = attLastPos.accuracy;
         const ok = d <= attStoreCoords.radiusM;
-        const base = ok ? "✅ You are at the store (" + Math.round(d) + "m)" : "⚠️ You are " + Math.round(d) + "m from the store";
-        const acc = attLastPos.accuracy ? " · accuracy ±" + Math.round(attLastPos.accuracy) + "m" : "";
+        const base = ok ? "✅ You are at the store (" + Math.round(d) + "m)" : "⚠️ You are " + Math.round(d) + "m from the store (radius " + Math.round(attStoreCoords.radiusM) + "m)";
+        const accuracyNote = acc ? " · accuracy ±" + Math.round(acc) + "m" : "";
+        const confNote = (acc && (d + acc) > attStoreCoords.radiusM) ? " · ⚠️ GPS uncertainty may flag check-in" : "";
         const el = document.getElementById("attStatus");
-        if (attOpenId) el.textContent = "Checked in. Tap Check Out when leaving. " + base + acc;
-        else el.textContent = base + acc;
+        if (attOpenId) el.textContent = "Checked in. Tap Check Out when leaving. " + base + accuracyNote + confNote;
+        else el.textContent = base + accuracyNote + confNote;
       }
     },
     err => {
@@ -3454,6 +3456,10 @@ async function attCheckIn() {
   document.getElementById("attStatus").textContent = "Checking location…";
   try {
     const pos = await attEnsurePos();
+    // Pre-flight accuracy guard — reject GPS locks worse than ±200m outright.
+    if (pos.accuracy && pos.accuracy > 200) {
+      throw new Error(`GPS accuracy too low (±${Math.round(pos.accuracy)}m). Move to an open area and try again.`);
+    }
     const fd = new FormData();
     fd.append("photo", attSelfieFile);
     fd.append("lat", pos.lat);
@@ -3463,7 +3469,10 @@ async function attCheckIn() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Check-in failed");
     attOpenId = data.attendanceId;
-    document.getElementById("attStatus").textContent = "✅ Checked in! Distance from store: " + data.distanceM + "m";
+    const acc = data.accuracy != null ? " · accuracy ±" + Math.round(data.accuracy) + "m" : "";
+    const conf = data.confidence === "low" ? " ⚠️ low confidence" : "";
+    const warn = data.warning ? " ⚠️ " + data.warning : "";
+    document.getElementById("attStatus").textContent = "✅ Checked in! Distance from store: " + data.distanceM + "m" + acc + conf + warn;
     attRefreshButtons();
     attLoadWeek();
   } catch (e) {
@@ -3488,13 +3497,16 @@ async function attCheckOut() {
     fd.append("attendanceId", attOpenId || "");
     fd.append("lat", pos.lat);
     fd.append("lng", pos.lng);
+    if (pos.accuracy) fd.append("accuracy", pos.accuracy);
     const res = await authFetch(`${BASE_URL}/attendance/checkout`, { method: "POST", body: fd });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Check-out failed");
     attOpenId = null;
     attClearSelfie();
     const h = data.hoursWorked != null ? data.hoursWorked.toFixed(1) + "h" : "";
-    document.getElementById("attStatus").textContent = "✅ Checked out" + (h ? " — worked " + h : "");
+    const conf = data.confidence === "low" ? " ⚠️ low confidence" : "";
+    const warn = data.warning ? " ⚠️ " + data.warning : "";
+    document.getElementById("attStatus").textContent = "✅ Checked out" + (h ? " — worked " + h : "") + conf + warn;
     attRefreshButtons();
     attLoadWeek();
   } catch (e) {
@@ -3524,9 +3536,11 @@ async function attLoadWeek(preloaded) {
     const inTime = a.checkIn ? attFmtTime(a.checkIn) : "—";
     const outTime = a.checkOut ? attFmtTime(a.checkOut) : "open";
     const h = a.hoursWorked != null ? a.hoursWorked.toFixed(1) + "h" : "—";
+    const lowConf = a.checkInConfidence === "low" || a.checkOutConfidence === "low";
+    const confTag = lowConf ? ' <span style="font-size:10px;color:var(--amber);font-weight:700;" title="GPS uncertainty was high at one or both pings">⚠ low-conf</span>' : "";
     return `<div class="att-week-row">
       <div>
-        <div class="att-week-date">${a.date === today ? "Today" : a.date}</div>
+        <div class="att-week-date">${a.date === today ? "Today" : a.date}${confTag}</div>
         <div class="att-week-times">${inTime} → ${outTime} ${a.status === "open" ? "· ⏳ open" : ""}</div>
       </div>
       <div class="att-week-hours">${h}</div>

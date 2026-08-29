@@ -6047,15 +6047,34 @@ function haversineMeters(aLat, aLng, bLat, bLng) {
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
-function isWithinStoreGeofence(store, lat, lng) {
+const ATT_MAX_ACCURACY_M = 200; // reject GPS locks worse than ±200m outright
+
+function isWithinStoreGeofence(store, lat, lng, accuracy) {
   if (!store || store.lat == null || store.lng == null) {
     return { ok: false, error: "Store location not configured by admin" };
   }
   const radius = Number(store.radiusM) || 150;
   const d = haversineMeters(Number(store.lat), Number(store.lng), Number(lat), Number(lng));
-  return d <= radius
-    ? { ok: true, distanceM: Math.round(d) }
-    : { ok: false, error: `You are ${Math.round(d)}m from the store (limit ${radius}m)` };
+  const acc = accuracy != null ? Number(accuracy) : null;
+  // Reject absurdly unreliable GPS locks outright — a ±200m+ circle says nothing about where the staff actually is.
+  if (acc != null && acc > ATT_MAX_ACCURACY_M) {
+    return { ok: false, error: `GPS accuracy too low (±${Math.round(acc)}m). Move to an open area and try again.` };
+  }
+  if (d <= radius) {
+    // If the accuracy circle pokes outside the fence we can't be confident the staff is really inside.
+    const lowConfidence = acc != null && (d + acc) > radius;
+    return {
+      ok: true,
+      distanceM: Math.round(d),
+      accuracy: acc,
+      confidence: lowConfidence ? "low" : "high",
+      lowConfidence,
+      message: lowConfidence
+        ? `Within fence but GPS is uncertain (±${Math.round(acc)}m). Distance ${Math.round(d)}m of ${radius}m.`
+        : null
+    };
+  }
+  return { ok: false, error: `You are ${Math.round(d)}m from the store (limit ${radius}m)` };
 }
 
 function attendanceDateIST(ts = new Date()) {
@@ -6086,6 +6105,7 @@ app.post("/attendance/checkin", authenticate, upload.single("photo"), async (req
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return res.status(400).json({ error: "Valid lat/lng required" });
     }
+    const accuracy = req.body.accuracy != null && req.body.accuracy !== "" ? Number(req.body.accuracy) : null;
     if (!req.file?.buffer) return res.status(400).json({ error: "Selfie photo required" });
 
     const storeId = req.user.storeId || "";
@@ -6093,7 +6113,7 @@ app.post("/attendance/checkin", authenticate, upload.single("photo"), async (req
     const storeSnap = await getDoc(storeRef);
     const store = storeSnap.exists() ? storeSnap.data() : null;
 
-    const fence = isWithinStoreGeofence(store, lat, lng);
+    const fence = isWithinStoreGeofence(store, lat, lng, accuracy);
     if (!fence.ok) return res.status(400).json({ error: fence.error });
 
     const date = attendanceDateIST();
@@ -6125,10 +6145,18 @@ app.post("/attendance/checkin", authenticate, upload.single("photo"), async (req
       checkOutLocation: null,
       checkInPhotoUrl: photoUrl,
       checkOutPhotoUrl: null,
-      checkInAccuracy: req.body.accuracy ? Number(req.body.accuracy) : null,
+      checkInAccuracy: Number.isFinite(accuracy) ? accuracy : null,
+      checkInConfidence: fence.confidence || "high",
       status: "open"
     });
-    res.json({ success: true, attendanceId: docRef.id, distanceM: fence.distanceM });
+    res.json({
+      success: true,
+      attendanceId: docRef.id,
+      distanceM: fence.distanceM,
+      accuracy: fence.accuracy,
+      confidence: fence.confidence,
+      warning: fence.message || null
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -6145,6 +6173,7 @@ app.post("/attendance/checkout", authenticate, upload.single("photo"), async (re
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return res.status(400).json({ error: "Valid lat/lng required" });
     }
+    const accuracy = req.body.accuracy != null && req.body.accuracy !== "" ? Number(req.body.accuracy) : null;
 
     // Find open check-in by id (preferred) or staffId+date
     let attRef = null;
@@ -6166,9 +6195,23 @@ app.post("/attendance/checkout", authenticate, upload.single("photo"), async (re
       attRef = doc(db, "attendance", q.docs[0].id);
     }
 
+    // Validate checkout geofence (same store as check-in)
+    const attSnap = await getDoc(attRef);
+    const attData = attSnap.data();
+    const storeId = attData?.storeId || req.user.storeId || "";
+    const storeRef = doc(db, "stores", storeId);
+    const storeSnap = await getDoc(storeRef);
+    const store = storeSnap.exists() ? storeSnap.data() : null;
+
+    const fence = isWithinStoreGeofence(store, lat, lng, accuracy);
+    // Checkout geofence is advisory only — a staff member may legitimately clock out away from the store.
+    const warning = fence.ok && fence.message ? fence.message : (!fence.ok ? `Note: checkout was ${Math.round(fence.distanceM || 0)}m from the store (limit ${store?.radiusM || 150}m).` : null);
+
     const updates = {
       checkOut: Timestamp.now(),
       checkOutLocation: { lat, lng },
+      checkOutAccuracy: Number.isFinite(accuracy) ? accuracy : null,
+      checkOutConfidence: fence.ok ? (fence.confidence || "high") : "low",
       status: "complete"
     };
     if (req.file?.buffer) {
@@ -6179,7 +6222,14 @@ app.post("/attendance/checkout", authenticate, upload.single("photo"), async (re
     await updateDoc(attRef, updates);
 
     const full = (await getDoc(attRef)).data();
-    res.json({ success: true, attendanceId: attRef.id, hoursWorked: attendanceHoursWorked(full) });
+    res.json({
+      success: true,
+      attendanceId: attRef.id,
+      hoursWorked: attendanceHoursWorked(full),
+      accuracy: fence.accuracy,
+      confidence: fence.ok ? fence.confidence : "low",
+      warning: warning || null
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
