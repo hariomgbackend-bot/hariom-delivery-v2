@@ -3340,7 +3340,17 @@ async function attInit() {
     const mine = stores.find(s => s.id === staffStoreId) || stores.find(s => s.key === (staffStoreId || "").toLowerCase());
     attStoreCoords = mine ? { lat: mine.lat, lng: mine.lng, radiusM: mine.radiusM || 150, name: mine.name } : null;
     if (!attStoreCoords || attStoreCoords.lat == null) {
-      document.getElementById("attStatus").textContent = "Store location not configured. Ask admin to set it.";
+      document.getElementById("attStatus").textContent = "⚠ Store location not configured — attendance will not be geo-validated. Contact admin.";
+      // Still sync button state — a check-in may exist on the server even without store coords.
+      try {
+        const myRes = await authFetch(`${BASE_URL}/attendance/my`);
+        const my = myRes.ok ? await myRes.json() : [];
+        const today = attTodayIST();
+        const open = my.find(a => a.date === today && a.status === "open");
+        attOpenId = open ? open.id : null;
+        attRefreshButtons();
+        attLoadWeek(my);
+      } catch (e) {}
       return;
     }
     // Load today's open check-in

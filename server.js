@@ -1246,8 +1246,28 @@ async function runStartupMigration() {
     const storeSnap = await getDocs(collection(db, "stores"));
     if (storeSnap.empty) {
       const defaultStores = [
-        { key: "alandi",  name: "Hari Om Electronics - Alandi",  address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",  phone: "8177896218",  altPhone: "9822632095", created_at: Timestamp.now() },
-        { key: "dhanore", name: "Hari Om Electronics - Dhanore", address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105", phone: "8177896218", altPhone: "9822632095", created_at: Timestamp.now() }
+        {
+          key: "alandi",
+          name: "Hari Om Electronics - Alandi",
+          address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",
+          phone: "8177896218",
+          altPhone: "9822632095",
+          lat: 18.675944044590487,
+          lng: 73.89936424840164,
+          radiusM: 150,
+          created_at: Timestamp.now()
+        },
+        {
+          key: "dhanore",
+          name: "Hari Om Electronics - Dhanore",
+          address: "Dhanore Phata, Markal Road, PCS Chawk, Near HP Petrol Pump, Tal Khed Dist Pune 412105",
+          phone: "8177896218",
+          altPhone: "9822632095",
+          lat: 18.670170836867555,
+          lng: 73.918399017174,
+          radiusM: 150,
+          created_at: Timestamp.now()
+        }
       ];
       for (const s of defaultStores) {
         await addDoc(collection(db, "stores"), s);
