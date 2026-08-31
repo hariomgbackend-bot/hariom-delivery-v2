@@ -4907,6 +4907,8 @@ async function updateDelivery(id) {
 
   try {
     // 1. Save text/select fields via existing PUT endpoint
+    // Admin/accountant may edit a delivery in any status — the server now
+    // allows it. Non-admin staff are still limited to pending/booked.
     // Resolve product name — tally or normal
     const useTally    = document.getElementById("edit_use_tally")?.checked;
     const productName = useTally
@@ -4925,8 +4927,8 @@ async function updateDelivery(id) {
         ? driverSel.options[driverSel.selectedIndex]?.text
         : (document.getElementById("edit_driver")?.value || "");
     const driverId    = isOnDemand ? "" : isPorter
-      ? (porterOpt?.value || d?.assigned_driver_id || "")
-      : driverSel ? driverSel.value : d?.assigned_driver_id;
+      ? (porterOpt?.value || currentDeliveryObj?.assigned_driver_id || "")
+      : driverSel ? driverSel.value : currentDeliveryObj?.assigned_driver_id;
 
     const res = await authFetch(`${BASE_URL}/delivery/${id}`, {
       method: "PUT",

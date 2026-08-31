@@ -2913,21 +2913,12 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
   const snap = await getDoc(refDoc);
   if (!snap.exists()) return res.status(404).json({ error: "Not found" });
   const delivery = snap.data();
-  // Admin/accountant may fix ONLY the serial on delivered/failed deliveries
-  // (e.g. accountant taps an OCR candidate chip on a self-pickup/porter DO).
-  // All other edits and all staff edits remain pending/booked-only.
+  // Admin/accountant may edit a delivery in ANY status (fixing details,
+  // photos are handled by /correctDelivery). Non-admin staff remain
+  // restricted to pending/booked.
   const isAdminAcct = req.user.role === "admin" || req.user.role === "accountant";
-  // Admin/accountant may fix the serial + OCR metadata on delivered/failed
-  // deliveries (e.g. accountant taps an OCR candidate chip). Allow a body
-  // that touches only serial-related fields.
-  const serialOnlyFields = ["product_serial_number", "ocr_serial_candidates", "ocr_model_number", "ocr_match_percent"];
-  const touchesOnlySerial = req.body && Object.keys(req.body).length > 0 &&
-    Object.keys(req.body).every(f => serialOnlyFields.includes(f)) &&
-    req.body.product_serial_number !== undefined;
-  if (delivery.status !== "pending" && delivery.status !== "booked") {
-    if (!(isAdminAcct && touchesOnlySerial && (delivery.status === "delivered" || delivery.status === "failed"))) {
-      return res.status(400).json({ error: "Only pending or booked deliveries can be edited" });
-    }
+  if (!isAdminAcct && delivery.status !== "pending" && delivery.status !== "booked") {
+    return res.status(400).json({ error: "Only pending or booked deliveries can be edited" });
   }
   if (!req.user.isSuperAdmin && req.user.storeId && delivery.storeId && delivery.storeId !== req.user.storeId) {
     return res.status(403).json({ error: "Store access denied" });
@@ -2951,7 +2942,12 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
       return res.status(400).json({ error: "ETA cannot be in the past" });
     }
     update.estimated_delivery_time = req.body.estimated_delivery_time;
-    update.status = statusForETA(req.body.estimated_delivery_time);
+    // Only pending/booked deliveries are re-derived from the ETA. Once a DO
+    // is loaded/delivered/failed its status reflects the real journey — an
+    // admin fixing the ETA must not regress it back to booked/pending.
+    if (delivery.status === "pending" || delivery.status === "booked") {
+      update.status = statusForETA(req.body.estimated_delivery_time);
+    }
   }
   if (Object.keys(update).length === 0) return res.status(400).json({ error: "No valid fields to update" });
   await updateDoc(refDoc, update);
