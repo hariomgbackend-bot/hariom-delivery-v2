@@ -1186,9 +1186,22 @@ function getFilteredTickets() {
     filtered = filtered.filter(t => t.storeId === currentStoreFilter);
   if (currentBrandFilter !== "all")
     filtered = filtered.filter(t => ticketBrandName(t) === currentBrandFilter);
-  if (currentFilter === "all") return filtered;
-  if (["new","logged"].includes(currentFilter))
-    return filtered.filter(t => t.status === (currentFilter === "new" ? "open" : currentFilter));
+  if (currentFilter === "all") {
+    // new tickets first, then logged — newest within each group
+    const order = { new: 0, open: 0, logged: 1 };
+    filtered.sort((a, b) => {
+      const od = (order[a.status] ?? 2) - (order[b.status] ?? 2);
+      if (od !== 0) return od;
+      const tsA = a.created_at?.seconds ?? 0;
+      const tsB = b.created_at?.seconds ?? 0;
+      return tsB - tsA;
+    });
+    return filtered;
+  }
+  if (currentFilter === "new")
+    return filtered.filter(t => t.status === "new" || t.status === "open");
+  if (currentFilter === "logged")
+    return filtered.filter(t => t.status === "logged");
   if (currentFilter === "instock")
     return filtered.filter(t => t.in_stock === true);
   if (["installation","complaint"].includes(currentFilter))
