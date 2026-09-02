@@ -2883,7 +2883,8 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       totalCount = deliveries.length;
     }
 
-    const statusOrder = { booked: -1, pending: 0, loaded: 1, failed: 2, delivered: 3 };
+    // booked → failed → pending (urgent, then newest) → loaded → delivered
+    const statusOrder = { booked: 0, failed: 1, pending: 2, loaded: 3, delivered: 4 };
 
     deliveries.sort((a, b) => {
       const statusDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
@@ -2902,21 +2903,19 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       if (a.status === "pending") {
         const urgentDiff = (b.priority === "urgent") - (a.priority === "urgent");
         if (urgentDiff !== 0) return urgentDiff;
-        const aTs = a.created_timestamp?.seconds ?? 0;
-        const bTs = b.created_timestamp?.seconds ?? 0;
-        return bTs - aTs;
+        return (b.created_timestamp?.seconds ?? 0) - (a.created_timestamp?.seconds ?? 0);
       }
 
       if (a.status === "loaded") {
-        const aTs = a.loaded_timestamp?.seconds ?? 0;
-        const bTs = b.loaded_timestamp?.seconds ?? 0;
-        return bTs - aTs;
+        return (b.loaded_timestamp?.seconds ?? 0) - (a.loaded_timestamp?.seconds ?? 0);
       }
 
       if (a.status === "delivered") {
-        const aTs = a.delivered_timestamp?.seconds ?? 0;
-        const bTs = b.delivered_timestamp?.seconds ?? 0;
-        return bTs - aTs;
+        return (b.delivered_timestamp?.seconds ?? 0) - (a.delivered_timestamp?.seconds ?? 0);
+      }
+
+      if (a.status === "failed") {
+        return (b.created_timestamp?.seconds ?? 0) - (a.created_timestamp?.seconds ?? 0);
       }
 
       return 0;
@@ -5413,6 +5412,17 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
     const total = countSnap.data().count;
 
     trackReads("service-tickets", snap.docs.length);
+
+    // Group: new (active) first, then logged (completed) — newest first within each group.
+    const ticketStatusOrder = { new: 0, logged: 1 };
+    tickets.sort((a, b) => {
+      const sa = ticketStatusOrder[a.status] ?? 99;
+      const sb = ticketStatusOrder[b.status] ?? 99;
+      if (sa !== sb) return sa - sb;
+      const ta = a.created_at?.seconds ?? (a.created_at?._seconds ?? 0);
+      const tb = b.created_at?.seconds ?? (b.created_at?._seconds ?? 0);
+      return tb - ta;
+    });
 
     const result = isPaginated
       ? { data: tickets.slice((page - 1) * pageSize, page * pageSize), total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
