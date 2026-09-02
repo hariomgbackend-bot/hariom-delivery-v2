@@ -1792,8 +1792,18 @@ async function syncPendingActions() {
         // Load photo blob from IndexedDB (was stored there at action-creation time)
         const idbKey = photoIdbKey(action.id, action.action);
         const photoBlob = await getPhotoFromIdb(idbKey);
-        if (photoBlob) {
-          formData2.append("photo", photoBlob, "upload.jpg");
+        // Also load outdoor photo for AC deliveries
+        const outdoorIdbKey = photoIdbKey(action.id, action.action + "_outdoor");
+        const outdoorBlob = await getPhotoFromIdb(outdoorIdbKey);
+        if (photoBlob || outdoorBlob) {
+          if (outdoorBlob) {
+            // AC: send as photo_indoor + photo_outdoor
+            if (photoBlob) formData2.append("photo_indoor", photoBlob, "indoor.jpg");
+            formData2.append("photo_outdoor", outdoorBlob, "outdoor.jpg");
+          } else {
+            // Non-AC or no outdoor: send as 'photo'
+            formData2.append("photo", photoBlob, "upload.jpg");
+          }
         } else if (action.photoBase64) {
           // Fallback: old entries stored as base64 before IDB migration
           try {
@@ -1837,9 +1847,10 @@ async function syncPendingActions() {
     // snapshot we synced — a new action queued mid-sync for the same id is preserved (Bug 4 fix)
     if (successIds.length > 0) {
       const syncedEntries = actionsSnapshot.filter(a => successIds.includes(a.id));
-      // Clean up IDB photos for successfully synced actions
+      // Clean up IDB photos for successfully synced actions (incl. AC outdoor)
       for (const entry of syncedEntries) {
         deletePhotoFromIdb(photoIdbKey(entry.id, entry.action)).catch(() => {});
+        deletePhotoFromIdb(photoIdbKey(entry.id, entry.action + "_outdoor")).catch(() => {});
       }
       const liveActions   = getOfflineActions();
       const remaining     = liveActions.filter(live =>
@@ -2000,6 +2011,14 @@ let pinAttempts         = 0;
 let currentDeliveryData  = null;
 let driverSessionToken   = null;   // JWT issued on PIN login — used for refreshes
 let cachedGpsPosition    = null;   // Pre-warmed GPS so driver doesn't wait on swipe
+let precompressedBlobOutdoor = null; // AC outdoor photo (compressed)
+
+// Returns true if product name suggests it's an AC (has indoor + outdoor units)
+function isACProductName(name) {
+  if (!name) return false;
+  const p = String(name).toUpperCase();
+  return /\bAC\b|\bAIR\s*CONDITIONER\b|SPLIT\s+AC|WINDOW\s+AC|INVERTER\s+AC/i.test(p);
+}
 
 /* ═══════════════════════════════════════
    TOAST
@@ -2461,6 +2480,7 @@ async function openDelivery(id) {
 
   let uploadSection = "";
   const isPorterDelivery = isPorterDel(d);
+  const isAC = isACProductName(d.product_name);
   if (isPorterDelivery && (currentStatus === "pending" || currentStatus === "booked")) {
     // Porter handover — single-step confirm (serial + proof photo), like self-pickup
     const serialField = d.product_serial_number
@@ -2502,14 +2522,22 @@ async function openDelivery(id) {
     uploadSection = `
       <div class="upload-section">
         ${serialField}
-        <label class="upload-label">Loaded Photo *</label>
+        <label class="upload-label">${isAC ? "Indoor Unit Loaded Photo *" : "Loaded Photo *"}</label>
         <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
+        ${isAC ? `
+          <label class="upload-label" style="margin-top:10px;">Outdoor Unit Loaded Photo *</label>
+          <input class="file-input" type="file" id="photo_outdoor" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
+        ` : ""}
       </div>`;
   } else if (currentStatus === "loaded") {
     uploadSection = `
       <div class="upload-section">
-        <label class="upload-label">Delivered Photo *</label>
+        <label class="upload-label">${isAC ? "Indoor Unit Delivered Photo *" : "Delivered Photo *"}</label>
         <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
+        ${isAC ? `
+          <label class="upload-label" style="margin-top:10px;">Outdoor Unit Delivered Photo *</label>
+          <input class="file-input" type="file" id="photo_outdoor" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
+        ` : ""}
       </div>`;
   }
 
@@ -2804,11 +2832,25 @@ async function updateDelivery() {
   if (isProcessingAction) return;
 
   const isPorterDelivery = isPorterDel(currentDeliveryData);
+  const isAC = isACProductName(currentDeliveryData?.product_name);
 
   const fileInput = document.getElementById("photo");
   if (!fileInput?.files?.length) { showToast("📷 Please upload a photo first"); return; }
   const file = fileInput.files[0];
   if (!file.type.startsWith("image/")) { showToast("Only image files allowed"); return; }
+
+  // AC products require both indoor AND outdoor unit photos
+  const outdoorInput = document.getElementById("photo_outdoor");
+  const hasOutdoor = outdoorInput?.files?.length > 0;
+  if (isAC && !hasOutdoor) {
+    showToast("📷 Please upload both indoor and outdoor unit photos");
+    return;
+  }
+  const outdoorFile = hasOutdoor ? outdoorInput.files[0] : null;
+  if (outdoorFile && !outdoorFile.type.startsWith("image/")) {
+    showToast("Only image files allowed for outdoor photo");
+    return;
+  }
 
   // ── iOS FIX: Kick off GPS request NOW, synchronously within the user-gesture
   // context, before any async/await suspends execution. iOS Safari blocks
@@ -2872,8 +2914,22 @@ async function updateDelivery() {
       console.warn("[Offline] Photo IDB save failed", e);
     }
 
+    // For AC offline — also store the outdoor photo
+    let outdoorPhotoStored = false;
+    if (isAC && outdoorInput?.files?.length) {
+      try {
+        const outdoorBlob = precompressedBlobOutdoor || await compressImage(outdoorInput.files[0]);
+        precompressedBlobOutdoor = null;
+        const outIdbKey = photoIdbKey(currentDeliveryId, actionType + "_outdoor");
+        outdoorPhotoStored = await savePhotoToIdb(outIdbKey, outdoorBlob);
+      } catch (e) {
+        console.warn("[Offline] Outdoor photo IDB save failed", e);
+      }
+    }
+
     const extraData = {
       photoStored,   // true = Blob is in IDB under photoIdbKey(id, action)
+      outdoorPhotoStored, // true = outdoor photo also stored (AC)
       serial: document.getElementById("serialInput")?.value?.trim() || null,
       freight: document.getElementById("freightInput")?.value?.trim() || null,
       // Capture GPS at action time so sync can submit real coordinates
@@ -2918,8 +2974,26 @@ async function updateDelivery() {
     compressedBlob = await compressImage(file);
   }
 
+  // Compress outdoor photo for AC deliveries
+  let compressedOutdoorBlob = null;
+  if (outdoorFile) {
+    if (precompressedBlobOutdoor) {
+      compressedOutdoorBlob = precompressedBlobOutdoor;
+      precompressedBlobOutdoor = null;
+    } else {
+      compressedOutdoorBlob = await compressImage(outdoorFile);
+    }
+  }
+
   const formData = new FormData();
-  formData.append("photo", compressedBlob, "upload.jpg");
+  if (compressedOutdoorBlob) {
+    // AC: send as photo_indoor + photo_outdoor (server expects these names)
+    formData.append("photo_indoor",  compressedBlob, "indoor.jpg");
+    formData.append("photo_outdoor", compressedOutdoorBlob, "outdoor.jpg");
+  } else {
+    // Non-AC: single photo as 'photo'
+    formData.append("photo", compressedBlob, "upload.jpg");
+  }
 
   // Use pre-warmed GPS if available (avoids 2-5s wait), else get fresh
   function doSubmit(pos) {
@@ -4161,9 +4235,9 @@ async function loadDispatcherDeliveries() {
     );
 
     if (dispatcherTab === "pending") {
-      deliveries = deliveries.filter(d => d.status === "pending" || d.status === "booked");
+      deliveries = deliveries.filter(d => d.status === "pending");
     } else {
-      deliveries = deliveries.filter(d => d.status !== "delivered");
+      deliveries = deliveries.filter(d => d.status === "pending");
     }
 
     // Split: self-pickup vs normal assign

@@ -649,35 +649,48 @@ return res.send(`
 
       const createdIds = [];
       for (let i = 0; i < items.length; i++) {
+        // Parse quantity — expand each item into individual DOs
+        const rawQty = parseInt((qtys[i] || "1").replace(/[^0-9]/g, ""), 10) || 1;
         const rate = parseFloat((amts[i] || "0").replace(/,/g, "")) || 0;
-        const docRef = await addDoc(collection(db, "deliveries"), {
-          customer_name:           customer_name || "Unknown",
-          phone:                   phone || "",
-          alternate_phone:         alt_phone || "",
-          address:                 clean_address || "",
-          product_name:            (items[i] || "").toUpperCase(),
-          product_serial_number:   "",
-          invoice_number:          voucher_number,
-          batch_id:                batchId,
-          priority:                "normal",
-          estimated_delivery_time,
-          assigned_driver_id,
-          assigned_driver_name,
-          driver_instructions:     "none",
-          freight_charged:         false,
-          freight_amount:          "",
-          freight_set_by:          "",
-          is_self_pickup:          is_self_pickup,
-          sold_by_id:              "",
-          sold_by_name:            "Others",
-          sale_price:              rate,
-          source:                  "tally_tdl",
-          storeId:                 storeId,
-          pickup_from:             godown || "",
-          created_timestamp:       Timestamp.now(),
-          status:                  statusForETA(estimated_delivery_time)
-        });
-        createdIds.push(docRef.id);
+        // Per-unit rate = total rate / qty (distribute evenly across units)
+        const perUnitRate = rawQty > 0 ? rate / rawQty : rate;
+        // If qty > 1, all units share one batch_id; otherwise no batch
+        const unitBatchId = rawQty > 1
+          ? `batch_${Date.now()}_${Math.random().toString(36).slice(2,7)}`
+          : batchId;
+
+        for (let u = 1; u <= rawQty; u++) {
+          // Serial suffix helps the driver know which unit this is
+          const unitSerial = rawQty > 1 ? `${u}/${rawQty}` : "";
+          const docRef = await addDoc(collection(db, "deliveries"), {
+            customer_name:           customer_name || "Unknown",
+            phone:                   phone || "",
+            alternate_phone:         alt_phone || "",
+            address:                 clean_address || "",
+            product_name:            (items[i] || "").toUpperCase(),
+            product_serial_number:   unitSerial,
+            invoice_number:          voucher_number,
+            batch_id:                unitBatchId,
+            priority:                "normal",
+            estimated_delivery_time,
+            assigned_driver_id,
+            assigned_driver_name,
+            driver_instructions:     "none",
+            freight_charged:         false,
+            freight_amount:          "",
+            freight_set_by:          "",
+            is_self_pickup:          is_self_pickup,
+            sold_by_id:              "",
+            sold_by_name:            "Others",
+            sale_price:              perUnitRate,
+            source:                  "tally_tdl",
+            storeId:                 storeId,
+            pickup_from:             godown || "",
+            created_timestamp:       Timestamp.now(),
+            status:                  statusForETA(estimated_delivery_time)
+          });
+          createdIds.push(docRef.id);
+        }
       }
 
       console.log(
@@ -687,6 +700,11 @@ return res.send(`
         "| self_pickup:", is_self_pickup,
         "| store_branch:", store_branch,
         "| godown:", godown
+      );
+      // Detailed qty split log (helps spot mismatches when Tally sends qty > 1)
+      console.log(
+        "[tally/voucher TDL XML] qty split:", voucher_number, "→",
+        items.map((it, idx) => `${it}=${(qtys[idx] || "1")}`).join(", ")
       );
 
       // Background notifications — don't block the response back to Tally
@@ -1577,7 +1595,9 @@ app.post("/assignDelivery/:id", authenticate, async (req, res) => {
 ════════════════════════════════════════════════ */
 app.post("/correctDelivery/:id", authenticate, authorize(["admin"]), upload.fields([
   { name: "loaded_photo", maxCount: 1 },
-  { name: "delivered_photo", maxCount: 1 }
+  { name: "delivered_photo", maxCount: 1 },
+  { name: "loaded_photo_outdoor", maxCount: 1 },
+  { name: "delivered_photo_outdoor", maxCount: 1 }
 ]), async (req, res) => {
   try {
     const deliveryRef = doc(db, "deliveries", req.params.id);
@@ -1608,6 +1628,21 @@ app.post("/correctDelivery/:id", authenticate, authorize(["admin"]), upload.fiel
       updates.photo_loaded_url = await getDownloadURL(storageRef);
     }
 
+    // Loaded outdoor photo replacement (AC)
+    if (req.files?.loaded_photo_outdoor?.[0]) {
+      if (current.photo_loaded_outdoor_url) {
+        try {
+          const oldPath = decodeURIComponent(
+            current.photo_loaded_outdoor_url.split("/o/")[1].split("?")[0].replace(/%2F/g, "/")
+          );
+          await adminBucket.file(oldPath).delete().catch(() => {});
+        } catch (err) { console.error("Failed to delete old loaded outdoor photo:", err.message); }
+      }
+      const storageRef = ref(storage, "delivery_proofs_loaded/" + Date.now() + "_corrected_outdoor");
+      await uploadBytes(storageRef, req.files.loaded_photo_outdoor[0].buffer, { contentType: req.files.loaded_photo_outdoor[0].mimetype });
+      updates.photo_loaded_outdoor_url = await getDownloadURL(storageRef);
+    }
+
     // Delivered photo replacement
     if (req.files?.delivered_photo?.[0]) {
       if (current.photo_delivered_url) {
@@ -1621,6 +1656,21 @@ app.post("/correctDelivery/:id", authenticate, authorize(["admin"]), upload.fiel
       const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + "_corrected");
       await uploadBytes(storageRef, req.files.delivered_photo[0].buffer, { contentType: req.files.delivered_photo[0].mimetype });
       updates.photo_delivered_url = await getDownloadURL(storageRef);
+    }
+
+    // Delivered outdoor photo replacement (AC)
+    if (req.files?.delivered_photo_outdoor?.[0]) {
+      if (current.photo_delivered_outdoor_url) {
+        try {
+          const oldPath = decodeURIComponent(
+            current.photo_delivered_outdoor_url.split("/o/")[1].split("?")[0].replace(/%2F/g, "/")
+          );
+          await adminBucket.file(oldPath).delete().catch(() => {});
+        } catch (err) { console.error("Failed to delete old delivered outdoor photo:", err.message); }
+      }
+      const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + "_corrected_outdoor");
+      await uploadBytes(storageRef, req.files.delivered_photo_outdoor[0].buffer, { contentType: req.files.delivered_photo_outdoor[0].mimetype });
+      updates.photo_delivered_outdoor_url = await getDownloadURL(storageRef);
     }
 
     if (Object.keys(updates).length === 0) {
@@ -2381,7 +2431,7 @@ async function getUnassignedDriverId() {
     return _unassignedDriverCache.id;
   }
   try {
-    const snap = await getDocs(query(collection(db, "drivers"), where("driver_name", ">=", "u"), where("driver_name", "<", "v"), limit(20)));
+    const snap = await getDocs(query(collection(db, "drivers"), limit(200)));
     const found = snap.docs.find(d => d.data().driver_name?.trim().toLowerCase() === "unassigned");
     _unassignedDriverCache.id = found?.id || "unassigned";
     _unassignedDriverCache.expiry = Date.now() + UNASSIGNED_DRIVER_CACHE_TTL;
@@ -3062,7 +3112,18 @@ app.post("/deleteFailedDelivery/:id", authenticate, authorize(["accountant", "ad
    MARK LOADED
 ═══════════════════════════════════════════════ */
 
-app.post("/markLoaded/:id", authenticate, upload.single("photo"), async (req, res) => {
+// Returns true if product name suggests it's an AC (has indoor + outdoor units)
+function isACProduct(productName) {
+  if (!productName) return false;
+  const p = productName.toUpperCase();
+  return /\bAC\b|\bAIR\s*CONDITIONER\b|SPLIT\s+AC|WINDOW\s+AC|INVERTER\s+AC/i.test(p);
+}
+
+app.post("/markLoaded/:id", authenticate, upload.fields([
+  { name: "photo",        maxCount: 1 },
+  { name: "photo_indoor", maxCount: 1 },
+  { name: "photo_outdoor", maxCount: 1 }
+]), async (req, res) => {
   try {
     const refDoc = doc(db, "deliveries", req.params.id);
     const snap   = await getDoc(refDoc);
@@ -3077,18 +3138,46 @@ app.post("/markLoaded/:id", authenticate, upload.single("photo"), async (req, re
       finalSerial = req.body.serial;
     }
 
-    if (!req.file?.buffer) return res.status(400).json({ error: "Photo required" });
+    const productName = delivery.product_name || "";
+    const isAC = isACProduct(productName);
 
-    const storageRef = ref(storage, "delivery_proofs_loaded/" + Date.now());
-    await uploadBytes(storageRef, req.file.buffer);
-    const url = await getDownloadURL(storageRef);
+    // Determine which photo fields to require based on product type
+    let indoorPhoto = req.files?.photo_indoor?.[0] || req.files?.photo?.[0]; // backward compat
+    let outdoorPhoto = req.files?.photo_outdoor?.[0];
+
+    // Validation: non-AC needs at least one photo; AC needs both
+    if (!isAC && !indoorPhoto) {
+      return res.status(400).json({ error: "Photo required" });
+    }
+    if (isAC && (!indoorPhoto || !outdoorPhoto)) {
+      return res.status(400).json({
+        error: "AC requires photos of both indoor and outdoor units"
+      });
+    }
+
+    // Upload indoor (or primary) photo
+    let photo_loaded_url = null;
+    if (indoorPhoto) {
+      const indoorRef = ref(storage, "delivery_proofs_loaded/" + Date.now() + "_indoor");
+      await uploadBytes(indoorRef, indoorPhoto.buffer, { contentType: indoorPhoto.mimetype });
+      photo_loaded_url = await getDownloadURL(indoorRef);
+    }
+
+    // Upload outdoor photo (AC only)
+    let photo_loaded_outdoor_url = null;
+    if (outdoorPhoto) {
+      const outdoorRef = ref(storage, "delivery_proofs_loaded/" + Date.now() + "_outdoor");
+      await uploadBytes(outdoorRef, outdoorPhoto.buffer, { contentType: outdoorPhoto.mimetype });
+      photo_loaded_outdoor_url = await getDownloadURL(outdoorRef);
+    }
 
     const loadedUpdate = {
       status: "loaded",
       product_serial_number: finalSerial,
       loaded_timestamp: Timestamp.now(),
       loaded_location: { lat: req.body.lat, lng: req.body.lng },
-      photo_loaded_url: url
+      photo_loaded_url: photo_loaded_url,
+      ...(photo_loaded_outdoor_url && { photo_loaded_outdoor_url })
       // Freight is captured at delivery time (markDelivered), not here
     };
     // Optional: driver confirmed a product name via OCR matching
@@ -3142,10 +3231,12 @@ app.post("/markLoaded/:id", authenticate, upload.single("photo"), async (req, re
    MARK DELIVERED
 ═══════════════════════════════════════════════ */
 
-app.post("/markDelivered/:id", authenticate, upload.single("photo"), async (req, res) => {
+app.post("/markDelivered/:id", authenticate, upload.fields([
+  { name: "photo",        maxCount: 1 },
+  { name: "photo_indoor", maxCount: 1 },
+  { name: "photo_outdoor", maxCount: 1 }
+]), async (req, res) => {
   try {
-    if (!req.file?.buffer) return res.status(400).json({ error: "Photo required" });
-
     const refDoc = doc(db, "deliveries", req.params.id);
 
     // Idempotency guard — prevent double-delivery
@@ -3159,10 +3250,32 @@ app.post("/markDelivered/:id", authenticate, upload.single("photo"), async (req,
     const delivLat = req.body.lat;
     const delivLng = req.body.lng;
 
-    // Upload photo
-    const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now());
-    await uploadBytes(storageRef, req.file.buffer);
-    const url = await getDownloadURL(storageRef);
+    // Determine which photo fields to require based on product type
+    let indoorPhoto = req.files?.photo_indoor?.[0] || req.files?.photo?.[0]; // backward compat
+    let outdoorPhoto = req.files?.photo_outdoor?.[0];
+    const productName = deliveryData.product_name || "";
+    const isAC = isACProduct(productName);
+
+    if (!isAC && !indoorPhoto) return res.status(400).json({ error: "Photo required" });
+    if (isAC && (!indoorPhoto || !outdoorPhoto)) {
+      return res.status(400).json({ error: "AC requires photos of both indoor and outdoor units" });
+    }
+
+    // Upload indoor (or primary) photo
+    let photo_delivered_url = null;
+    if (indoorPhoto) {
+      const indoorRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + "_indoor");
+      await uploadBytes(indoorRef, indoorPhoto.buffer, { contentType: indoorPhoto.mimetype });
+      photo_delivered_url = await getDownloadURL(indoorRef);
+    }
+
+    // Upload outdoor photo (AC only)
+    let photo_delivered_outdoor_url = null;
+    if (outdoorPhoto) {
+      const outdoorRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + "_outdoor");
+      await uploadBytes(outdoorRef, outdoorPhoto.buffer, { contentType: outdoorPhoto.mimetype });
+      photo_delivered_outdoor_url = await getDownloadURL(outdoorRef);
+    }
 
     // ── Batch freight check ──────────────────────────────────────────────
     // If this delivery is part of a batch, check if a sibling already has
@@ -3200,7 +3313,8 @@ app.post("/markDelivered/:id", authenticate, upload.single("photo"), async (req,
       status: "delivered",
       delivered_timestamp: Timestamp.now(),
       delivered_location: { lat: delivLat, lng: delivLng },
-      photo_delivered_url: url,
+      photo_delivered_url: photo_delivered_url,
+      ...(photo_delivered_outdoor_url && { photo_delivered_outdoor_url }),
       ...freightFields
     });
 
@@ -3803,9 +3917,18 @@ app.post("/revertLoaded/:id", authenticate, authorize(["admin", "accountant"]), 
         await adminBucket.file(oldPath).delete().catch(() => {});
       } catch (err) { console.error("Failed to delete loaded photo:", err.message); }
     }
+    if (delivery.photo_loaded_outdoor_url) {
+      try {
+        const oldPath = decodeURIComponent(
+          delivery.photo_loaded_outdoor_url.split("/o/")[1].split("?")[0].replace(/%2F/g, "/")
+        );
+        await adminBucket.file(oldPath).delete().catch(() => {});
+      } catch (err) { console.error("Failed to delete loaded outdoor photo:", err.message); }
+    }
     await updateDoc(refDoc, {
       status: "pending",
       photo_loaded_url: "",
+      photo_loaded_outdoor_url: "",
       loaded_timestamp: null,
       loaded_location: null,
       product_serial_number: ""
@@ -6295,10 +6418,12 @@ app.get("/attendance/my", authenticate, async (req, res) => {
    Skips loaded step — marks directly as delivered.
    Only works on is_self_pickup === true deliveries.
 ════════════════════════════════════════════════ */
-app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req, res) => {
+app.post("/markSelfPickup/:id", authenticate, upload.fields([
+  { name: "photo",          maxCount: 1 },
+  { name: "photo_indoor",  maxCount: 1 },
+  { name: "photo_outdoor",  maxCount: 1 }
+]), async (req, res) => {
   try {
-    if (!req.file?.buffer) return res.status(400).json({ error: "Photo required" });
-
     const refDoc = doc(db, "deliveries", req.params.id);
     const snap   = await getDoc(refDoc);
     if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
@@ -6310,6 +6435,16 @@ app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req
     if (delivery.status !== "pending" && delivery.status !== "booked")
       return res.status(400).json({ error: "Invalid status for self-pickup confirmation" });
 
+    // Determine photo fields to require based on product type
+    let indoorPhoto = req.files?.photo_indoor?.[0] || req.files?.photo?.[0];
+    let outdoorPhoto = req.files?.photo_outdoor?.[0];
+    const isAC = isACProduct(delivery.product_name);
+
+    if (!isAC && !indoorPhoto) return res.status(400).json({ error: "Photo required" });
+    if (isAC && (!indoorPhoto || !outdoorPhoto)) {
+      return res.status(400).json({ error: "AC requires photos of both indoor and outdoor units" });
+    }
+
     // Serial number — use existing if already set, otherwise require from body
     let finalSerial = delivery.product_serial_number;
     if (!finalSerial) {
@@ -6317,10 +6452,21 @@ app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req
       finalSerial = req.body.serial;
     }
 
-    // Upload proof photo
-    const storageRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + (isPorter ? "_porter" : "_selfpickup"));
-    await uploadBytes(storageRef, req.file.buffer, { contentType: req.file.mimetype });
-    const url = await getDownloadURL(storageRef);
+    // Upload indoor (or primary) photo
+    let photo_delivered_url = null;
+    if (indoorPhoto) {
+      const indoorRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + (isPorter ? "_porter" : "_selfpickup") + "_indoor");
+      await uploadBytes(indoorRef, indoorPhoto.buffer, { contentType: indoorPhoto.mimetype });
+      photo_delivered_url = await getDownloadURL(indoorRef);
+    }
+
+    // Upload outdoor photo (AC only)
+    let photo_delivered_outdoor_url = null;
+    if (outdoorPhoto) {
+      const outdoorRef = ref(storage, "delivery_proofs_delivered/" + Date.now() + (isPorter ? "_porter" : "_selfpickup") + "_outdoor");
+      await uploadBytes(outdoorRef, outdoorPhoto.buffer, { contentType: outdoorPhoto.mimetype });
+      photo_delivered_outdoor_url = await getDownloadURL(outdoorRef);
+    }
 
     // Porter details can be filled at handover time even if left blank at creation
     const porterUpdates = isPorter ? {
@@ -6334,7 +6480,8 @@ app.post("/markSelfPickup/:id", authenticate, upload.single("photo"), async (req
       status:                  "delivered",
       product_serial_number:   finalSerial,
       delivered_timestamp:     Timestamp.now(),
-      photo_delivered_url:     url,
+      photo_delivered_url:     photo_delivered_url,
+      ...(photo_delivered_outdoor_url && { photo_delivered_outdoor_url }),
       pickup_confirmed_by:     req.body.confirmed_by || "staff",
       is_self_pickup:          true,
       ...porterUpdates
