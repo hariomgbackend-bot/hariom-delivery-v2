@@ -3118,17 +3118,21 @@ function isACProduct(productName) {
   return /\bAC\b|\bAIR\s*CONDITIONER\b|SPLIT\s+AC|WINDOW\s+AC|INVERTER\s+AC/i.test(p);
 }
 
-app.post("/markLoaded/:id", authenticate, upload.fields([
+app.post("/markLoaded/:id", upload.fields([
   { name: "photo",        maxCount: 1 },
   { name: "photo_indoor", maxCount: 1 },
   { name: "photo_outdoor", maxCount: 1 }
-]), async (req, res) => {
+]), offlineSyncAuth, async (req, res) => {
   try {
     const refDoc = doc(db, "deliveries", req.params.id);
     const snap   = await getDoc(refDoc);
     if (!snap.exists()) return res.status(404).json({ error: "Not found" });
 
     const delivery = snap.data();
+    if (delivery.status === "loaded" && req.offlineSync) {
+      // Idempotent retry of an offline action that already succeeded.
+      return res.json({ success: true, alreadyLoaded: true });
+    }
     if (delivery.status !== "pending") return res.status(400).json({ error: "Invalid status" });
 
     let finalSerial = delivery.product_serial_number;
@@ -3173,12 +3177,17 @@ app.post("/markLoaded/:id", authenticate, upload.fields([
     const loadedUpdate = {
       status: "loaded",
       product_serial_number: finalSerial,
-      loaded_timestamp: Timestamp.now(),
-      loaded_location: { lat: req.body.lat, lng: req.body.lng },
+      loaded_timestamp: req.offlineSync ? actionTimestamp(req.body) : Timestamp.now(),
       photo_loaded_url: photo_loaded_url,
       ...(photo_loaded_outdoor_url && { photo_loaded_outdoor_url })
       // Freight is captured at delivery time (markDelivered), not here
     };
+    // Only set loaded_location when both lat and lng are valid — Firestore
+    // rejects `undefined` field values, and an offline-recorded action may
+    // have no GPS if the device had no fix at capture time.
+    if (req.body.lat != null && req.body.lng != null) {
+      loadedUpdate.loaded_location = { lat: req.body.lat, lng: req.body.lng };
+    }
     // Optional: driver confirmed a product name via OCR matching
     if (req.body.product_name && String(req.body.product_name).trim()) {
       loadedUpdate.product_name = String(req.body.product_name).trim().toUpperCase();
@@ -3230,11 +3239,11 @@ app.post("/markLoaded/:id", authenticate, upload.fields([
    MARK DELIVERED
 ═══════════════════════════════════════════════ */
 
-app.post("/markDelivered/:id", authenticate, upload.fields([
+app.post("/markDelivered/:id", upload.fields([
   { name: "photo",        maxCount: 1 },
   { name: "photo_indoor", maxCount: 1 },
   { name: "photo_outdoor", maxCount: 1 }
-]), async (req, res) => {
+]), offlineSyncAuth, async (req, res) => {
   try {
     const refDoc = doc(db, "deliveries", req.params.id);
 
@@ -3242,6 +3251,8 @@ app.post("/markDelivered/:id", authenticate, upload.fields([
     const snapBefore = await getDoc(refDoc);
     if (!snapBefore.exists()) return res.status(404).json({ error: "Not found" });
     if (snapBefore.data().status === "delivered") {
+      // Offline retry after the first sync already succeeded → treat as success.
+      if (req.offlineSync) return res.json({ success: true, alreadyDelivered: true });
       return res.status(409).json({ error: "Delivery already marked as delivered" });
     }
 
@@ -3307,11 +3318,17 @@ app.post("/markDelivered/:id", authenticate, upload.fields([
       };
     })();
 
-    // Write delivered status + freight
+    // Write delivered status + freight. Only set delivered_location when both
+    // lat and lng are valid — Firestore rejects `undefined` field values, and
+    // an offline-recorded action may have no GPS if the device had no fix.
+    const deliveredLocation = (delivLat != null && delivLng != null)
+      ? { lat: delivLat, lng: delivLng }
+      : null;
+
     await updateDoc(refDoc, {
       status: "delivered",
-      delivered_timestamp: Timestamp.now(),
-      delivered_location: { lat: delivLat, lng: delivLng },
+      delivered_timestamp: req.offlineSync ? actionTimestamp(req.body) : Timestamp.now(),
+      ...(deliveredLocation && { delivered_location: deliveredLocation }),
       photo_delivered_url: photo_delivered_url,
       ...(photo_delivered_outdoor_url && { photo_delivered_outdoor_url }),
       ...freightFields
@@ -3558,6 +3575,124 @@ app.post("/driverDeliveriesRefresh", authenticate, authorize(["driver"]), async 
   }
 });
 
+/* ════════════════════════════════════════════════
+   DRIVER DELIVERIES OFFLINE — PIN-based cold-start
+   Called by the driver app on offline login or first
+   sync when there is no usable JWT. Mirrors the shape
+   of /driverDeliveriesRefresh but uses offlineSyncAuth
+   (PIN) instead of the JWT middleware. Does NOT count
+   toward PIN lockout.
+════════════════════════════════════════════════ */
+
+app.post("/driverDeliveriesOffline", offlineSyncAuth, async (req, res) => {
+  try {
+    const { driver_id } = req.body;
+    if (!driver_id) return res.status(400).json({ error: "Driver ID required" });
+    if (req.user?.driver_id && req.user.driver_id !== driver_id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const snapshot = await getDocs(query(
+      collection(db, "deliveries"),
+      where("assigned_driver_id", "==", driver_id)
+    ));
+    trackReads("driverDeliveriesOffline", snapshot.docs.length);
+    res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status !== "booked"));
+  } catch (error) {
+    console.error("[driverDeliveriesOffline]", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   OFFLINE SYNC AUTH — PIN-based fallback
+   Lets the driver app sync queued actions (markLoaded /
+   markDelivered / markFailed / markSelfPickup) using the
+   stored PIN when the JWT has expired or was never set
+   (e.g. after an offline unlock). Mirrors the lockout
+   logic of /driverDeliveries above so brute-force guards
+   still apply.
+════════════════════════════════════════════════ */
+
+async function verifyDriverPin(driverId, pin) {
+  if (!driverId || !pin) return { ok: false, status: 400, error: "Driver ID and PIN required" };
+  const driverRef = doc(db, "drivers", driverId);
+  const snap = await getDoc(driverRef);
+  if (!snap.exists()) return { ok: false, status: 404, error: "Driver not found" };
+
+  const driverData = snap.data();
+  const failedAttempts = driverData.failedPinAttempts || 0;
+  const lockedUntil = driverData.pinLockedUntil || null;
+
+  if (lockedUntil) {
+    const lockedUntilDate = new Date(lockedUntil);
+    if (new Date() < lockedUntilDate) {
+      const minutesLeft = Math.ceil((lockedUntilDate - new Date()) / 60000);
+      return {
+        ok: false, status: 429,
+        error: `Account locked. Try again in ${minutesLeft} minute${minutesLeft > 1 ? "s" : ""}.`
+      };
+    }
+    await updateDoc(driverRef, { failedPinAttempts: 0, pinLockedUntil: null });
+  }
+
+  if (!driverData.pinHash) {
+    return { ok: false, status: 401, error: "This driver has no PIN set. Ask the admin to set it." };
+  }
+  const match = await bcrypt.compare(pin, driverData.pinHash);
+  if (!match) {
+    const newAttempts = failedAttempts + 1;
+    const updates = { failedPinAttempts: newAttempts };
+    if (newAttempts >= 7) {
+      updates.pinLockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      await updateDoc(driverRef, updates);
+      return { ok: false, status: 429, error: "Too many incorrect attempts. Account locked for 15 minutes." };
+    }
+    await updateDoc(driverRef, updates);
+    return { ok: false, status: 401, error: `Invalid PIN (${newAttempts}/7)` };
+  }
+
+  // Success — reset failure counters
+  await updateDoc(driverRef, { failedPinAttempts: 0, pinLockedUntil: null });
+  return { ok: true, driver: driverData };
+}
+
+// Wrap `authenticate` so a valid JWT OR valid offline (PIN) credentials pass.
+// The PIN path is only honored for the driver action endpoints and only when
+// the client explicitly opts in via `_offline_sync=true`.
+function offlineSyncAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    try {
+      const decoded = jwt.verify(authHeader.split(" ")[1], JWT_SECRET);
+      req.user = decoded;
+      return next();
+    } catch {
+      // fall through to PIN fallback below
+    }
+  }
+  if (req.body?._offline_sync !== "true") {
+    return res.status(401).json({ error: "No token provided" });
+  }
+  verifyDriverPin(req.body.driver_id, req.body.pin)
+    .then(result => {
+      if (!result.ok) return res.status(result.status).json({ error: result.error });
+      req.user = { role: "driver", driver_id: req.body.driver_id, offlineSync: true };
+      req.offlineSync = true;
+      next();
+    })
+    .catch(err => res.status(500).json({ error: err.message }));
+}
+
+// Client-supplied action timestamp (ms epoch), used when an action was recorded
+// offline. Clamped: >24h in the future is treated as a bad clock → server now.
+function actionTimestamp(body) {
+  const t = parseFloat(body?.action_timestamp);
+  if (!Number.isFinite(t) || t <= 0) return Timestamp.now();
+  const d = new Date(t);
+  if (isNaN(d.getTime()) || d.getTime() > Date.now() + 24 * 60 * 60 * 1000) return Timestamp.now();
+  return Timestamp.fromMillis(d.getTime());
+}
+
 app.post("/driver/verify-pin", pinLimiter, async (req, res) => {
   try {
     const { driver_id, pin } = req.body;
@@ -3660,7 +3795,7 @@ app.get("/driver-payout", authenticate, authorize(["admin"]), async (req, res) =
    Fields: reason, photo (required for damage only)
 ════════════════════════════════════════════════ */
 
-app.post("/markFailed/:id", authenticate, upload.single("photo"), async (req, res) => {
+app.post("/markFailed/:id", upload.single("photo"), offlineSyncAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -3678,6 +3813,10 @@ app.post("/markFailed/:id", authenticate, upload.single("photo"), async (req, re
     const snap = await getDoc(deliveryRef);
     if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
     const delivery = snap.data();
+    if (delivery.status === "failed" && delivery.failure_reason === reason && req.offlineSync) {
+      // Idempotent retry of an offline action that already succeeded.
+      return res.json({ success: true, alreadyFailed: true });
+    }
     if (delivery.status !== "loaded") {
       return res.status(400).json({ error: "Only loaded deliveries can be marked as failed" });
     }
@@ -3694,7 +3833,7 @@ app.post("/markFailed/:id", authenticate, upload.single("photo"), async (req, re
     await updateDoc(deliveryRef, {
       status: "failed",
       failure_reason: reason,
-      failed_timestamp: Timestamp.now(),
+      failed_timestamp: req.offlineSync ? actionTimestamp(req.body) : Timestamp.now(),
       product_returned: false,
       ...(failure_photo_url && { failure_photo_url })
     });
@@ -6428,11 +6567,11 @@ app.get("/attendance/my", authenticate, async (req, res) => {
    Skips loaded step — marks directly as delivered.
    Only works on is_self_pickup === true deliveries.
 ════════════════════════════════════════════════ */
-app.post("/markSelfPickup/:id", authenticate, upload.fields([
+app.post("/markSelfPickup/:id", upload.fields([
   { name: "photo",          maxCount: 1 },
   { name: "photo_indoor",  maxCount: 1 },
   { name: "photo_outdoor",  maxCount: 1 }
-]), async (req, res) => {
+]), offlineSyncAuth, async (req, res) => {
   try {
     const refDoc = doc(db, "deliveries", req.params.id);
     const snap   = await getDoc(refDoc);
@@ -6441,7 +6580,11 @@ app.post("/markSelfPickup/:id", authenticate, upload.fields([
     const delivery = snap.data();
     const isPorter = delivery.delivery_mode === "porter";
     if (!delivery.is_self_pickup)        return res.status(400).json({ error: "Not a self-pickup delivery" });
-    if (delivery.status === "delivered") return res.status(409).json({ error: "Already marked as delivered" });
+    if (delivery.status === "delivered") {
+      // Offline retry after the first sync already succeeded → treat as success.
+      if (req.offlineSync) return res.json({ success: true, alreadyDelivered: true });
+      return res.status(409).json({ error: "Already marked as delivered" });
+    }
     if (delivery.status !== "pending" && delivery.status !== "booked")
       return res.status(400).json({ error: "Invalid status for self-pickup confirmation" });
 
@@ -6489,7 +6632,7 @@ app.post("/markSelfPickup/:id", authenticate, upload.fields([
     const deliveredUpdate = {
       status:                  "delivered",
       product_serial_number:   finalSerial,
-      delivered_timestamp:     Timestamp.now(),
+      delivered_timestamp:     req.offlineSync ? actionTimestamp(req.body) : Timestamp.now(),
       photo_delivered_url:     photo_delivered_url,
       ...(photo_delivered_outdoor_url && { photo_delivered_outdoor_url }),
       pickup_confirmed_by:     req.body.confirmed_by || "staff",
@@ -7150,6 +7293,52 @@ async function extractLabelLocal(base64, mimetype) {
     try { await worker.terminate(); } catch (_) {}
   }
 }
+
+// ── NEW: POST /decode-barcode ──
+// Accepts a PNG image buffer from the iOS/Android scanner render loop.
+// Decodes barcodes using the zxing-wasm reader and applies format priority
+// so CODE_128 / Data Matrix (serials) rank above EAN-13 / UPC (product codes).
+app.post("/decode-barcode", authenticate, upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file?.buffer) return res.status(400).json({ error: "No image uploaded" });
+    const buf = req.file.buffer;
+    let barcodes = [];
+    try {
+      barcodes = (await readBarcodes(buf)).map(r => r.text).filter(Boolean);
+    } catch (e) {
+      console.warn("[decode-barcode] barcode decode failed:", e.message);
+    }
+    const formatPriority = {
+      "code_128":    0, "data_matrix": 1, "qr_code": 2,
+      "code_39":     3, "ean_13":      4, "ean_8":      4,
+      "upc_a":       4, "upc_e":       4, "itf":        5,
+      "codabar":     5, "aztec":       5, "pdf417":    5
+    };
+    let best = null;
+    let bestScore = 99;
+    for (const b of barcodes) {
+      let score = (formatPriority[b] ?? 99);
+      if (/^\d{13}$/.test(b)) score += 10; // penalize pure 13-digit EAN/UPC product codes
+      if (best === null || score < bestScore) {
+        best = b; bestScore = score;
+      }
+    }
+    // Collect other candidates sorted by priority
+    const otherCandidates = barcodes
+      .filter(b => b !== best)
+      .map(b => ({
+        value: b,
+        priority: (formatPriority[b] ?? 99) + (/^\d{13}$/.test(b) ? 10 : 0)
+      }))
+      .sort((a, b) => a.priority - b.priority || b.value.length - a.value.length)
+      .slice(0, 9);
+    const primary = best || (barcodes.length > 0 ? barcodes[0] : null);
+    res.json({ found: !!primary, value: primary || "", candidates: otherCandidates });
+  } catch (err) {
+    console.error("/decode-barcode error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 async function extractWithGroqLoadedPhoto(base64, mimetype, prompt) {
   const completion = await groq.chat.completions.create({

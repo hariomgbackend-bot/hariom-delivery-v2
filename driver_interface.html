@@ -1526,8 +1526,6 @@
   </div>
 </nav>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <script src="/shared.js?v=2"></script>
 
 <script>
@@ -1559,8 +1557,9 @@ document.addEventListener("DOMContentLoaded", function() {
 /* ═══════════════════════════════════════
    OFFLINE-FIRST FUNCTIONALITY (HARDENED)
 ═══════════════════════════════════════ */
-const OFFLINE_ACTIONS_KEY = "offlineActions";
+const OFFLINE_ACTIONS_KEY  = "offlineActions";
 const DELIVERIES_CACHE_KEY = "cachedDeliveries";
+const DRIVER_LIST_KEY      = "cachedDriverList";   // full list for offline login
 let isSyncing = false;
 let isProcessingAction = false;
 
@@ -1570,9 +1569,13 @@ let isProcessingAction = false;
    so they survive localStorage's 5 MB cap.
 ═══════════════════════════════════════ */
 const IDB_NAME    = "hariom_offline";
-const IDB_VERSION = 1;
+// Keep this at 2: a DB created by older builds could exist at v1 with no store
+// (or a partial state), and only a version *bump* triggers onupgradeneeded to
+// create `photos`. Opening at v2 guarantees the store exists on every client.
+const IDB_VERSION = 2;
 const IDB_STORE   = "photos";
 
+// Open the offline DB, guaranteeing the `photos` store exists.
 function openPhotoDb() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_NAME, IDB_VERSION);
@@ -1582,20 +1585,48 @@ function openPhotoDb() {
         db.createObjectStore(IDB_STORE);
       }
     };
-    req.onsuccess = e => resolve(e.target.result);
-    req.onerror   = e => reject(e.target.error);
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onversionchange = () => { try { db.close(); } catch (_) {} };
+      resolve(db);
+    };
+    req.onerror   = () => reject(req.error);
+    req.onblocked = () => reject(new Error("indexedDB open blocked"));
   });
 }
 
 async function savePhotoToIdb(key, blob) {
   try {
     const db = await openPhotoDb();
-    return new Promise((resolve, reject) => {
+    // Some engines (e.g. Playwright's headless WebKit) reject storing a Blob in
+    // IndexedDB with UnknownError, while real Safari/Chrome accept it. Store the
+    // bytes as a plain ArrayBuffer in that case so offline photos never silently
+    // fail to persist. getPhotoFromIdb() transparently converts both shapes back.
+    const storeBlob = async () => new Promise((resolve, reject) => {
       const tx  = db.transaction(IDB_STORE, "readwrite");
       const req = tx.objectStore(IDB_STORE).put(blob, key);
       req.onsuccess = () => resolve(true);
-      req.onerror   = e => { console.warn("[IDB] save failed", e); reject(e); };
+      req.onerror   = e => { console.warn("[IDB] blob save failed, trying buffer:", e.target?.error?.name || e); reject(e); };
     });
+    try {
+      return await storeBlob();
+    } catch {
+      // Fallback: store { __buf: true, type, data: ArrayBuffer }.
+      const buf = blob instanceof Blob
+        ? await blob.arrayBuffer()
+        : blob;
+      const wrapper = {
+        __buf: true,
+        type: blob?.type || "image/jpeg",
+        data: buf
+      };
+      return await new Promise((resolve, reject) => {
+        const tx  = db.transaction(IDB_STORE, "readwrite");
+        const req = tx.objectStore(IDB_STORE).put(wrapper, key);
+        req.onsuccess = () => resolve(true);
+        req.onerror   = e => { console.warn("[IDB] buffer save failed", e); reject(e); };
+      });
+    }
   } catch (e) {
     console.warn("[IDB] savePhotoToIdb failed", e);
     return false;
@@ -1608,7 +1639,17 @@ async function getPhotoFromIdb(key) {
     return new Promise((resolve, reject) => {
       const tx  = db.transaction(IDB_STORE, "readonly");
       const req = tx.objectStore(IDB_STORE).get(key);
-      req.onsuccess = e => resolve(e.target.result || null);
+      req.onsuccess = e => {
+        const val = e.target.result;
+        if (!val) return resolve(null);
+        // Convert stored ArrayBuffer wrapper back into a Blob.
+        if (val.__buf) {
+          try { resolve(new Blob([val.data], { type: val.type || "image/jpeg" })); }
+          catch { resolve(null); }
+        } else {
+          resolve(val instanceof Blob ? val : null);
+        }
+      };
       req.onerror   = e => { console.warn("[IDB] get failed", e); resolve(null); };
     });
   } catch (e) {
@@ -1690,6 +1731,18 @@ function saveOfflineActions(actions) {
   }
 }
 
+// A queued terminal action (delivered/failed) for a delivery blocks a conflicting
+// new one. Returns true when an existing queued action makes the new action invalid.
+function hasConflictingQueuedAction(deliveryId, newAction) {
+  const actions = getOfflineActions();
+  const existing = actions.find(a => a.id === deliveryId);
+  if (!existing) return false;
+  if (existing.action === newAction) return false;          // same action — safe to re-queue/replace
+  const terminal = a => a === "delivered" || a === "failed";
+  if (terminal(existing.action) && terminal(newAction)) return true; // delivered ↔ failed conflict
+  return false;                                             // loaded is a valid predecessor
+}
+
 function addOfflineAction(deliveryId, action, extraData = {}) {
   let actions = getOfflineActions();
   actions = actions.filter(a => a.id !== deliveryId);
@@ -1697,6 +1750,7 @@ function addOfflineAction(deliveryId, action, extraData = {}) {
     id: deliveryId,
     action: action,
     timestamp: Date.now(),
+    action_timestamp: Date.now(),   // real capture time — server stores this when offline syncing
     ...extraData
   });
   saveOfflineActions(actions);
@@ -1748,96 +1802,126 @@ async function syncPendingActions() {
 
   try {
     const successIds = [];
+    let authFailure = false;   // set if any queued action was rejected by auth (bad/locked PIN)
 
     for (const action of actionsSnapshot) {
       try {
-        let endpoint, fetchOptions;
+        // Build the correct FormData for each queued action type and POST it.
+        const formData = new FormData();
+        let endpoint;
 
-        if (action.action === "selfpickup") {
-          // Self-pickup: POST to /markSelfPickup with photo + serial
-          endpoint = `/markSelfPickup/${action.id}`;
-          const formData = new FormData();
-          formData.append("confirmed_by", "staff");
-          formData.append("_offline_sync", "true");
+        const authHeaders = {};
+        if (driverSessionToken) authHeaders["Authorization"] = "Bearer " + driverSessionToken;
 
-          const spBlob = await getPhotoFromIdb(photoIdbKey(action.id, "selfpickup"));
-          if (spBlob) formData.append("photo", spBlob, "selfpickup.jpg");
-          if (action.serial) formData.append("serial", action.serial);
-          // Porter details captured offline at handover time
-          ["porter_invoice_number", "porter_vehicle_number", "porter_courier_name", "porter_phone"].forEach(f => {
-            if (action[f]) formData.append(f, action[f]);
-          });
-
-          fetchOptions = { method: "POST", body: formData };
-          if (driverSessionToken) fetchOptions.headers = { "Authorization": "Bearer " + driverSessionToken };
-
-          const res = await fetch(`${BASE_URL}${endpoint}`, fetchOptions);
-          if (res.ok) {
-            successIds.push(action.id);
-            deletePhotoFromIdb(photoIdbKey(action.id, "selfpickup")).catch(() => {});
-          }
+        // Common offline-sync fields (used by all mark* endpoints via the PIN fallback).
+        // Prefer current session creds; fall back to creds stored in the action payload
+        // (added so offline actions survive session expiry between recording and syncing).
+        const driverIdForSync = currentDriverId || action.driver_id || null;
+        const pinForSync      = currentDriverPin || action.pin || null;
+        if (!driverIdForSync || !pinForSync) {
+          // Can't authenticate — drop this action and surface re-login.
+          console.warn("[Sync] No credentials for action:", action.id, action.action);
+          authFailure = true;
+          removeOfflineAction(action.id);
           continue;
         }
+        formData.append("_offline_sync", "true");
+        formData.append("driver_id", driverIdForSync);
+        formData.append("pin",       pinForSync);
 
-        endpoint = action.action === "delivered"
-          ? `/markDelivered/${action.id}`
-          : `/markLoaded/${action.id}`;
-
-        // Reconstruct a proper FormData payload matching what the online path sends (Bug 2 fix)
-        const formData2 = new FormData();
-        formData2.append("driver_id", currentDriverId);
-        formData2.append("pin",       currentDriverPin);
-        formData2.append("_offline_sync", "true");
-
-        // Load photo blob from IndexedDB (was stored there at action-creation time)
-        const idbKey = photoIdbKey(action.id, action.action);
-        const photoBlob = await getPhotoFromIdb(idbKey);
-        // Also load outdoor photo for AC deliveries
-        const outdoorIdbKey = photoIdbKey(action.id, action.action + "_outdoor");
-        const outdoorBlob = await getPhotoFromIdb(outdoorIdbKey);
-        if (photoBlob || outdoorBlob) {
-          if (outdoorBlob) {
-            // AC: send as photo_indoor + photo_outdoor
-            if (photoBlob) formData2.append("photo_indoor", photoBlob, "indoor.jpg");
-            formData2.append("photo_outdoor", outdoorBlob, "outdoor.jpg");
-          } else {
-            // Non-AC or no outdoor: send as 'photo'
-            formData2.append("photo", photoBlob, "upload.jpg");
+        if (action.action === "failed") {
+          // Mark failed: reason + optional photo (IndexedDB) + GPS at failure time
+          endpoint = `/markFailed/${action.id}`;
+          formData.append("reason", action.reason);
+          const failBlob = await getPhotoFromIdb(photoIdbKey(action.id, "failed"));
+          if (failBlob) formData.append("photo", failBlob, "failure.jpg");
+        } else {
+          endpoint = action.action === "delivered"
+            ? `/markDelivered/${action.id}`
+            : (action.action === "selfpickup" ? `/markSelfPickup/${action.id}` : `/markLoaded/${action.id}`);
+          if (action.action === "selfpickup") {
+            formData.append("confirmed_by", "staff");
           }
-        } else if (action.photoBase64) {
-          // Fallback: old entries stored as base64 before IDB migration
-          try {
-            const fetchRes = await fetch(action.photoBase64);
-            const blob = await fetchRes.blob();
-            formData2.append("photo", blob, "upload.jpg");
-          } catch (e) {
-            console.warn("[Sync] Photo fallback (base64) failed for", action.id, e);
+        }
+
+        // Photo(s): loaded/delivered/selfpickup use photoIdbKey(id, action)
+        // (+ "_outdoor" for AC). "failed" was handled above with its own key.
+        if (action.action !== "failed") {
+          const photoBlob    = await getPhotoFromIdb(photoIdbKey(action.id, action.action));
+          const outdoorBlob  = await getPhotoFromIdb(photoIdbKey(action.id, action.action + "_outdoor"));
+          if (photoBlob || outdoorBlob) {
+            if (outdoorBlob) {
+              if (photoBlob) formData.append("photo_indoor", photoBlob, "indoor.jpg");
+              formData.append("photo_outdoor", outdoorBlob, "outdoor.jpg");
+            } else {
+              formData.append("photo", photoBlob, "upload.jpg");
+            }
+          } else if (action.photoBase64) {
+            try {
+              const fetchRes = await fetch(action.photoBase64);
+              const blob = await fetchRes.blob();
+              formData.append("photo", blob, "upload.jpg");
+            } catch (e) {
+              console.warn("[Sync] Photo fallback (base64) failed for", action.id, e);
+            }
+          } else {
+            // No photo for this action in IDB. The server requires a photo for
+            // markLoaded / markDelivered (non-AC) — log clearly so we can fix the
+            // root cause (e.g. addOfflineAction was called without a photo).
+            console.warn(
+              `[Sync] No photo in IDB for action ${action.id} (${action.action}) —`,
+              `server will reject. Re-collect from the driver.`
+            );
           }
         }
 
         // GPS captured at action-creation time
         if (action.gps) {
-          formData2.append("lat", action.gps.lat);
-          formData2.append("lng", action.gps.lng);
+          formData.append("lat", action.gps.lat);
+          formData.append("lng", action.gps.lng);
         }
 
-        // Serial (mark-loaded actions)
-        if (action.serial) formData2.append("serial", action.serial);
-
-        // Freight (mark-delivered actions)
-        if (action.freight && parseFloat(action.freight) > 0) {
-          formData2.append("driver_freight_amount", action.freight);
+        // Action-specific extras
+        if (action.serial) formData.append("serial", action.serial);
+        if (action.action === "delivered") {
+          if (action.freight && parseFloat(action.freight) > 0) {
+            formData.append("driver_freight_amount", action.freight);
+          }
+          formData.append("freight_acknowledged", "true");
         }
-        formData2.append("freight_acknowledged", "true");
-
-        fetchOptions = { method: "POST", body: formData2 };
-        if (driverSessionToken) {
-          fetchOptions.headers = { "Authorization": "Bearer " + driverSessionToken };
+        // Porter details captured offline at handover time
+        if (action.action === "selfpickup") {
+          ["porter_invoice_number", "porter_vehicle_number", "porter_courier_name", "porter_phone"].forEach(f => {
+            if (action[f]) formData.append(f, action[f]);
+          });
         }
 
-        const res2 = await fetch(`${BASE_URL}${endpoint}`, fetchOptions);
-        if (res2.ok) successIds.push(action.id);
+        // Preserve the real capture time so the server stores the offline action's
+        // timestamp rather than the later sync time.
+        if (action.action_timestamp) formData.append("action_timestamp", action.action_timestamp);
 
+        const res = await fetch(`${BASE_URL}${endpoint}`, { method: "POST", headers: authHeaders, body: formData });
+
+        if (res.status === 401 || res.status === 429) {
+          // Auth rejected — the PIN is wrong/locked. Drop the action (retrying forever
+          // would just burn attempts) and surface a re-login prompt. Others still sync.
+          authFailure = true;
+          console.warn("[Sync] Auth rejected for action:", action.id, res.status);
+          removeOfflineAction(action.id);
+          deletePhotoFromIdb(photoIdbKey(action.id, action.action)).catch(() => {});
+          deletePhotoFromIdb(photoIdbKey(action.id, action.action + "_outdoor")).catch(() => {});
+          continue;
+        }
+
+        if (res.ok) {
+          successIds.push(action.id);
+          deletePhotoFromIdb(photoIdbKey(action.id, action.action)).catch(() => {});
+          deletePhotoFromIdb(photoIdbKey(action.id, action.action + "_outdoor")).catch(() => {});
+        } else {
+          let serverMsg = "";
+          try { serverMsg = await res.text(); } catch (_) {}
+          console.warn("[Sync] Rejected for action:", action.id, res.status, serverMsg);
+        }
       } catch (e) {
         console.warn("[Sync] Failed for action:", action.id, e);
       }
@@ -1873,11 +1957,22 @@ async function syncPendingActions() {
         ? `⚠ ${successIds.length} synced, ${failed} still pending`
         : `✅ All changes synced`);
 
-      if (currentDriverId) silentRefresh();
+      if (authFailure) {
+        driverSessionToken = null;
+        showToast("🔒 Session expired / PIN rejected. Please log in again.");
+        logoutDriver();
+      } else if (currentDriverId) {
+        silentRefresh();
+      }
 
     } else {
       // Nothing succeeded — keep badge visible with count
       if (syncBadge) syncBadge.textContent = `${actionsSnapshot.length} pending`;
+      if (authFailure) {
+        driverSessionToken = null;
+        showToast("🔒 Session expired / PIN rejected. Please log in again.");
+        logoutDriver();
+      }
     }
 
   } finally {
@@ -1912,6 +2007,10 @@ function getDeliveryWithOfflineStatus(deliveryId) {
 /* ═══════════════════════════════════════
    FIREBASE + STABLE PUSH
 ═══════════════════════════════════════ */
+// Firebase (messaging) is ONLY needed for web push registration, which happens
+// after a successful online login. Loading it lazily means an offline cold start
+// (tab re-opened at the customer's door with no signal) is never blocked waiting
+// on the gstatic CDN scripts.
 const firebaseConfig = {
   apiKey: "AIzaSyBfQlLpHbuRsZ7YKIFBj8Fa5o-HMo0SBrU",
   authDomain: "hariom-delivery.firebaseapp.com",
@@ -1921,8 +2020,49 @@ const firebaseConfig = {
   appId: "1:60300951507:web:e5d55d0d18dc2000b47926"
 };
 
-firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
+let firebaseLib = null;      // set once the gstatic scripts finish loading
+let messaging    = null;
+
+// Dynamically load the Firebase compat scripts. Resolves when window.firebase is
+// usable, rejects on failure/timeout so callers can degrade gracefully offline.
+function loadFirebaseLib(timeoutMs = 8000) {
+  if (firebaseLib) return Promise.resolve(firebaseLib);
+  return new Promise((resolve, reject) => {
+    if (window.firebase?.messaging) { firebaseLib = window.firebase; resolve(firebaseLib); return; }
+    const done = () => {
+      if (!window.firebase?.messaging) return reject(new Error("Firebase failed to load"));
+      firebaseLib = window.firebase;
+      resolve(firebaseLib);
+    };
+    const fail = () => reject(new Error("Firebase load failed/offline"));
+    const s1 = document.createElement("script");
+    s1.src = "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js";
+    s1.onload = () => {
+      const s2 = document.createElement("script");
+      s2.src = "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js";
+      s2.onload = done;
+      s2.onerror = fail;
+      document.head.appendChild(s2);
+    };
+    s1.onerror = fail;
+    document.head.appendChild(s1);
+    setTimeout(() => reject(new Error("Firebase load timed out")), timeoutMs);
+  });
+}
+
+async function initMessagingIfAvailable() {
+  try {
+    const fb = await loadFirebaseLib();
+    if (!messaging) {
+      fb.initializeApp(firebaseConfig);
+      messaging = fb.messaging();
+    }
+    return messaging;
+  } catch (e) {
+    console.warn("[Push] Firebase unavailable (offline?):", e.message);
+    return null;
+  }
+}
 
 const VAPID_KEY = "BMiekPX2di-maWY-3KoprJFLy2OVNPiqvjuz9W9mpNDuOPWDMhstKpaja8A2zKkp8XpmKxETbi_3hoMaPVgB0dE";
 const BASE_URL  = window.location.origin;
@@ -1954,26 +2094,38 @@ async function initServiceWorker() {
   } catch (e) { console.warn("[SW]", e); }
 }
 
-messaging.onMessage(async payload => {
+// Foreground push handler — attached only after Firebase is available (post-login).
+async function initForegroundPush() {
   try {
-    const reg = swRegistration || await navigator.serviceWorker.ready;
-    reg.showNotification(payload?.data?.title || "Hariom DMS", {
-      body: payload?.data?.body || "",
-      icon: "/icons/icon-192x192.png",
-      requireInteraction: true,
-      vibrate: [200, 100, 200]
+    const m = messaging || await initMessagingIfAvailable();
+    if (!m) return;
+    m.onMessage(async payload => {
+      try {
+        const reg = swRegistration || await navigator.serviceWorker.ready;
+        reg.showNotification(payload?.data?.title || "Hariom DMS", {
+          body: payload?.data?.body || "",
+          icon: "/icons/icon-192x192.png",
+          requireInteraction: true,
+          vibrate: [200, 100, 200]
+        });
+      } catch (e) { console.warn("[Push] fg notify", e); }
     });
-  } catch (e) { console.warn("[Push] fg notify", e); }
-});
+  } catch (e) { console.warn("[Push] initForegroundPush", e); }
+}
 
 async function registerPushToken(driverId) {
   const dot = document.getElementById("pushDot");
   if (!("Notification" in window)) return;
+  // Push registration is online-only — never attempt offline (the fetch would fail anyway).
+  if (!isOnline()) return;
   const perm = await Notification.requestPermission();
   if (perm !== "granted") { dot.className = "push-dot off"; return; }
   try {
+    // Ensure Firebase is loaded before touching messaging.
+    const m = messaging || await initMessagingIfAvailable();
+    if (!m) { dot.className = "push-dot off"; return; }
     const reg = swRegistration || await navigator.serviceWorker.ready;
-    const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    const token = await m.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
     if (!token) return;
     const fetchOptions = {
       method: "POST",
@@ -1988,7 +2140,11 @@ async function registerPushToken(driverId) {
   } catch (e) {
     console.warn("[Push]", e);
     if (e.message?.includes("registration") || e.message?.includes("InvalidRegistration")) {
-      try { await messaging.deleteToken(); setTimeout(() => registerPushToken(driverId), 2500); } catch (_) {}
+      try {
+        const m = messaging || await initMessagingIfAvailable();
+        if (m) await m.deleteToken();
+        setTimeout(() => registerPushToken(driverId), 2500);
+      } catch (_) {}
     } else { dot.className = "push-dot off"; }
   }
 }
@@ -2068,6 +2224,17 @@ function clearDriverSession() {
   try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
 }
 
+// Cache the full driver list so the login select rebuilds even after a
+// cold-start tab close with no network (previously only the last-session
+// driver was available, which meant a driver's own record might be missing
+// if they were not the last one logged in).
+function saveDriverList(data) {
+  try { localStorage.setItem(DRIVER_LIST_KEY, JSON.stringify(data)); } catch (_) {}
+}
+function restoreDriverList() {
+  try { return JSON.parse(localStorage.getItem(DRIVER_LIST_KEY)) || null; } catch (_) { return null; }
+}
+
 /* ═══════════════════════════════════════
    LOAD DRIVERS
 ═══════════════════════════════════════ */
@@ -2075,6 +2242,7 @@ async function loadDrivers() {
   try {
     const res  = await fetch(`${BASE_URL}/driver-list-public`);
     const data = await res.json();
+    saveDriverList(data);                                          // cache for offline cold starts
     const sel  = document.getElementById("driverSelect");
     sel.innerHTML = "";
     data.forEach(d => {
@@ -2101,10 +2269,28 @@ async function loadDrivers() {
   } catch (e) {
     console.warn("[loadDrivers]", e);
 
-    // Offline fallback: rebuild the select from the last known session so the
-    // login form stays usable — driver can still enter their PIN against cache.
-    const session = restoreDriverSession();
+    // Offline fallback: try full cached list first, then last session.
+    const cached = restoreDriverList();
     const sel = document.getElementById("driverSelect");
+    if (cached && cached.length > 0) {
+      sel.innerHTML = "";
+      cached.forEach(d => {
+        const o = document.createElement("option");
+        o.value = d.driver_name; o.text = d.driver_name; o.dataset.id = d.id;
+        sel.appendChild(o);
+      });
+      // Keep the remembered driver selected if present in cached list
+      const last = restoreLastDriver();
+      if (last) {
+        const match = cached.find(d => d.id === last.id);
+        if (match) { sel.value = match.driver_name; document.getElementById("rememberedTag").style.display = "inline-flex"; }
+      }
+      const sk = document.getElementById("skeletonLoader");
+      if (sk) sk.remove();
+      return;
+    }
+
+    const session = restoreDriverSession();
     if (session && sel) {
       sel.innerHTML = "";
       const o = document.createElement("option");
@@ -2231,6 +2417,7 @@ async function unlockDriver() {
     saveDriverSession(driverId, driverSelect.value, pin);  // persist for offline re-auth
 
     await registerPushToken(driverId);
+    initForegroundPush().catch(() => {});   // attach foreground handler after Firebase is loaded
 
     driverSelect.disabled = true;
     pinInput.style.display = "none";
@@ -2304,10 +2491,17 @@ function renderDeliveries(data) {
   _driverRenderSig = _sig;
 
   applyOfflineActionsToDeliveries();
-  data = data.filter(d => d.status !== "delivered" && d.status !== "failed");
 
   const offlineActions = getOfflineActions();
   const pendingSyncIds = offlineActions.map(a => a.id);
+
+  // Don't filter out a delivery just because an offline action set its status to
+  // delivered/failed — keep it visible so the driver sees the pending-sync badge.
+  // Deliveries that are truly done (no pending action) are still hidden.
+  data = data.filter(d => {
+    if (d.status !== "delivered" && d.status !== "failed") return true;
+    return pendingSyncIds.includes(d.id);
+  });
 
   // Sort: urgent first, then pending before loaded, then by ETA
   data.sort((a, b) => {
@@ -2338,7 +2532,9 @@ function renderDeliveries(data) {
     return;
   }
 
-  countBadge.innerText  = `${data.length} Active`;
+  countBadge.innerText  = pendingSyncIds.length > 0
+    ? `${data.length} Active · ${pendingSyncIds.length} pending sync`
+    : `${data.length} Active`;
   countBadge.style.display = "inline-block";
   container.innerHTML   = "";
 
@@ -2447,32 +2643,29 @@ function renderDeliveries(data) {
    OPEN DELIVERY POPUP
 ═══════════════════════════════════════ */
 async function openDelivery(id) {
+  // Always render from the locally-cached delivery data. The list is refreshed in
+  // the background (silentRefresh/SSE) whenever the driver is online, so the popup
+  // never needs its own network fetch and works fully offline at the customer's door.
   let d = null;
-
-  if (!isOnline()) {
-    if (!allDeliveriesData || allDeliveriesData.length === 0) {
-      const cached = getCachedDeliveries();
-      if (cached && cached.length > 0) {
-        allDeliveriesData = cached;
-      }
+  if (!allDeliveriesData || allDeliveriesData.length === 0) {
+    const cached = getCachedDeliveries();
+    if (cached && cached.length > 0) {
+      allDeliveriesData = cached;
     }
-    d = allDeliveriesData.find(x => String(x.id) === String(id)) || null;
-    if (!d) { showToast("⚠ Delivery not available offline"); return; }
-  } else {
-    try {
-      const res = await fetch(`${BASE_URL}/delivery/${id}`);
-      if (res.ok) {
-        d = await res.json();
-      } else {
-        // Server error — fall back to cache so the driver isn't blocked
-        d = allDeliveriesData.find(x => String(x.id) === String(id)) || null;
-        if (!d) { showToast("⚠ Could not load delivery"); return; }
-      }
-    } catch (e) {
-      // Network failure mid-session — fall back to cache
-      d = allDeliveriesData.find(x => String(x.id) === String(id)) || null;
-      if (!d) { showToast("⚠ Network error — delivery not in cache"); return; }
+  }
+  d = allDeliveriesData.find(x => String(x.id) === String(id)) || null;
+  if (!d) {
+    // Last resort — try a fresh network fetch only if the delivery isn't cached.
+    if (isOnline()) {
+      try {
+        const res = await fetch(`${BASE_URL}/delivery/${id}`);
+        if (res.ok) d = await res.json();
+      } catch (e) { /* fall through to the error below */ }
     }
+  }
+  if (!d) {
+    showToast("⚠ Delivery not available offline");
+    return;
   }
   currentDeliveryData = d;
   currentDeliveryId   = id;
@@ -2799,19 +2992,34 @@ function navigateTo(address) {
 /* ═══════════════════════════════════════
    IMAGE COMPRESSION
 ═══════════════════════════════════════ */
-async function compressImage(file) {
+function compressImage(file) {
   return new Promise(resolve => {
+    // Safety: if the image can't be decoded/compressed (corrupt file, odd format,
+    // or a WebKit quirk), fall back to the original file rather than hanging the
+    // offline-save flow forever.
+    let settled = false;
+    const finish = blob => { if (!settled) { settled = true; resolve(blob || file); } };
+    const fail  = () => finish(file);
+
+    const timer = setTimeout(fail, 10000);   // hard cap — never hang the driver
+
     const reader = new FileReader();
+    reader.onerror = fail;
     reader.onload = e => {
       const img = new Image();
+      img.onerror = fail;
       img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const max = 1280;
-        let w = img.width, h = img.height;
-        if (w > max) { h = Math.round(h * max / w); w = max; }
-        canvas.width = w; canvas.height = h;
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        canvas.toBlob(resolve, "image/jpeg", 0.75);
+        try {
+          const canvas = document.createElement("canvas");
+          const max = 1280;
+          let w = img.width, h = img.height;
+          if (!w || !h) return fail();
+          if (w > max) { h = Math.round(h * max / w); w = max; }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          canvas.toBlob(b => { clearTimeout(timer); finish(b); }, "image/jpeg", 0.75);
+          if (!canvas.toBlob) fail();   // very old engines
+        } catch (err) { fail(); }
       };
       img.src = e.target.result;
     };
@@ -2873,6 +3081,13 @@ async function updateDelivery() {
     ? "selfpickup"
     : (currentStatus === "pending" ? "loaded" : "delivered");
 
+  // Block a conflicting offline action (e.g. trying to mark "failed" a delivery
+  // that already has a queued "delivered") instead of silently overwriting it.
+  if (hasConflictingQueuedAction(currentDeliveryId, actionType)) {
+    showToast("⚠ This delivery already has a pending status update. Please wait for it to sync.");
+    return;
+  }
+
   // Instructions acknowledgment check (loaded → delivered only)
   if (currentStatus === "loaded") {
     const instrConfirm = document.getElementById("instructionsConfirm");
@@ -2927,6 +3142,8 @@ async function updateDelivery() {
       }
     }
 
+    // Store driver credentials so offline actions can sync even if the current
+    // session expires (the PIN-fallback on the server reads these from the body).
     const extraData = {
       photoStored,   // true = Blob is in IDB under photoIdbKey(id, action)
       outdoorPhotoStored, // true = outdoor photo also stored (AC)
@@ -2936,6 +3153,8 @@ async function updateDelivery() {
       gps: cachedGpsPosition
         ? { lat: cachedGpsPosition.coords.latitude, lng: cachedGpsPosition.coords.longitude }
         : null,
+      driver_id: currentDriverId || null,
+      pin:       currentDriverPin || null,
       ...(isPorterDelivery ? {
         porter_invoice_number: document.getElementById("porterInvoiceInput")?.value?.trim() || "",
         porter_vehicle_number: document.getElementById("porterVehicleInput")?.value?.trim() || "",
@@ -2950,7 +3169,6 @@ async function updateDelivery() {
     if (delivery) {
       delivery.status = actionType;
     }
-
     vibrate([100, 50, 200]);
     showToast("💾 Saved offline. Will sync later");
     closePopup();
@@ -3001,6 +3219,8 @@ async function updateDelivery() {
     formData.append("lng",       pos.coords.longitude);
     formData.append("driver_id", currentDriverId);
     formData.append("pin",       currentDriverPin);
+    formData.append("_offline_sync", "true");
+    if (cachedGpsPosition) formData.append("action_timestamp", Date.now());
 
     const serialInput = document.getElementById("serialInput");
     if ((currentStatus === "pending" || isPorterDelivery) && !currentDeliveryData.product_serial_number) {
@@ -3158,8 +3378,51 @@ async function submitFailure() {
   const origBtnText = confirmBtn?.textContent;
   if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = "Submitting…"; }
 
+  // ── OFFLINE PATH ────────────────────────────────────────────────────────────
+  // Queue the failure locally (reason + photo in IndexedDB) so it syncs when
+  // network returns — mirrors the loaded/delivered offline flow.
+  if (!isOnline()) {
+    if (hasConflictingQueuedAction(currentDeliveryId, "failed")) {
+      showToast("⚠ This delivery already has a pending status update. Please wait for it to sync.");
+      isProcessingAction = false;
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || "Confirm Failure"; }
+      return;
+    }
+    try {
+      let photoStored = false;
+      if (photoInput?.files?.length) {
+        const blob = await compressImage(photoInput.files[0]);
+        photoStored = await savePhotoToIdb(photoIdbKey(currentDeliveryId, "failed"), blob);
+      }
+      const gps = cachedGpsPosition
+        ? { lat: cachedGpsPosition.coords.latitude, lng: cachedGpsPosition.coords.longitude }
+        : null;
+      addOfflineAction(currentDeliveryId, "failed", { reason, photoStored, gps, driver_id: currentDriverId || null, pin: currentDriverPin || null });
+
+      const delivery = allDeliveriesData.find(d => d.id === currentDeliveryId);
+      if (delivery) delivery.status = "failed";
+
+      vibrate([100, 50, 100, 50, 200]);
+      showToast("💾 Saved offline. Will sync later");
+      closePopup();
+      renderDeliveries(allDeliveriesData);
+    } catch (e) {
+      console.warn("[Offline] Failure queue error:", e);
+      showToast("⚠ Could not save offline. Try again.");
+    } finally {
+      isProcessingAction = false;
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || "Confirm Failure"; }
+    }
+    return;
+  }
+  // ── END OFFLINE PATH ────────────────────────────────────────────────────────
+
   const formData = new FormData();
   formData.append("reason", reason);
+  formData.append("_offline_sync", "true");
+  formData.append("driver_id", currentDriverId);
+  formData.append("pin",       currentDriverPin);
+  if (cachedGpsPosition) formData.append("action_timestamp", Date.now());
 
   if (photoInput?.files?.length) {
     const compressed = await compressImage(photoInput.files[0]);
@@ -3184,7 +3447,26 @@ async function submitFailure() {
     closePopup();
     silentRefresh();
   } catch (e) {
-    showToast("⚠ Network error. Please retry.");
+    // Network dropped mid-submit — fall back to the offline queue.
+    try {
+      let photoStored = false;
+      if (photoInput?.files?.length) {
+        const blob = await compressImage(photoInput.files[0]);
+        photoStored = await savePhotoToIdb(photoIdbKey(currentDeliveryId, "failed"), blob);
+      }
+      const gps = cachedGpsPosition
+        ? { lat: cachedGpsPosition.coords.latitude, lng: cachedGpsPosition.coords.longitude }
+        : null;
+      addOfflineAction(currentDeliveryId, "failed", { reason, photoStored, gps, driver_id: currentDriverId || null, pin: currentDriverPin || null });
+      const delivery = allDeliveriesData.find(d => d.id === currentDeliveryId);
+      if (delivery) delivery.status = "failed";
+      vibrate([100, 50, 100, 50, 200]);
+      showToast("💾 No network — saved offline. Will sync later");
+      closePopup();
+      renderDeliveries(allDeliveriesData);
+    } catch (e2) {
+      showToast("⚠ Network error. Please retry.");
+    }
   } finally {
     isProcessingAction = false;
     if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || "Confirm Failure"; }
@@ -3674,6 +3956,12 @@ let iosTorchOn      = false;
 let iosImageCapture = null;   // for torch control
 
 async function openIosScanner() {
+  // iOS 17.4+ Safari has native BarcodeDetector — use it for zero-latency scanning
+  // and skip the canvas+server bridge entirely.
+  if ("BarcodeDetector" in window) {
+    openScanner();   // reuses the Android path (native detector); works on iOS 17.4+
+    return;
+  }
   const overlay = document.getElementById("iosScannerOverlay");
   const video   = document.getElementById("iosHiddenVideo");
   const canvas  = document.getElementById("iosViewfinderCanvas");
@@ -4868,6 +5156,8 @@ async function confirmSelfPickup(deliveryId) {
     addOfflineAction(deliveryId, "selfpickup", {
       serial: serialInput ? serialInput.value.trim() : null,
       photoStored: true,
+      driver_id: currentDriverId || null,
+      pin:       currentDriverPin || null,
       ...(isPorter ? {
         porter_invoice_number: document.getElementById("sp_porter_invoice_" + deliveryId)?.value?.trim() || "",
         porter_vehicle_number: document.getElementById("sp_porter_vehicle_" + deliveryId)?.value?.trim() || "",
