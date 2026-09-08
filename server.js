@@ -130,11 +130,17 @@ const LONG_CACHE_EXT = new Set([
   ".css", ".js", ".png", ".jpg", ".jpeg", ".svg",
   ".webp", ".woff2", ".ico", ".webmanifest", ".json"
 ]);
+// Service workers must never be long-cached — the browser checks the
+// registry on every update and a long max-age can delay activation of a
+// fixed worker. Serve them with no-cache so fixes go live immediately.
+const SW_FILES = ["./service-worker.js", "/service-worker.js", "./firebase-messaging-sw.js", "/firebase-messaging-sw.js"];
 
 app.use(express.static(".", {
   setHeaders: (res, filePath) => {
     const ext = path.extname(filePath).toLowerCase();
-    if (LONG_CACHE_EXT.has(ext)) {
+    if (SW_FILES.includes(filePath)) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    } else if (LONG_CACHE_EXT.has(ext)) {
       res.setHeader(
         "Cache-Control",
         "public, max-age=86400, stale-while-revalidate=604800"

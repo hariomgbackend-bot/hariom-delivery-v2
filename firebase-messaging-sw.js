@@ -30,7 +30,7 @@ messaging.onBackgroundMessage(function(payload) {
    Cache version — bump when the asset list / behavior
    changes so `activate` clears the stale cache.
 ════════════════════════════════════════════════════ */
-const CACHE_NAME = "hariom-shell-v3";
+const CACHE_NAME = "hariom-shell-v4";
 const SHELL_ASSETS = [
   "/driver_interface.html",
   "/design-system.css?v=2",
@@ -39,6 +39,12 @@ const SHELL_ASSETS = [
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png"
 ];
+
+// Only these static asset types are cached. Everything else — especially
+// dynamic API GETs like /service/tickets, /deliveries, /api/stores — must
+// ALWAYS go to the network. The old cache-first handler was returning a
+// stale "yesterday" table snapshot for these GETs until a hard refresh.
+const CACHEABLE_ASSET = /\.(css|js|mjs|png|jpg|jpeg|gif|webp|svg|woff2?|ttf|eot|ico|json)$/i;
 
 // Precache the app shell on install so the page can boot with no network.
 self.addEventListener("install", event => {
@@ -59,17 +65,11 @@ self.addEventListener("activate", event => {
   );
 });
 
-// Requests that must NEVER be served from cache (mutation endpoints).
-const NEVER_CACHE = [
-  "/markLoaded", "/markDelivered", "/markFailed", "/markSelfPickup",
-  "/driverDeliveries", "/driverDeliveriesRefresh", "/driver/verify-pin",
-  "/saveDriverPushToken", "/decode-barcode"
-];
-
 self.addEventListener("fetch", event => {
-  const url = new URL(event.request.url);
   if (event.request.method !== "GET") return;               // let POSTs go to network
-  if (NEVER_CACHE.some(p => url.pathname.startsWith(p))) return;
+
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;          // pass cross-origin through
 
   // HTML navigations: network-first, fall back to cached shell when offline.
   if (event.request.mode === "navigate") {
@@ -85,19 +85,20 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // Static assets (same-origin css/js/manifest/icons): cache-first.
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(event.request).then(cached => {
-        if (cached) return cached;
-        return fetch(event.request).then(res => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE_NAME).then(c => c.put(event.request, copy)).catch(() => {});
-          }
-          return res;
-        });
-      })
-    );
-  }
+  // Dynamic API requests (data): NEVER cache — always fetch fresh.
+  if (!CACHEABLE_ASSET.test(url.pathname)) return;
+
+  // Static assets (css/js/manifest/icons): cache-first, fall back to network.
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
+      return fetch(event.request).then(res => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(event.request, copy)).catch(() => {});
+        }
+        return res;
+      });
+    })
+  );
 });
