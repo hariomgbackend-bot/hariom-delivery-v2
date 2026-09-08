@@ -165,6 +165,23 @@ app.get("/", (req, res) => {
 });
 
 /* ════════════════════════════════════════════════
+   NO-CACHE FOR DYNAMIC RESPONSES
+   Every API/HTML response below this point must never be
+   stored by the browser HTTP cache. Without this, browsers
+   heuristically cache GET JSON (e.g. /service/tickets,
+   /deliveries) and re-serve a stale "yesterday" snapshot on
+   a plain reload (F5) — only a hard refresh (Ctrl+Shift+R)
+   bypasses it. The service worker still provides offline
+   caching for the app shell independently of this header.
+════════════════════════════════════════════════════ */
+app.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+/* ════════════════════════════════════════════════
    IST DATE HELPER
 ════════════════════════════════════════════════ */
 function todayIST() {
