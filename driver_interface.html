@@ -2216,8 +2216,8 @@ function restoreLastDriver() {
 // Persists the full session so the driver can re-authenticate while offline.
 // The PIN is already held in memory and sent on every background refresh —
 // persisting it here is not a regression for this deployment model.
-function saveDriverSession(id, name, pin) {
-  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ id, name, pin })); } catch (_) {}
+function saveDriverSession(id, name, pin, token) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ id, name, pin, token })); } catch (_) {}
 }
 
 function restoreDriverSession() {
@@ -2351,6 +2351,7 @@ async function unlockDriver() {
     // PIN matches saved session — restore state fully
     currentDriverId  = session.id;
     currentDriverPin = session.pin;
+    driverSessionToken = session.token || null;
     pinAttempts      = 0;
 
     driverSelect.disabled = true;
@@ -2418,7 +2419,7 @@ async function unlockDriver() {
     currentDriverPin = pin;
     pinAttempts      = 0;
     saveLastDriver(driverId, driverSelect.value);
-    saveDriverSession(driverId, driverSelect.value, pin);  // persist for offline re-auth
+    saveDriverSession(driverId, driverSelect.value, pin, driverSessionToken);  // persist for offline re-auth
 
     await registerPushToken(driverId);
     initForegroundPush().catch(() => {});   // attach foreground handler after Firebase is loaded
@@ -4977,12 +4978,11 @@ async function bulkAssignDispatch() {
   let success = 0, fail = 0;
   for (const id of selectedDeliveries) {
     try {
+      const headers = { "Content-Type": "application/json" };
+      if (driverSessionToken) headers["Authorization"] = "Bearer " + driverSessionToken;
       const res = await fetch(`${BASE_URL}/assignDelivery/${id}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + driverSessionToken
-        },
+        headers,
         body: JSON.stringify({ driver_id: driverId, driver_name: driverName })
       });
       if (res.ok) success++; else fail++;
@@ -5047,12 +5047,11 @@ async function confirmDispatchAssign(deliveryId, selectId) {
     let success = 0, fail = 0;
     for (const id of ids) {
       try {
+        const headers = { "Content-Type": "application/json" };
+        if (driverSessionToken) headers["Authorization"] = "Bearer " + driverSessionToken;
         const res = await fetch(`${BASE_URL}/assignDelivery/${id}`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + driverSessionToken
-          },
+          headers,
           body: JSON.stringify({ driver_id: driverId, driver_name: driverName })
         });
         if (res.ok) success++; else fail++;
@@ -5081,12 +5080,11 @@ async function confirmDispatchAssign(deliveryId, selectId) {
   if (msg) { msg.style.color = var_muted(); msg.textContent = "Assigning…"; }
 
   try {
+    const headers = { "Content-Type": "application/json" };
+    if (driverSessionToken) headers["Authorization"] = "Bearer " + driverSessionToken;
     const res = await fetch(`${BASE_URL}/assignDelivery/${deliveryId}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + driverSessionToken
-      },
+      headers,
       body: JSON.stringify({ driver_id: driverId, driver_name: driverName })
     });
     const data = await res.json();

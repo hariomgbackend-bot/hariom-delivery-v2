@@ -7,8 +7,13 @@
    Bump CACHE_NAME on any change to force a clean install.
 ══════════════════════════════════════════════════ */
 
-const CACHE_NAME = "hariom-dms-v4";
+const CACHE_NAME = "hariom-dms-v5";
 const OFFLINE_URL = "/offline.html";
+
+// Only these static asset types get cached (stale-while-revalidate).
+// Everything else — navigations and, crucially, dynamic API GETs — must
+// always hit the network so the tables never show stale/back-dated data.
+const CACHEABLE_ASSET = /\.(css|js|mjs|png|jpg|jpeg|gif|webp|svg|woff2?|ttf|eot|ico|json)$/i;
 
 // App shell assets to precache on install
 const PRECACHE_URLS = [
@@ -77,7 +82,16 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // ── Static assets: stale-while-revalidate ──
+  // ── Dynamic API requests: network-only, NEVER cached ──
+  // API GETs (e.g. /service/tickets, /delivery/:id, /driverDeliveries) are
+  // auth-scoped and current-data-only. Stale-while-revalidate was serving an
+  // old cached table (keyed only by URL, ignoring the Authorization header),
+  // which made the table "go back" to an older snapshot until a hard reset.
+  if (!CACHEABLE_ASSET.test(event.request.url)) {
+    return; // default network fetch — no cache round-trip
+  }
+
+  // ── Static assets (css/js/png/svg/woff2/ico/manifest): stale-while-revalidate ──
   event.respondWith(
     caches.match(event.request).then(cached => {
       const network = fetch(event.request)
