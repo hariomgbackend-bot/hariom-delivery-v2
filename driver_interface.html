@@ -4979,7 +4979,10 @@ async function bulkAssignDispatch() {
     try {
       const res = await fetch(`${BASE_URL}/assignDelivery/${id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + driverSessionToken
+        },
         body: JSON.stringify({ driver_id: driverId, driver_name: driverName })
       });
       if (res.ok) success++; else fail++;
@@ -5046,7 +5049,10 @@ async function confirmDispatchAssign(deliveryId, selectId) {
       try {
         const res = await fetch(`${BASE_URL}/assignDelivery/${id}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + driverSessionToken
+          },
           body: JSON.stringify({ driver_id: driverId, driver_name: driverName })
         });
         if (res.ok) success++; else fail++;
@@ -5077,7 +5083,10 @@ async function confirmDispatchAssign(deliveryId, selectId) {
   try {
     const res = await fetch(`${BASE_URL}/assignDelivery/${deliveryId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + driverSessionToken
+      },
       body: JSON.stringify({ driver_id: driverId, driver_name: driverName })
     });
     const data = await res.json();
