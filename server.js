@@ -3010,7 +3010,9 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
     if (req.body[field] !== undefined) update[field] = req.body[field];
   }
   if (req.body.estimated_delivery_time) {
-    if (new Date(req.body.estimated_delivery_time) < new Date()) {
+    // Admins may set past ETA for metadata corrections; accountant edits keep the restriction
+    const isAdmin = req.user.role === "admin";
+    if (!isAdmin && new Date(req.body.estimated_delivery_time) < new Date()) {
       return res.status(400).json({ error: "ETA cannot be in the past" });
     }
     update.estimated_delivery_time = req.body.estimated_delivery_time;
