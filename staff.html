@@ -838,7 +838,7 @@
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
-<script src="/shared.js?v=2"></script>
+<script src="/shared.js?v=3"></script>
 </head>
 <body>
 
@@ -1153,11 +1153,24 @@
             + Add Another Product
           </button>
 
+          <label class="form-label">How did they come in?</label>
+          <select class="form-select" id="lSource">
+            <option value="walk_in">Walk-in</option>
+            <option value="phone">Phone</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="referral">Referral</option>
+            <option value="repeat">Repeat customer</option>
+            <option value="other">Other</option>
+          </select>
+
           <label class="form-label">Status</label>
           <select class="form-select" id="lStatus">
-            <option value="open">Open</option>
-            <option value="followup">Follow Up</option>
-            <option value="sale">Sale</option>
+            <option value="new">New</option>
+            <option value="quoted">Quoted</option>
+            <option value="deposit">Deposit</option>
+            <option value="followup">Follow-Up</option>
+            <option value="visit">Visit Follow-Up</option>
+            <option value="won">Won</option>
           </select>
 
           <label class="form-label">Remarks</label>
@@ -1196,7 +1209,6 @@
           <button class="lead-chip" onclick="setLeadSort('today',this)">Today</button>
           <button class="lead-chip" onclick="setLeadSort('tomorrow',this)">Tomorrow</button>
           <button class="lead-chip" onclick="setLeadSort('week',this)">This Week</button>
-          <button class="lead-chip" onclick="setLeadSort('expiring',this)">⚠ Expiring</button>
         </div>
       </div>
 
@@ -1595,7 +1607,10 @@
 const BASE_URL = window.location.origin && window.location.origin !== 'null'
   ? window.location.origin
   : 'http://localhost:5000';
-const EXPIRING_SOON_DAYS = 2;
+
+/* ── Lead pipeline vocabulary comes from shared.js ──
+   LEAD_STAGES / LEAD_LOSS_REASONS / LEAD_SOURCES / leadStageLabel() are shared
+   with the CRM panel so the two can never disagree about statuses or reasons. */
 
 /* ── HTML ESCAPE (prevents XSS in innerHTML rendering) ── */
 function esc(s) {
@@ -1605,6 +1620,9 @@ function esc(s) {
   d.textContent = s;
   return d.innerHTML || "—";
 }
+
+/* isACProductName() — ACs need indoor + outdoor unit photos.
+   Defined in /shared.js?v=3 so every panel uses one copy. */
 
 /* ── ALL STATE DECLARATIONS (hoisted to avoid TDZ errors) ── */
 let staffToken       = null;
@@ -2142,19 +2160,23 @@ function openDelivPopup(id) {
       <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:'JetBrains Mono',monospace;font-size:13px;">${esc(d.product_serial_number)}</span></div>
       <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${esc(d.address)}</span></div>
       <div class="detail-row"><span class="detail-label">Delivered</span><span class="detail-value">${delivDate}</span></div>
-      ${!d.is_self_pickup && d.photo_loaded_url ? `
+      ${!d.is_self_pickup && (d.photo_loaded_url || d.photo_loaded_outdoor_url) ? `
       <div style="padding:4px 22px 6px;">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">📦 Loaded Photo</div>
-        <img src="${esc(d.photo_loaded_url)}"
-          onclick="openPhotoLightbox('${esc(d.photo_loaded_url)}','Loaded Photo')"
-          style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dbeafe;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">📦 Loaded Photo${d.photo_loaded_outdoor_url ? " (Indoor Unit)" : ""}</div>
+        ${d.photo_loaded_url ? `<img src="${esc(d.photo_loaded_url)}" onclick="openPhotoLightbox('${esc(d.photo_loaded_url)}','Loaded Photo — Indoor')" style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dbeafe;margin-bottom:6px;">` : ""}
+        ${d.photo_loaded_outdoor_url ? `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">📦 Loaded Photo (Outdoor Unit)</div><img src="${esc(d.photo_loaded_outdoor_url)}" onclick="openPhotoLightbox('${esc(d.photo_loaded_outdoor_url)}','Loaded Photo — Outdoor')" style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #93c5fd;">` : ""}
       </div>` : ""}
-      ${d.is_self_pickup && d.photo_delivered_url ? `
+      ${d.is_self_pickup && (d.photo_delivered_url || d.photo_delivered_outdoor_url) ? `
       <div style="padding:4px 22px 6px;">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">✅ Self Pickup Photo</div>
-        <img src="${esc(d.photo_delivered_url)}"
-          onclick="openPhotoLightbox('${esc(d.photo_delivered_url)}','Self Pickup Photo')"
-          style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #bbf7d0;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">✅ Self Pickup Photo${d.photo_delivered_outdoor_url ? " (Indoor Unit)" : ""}</div>
+        ${d.photo_delivered_url ? `<img src="${esc(d.photo_delivered_url)}" onclick="openPhotoLightbox('${esc(d.photo_delivered_url)}','Self Pickup Photo — Indoor')" style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #bbf7d0;margin-bottom:6px;">` : ""}
+        ${d.photo_delivered_outdoor_url ? `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">✅ Self Pickup Photo (Outdoor Unit)</div><img src="${esc(d.photo_delivered_outdoor_url)}" onclick="openPhotoLightbox('${esc(d.photo_delivered_outdoor_url)}','Self Pickup Photo — Outdoor')" style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #86efac;">` : ""}
+      </div>` : ""}
+      ${!d.is_self_pickup && d.status === "delivered" && (d.photo_delivered_url || d.photo_delivered_outdoor_url) ? `
+      <div style="padding:4px 22px 6px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">✅ Delivered Photo${d.photo_delivered_outdoor_url ? " (Indoor Unit)" : ""}</div>
+        ${d.photo_delivered_url ? `<img src="${esc(d.photo_delivered_url)}" onclick="openPhotoLightbox('${esc(d.photo_delivered_url)}','Delivered Photo — Indoor')" style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #bbf7d0;margin-bottom:6px;">` : ""}
+        ${d.photo_delivered_outdoor_url ? `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--on-surface-variant);margin-bottom:8px;">✅ Delivered Photo (Outdoor Unit)</div><img src="${esc(d.photo_delivered_outdoor_url)}" onclick="openPhotoLightbox('${esc(d.photo_delivered_outdoor_url)}','Delivered Photo — Outdoor')" style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #86efac;">` : ""}
       </div>` : ""}
     </div>`;
 
@@ -2762,23 +2784,10 @@ function filterAndRenderLeads() {
       const ms = l.created_at?.seconds ? l.created_at.seconds*1000 : 0;
       return ms >= now - 7*86400000 && ms <= now;
     }
-    if (leadSortMode === "expiring") {
-      const days = l.expires_at?.seconds ? Math.ceil((l.expires_at.seconds*1000 - now)/(24*3600*1000)) : 99;
-      return days <= EXPIRING_SOON_DAYS && days >= 0;
-    }
     return true;
   });
 
   renderLeads(data);
-}
-
-function leadExpiryBadge(lead) {
-  if (!lead.expires_at?.seconds) return "";
-  const d = Math.ceil((lead.expires_at.seconds * 1000 - Date.now()) / (24 * 3600 * 1000));
-  if (d < 0)  return `<span class="badge badge-lost">Expired</span>`;
-  if (d <= EXPIRING_SOON_DAYS) return `<span class="badge badge-warranty-expiring">⚠ ${d}d left</span>`;
-  if (d <= 5) return `<span class="badge badge-followup">${d}d left</span>`;
-  return "";
 }
 
 function renderLeads(data) {
@@ -2789,7 +2798,6 @@ function renderLeads(data) {
     return;
   }
   list.innerHTML = data.map(l => {
-    const expiry = leadExpiryBadge(l);
     // Multi-product summary
     const prodSummary = l.products?.length > 1
       ? `${esc(l.products[0].product_name)} +${l.products.length-1} more`
@@ -2809,8 +2817,7 @@ function renderLeads(data) {
           <div class="card-product">${prodSummary}</div>
         </div>
         <div class="card-badges">
-          <span class="badge badge-${esc(l.status)}">${esc(l.status)}</span>
-          ${expiry}
+          <span class="badge badge-${esc(l.status)}">${esc(leadStageLabel(l.status))}</span>
         </div>
       </div>
       <div class="card-divider"></div>
@@ -2852,8 +2859,12 @@ async function submitLead() {
         customer_name:   document.getElementById("lName").value.trim(),
         address:         document.getElementById("lAddress").value.trim(),
         products,
+        source:          document.getElementById("lSource").value,
         status:          document.getElementById("lStatus").value,
-        remarks:         document.getElementById("lRemarks").value.trim()
+        remarks:         document.getElementById("lRemarks").value.trim(),
+        /* The salesman is with the customer while capturing, so capture IS first
+           contact — this is what makes Speed-to-Lead work in the CRM. */
+        first_contact_at: new Date().toISOString()
       })
     });
     const data = await res.json();
@@ -2864,10 +2875,16 @@ async function submitLead() {
       return;
     }
     msg.style.color="var(--tertiary)"; msg.textContent="✅ Lead saved!";
+    /* Warn (don't block) if this number already had a lead */
+    if (Array.isArray(data.existingLeads) && data.existingLeads.length) {
+      const other = data.existingLeads[0];
+      showToast(`⚠ ${other.customer_name || "This number"} already has a lead (${leadStageLabel(other.status)})`, "warning");
+    }
     // Reset
     btn.innerHTML = "Save Lead";
     ["lPhone","lAltPhone","lName","lAddress","lRemarks"].forEach(id => { const e=document.getElementById(id); if(e)e.value=""; });
-    document.getElementById("lStatus").value = "open";
+    document.getElementById("lStatus").value = "new";
+    document.getElementById("lSource").value = "walk_in";
     document.getElementById("leadProductList").innerHTML = "";
     leadProductCount = 0;
     dismissLeadRepeat();
@@ -2886,7 +2903,6 @@ function openLeadPopup(id) {
   currentLead = allLeads.find(l => l.id === id);
   if (!currentLead) return;
   const l = currentLead;
-  const expiry = leadExpiryBadge(l);
 
   const createdDate = l.created_at?.seconds
     ? new Date(l.created_at.seconds*1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
@@ -2894,9 +2910,6 @@ function openLeadPopup(id) {
   const followupDate = (l.followup_date?.seconds || l.followup_at?.seconds)
     ? new Date(((l.followup_date?.seconds || l.followup_at?.seconds))*1000)
         .toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
-    : null;
-  const expiresDate = l.expires_at?.seconds
-    ? new Date(l.expires_at.seconds*1000).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
     : null;
 
   // ── Products & Quote block ──
@@ -2954,8 +2967,7 @@ function openLeadPopup(id) {
     <!-- ── Header band ── -->
     <div class="popup-band popup-band-lead">
       <div class="popup-status-row">
-        <span class="badge badge-${esc(l.status)}">${esc(l.status)}</span>
-        ${expiry}
+        <span class="badge badge-${esc(l.status)}">${esc(leadStageLabel(l.status))}</span>
         ${l.followup_note ? `<span class="badge badge-followup">📝 Follow-up</span>` : ""}
       </div>
       <div class="popup-name">${esc(l.customer_name) || esc(l.phone)}</div>
@@ -3004,11 +3016,6 @@ function openLeadPopup(id) {
         <span class="detail-label">Follow-up Date</span>
         <span class="detail-value">${followupDate}</span>
       </div>` : ""}
-      ${expiresDate ? `
-      <div class="detail-row">
-        <span class="detail-label">Expires</span>
-        <span class="detail-value">${expiresDate}</span>
-      </div>` : ""}
       <div class="detail-row">
         <span class="detail-label">Added</span>
         <span class="detail-value">${createdDate}${l.created_by_name ? ` by ${esc(l.created_by_name)}` : ""}</span>
@@ -3025,11 +3032,17 @@ function openLeadPopup(id) {
       <div class="detail-row">
         <span class="detail-label">Status</span>
         <span class="detail-value">
-          <select class="lead-edit-select" id="popupLeadStatus" onchange="updateLeadStatus('${esc(l.id)}', this.value)">
-            <option value="open"      ${l.status==="open"?"selected":""}>Open</option>
-            <option value="followup"  ${l.status==="followup"?"selected":""}>Follow Up</option>
-            <option value="sale"      ${l.status==="sale"?"selected":""}>Sale</option>
-            <option value="lost"      ${l.status==="lost"?"selected":""}>Lost</option>
+          <select class="lead-edit-select" id="popupLeadStatus" onchange="onStaffStatusChange('${esc(l.id)}', this.value)">
+            ${LEAD_STAGES.map(s => `<option value="${s.key}" ${l.status === s.key ? "selected" : ""}>${s.label}</option>`).join("")}
+          </select>
+        </span>
+      </div>
+      <div class="detail-row" id="staffLossRow" style="display:${l.status === "lost" ? "" : "none"};">
+        <span class="detail-label">Loss reason *</span>
+        <span class="detail-value">
+          <select class="lead-edit-select" id="popupLossReason" onchange="onStaffLossReasonChange('${esc(l.id)}')">
+            <option value="">— Select a reason —</option>
+            ${LEAD_LOSS_REASONS.map(r => `<option value="${r.key}" ${l.loss_reason === r.key ? "selected" : ""}>${r.label}</option>`).join("")}
           </select>
         </span>
       </div>
@@ -3041,17 +3054,55 @@ function openLeadPopup(id) {
   document.getElementById("leadPopup").classList.add("open");
 }
 
-async function updateLeadStatus(id, status) {
+/* ── Status change from the popup ──
+   Marking a lead lost needs a reason first, so reveal the picker and wait
+   instead of firing a save the server will reject. */
+function onStaffStatusChange(id, status) {
+  const row = document.getElementById("staffLossRow");
+  if (status === "lost") {
+    if (row) row.style.display = "";
+    const reason = document.getElementById("popupLossReason");
+    if (reason && !reason.value) {
+      showToast("Pick a loss reason to save", "warning");
+      return;                                   /* wait for the reason */
+    }
+    updateLeadStatus(id, "lost", reason?.value || "");
+    return;
+  }
+  if (row) row.style.display = "none";
+  updateLeadStatus(id, status, "");
+}
+
+function onStaffLossReasonChange(id) {
+  const reason = document.getElementById("popupLossReason")?.value || "";
+  if (!reason) return;
+  updateLeadStatus(id, "lost", reason);
+}
+
+async function updateLeadStatus(id, status, lossReason = "") {
+  if (status === "lost" && !lossReason) {
+    showToast("Loss reason required", "error");
+    return;
+  }
   try {
-    await authFetch(`${BASE_URL}/leads/${id}`, {
+    const res = await authFetch(`${BASE_URL}/leads/${id}`, {
       method:"PUT", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ status })
+      body: JSON.stringify({
+        status,
+        loss_reason: status === "lost" ? lossReason : "",
+        last_touch_at: new Date().toISOString()
+      })
     });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {                              /* don't claim success on a rejected save */
+      showToast("❌ " + (data.error || "Failed to update"), "error");
+      return;
+    }
     showToast("✅ Status updated");
     
     await loadLeads();
     currentLead = allLeads.find(l => l.id === id);
-  } catch(e) { showToast("❌ Failed to update"); }
+  } catch(e) { showToast("❌ Failed to update", "error"); }
 }
 
 function closeLeadPopup() {

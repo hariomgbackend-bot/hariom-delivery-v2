@@ -198,8 +198,9 @@ input.tally-select { background: var(--surface2); border: 1px solid var(--border
 <div id="loginOverlay">
   <div class="login-card">
     <h2>🔐 Purchase Ingestion</h2>
-    <p>Enter accountant password to sync products &amp; push to Tally</p>
-    <input type="password" id="loginPass" placeholder="••••••" autocomplete="off" inputmode="numeric" maxlength="10">
+    <p>Enter accountant credentials to sync products &amp; push to Tally</p>
+    <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="off" inputmode="numeric" maxlength="10">
     <button class="btn btn-primary" id="loginBtn" onclick="handleLogin()">Login</button>
     <div class="login-error" id="loginError">Invalid password</div>
   </div>
@@ -741,12 +742,13 @@ function updateAuthUI() {
 }
 
 async function handleLogin() {
+  const email = document.getElementById("loginEmail").value.trim();
   const pass = document.getElementById("loginPass").value.trim();
   const errEl = document.getElementById("loginError");
-  if (!pass) return;
+  if (!email || !pass) { errEl.textContent = "Email and password required"; errEl.style.display = "block"; setTimeout(() => { errEl.style.display = "none"; }, 3000); return; }
   try {
     const res = await fetch("/accountant/login", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pass })
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password: pass })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Login failed");

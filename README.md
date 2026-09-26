@@ -101,7 +101,9 @@
 |------|-------------|
 | `Working TDLs/hariom_delivery_final.tdl` | Active TDL — delivery integration from Tally Gateway. Shortcut: `Ctrl+Alt+Del`. |
 | `Working TDLs/SerialNumberTDL.tdl` | TDL for fetching serial numbers from Tally. |
-| `Working TDLs/service_ticket.tdl` | TDL for service ticket integration. |
+| `Working TDLs/service_ticket.tdl` | Combined ticket TDL — kept as reference (superseded). |
+| `Working TDLs/complaint_ticket.tdl` | Complaint ticket TDL — button only, instant send to `/tally/ticket`. Shortcut: `Ctrl+Alt+C`. |
+| `Working TDLs/demo_install_ticket.tdl` | Demo-installation ticket TDL — button + post-save prompt to `/tally/ticket`. Shortcut: `Ctrl+Alt+I`. |
 | `Working TDLs/todays_sale.tdl` | TDL for Today's Sales menu in Tally Gateway. |
 | `Working TDLs/tally_gateway.tdl` | TDL for Tally Gateway menu customization. |
 | `Working TDLs/TDL_Reference_Manual.pdf` | TDL syntax reference. |

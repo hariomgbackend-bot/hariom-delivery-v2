@@ -1455,7 +1455,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="/shared.js?v=2"></script>
+<script src="/shared.js?v=3"></script>
 
 <script>
 
@@ -4312,9 +4312,21 @@ function renderMobileCardsSubset(finalData, container, opts) {
 }
 
 /* ── VIEW POPUP ── */
+/* Small date + time caption for the loaded/delivered proof photos */
+function fmtActionStamp(t) {
+  return t && t.seconds
+    ? new Date(t.seconds * 1000).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "";
+}
+
 function openViewPopup(id) {
   const delivery = currentAccountantData.find(d => d.id === id);
   if (!delivery) return;
+
+  /* Split/window ACs are photographed as indoor + outdoor units. For anything
+     else (fridge, TV, washing machine…) "Indoor Unit" is meaningless, so the
+     unit captions are only shown for ACs. */
+  const isAC = isACProductName(delivery.product_name);
 
   const content = document.getElementById("viewContent");
 
@@ -4437,28 +4449,58 @@ function openViewPopup(id) {
     ${delivery.batch_freight_primary ? `<div class="detail-row"><b>Batch Freight</b><span style="color:#7c3aed;font-weight:600;">Primary — covers all items in this batch</span></div>` : ""}
     ${delivery.batch_freight_secondary ? `<div class="detail-row"><b>Batch Freight</b><span style="color:#94a3b8;">Secondary — counted on first batch item</span></div>` : ""}
 
-    ${delivery.photo_loaded_url || delivery.photo_delivered_url ? `<div class="section-title">Photos</div>` : ""}
-    ${delivery.photo_loaded_url || delivery.photo_delivered_url ? `
+    ${delivery.photo_loaded_url || delivery.photo_delivered_url || delivery.photo_loaded_outdoor_url || delivery.photo_delivered_outdoor_url ? `<div class="section-title">Photos</div>` : ""}
+    ${delivery.photo_loaded_url || delivery.photo_delivered_url || delivery.photo_loaded_outdoor_url || delivery.photo_delivered_outdoor_url ? `
       <div style="display:flex;gap:12px;margin:10px 0;flex-wrap:wrap;">
-        ${delivery.photo_loaded_url ? `
+        ${delivery.photo_loaded_url || delivery.photo_loaded_outdoor_url ? `
           <div style="flex:1;min-width:120px;">
             <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📦 Loaded</div>
-            <img src="${delivery.photo_loaded_url}"
-              onclick="openPhotoLightbox('${escHtml(delivery.photo_loaded_url)}','Loaded Photo')"
-              style="width:100%;height:160px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dbeafe;"
-              title="Click to view full size">
-            <a href="${delivery.photo_loaded_url}" download target="_blank"
-              style="display:inline-block;margin-top:6px;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;">⬇ Download</a>
+            ${delivery.photo_loaded_url ? `
+              ${isAC ? `<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">Indoor Unit</div>` : ""}
+              <img src="${delivery.photo_loaded_url}"
+                onclick="openPhotoLightbox('${escHtml(delivery.photo_loaded_url)}','Loaded Photo — Indoor')"
+                style="width:100%;height:140px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dbeafe;"
+                title="${isAC ? "Indoor Unit" : "Loaded Photo"} — Click to view full size">
+              <a href="${delivery.photo_loaded_url}" download target="_blank"
+                style="display:inline-block;margin-top:4px;margin-bottom:8px;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;">⬇ Download</a>
+            ` : ""}
+            ${delivery.photo_loaded_outdoor_url ? `
+              ${isAC ? `<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">Outdoor Unit</div>` : ""}
+              <img src="${delivery.photo_loaded_outdoor_url}"
+                onclick="openPhotoLightbox('${escHtml(delivery.photo_loaded_outdoor_url)}','Loaded Photo — Outdoor')"
+                style="width:100%;height:140px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #93c5fd;"
+                title="${isAC ? "Outdoor Unit" : "Loaded Photo (2)"} — Click to view full size">
+              <a href="${delivery.photo_loaded_outdoor_url}" download target="_blank"
+                style="display:inline-block;margin-top:4px;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;">⬇ Download</a>
+            ` : ""}
+            ${delivery.loaded_timestamp ? `
+              <div style="margin-top:8px;font-size:10px;color:#94a3b8;">🕓 Loaded ${fmtActionStamp(delivery.loaded_timestamp)}</div>
+            ` : ""}
           </div>` : ""}
-        ${delivery.photo_delivered_url ? `
+        ${delivery.photo_delivered_url || delivery.photo_delivered_outdoor_url ? `
           <div style="flex:1;min-width:120px;">
             <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">✅ Delivered</div>
-            <img src="${delivery.photo_delivered_url}"
-              onclick="openPhotoLightbox('${escHtml(delivery.photo_delivered_url)}','Delivered Photo')"
-              style="width:100%;height:160px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dcfce7;"
-              title="Click to view full size">
-            <a href="${delivery.photo_delivered_url}" download target="_blank"
-              style="display:inline-block;margin-top:6px;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;">⬇ Download</a>
+            ${delivery.photo_delivered_url ? `
+              ${isAC ? `<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">Indoor Unit</div>` : ""}
+              <img src="${delivery.photo_delivered_url}"
+                onclick="openPhotoLightbox('${escHtml(delivery.photo_delivered_url)}','Delivered Photo — Indoor')"
+                style="width:100%;height:140px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #dcfce7;"
+                title="${isAC ? "Indoor Unit" : "Delivered Photo"} — Click to view full size">
+              <a href="${delivery.photo_delivered_url}" download target="_blank"
+                style="display:inline-block;margin-top:4px;margin-bottom:8px;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;">⬇ Download</a>
+            ` : ""}
+            ${delivery.photo_delivered_outdoor_url ? `
+              ${isAC ? `<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">Outdoor Unit</div>` : ""}
+              <img src="${delivery.photo_delivered_outdoor_url}"
+                onclick="openPhotoLightbox('${escHtml(delivery.photo_delivered_outdoor_url)}','Delivered Photo — Outdoor')"
+                style="width:100%;height:140px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #86efac;"
+                title="${isAC ? "Outdoor Unit" : "Delivered Photo (2)"} — Click to view full size">
+              <a href="${delivery.photo_delivered_outdoor_url}" download target="_blank"
+                style="display:inline-block;margin-top:4px;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;">⬇ Download</a>
+            ` : ""}
+            ${delivery.delivered_timestamp ? `
+              <div style="margin-top:8px;font-size:10px;color:#94a3b8;">🕓 Delivered ${fmtActionStamp(delivery.delivered_timestamp)}</div>
+            ` : ""}
           </div>` : ""}
       </div>` : ""}
 
@@ -4503,7 +4545,18 @@ function openViewPopup(id) {
   }
 
   if (delivery.status === "loaded") {
+    const hasInstr = !!(delivery.driver_instructions && delivery.driver_instructions !== "none");
     content.innerHTML += `
+      <div style="margin-top:16px;padding:14px;background:rgba(173,198,255,0.07);border:1.5px solid rgba(173,198,255,0.25);border-radius:12px;">
+        <div style="font-size:13px;font-weight:700;color:#2563eb;margin-bottom:4px;">📝 Delivery Instruction</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:10px;">Add or update the driver instruction. The DO stays loaded — its photo and serial are left untouched.</div>
+        <input id="loadedInstruction" value="${hasInstr ? escHtml(delivery.driver_instructions) : ""}"
+          placeholder="Enter delivery instruction…" autocomplete="off"
+          style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;font-family:inherit;margin-bottom:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveLoadedInstruction('${escHtml(delivery.id)}')">
+          💾 Save Instruction
+        </button>
+      </div>
       <div style="margin-top:16px;padding:14px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:12px;">
         <div style="font-size:13px;font-weight:700;color:#c2410c;margin-bottom:4px;">↩ Revert to Pending</div>
         <div style="font-size:12px;color:#92400e;margin-bottom:10px;">Clears loaded photo, serial number, and moves delivery back to pending so you can reassign driver and reload.</div>
@@ -4673,6 +4726,24 @@ async function revertLoaded(deliveryId) {
     showToast("Delivery reverted to pending", "success");
     closeViewPopup();
     loadDeliveries();
+  } catch(e) { showToast("Network error", "error"); }
+}
+
+/* Save just the driver instruction on a LOADED DO — no ETA, no driver/serial change,
+   so nothing about the loaded journey is disturbed. */
+async function saveLoadedInstruction(deliveryId) {
+  const el  = document.getElementById("loadedInstruction");
+  const val = (el ? el.value : "").trim();
+  if (!val) { showToast("Enter an instruction first", "warning"); return; }
+  try {
+    const res = await authFetch(`${BASE_URL}/delivery/${deliveryId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driver_instructions: val })
+    });
+    if (!res.ok) { const d = await res.json(); showToast(d.error || "Failed to save instruction", "error"); return; }
+    showToast("Instruction saved", "success");
+    await loadDeliveries();
+    openViewPopup(deliveryId);          /* reopen so the new instruction is visible */
   } catch(e) { showToast("Network error", "error"); }
 }
 

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ledger Picker — Tally</title>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@7/dist/fuse.basic.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #232733; --border: #2a2e3a;
+  --text: #e8eaed; --text2: #9aa0ab; --primary: #5b8def; --primary-hover: #4a7de0;
+  --success: #34a853; --error: #ea4335; --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font); background: var(--bg); color: var(--text);
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 28px; width: 100%; max-width: 520px;
+}
+h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.sub { font-size: 13px; color: var(--text2); margin-bottom: 20px; }
+
+/* ── Status / Loading ── */
+#status {
+  text-align: center; padding: 32px 0;
+}
+.spinner-ring {
+  display: inline-block; width: 32px; height: 32px;
+  border: 3px solid var(--border); border-top-color: var(--primary);
+  border-radius: 50%; animation: spin .7s linear infinite; margin-bottom: 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.status-text { font-size: 14px; color: var(--text2); }
+.status-error { color: var(--error); font-size: 14px; margin-top: 8px; }
+.retry-btn {
+  margin-top: 14px; background: var(--primary); color: #fff; border: none;
+  padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: var(--font);
+}
+.retry-btn:hover { background: var(--primary-hover); }
+.status-done { color: var(--success); font-weight: 600; }
+
+/* ── Combobox ── */
+#comboWrap { display: none; position: relative; }
+#comboInput {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 12px 16px; border-radius: 8px; font-size: 14px;
+  font-family: var(--font); outline: none; transition: .15s;
+}
+#comboInput:focus { border-color: var(--primary); }
+#comboCount { font-size: 12px; color: var(--text2); margin-top: 6px; }
+#comboDropdown {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  max-height: 300px; overflow-y: auto; z-index: 10;
+}
+#comboDropdown.open { display: block; }
+.opt {
+  padding: 10px 14px; font-size: 13px; cursor: pointer; transition: .1s;
+  border-bottom: 1px solid var(--border);
+}
+.opt:last-child { border-bottom: none; }
+.opt:hover, .opt.active { background: var(--primary); color: #fff; }
+.opt-empty { padding: 14px; text-align: center; color: var(--text2); font-size: 13px; }
+.badge { font-size: 11px; color: var(--text2); margin-left: 6px; }
+.action-btn {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: var(--font); transition: .15s;
+}
+.action-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Ledger Picker</h1>
+  <div class="sub">Select a customer ledger from Tally</div>
+
+  <div id="status">
+    <div class="spinner-ring"></div>
+    <div class="status-text">Connecting to Tally...</div>
+  </div>
+
+  <div id="comboWrap">
+    <input id="comboInput" type="text" placeholder="Type to search ledgers..." autocomplete="off" spellcheck="false">
+    <div id="comboCount"></div>
+    <div id="comboDropdown"></div>
+  </div>
+
+  <div id="actionBar" style="display:none; margin-top:16px; gap:8px; flex-wrap:wrap;">
+    <button class="action-btn" id="refreshBtn">⟳ Refresh</button>
+    <button class="action-btn" id="syncBtn">⬆ Sync from Tally Export</button>
+  </div>
+  <div id="syncResult" style="margin-top:8px; font-size:13px;"></div>
+</div>
+
+<script>
+const STATUS = document.getElementById("status");
+const COMBO = document.getElementById("comboWrap");
+const INPUT = document.getElementById("comboInput");
+const DROPDOWN = document.getElementById("comboDropdown");
+const COUNT = document.getElementById("comboCount");
+
+let ledgers = [];
+let fuse = null;
+let activeIdx = -1;
+
+function setStatus(html) { STATUS.innerHTML = html; }
+function showSpinner(msg) {
+  setStatus(`<div class="spinner-ring"></div><div class="status-text">${msg}</div>`);
+}
+function showError(msg) {
+  setStatus(`<div class="status-error">✕ ${msg}</div><button class="retry-btn" onclick="loadLedgers()">Retry</button>`);
+}
+function showDone(msg) {
+  setStatus(`<div class="status-done">✓ ${msg}</div>`);
+}
+
+async function loadLedgers() {
+  showSpinner("Connecting to Tally...");
+  try {
+    let res = await fetch("/api/ledgers?force=1");
+    if (!res.ok) throw new Error("Bridge returned " + res.status);
+    let data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showSpinner("Received " + data.count + " ledgers, building index...");
+    ledgers = data.ledgers || [];
+    if (ledgers.length === 0) {
+      setStatus(`<div class="status-text">No Sundry Debtors found in Tally</div>`);
+      return;
+    }
+    fuse = new Fuse(ledgers, { threshold: 0.45, ignoreLocation: true, includeScore: true });
+    showDone(data.count + " ledgers loaded");
+    STATUS.style.display = "none";
+    COMBO.style.display = "block";
+    const actionBar = document.getElementById("actionBar");
+    actionBar.style.display = "flex";
+    document.getElementById("syncResult").innerHTML = "";
+    COUNT.textContent = ledgers.length + " Sundry Debtors" + (data.cacheAgeMin != null ? " (cached " + data.cacheAgeMin + "m ago)" : "");
+    INPUT.focus();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+function renderOptions(items) {
+  activeIdx = -1;
+  if (!items.length) {
+    DROPDOWN.innerHTML = '<div class="opt-empty">No matching ledgers</div>';
+  } else {
+    DROPDOWN.innerHTML = items.slice(0, 50).map((item, i) => {
+      const name = typeof item === "string" ? item : item.item;
+      const pct = item.score != null ? Math.round((1 - item.score) * 100) : null;
+      return `<div class="opt" data-val="${name}" data-i="${i}">${name}${pct != null ? ' <span class="badge">' + pct + '%</span>' : ''}</div>`;
+    }).join("");
+    DROPDOWN.querySelectorAll(".opt").forEach(el => {
+      el.addEventListener("mousedown", e => {
+        e.preventDefault();
+        select(el.dataset.val);
+      });
+    });
+  }
+  DROPDOWN.classList.add("open");
+}
+
+function select(name) {
+  INPUT.value = name;
+  DROPDOWN.classList.remove("open");
+  INPUT.focus();
+}
+
+function closeDrop() { DROPDOWN.classList.remove("open"); activeIdx = -1; }
+
+INPUT.addEventListener("input", () => {
+  const q = INPUT.value.trim();
+  if (!q || !fuse) {
+    if (!q && ledgers.length) renderOptions(ledgers.slice(0, 50).map(s => ({ item: s, score: 0 })));
+    else closeDrop();
+    return;
+  }
+  renderOptions(fuse.search(q));
+});
+
+INPUT.addEventListener("focus", () => {
+  const q = INPUT.value.trim();
+  if (!q && ledgers.length) renderOptions(ledgers.slice(0, 50).map(s => ({ item: s, score: 0 })));
+  else if (q && fuse) renderOptions(fuse.search(q));
+});
+
+INPUT.addEventListener("keydown", e => {
+  const opts = DROPDOWN.querySelectorAll(".opt");
+  if (!opts.length) return;
+  if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, opts.length - 1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); }
+  else if (e.key === "Enter" && activeIdx >= 0) { e.preventDefault(); select(opts[activeIdx].dataset.val); return; }
+  else if (e.key === "Escape") { closeDrop(); return; }
+  opts.forEach((o, i) => o.classList.toggle("active", i === activeIdx));
+  if (activeIdx >= 0) opts[activeIdx].scrollIntoView({ block: "nearest" });
+});
+
+document.addEventListener("click", e => {
+  if (!document.getElementById("comboWrap").contains(e.target)) closeDrop();
+});
+
+document.getElementById("refreshBtn").addEventListener("click", async () => {
+  document.getElementById("actionBar").style.display = "none";
+  document.getElementById("syncResult").innerHTML = "";
+  COMBO.style.display = "none";
+  STATUS.style.display = "block";
+  await loadLedgers();
+});
+
+document.getElementById("syncBtn").addEventListener("click", async () => {
+  const resultDiv = document.getElementById("syncResult");
+  resultDiv.innerHTML = '<span class="status-text">⏳ Syncing...</span>';
+  try {
+    const res = await fetch("/api/ledgers/tdl-sync");
+    const data = await res.json();
+    if (data.success && data.newCount > 0) {
+      resultDiv.innerHTML = `<span class="status-done">✓ Added ${data.newCount} new ledger${data.newCount !== 1 ? 's' : ''} (total ${data.totalCount})</span>`;
+      ledgers = data.newNames ? [...data.newNames, ...ledgers] : ledgers;
+      fuse = new Fuse(ledgers, { threshold: 0.45, ignoreLocation: true, includeScore: true });
+      COUNT.textContent = ledgers.length + " Sundry Debtors";
+    } else if (data.success) {
+      resultDiv.innerHTML = `<span class="status-text">✓ No new ledgers found</span>`;
+    } else {
+      resultDiv.innerHTML = `<span class="status-error">✕ ${data.error}</span>`;
+    }
+  } catch (e) {
+    resultDiv.innerHTML = `<span class="status-error">✕ ${e.message}</span>`;
+  }
+});
+
+loadLedgers();
+</script>
+</body>
+</html>

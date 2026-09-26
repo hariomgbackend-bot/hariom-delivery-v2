@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1326">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <title>Leads CRM — Hariom Electronics</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+
+  <!-- Shared helpers (escHtml, showToast, authFetch, lead vocabulary) + design tokens -->
+  <script src="/shared.js?v=3"></script>
+  <link rel="stylesheet" href="/design-system.css?v=4">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:                        #0b1326;
+      --surface-container-lowest:  #060e20;
+      --surface-container-low:     #131b2e;
+      --surface-container:         #171f33;
+      --surface-container-high:    #222a3d;
+      --surface-container-highest: #2d3449;
+      --primary:                   #adc6ff;
+      --primary-container:         #4d8eff;
+      --on-primary-container:      #00285d;
+      --tertiary:                  #4edea3;
+      --tertiary-container:        #00a572;
+      --error:                     #ffb4ab;
+      --on-surface:                #dae2fd;
+      --on-surface-variant:        #c2c6d6;
+      --outline:                   #8c909f;
+      --border:                    rgba(255,255,255,0.07);
+      --amber:                     #fbbf24;
+      --font-mono:                 'JetBrains Mono', monospace;
+      --sidebar-w:                 240px;
+      --safe-bottom:               env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--on-surface);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined';
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      font-size: 20px; line-height: 1; vertical-align: middle;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      width: var(--sidebar-w);
+      background: var(--surface-container-lowest);
+      z-index: 100; display: flex; flex-direction: column;
+      padding: 0 0 24px;
+      box-shadow: 48px 0 48px rgba(0,0,0,0.06);
+      transition: transform 0.3s ease;
+    }
+    .sidebar-brand {
+      padding: 28px 24px 24px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid var(--border); margin-bottom: 8px;
+    }
+    .sidebar-logo { width: 32px; height: 32px; border-radius: 8px; object-fit: contain; background: rgba(173,198,255,0.1); flex-shrink: 0; }
+    .sidebar-brand-text { font-size: 16px; font-weight: 900; letter-spacing: -0.3px; color: var(--primary); text-transform: uppercase; line-height: 1; }
+    .sidebar-brand-sub { font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #c084fc; background: rgba(192,132,252,0.1); border: 1px solid rgba(192,132,252,0.2); padding: 2px 6px; border-radius: 4px; margin-top: 2px; display: inline-block; }
+    .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px 12px; overflow-y: auto; }
+    .sidebar-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 14px; border-radius: 12px; cursor: pointer;
+      color: rgba(218,226,253,0.45); font-size: 12px; font-weight: 600;
+      letter-spacing: 0.3px; text-transform: uppercase; text-decoration: none;
+      transition: all 0.2s; border: none; background: none; width: 100%; text-align: left;
+      font-family: 'Inter', sans-serif;
+    }
+    .sidebar-item:hover { color: var(--primary); background: rgba(173,198,255,0.06); }
+    .sidebar-item.active { color: var(--primary); background: rgba(77,142,255,0.12); border-right: 3px solid var(--primary-container); }
+    .sidebar-item .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
+    .sidebar-divider { height: 1px; background: var(--border); margin: 8px 12px; }
+    .sidebar-section-label { font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--outline); padding: 8px 26px 4px; }
+    .sidebar-close {
+      display: none; position: absolute; top: 12px; right: 12px;
+      background: var(--surface-container-high); border: none; border-radius: 8px;
+      width: 36px; height: 36px; color: var(--on-surface-variant);
+      cursor: pointer; align-items: center; justify-content: center; z-index: 1;
+    }
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 99; backdrop-filter: blur(2px);
+    }
+    .sidebar-overlay.visible { display: block; }
+    .hamburger {
+      display: none; background: none; border: none;
+      color: var(--on-surface); cursor: pointer; padding: 8px; border-radius: 8px;
+    }
+    .hamburger:hover { background: var(--surface-container); }
+
+    /* ── MAIN / TOPBAR ── */
+    .main-wrap { margin-left: var(--sidebar-w); display: flex; flex-direction: column; min-height: 100vh; }
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(11,19,38,0.75); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border); height: 64px;
+      display: flex; align-items: center; justify-content: space-between; padding: 0 28px;
+    }
+    .topbar-title { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .content { flex: 1; padding: 24px 28px 60px; }
+
+    .icon-btn {
+      background: var(--surface-container-low); border: 1px solid var(--border);
+      border-radius: 10px; width: 38px; height: 38px; color: var(--on-surface-variant);
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 16px; transition: all 0.15s;
+    }
+    .icon-btn:hover { background: var(--surface-container-high); color: var(--on-surface); }
+
+    /* ── KPI STRIP ── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 18px; }
+    .kpi-card {
+      background: var(--surface-container-low); border: 1px solid var(--border);
+      border-radius: 16px; padding: 14px 16px;
+    }
+    .kpi-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.4px; color: var(--on-surface-variant); }
+    .kpi-value { font-family: var(--font-mono); font-size: 26px; font-weight: 700; letter-spacing: -1px; margin-top: 6px; line-height: 1; }
+    .kpi-sub { font-size: 10px; color: var(--outline); margin-top: 5px; }
+
+    /* ── TOOLBAR ── */
+    .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .crm-search {
+      flex: 1; min-width: 200px; height: 42px; padding: 0 14px;
+      background: var(--surface-container-high); border: none; border-radius: 12px;
+      font-family: 'Inter', sans-serif; font-size: 13px; color: var(--on-surface); outline: none;
+    }
+    .crm-search:focus { box-shadow: 0 0 0 2px var(--primary); }
+    .crm-select {
+      padding: 9px 12px; background: var(--surface-container-high);
+      border: 1px solid var(--border); border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+      color: var(--on-surface); outline: none; cursor: pointer;
+    }
+    .seg { display: flex; background: var(--surface-container-low); border-radius: 11px; padding: 3px; gap: 2px; }
+    .seg-btn {
+      padding: 8px 14px; border: none; border-radius: 9px; cursor: pointer;
+      background: transparent; color: var(--on-surface-variant);
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700;
+      transition: all 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    .seg-btn.active { background: var(--primary-container); color: var(--on-primary-container); }
+
+    /* ── BOARD ── */
+    /* 7 columns at 200px min ≈ 1484px total, so all stages fit from ~1920px
+       (a standard desktop) and the board scrolls horizontally below that. */
+    .kb-board { grid-template-columns: repeat(7, minmax(200px, 1fr)); overflow-x: auto; padding-bottom: 6px; }
+    /* Make the horizontal scroll obvious when the 7 stages don't fit */
+    .kb-board::-webkit-scrollbar { height: 9px; }
+    .kb-board::-webkit-scrollbar-track { background: transparent; }
+    .kb-board::-webkit-scrollbar-thumb { background: rgba(173,198,255,0.18); border-radius: 5px; }
+    .kb-board::-webkit-scrollbar-thumb:hover { background: rgba(173,198,255,0.32); }
+    .kb-card-meta { min-width: 0; overflow-wrap: anywhere; }
+    .kb-card-value { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--tertiary); }
+    .kb-flag {
+      display: inline-block; padding: 1px 6px; border-radius: 6px;
+      font-size: 9px; font-weight: 800; letter-spacing: 0.3px; white-space: nowrap;
+    }
+    .kb-flag-aging  { background: rgba(255,180,171,0.16); color: var(--error); }
+    .kb-flag-stale  { background: rgba(245,158,11,0.16);  color: var(--amber); }
+    .kb-owner { font-size: 10px; color: var(--on-surface-variant); display: inline-flex; align-items: center; gap: 4px; }
+    .kb-note {
+      font-size: 10px; color: var(--amber); margin-top: 6px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .kb-src { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--outline); }
+
+    /* ── LIST ── */
+    .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+
+    /* ── ANALYSIS ── */
+    .an-section { margin-bottom: 24px; }
+    .an-title {
+      font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px;
+      color: var(--on-surface-variant); margin-bottom: 10px;
+    }
+    .an-sub { font-size: 10px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--outline); }
+    .an-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 12px; }
+    .an-row .an-lbl { min-width: 132px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .an-row .an-track { flex: 1; height: 8px; background: var(--surface-container-high); border-radius: 4px; overflow: hidden; min-width: 60px; }
+    .an-row .an-fill { height: 100%; border-radius: 4px; }
+    .an-row .an-val { min-width: 128px; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--on-surface-variant); }
+    .an-card { background: var(--surface-container-low); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px; }
+    .an-empty { padding: 26px; text-align: center; color: var(--outline); font-size: 12px; font-weight: 600; }
+
+    /* ── DRAWER ── */
+    .drawer-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(3px); z-index: 900;
+    }
+    .drawer-overlay.open { display: block; }
+    .drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw;
+      background: var(--surface-container-low); border-left: 1px solid var(--border);
+      z-index: 901; display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.16,1,0.3,1);
+      box-shadow: -24px 0 60px rgba(0,0,0,0.4);
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head {
+      padding: 18px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+    .drawer-body { flex: 1; overflow-y: auto; padding: 18px 20px 26px; }
+    .drawer-foot {
+      padding: 14px 20px calc(14px + var(--safe-bottom)); border-top: 1px solid var(--border);
+      display: flex; gap: 8px; align-items: center; background: var(--surface-container-low);
+    }
+    .field { margin-bottom: 12px; }
+    .field label {
+      display: block; font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.2px; color: var(--on-surface-variant); margin-bottom: 5px;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%; padding: 9px 11px; background: var(--surface-container-high);
+      border: 1px solid var(--border); border-radius: 9px;
+      font-family: 'Inter', sans-serif; font-size: 13px; color: var(--on-surface); outline: none;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { box-shadow: 0 0 0 2px var(--primary); }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .read-row {
+      display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border);
+      font-size: 13px; align-items: flex-start;
+    }
+    .read-row .k {
+      min-width: 96px; flex-shrink: 0; font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--on-surface-variant); padding-top: 3px;
+    }
+    .read-row .v { flex: 1; }
+    .drawer-section {
+      font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
+      color: var(--outline); margin: 20px 0 10px;
+    }
+    .drawer-section:first-child { margin-top: 0; }
+    .btn {
+      padding: 10px 16px; border: none; border-radius: 10px; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--primary-container), var(--primary)); color: var(--on-primary-container); }
+    .btn-ghost { background: var(--surface-container-high); color: var(--on-surface-variant); }
+    .btn-danger { background: rgba(255,180,171,0.12); color: var(--error); }
+    .btn-wa { background: rgba(37,211,102,0.14); color: #25d366; }
+    .earnings-box {
+      background: var(--surface-container); border-radius: 12px; padding: 12px 14px;
+      display: flex; align-items: center; justify-content: space-between; margin-top: 4px;
+    }
+
+    /* ── MOVE / REASON MODAL ── */
+    .modal-wrap {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(3px); z-index: 950; align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-wrap.open { display: flex; }
+    .modal {
+      background: var(--surface-container-low); border: 1px solid var(--border);
+      border-radius: 18px; padding: 20px; width: 100%; max-width: 380px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    }
+    .modal-title { font-size: 15px; font-weight: 800; margin-bottom: 14px; }
+    .modal-opt {
+      display: block; width: 100%; text-align: left; padding: 11px 14px; margin-bottom: 7px;
+      background: var(--surface-container-high); border: none; border-radius: 10px;
+      color: var(--on-surface); font-family: 'Inter', sans-serif; font-size: 13px;
+      font-weight: 600; cursor: pointer; transition: background 0.15s;
+    }
+    .modal-opt:hover { background: var(--surface-container-highest); }
+    .modal-cancel { background: transparent; color: var(--on-surface-variant); }
+
+    .empty-col { text-align: center; padding: 22px 10px; font-size: 11px; color: var(--outline); font-weight: 600; }
+    .last-updated { font-size: 10px; color: var(--outline); font-family: var(--font-mono); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1100px) {
+      .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 768px) {
+      :root { --sidebar-w: 0px; }
+      .sidebar { width: 260px; transform: translateX(-100%); box-shadow: none; }
+      .sidebar.open { transform: translateX(0); box-shadow: 4px 0 32px rgba(0,0,0,0.4); }
+      .sidebar-close { display: flex; }
+      .hamburger { display: flex; }
+      .main-wrap { margin-left: 0; }
+      .content { padding: 14px 14px 60px; }
+      .topbar { padding: 0 14px; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .kb-board { grid-template-columns: repeat(7, 260px); }
+      /* Bottom sheet instead of a side drawer */
+      .drawer {
+        top: auto; left: 0; right: 0; width: 100%; height: 88vh;
+        border-left: none; border-top: 1px solid var(--border);
+        border-radius: 20px 20px 0 0;
+        transform: translateY(100%);
+      }
+      .drawer.open { transform: translateY(0); }
+      .drawer-handle {
+        display: block; width: 38px; height: 4px; border-radius: 2px;
+        background: var(--outline-variant); margin: 8px auto 0;
+      }
+    }
+    .drawer-handle { display: none; }
+
+    /* ── LIGHT MODE ── */
+    [data-theme="light"] {
+      --bg: #f0f4fa; --surface-container-lowest: #e8edf6; --surface-container-low: #f0f4fb;
+      --surface-container: #e4eaf5; --surface-container-high: #d8e0f0; --surface-container-highest: #cdd5e8;
+      --on-surface: #1a2540; --on-surface-variant: #4a5568; --border: rgba(0,0,0,0.07); --outline: #94a3b8;
+      --primary: #2563eb; --primary-container: #1d4ed8; --on-primary-container: white;
+      --tertiary: #059669; --error: #dc2626; --amber: #d97706;
+    }
+    [data-theme="light"] body { background: var(--bg); color: var(--on-surface); }
+    [data-theme="light"] .sidebar { background: #e8edf6; }
+    [data-theme="light"] .sidebar-item { color: rgba(26,37,64,0.45); }
+    [data-theme="light"] .sidebar-item:hover { color: #2563eb; background: rgba(37,99,235,0.06); }
+    [data-theme="light"] .sidebar-item.active { color: #2563eb; background: rgba(37,99,235,0.08); border-color: #2563eb; }
+    [data-theme="light"] .topbar { background: rgba(240,244,250,0.85); }
+    [data-theme="light"] .kpi-card { background: #fff; }
+    [data-theme="light"] .kb-col { background: #fff; }
+    [data-theme="light"] .kb-card { background: #f4f7fc; }
+    [data-theme="light"] .table-wrap { background: #fff; }
+  </style>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ════ SIDEBAR ════ -->
+<aside class="sidebar" id="sidebar">
+  <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">
+    <span class="material-symbols-outlined">close</span>
+  </button>
+  <div class="sidebar-brand">
+    <img src="/icons/icon-72x72.png" class="sidebar-logo" alt="" onerror="this.style.display='none'">
+    <div>
+      <div class="sidebar-brand-text">Hariom</div>
+      <div class="sidebar-brand-sub">Leads CRM</div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="sidebar-section-label">Pipeline</div>
+    <button class="sidebar-item active" onclick="setBoardMode('board')">
+      <span class="material-symbols-outlined">view_kanban</span> Kanban Board
+    </button>
+    <button class="sidebar-item" onclick="setBoardMode('list')">
+      <span class="material-symbols-outlined">list_alt</span> Lead Log
+    </button>
+    <button class="sidebar-item" onclick="setBoardMode('analysis')">
+      <span class="material-symbols-outlined">insights</span> Analysis
+    </button>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Filters</div>
+    <button class="sidebar-item" onclick="quickFilter('aging')">
+      <span class="material-symbols-outlined">schedule</span> Aging 7+ days
+    </button>
+    <button class="sidebar-item" onclick="quickFilter('stuck')">
+      <span class="material-symbols-outlined">payments</span> Deposit 14+ days
+    </button>
+    <button class="sidebar-item" onclick="quickFilter('unassigned')">
+      <span class="material-symbols-outlined">person_off</span> Unassigned
+    </button>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Navigate</div>
+    <a class="sidebar-item" href="staff.html">
+      <span class="material-symbols-outlined">groups</span> Staff Panel
+    </a>
+    <a class="sidebar-item" href="analytics.html">
+      <span class="material-symbols-outlined">insights</span> Analytics
+    </a>
+  </nav>
+</aside>
+
+<!-- ════ MAIN ════ -->
+<div class="main-wrap">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="hamburger" id="hamburgerBtn" aria-label="Open menu">
+        <span class="material-symbols-outlined">menu</span>
+      </button>
+      <div>
+        <div class="topbar-title">Leads CRM</div>
+        <div class="last-updated" id="lastUpdated"></div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="refreshBtn" onclick="loadAll()" title="Refresh">
+        <span class="material-symbols-outlined">refresh</span>
+      </button>
+      <button class="icon-btn" id="darkToggleBtn" onclick="toggleDarkMode()" title="Theme">🌙</button>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- ════ KPI HEADER ════ -->
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <!-- ════ TOOLBAR ════ -->
+    <div class="toolbar">
+      <input class="crm-search" id="crmSearch" placeholder="Search name, phone, product…" autocomplete="search" oninput="onSearch()">
+      <div class="seg">
+        <button class="seg-btn active" id="segBoard" onclick="setBoardMode('board')">Board</button>
+        <button class="seg-btn" id="segList" onclick="setBoardMode('list')">Log</button>
+        <button class="seg-btn" id="segAnalysis" onclick="setBoardMode('analysis')">Analysis</button>
+      </div>
+      <select class="crm-select" id="ownerFilter" onchange="onOwnerFilter(this.value)"></select>
+      <select class="crm-select" id="storeFilter" onchange="onStoreFilter(this.value)" style="display:none;"></select>
+    </div>
+
+    <!-- ════ KANBAN BOARD ════ -->
+    <div id="boardWrap">
+      <div class="kb-board" id="board"></div>
+    </div>
+
+    <!-- ════ LEAD LOG (list) ════ -->
+    <div id="listWrap" style="display:none;">
+      <div class="chip-row" id="listChips"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer</th><th style="width:38px;text-align:center;">St</th><th>Phone</th>
+              <th>Products</th><th style="text-align:right;">Value</th><th>Status</th>
+              <th>Owner</th><th>Age</th><th>By</th><th>Follow-up</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="listBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ════ ANALYSIS ════ -->
+    <div id="analysisWrap" style="display:none;">
+      <div id="anRates"></div>
+      <div id="anStages"></div>
+      <div id="anMoney"></div>
+      <div id="anLoss"></div>
+      <div id="anReps"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════ LEAD DRAWER ════ -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head">
+    <div>
+      <div id="dwTitle" style="font-size:19px;font-weight:900;letter-spacing:-0.3px;">—</div>
+      <div id="dwSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:3px;"></div>
+    </div>
+    <button class="icon-btn" onclick="closeDrawer()" aria-label="Close">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+  </div>
+  <div class="drawer-body" id="dwBody"></div>
+  <div class="drawer-foot" id="dwFoot"></div>
+</aside>
+
+<!-- ════ MOVE / LOSS-REASON MODAL ════ -->
+<div class="modal-wrap" id="modalWrap" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">Move lead</div>
+    <div id="modalOptions"></div>
+    <button class="modal-opt modal-cancel" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ════════════════════════════════════════════════
+   LEADS CRM — Kanban pipeline + lead log
+   Reads/writes the shared `leads` collection.
+   Vocabulary is defined in server.js (LEAD_STATUSES).
+════════════════════════════════════════════════ */
+
+const BASE_URL = window.location.origin;
+
+/* ── Pipeline vocabulary is shared with the staff panel — see shared.js ──
+   LEAD_STAGES / LEAD_LOSS_REASONS / LEAD_SOURCES / leadStageLabel() come from there
+   so the two panels can never disagree about statuses or loss reasons. */
+const LEAD_COLUMNS = LEAD_STAGES;
+const COLUMN_KEYS  = LEAD_STAGES.map(s => s.key);
+const LOSS_REASONS = LEAD_LOSS_REASONS;
+
+const DEFAULT_COMMISSION  = 5;   /* % — used when the salesman has no rate set */
+const AGING_DAYS          = 7;   /* follow-up stages with no touch → red */
+const DEPOSIT_STUCK_DAYS  = 14;  /* deposit taken but unpaid → red */
+const NEW_STALE_DAYS      = 2;   /* a brand-new lead nobody has touched → amber */
+
+/* ════ STATE ════ */
+let LEADS        = [];
+let STAFF        = [];
+let STORES       = [];
+let ME           = {};
+let boardMode    = "board";
+let filterQ      = "";
+let filterOwner  = "all";
+let filterStore  = "all";
+let listStatus   = "all";
+let openLeadId   = null;
+let dragId       = null;
+let moveTargetId = null;
+let modalMode    = null;   /* "move" | "reason" */
+
+/* ════ AUTH ════
+   Admin and accountant both reach this panel; the accountant token wins
+   (mirrors accountant.html). Everything else uses the shared authFetch. */
+function getToken() {
+  return localStorage.getItem("accountantToken") || localStorage.getItem("adminToken");
+}
+
+function decodeJwt() {
+  const t = getToken();
+  if (!t) return null;
+  try {
+    let p = t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (p.length % 4) p += "=";
+    return JSON.parse(atob(p));
+  } catch { return null; }
+}
+
+function isTokenExpired() {
+  const p = decodeJwt();
+  return !p || !p.exp || Date.now() >= p.exp * 1000;
+}
+
+function redirectToLogin() {
+  localStorage.removeItem("accountantToken");
+  localStorage.removeItem("adminToken");
+  window.location.href = "login.html?reason=expired";
+}
+
+window.authGetToken = getToken;
+window.authOnError  = redirectToLogin;
+
+if (!getToken() || isTokenExpired()) redirectToLogin();
+
+ME = decodeJwt() || {};
+const IS_SUPER_ADMIN = !!ME.isSuperAdmin;
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    if (isTokenExpired()) { redirectToLogin(); return; }
+    loadAll();                                   /* pick up changes made elsewhere */
+  }
+});
+
+/* ════ HELPERS ════ */
+function tsMs(t) { return t && t.seconds ? t.seconds * 1000 : 0; }
+
+function fmtMoney(n) {
+  return "₹" + Number(n || 0).toLocaleString("en-IN");
+}
+
+function fmtDate(t) {
+  return tsMs(t) ? new Date(tsMs(t)).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+}
+
+function fmtDateTime(t) {
+  return tsMs(t) ? new Date(tsMs(t)).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+}
+
+/* Timestamp → value for <input type="datetime-local"> / <input type="date"> */
+function tsToInput(t, withTime) {
+  if (!tsMs(t)) return "";
+  const d = new Date(tsMs(t));
+  const p = n => String(n).padStart(2, "0");
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return withTime ? `${date}T${p(d.getHours())}:${p(d.getMinutes())}` : date;
+}
+
+/* Days since the last recorded touch — falls back to creation for old rows */
+function agingDays(l) {
+  const base = tsMs(l.last_touch_at) || tsMs(l.updated_at) || tsMs(l.created_at);
+  if (!base) return null;
+  return Math.floor((Date.now() - base) / 86400000);
+}
+
+/* A lead in an active follow-up stage with no touch for 7+ days */
+function isAging(l) {
+  if (l.status !== "followup" && l.status !== "visit") return false;
+  const d = agingDays(l);
+  return d !== null && d >= AGING_DAYS;
+}
+
+/* Deposit taken but not settled for 14+ days */
+function isDepositStuck(l) {
+  if (l.status !== "deposit") return false;
+  const d = agingDays(l);
+  return d !== null && d >= DEPOSIT_STUCK_DAYS;
+}
+
+/* A brand-new lead nobody has touched — the never-worked backlog.
+   Flagged amber rather than red so it doesn't drown the board like the old
+   expires_at badge did (most of the migrated leads land here). */
+function isStaleNew(l) {
+  if (l.status !== "new") return false;
+  const d = agingDays(l);
+  return d !== null && d >= NEW_STALE_DAYS;
+}
+
+/* Value of the deal — revised price wins over the original quote */
+function dealValue(l) {
+  const v = (l.products || []).reduce((s, p) => s + (parseFloat(p.quoted_price) || 0), 0);
+  return l.deal_value || l.admin_quoted_price || v || l.quoted_price || 0;
+}
+
+/* Auto-calculated: (revenue − refunds) × commission % */
+function earnings(l) {
+  const rev = (parseFloat(l.deal_value) || parseFloat(l.admin_quoted_price) || dealValue(l)) - (parseFloat(l.refund_amount) || 0);
+  return Math.round(rev * (parseFloat(l.commission_pct) || 0)) / 100;
+}
+
+function productSummary(l) {
+  const ps = l.products || [];
+  if (ps.length > 1) return `${escHtml(ps[0].product_name)} <span style="color:var(--primary);font-weight:700;">+${ps.length - 1}</span>`;
+  return escHtml(ps[0]?.product_name || l.product_interest || "—");
+}
+
+/* Effective board column — a status that isn't one of the 7 stages (legacy rows
+   awaiting migration) is shown as "New" so no lead ever falls outside the pipeline */
+function stageOf(l) {
+  return COLUMN_KEYS.includes(l.status) ? l.status : "new";
+}
+
+function sourceLabel(key) {
+  return LEAD_SOURCES.find(s => s.key === key)?.label || "";
+}
+
+/* ── Who owns a lead ──
+   The salesman who captured it owns it, and admin can reassign it later.
+   `assigned_to` is the reassignment override; `created_by` is the capturer. */
+function ownerId(l) {
+  return l.assigned_to || l.created_by || "";
+}
+
+function ownerName(l) {
+  const explicit = l.assigned_to_name || l.created_by_name;
+  if (explicit) return explicit;
+  const id = ownerId(l);                                  /* older rows may lack the denormalised name */
+  return STAFF.find(s => s.id === id)?.name || id || "";
+}
+
+function ownerLabel(l) {
+  return ownerName(l);
+}
+
+/* ════ LOAD ════ */
+async function loadAll() {
+  const btn = document.getElementById("refreshBtn");
+  if (btn) btn.style.opacity = "0.5";
+  try {
+    const storeQ = filterStore !== "all" ? `?store=${encodeURIComponent(filterStore)}` : "";
+    const [leadsRes, staffRes, storesRes] = await Promise.all([
+      authFetch(`${BASE_URL}/leads${storeQ}`),
+      fetch(`${BASE_URL}/staff-list-public`),
+      fetch(`${BASE_URL}/api/stores`),
+    ]);
+    LEADS  = await leadsRes.json();
+    STAFF  = staffRes.ok ? await staffRes.json() : [];
+    STORES = storesRes.ok ? await storesRes.json() : [];
+    if (!Array.isArray(LEADS)) LEADS = [];
+
+    buildOwnerFilter();
+    buildStoreFilter();
+    renderAll();
+    document.getElementById("lastUpdated").textContent = "Updated " + new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  } catch (e) {
+    console.error("loadAll:", e);
+    showToast("Could not load leads.", "error");
+  } finally {
+    if (btn) btn.style.opacity = "";
+  }
+}
+
+function buildOwnerFilter() {
+  const sel = document.getElementById("ownerFilter");
+  if (!sel) return;
+  sel.innerHTML =
+    `<option value="all">👤 All owners</option>` +
+    `<option value="unassigned">👤 Unassigned</option>` +
+    STAFF.map(s => `<option value="${escHtml(s.id)}">👤 ${escHtml(s.name || "Staff")}</option>`).join("");
+  sel.value = filterOwner;
+}
+
+function buildStoreFilter() {
+  const sel = document.getElementById("storeFilter");
+  if (!sel) return;
+  if (!IS_SUPER_ADMIN) { sel.style.display = "none"; return; }   /* accountants are server-scoped */
+  sel.style.display = "";
+  sel.innerHTML =
+    `<option value="all">🏪 All stores</option>` +
+    STORES.map(s => `<option value="${escHtml(s.id)}">🏪 ${escHtml(s.name || s.id)}</option>`).join("");
+  sel.value = filterStore;
+}
+
+/* ════ FILTERING ════ */
+function matchesFilters(l, ignoreStatus) {
+  const oid = ownerId(l);
+  if (filterOwner === "unassigned") { if (oid) return false; }
+  else if (filterOwner !== "all" && oid !== filterOwner) return false;
+
+  if (!ignoreStatus && listStatus !== "all") {
+    if (listStatus === "aging")      { if (!isAging(l)) return false; }
+    else if (listStatus === "stuck") { if (!isDepositStuck(l)) return false; }
+    else if (listStatus === "stale") { if (!isStaleNew(l)) return false; }
+    else if (l.status !== listStatus) return false;
+  }
+
+  if (filterQ) {
+    const hay = [
+      l.customer_name, l.phone, l.alternate_phone, l.product_interest,
+      l.assigned_to_name, l.created_by_name,
+      ...(l.products || []).map(p => p.product_name),
+    ].join(" ").toLowerCase();
+    if (!hay.includes(filterQ)) return false;
+  }
+  return true;
+}
+
+function onSearch() {
+  filterQ = (document.getElementById("crmSearch").value || "").trim().toLowerCase();
+  renderAll();
+}
+
+function onOwnerFilter(v) { filterOwner = v; renderAll(); }
+
+function onStoreFilter(v) { filterStore = v; loadAll(); }
+
+function quickFilter(kind) {
+  if (kind === "unassigned") {
+    filterOwner = "unassigned";
+    document.getElementById("ownerFilter").value = "unassigned";
+    setBoardMode("list");
+    listStatus = "all";
+  } else {
+    filterOwner = "all";
+    document.getElementById("ownerFilter").value = "all";
+    setBoardMode("list");
+    listStatus = kind;
+  }
+  renderListChips();
+  renderAll();
+  closeSidebar();
+}
+
+function setBoardMode(mode) {
+  boardMode = mode;
+  document.getElementById("boardWrap").style.display    = mode === "board"    ? "" : "none";
+  document.getElementById("listWrap").style.display     = mode === "list"     ? "" : "none";
+  document.getElementById("analysisWrap").style.display = mode === "analysis" ? "" : "none";
+  ["board", "list", "analysis"].forEach(m => {
+    const btn = document.getElementById("seg" + m.charAt(0).toUpperCase() + m.slice(1));
+    if (btn) btn.classList.toggle("active", m === mode);
+  });
+  document.querySelectorAll(".sidebar-item").forEach(el => el.classList.remove("active"));
+  renderAll();
+}
+
+/* ════ RENDER ════ */
+function renderAll() {
+  renderKpis();
+  if (boardMode === "list")          { renderListChips(); renderList(); }
+  else if (boardMode === "analysis") { renderAnalysis(); }
+  else                               { renderBoard(); }
+}
+
+/* Shared stat-card markup — used by the KPI strip and the analysis view */
+function kpiCard(label, value, sub, color) {
+  return `
+    <div class="kpi-card">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-value" style="color:${color || "var(--on-surface)"};">${value}</div>
+      <div class="kpi-sub">${sub || ""}</div>
+    </div>`;
+}
+
+function kpiGrid(cards) {
+  return `<div class="kpi-grid">${cards.join("")}</div>`;
+}
+
+/* ── KPI header ── */
+function renderKpis() {
+  const grid = document.getElementById("kpiGrid");
+  if (!grid) return;
+
+  const visible = LEADS.filter(l => matchesFilters(l, true));
+  const total   = visible.length;
+  const open    = visible.filter(l => l.status !== "won" && l.status !== "lost").length;
+  const won     = visible.filter(l => l.status === "won").length;
+  const conv    = total ? (won / total * 100) : 0;
+
+  /* The leak signals that matter operationally */
+  const aging        = visible.filter(isAging).length;
+  const depositStuck = visible.filter(isDepositStuck).length;
+  const staleNew     = visible.filter(isStaleNew).length;
+  const needsAttention = aging + depositStuck + staleNew;
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const monthValue = visible
+    .filter(l => l.status === "won" && tsMs(l.created_at) >= monthStart)
+    .reduce((s, l) => s + dealValue(l), 0);
+
+  grid.innerHTML = kpiGrid([
+    kpiCard("Total Leads", total, "in current filter"),
+    kpiCard("In Pipeline", open, "not won or lost", "var(--primary)"),
+    kpiCard("Won", won, "closed sales", "var(--tertiary)"),
+    kpiCard("Conversion", conv.toFixed(1) + "%", "won ÷ total"),
+    kpiCard("Needs Attention", needsAttention, `${aging} aging · ${depositStuck} deposit · ${staleNew} new`, needsAttention ? "var(--error)" : "var(--on-surface)"),
+    kpiCard("Untouched New", staleNew, `no touch ${NEW_STALE_DAYS}+ days`, staleNew ? "var(--amber)" : "var(--on-surface)"),
+    kpiCard("Won This Month", fmtMoney(monthValue), "deal value", "var(--tertiary)"),
+  ]);
+}
+
+/* ── Kanban board ── */
+function renderBoard() {
+  const board = document.getElementById("board");
+  if (!board) return;
+  const visible = LEADS.filter(l => matchesFilters(l, true));
+
+  board.innerHTML = LEAD_COLUMNS.map(col => {
+    /* Anything with an unrecognised status is shown in "New" — never invisible */
+    const cards = visible.filter(l => stageOf(l) === col.key);
+    const total = cards.reduce((s, l) => s + dealValue(l), 0);
+
+    return `
+      <div class="kb-col" data-status="${col.key}">
+        <div class="kb-col-head" style="--kb-accent:${col.accent};">
+          <span class="kb-col-title">${col.label}</span>
+          <span class="badge badge-${col.key}">${cards.length}</span>
+          <span class="kb-col-sum">${total ? fmtMoney(total) : ""}</span>
+        </div>
+        <div class="kb-col-body">
+          ${cards.length ? cards.map(renderCard).join("") : `<div class="empty-col">No leads</div>`}
+        </div>
+      </div>`;
+  }).join("");
+
+  wireDragAndDrop();
+}
+
+function renderCard(l) {
+  /* Red = work already in flight going cold; amber = the never-worked backlog */
+  const flags = [];
+  if (isAging(l))        flags.push(`<span class="kb-flag kb-flag-aging">⏰ ${agingDays(l)}d no touch</span>`);
+  if (isDepositStuck(l)) flags.push(`<span class="kb-flag kb-flag-aging">💸 deposit ${agingDays(l)}d</span>`);
+  if (isStaleNew(l))     flags.push(`<span class="kb-flag kb-flag-stale">🕓 ${agingDays(l)}d untouched</span>`);
+  const owner = ownerLabel(l);
+  const note  = l.followup_note ? `<div class="kb-note">💬 ${escHtml(l.followup_note)}</div>` : "";
+
+  return `
+    <div class="kb-card" draggable="true" data-id="${escHtml(l.id)}" onclick="openDrawer('${escHtml(l.id)}')">
+      <div class="kb-card-name">${escHtml(l.customer_name || "—")} ${mkStoreBadge(l.storeId, 18)}</div>
+      <div class="kb-card-meta">
+        ${escHtml(l.phone || "—")} · ${productSummary(l)}
+      </div>
+      ${flags.length ? `<div class="kb-card-meta" style="margin-top:6px;">${flags.join(" ")}</div>` : ""}
+      <div class="kb-card-row">
+        <span class="kb-card-value">${fmtMoney(dealValue(l))}</span>
+        <div class="kb-card-acts">
+          <button class="kb-act" title="Call" onclick="event.stopPropagation();callLead('${escHtml(l.id)}')">📞</button>
+          <button class="kb-act" title="WhatsApp" onclick="event.stopPropagation();waLead('${escHtml(l.id)}')">💬</button>
+          <button class="kb-act" title="Move to…" onclick="event.stopPropagation();openMoveModal('${escHtml(l.id)}')">⋮</button>
+        </div>
+      </div>
+      ${owner ? `<div class="kb-card-meta" style="margin-top:6px;"><span class="kb-owner">👤 ${escHtml(owner)}</span></div>` : ""}
+      ${note}
+    </div>`;
+}
+
+/* ── Lead log ── */
+function renderListChips() {
+  const row = document.getElementById("listChips");
+  if (!row) return;
+  const opts = [
+    { key: "all", label: "All" },
+    ...LEAD_STAGES.map(s => ({ key: s.key, label: s.label })),
+    { key: "stale", label: "🕓 New 2+ days" },
+    { key: "aging", label: "⏰ Aging" },
+    { key: "stuck", label: "💸 Deposit 14+" },
+  ];
+  row.innerHTML = opts.map(o =>
+    `<button class="filter-btn${listStatus === o.key ? " active" : ""}" onclick="setListStatus('${o.key}')">${o.label}</button>`
+  ).join("");
+}
+
+function setListStatus(k) { listStatus = k; renderListChips(); renderAll(); }
+
+function renderList() {
+  const tbody = document.getElementById("listBody");
+  if (!tbody) return;
+  const rows = LEADS.filter(l => matchesFilters(l, false));
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No leads found</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(l => {
+    const age   = agingDays(l);
+    const flags = [];
+    if (isAging(l))        flags.push(`<span class="kb-flag kb-flag-aging">⏰ ${age}d no touch</span>`);
+    if (isDepositStuck(l)) flags.push(`<span class="kb-flag kb-flag-aging">💸 deposit ${age}d</span>`);
+    if (isStaleNew(l))     flags.push(`<span class="kb-flag kb-flag-stale">🕓 ${age}d untouched</span>`);
+
+    return `<tr class="clickable" onclick="openDrawer('${escHtml(l.id)}')">
+      <td style="font-weight:700;">${escHtml(l.customer_name || "—")}</td>
+      <td style="text-align:center;">${mkStoreBadge(l.storeId, 22)}</td>
+      <td style="font-size:12px;">${escHtml(l.phone || "—")}</td>
+      <td style="font-size:12px;">${productSummary(l)}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-weight:700;">${fmtMoney(dealValue(l))}</td>
+      <td><span class="badge badge-${stageOf(l)}">${leadStageLabel(l.status)}</span></td>
+      <td style="font-size:12px;">${escHtml(ownerLabel(l) || "—")}</td>
+      <td style="font-size:11px;">${flags.length ? flags.join(" ") : (age !== null ? age + "d" : "—")}</td>
+      <td style="font-size:11px;color:var(--on-surface-variant);">${escHtml(l.created_by_name || "—")}</td>
+      <td style="font-size:11px;color:var(--amber);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(l.followup_note || "—")}</td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap;">
+        <button class="kb-act" title="Call" onclick="callLead('${escHtml(l.id)}')">📞</button>
+        <button class="kb-act" title="WhatsApp" onclick="waLead('${escHtml(l.id)}')">💬</button>
+        <button class="kb-act" title="Move to…" onclick="openMoveModal('${escHtml(l.id)}')">⋮</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+/* ════ ANALYSIS ════
+   Everything on this tab is derived from the lead cards — nothing is entered
+   twice. It respects the current owner / store / search / status filters, so
+   "filter to VISHAL then open Analysis" gives that salesman's numbers. */
+
+/* Minutes from capture to first contact — "speed to lead" */
+function speedToLeadMins(l) {
+  const c = tsMs(l.created_at), f = tsMs(l.first_contact_at);
+  if (!c || !f || f < c) return null;
+  return Math.round((f - c) / 60000);
+}
+
+/* Days from capture to payment in full */
+function daysToPay(l) {
+  const c = tsMs(l.created_at), p = tsMs(l.paid_in_full_at);
+  if (!c || !p || p < c) return null;
+  return Math.round((p - c) / 86400000);
+}
+
+/* Quoted = a quote was given, or the lead has moved past New */
+function isQuoted(l) {
+  return l.quote_given === true || (!!l.status && l.status !== "new");
+}
+
+function isOpen(l) {
+  return l.status !== "won" && l.status !== "lost";
+}
+
+function avg(nums) {
+  const v = nums.filter(n => n !== null && n !== undefined);
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+}
+
+const numOf = v => parseFloat(v) || 0;
+
+/* A labelled bar row — used for stage distribution and loss reasons */
+function anBarRow(label, value, max, display, color) {
+  const pct = max > 0 ? Math.max(2, Math.round(value / max * 100)) : 0;
+  return `<div class="an-row">
+    <span class="an-lbl">${label}</span>
+    <span class="an-track"><span class="an-fill" style="width:${pct}%;background:${color};"></span></span>
+    <span class="an-val">${display}</span>
+  </div>`;
+}
+
+function renderAnalysis() {
+  const rows = LEADS.filter(l => matchesFilters(l, false));
+
+  if (!rows.length) {
+    document.getElementById("anRates").innerHTML = `<div class="an-card an-empty">No leads match the current filters.</div>`;
+    ["anStages", "anMoney", "anLoss", "anReps"].forEach(id => { document.getElementById(id).innerHTML = ""; });
+    return;
+  }
+
+  const total    = rows.length;
+  const won      = rows.filter(l => l.status === "won");
+  const lost     = rows.filter(l => l.status === "lost");
+  const quoted   = rows.filter(isQuoted);
+  const wonValue = won.reduce((s, l) => s + dealValue(l), 0);
+
+  /* ── Conversion ── */
+  const quoteRate     = quoted.length ? (quoted.length / total * 100) : 0;
+  const closeRate     = total ? (won.length / total * 100) : 0;
+  const closeOnQuotes = quoted.length ? (won.length / quoted.length * 100) : 0;
+  const avgDeal       = won.length ? wonValue / won.length : null;
+
+  const s2lRows  = rows.map(speedToLeadMins).filter(n => n !== null);
+  const s2l      = avg(s2lRows);
+  const oneCall  = won.filter(l => l.sale_type === "one_call").length;
+  const followUp = won.filter(l => l.sale_type === "followup").length;
+
+  document.getElementById("anRates").innerHTML = `
+    <div class="an-section">
+      <div class="an-title">Conversion <span class="an-sub">· ${total} leads in scope</span></div>
+      ${kpiGrid([
+        kpiCard("Quote Rate", quoteRate.toFixed(1) + "%", `${quoted.length} of ${total} quoted`, "var(--primary)"),
+        kpiCard("Close Rate", closeRate.toFixed(1) + "%", `${won.length} won of ${total}`, "var(--tertiary)"),
+        kpiCard("Close on Quotes", closeOnQuotes.toFixed(1) + "%", `${won.length} won of ${quoted.length} quoted`),
+        kpiCard("Avg Deal Size", avgDeal === null ? "—" : fmtMoney(Math.round(avgDeal)), `${won.length} won deals`),
+        kpiCard("Speed to Lead", s2l === null ? "—" : Math.round(s2l) + " min", `${s2lRows.length} of ${total} recorded`, "var(--amber)"),
+        kpiCard("1-Call vs Follow-Up", `${oneCall} / ${followUp}`, `${oneCall + followUp} of ${won.length} won typed`),
+      ])}
+    </div>`;
+
+  /* ── Stage distribution ── */
+  const maxStage = Math.max(...LEAD_COLUMNS.map(c => rows.filter(l => stageOf(l) === c.key).length), 1);
+  document.getElementById("anStages").innerHTML = `
+    <div class="an-section">
+      <div class="an-title">Pipeline Distribution</div>
+      <div class="an-card">
+        ${LEAD_COLUMNS.map(c => {
+          const inStage = rows.filter(l => stageOf(l) === c.key);
+          const val = inStage.reduce((s, l) => s + dealValue(l), 0);
+          return anBarRow(escHtml(c.label), inStage.length, maxStage,
+            `${inStage.length} · ${val ? fmtMoney(val) : "—"}`, c.accent);
+        }).join("")}
+      </div>
+    </div>`;
+
+  /* ── Money ── */
+  const cash        = rows.reduce((s, l) => s + numOf(l.cash_collected), 0);
+  const deposits    = rows.reduce((s, l) => s + numOf(l.deposit_amount), 0);
+  const refunds     = rows.reduce((s, l) => s + numOf(l.refund_amount), 0);
+  const commission  = won.reduce((s, l) => s + earnings(l), 0);
+  const outstanding = Math.max(0, wonValue - cash);
+  const netRevenue  = wonValue - refunds;
+
+  const withDeposit = won.filter(l => numOf(l.deposit_amount) > 0);
+  const paidFull    = withDeposit.filter(l => tsMs(l.paid_in_full_at)).length;
+  const depConv     = withDeposit.length ? (paidFull / withDeposit.length * 100) : null;
+  const collectRows = won.map(daysToPay).filter(n => n !== null);
+  const avgCollect  = avg(collectRows);
+
+  document.getElementById("anMoney").innerHTML = `
+    <div class="an-section">
+      <div class="an-title">Money <span class="an-sub">· all values in ₹</span></div>
+      ${kpiGrid([
+        kpiCard("Won Value", fmtMoney(wonValue), `${won.length} deals`, "var(--tertiary)"),
+        kpiCard("Cash Collected", fmtMoney(cash), "recorded receipts"),
+        kpiCard("Outstanding", fmtMoney(outstanding), "won value − cash", outstanding ? "var(--error)" : "var(--on-surface)"),
+        kpiCard("Deposits Taken", fmtMoney(deposits), "booking amounts"),
+        kpiCard("Refunds / Clawbacks", fmtMoney(refunds), `${rows.filter(l => numOf(l.refund_amount) > 0).length} deals`, refunds ? "var(--error)" : "var(--on-surface)"),
+        kpiCard("Net Revenue", fmtMoney(netRevenue), "won value − refunds", "var(--tertiary)"),
+        kpiCard("Commission", fmtMoney(Math.round(commission)), "on won deals", "var(--amber)"),
+        kpiCard("Deposit → Paid in Full", depConv === null ? "—" : depConv.toFixed(0) + "%", `${paidFull} of ${withDeposit.length} deposit deals`),
+        kpiCard("Avg Days to Collect", avgCollect === null ? "—" : Math.round(avgCollect) + " d", `${collectRows.length} payments dated`),
+      ])}
+    </div>`;
+
+  /* ── Loss reasons ── */
+  const maxLoss = Math.max(...LOSS_REASONS.map(r => lost.filter(l => l.loss_reason === r.key).length), 1);
+  document.getElementById("anLoss").innerHTML = `
+    <div class="an-section">
+      <div class="an-title">Loss Reasons <span class="an-sub">· ${lost.length} lost</span></div>
+      <div class="an-card">
+        ${lost.length ? LOSS_REASONS.map(r => {
+          const n = lost.filter(l => l.loss_reason === r.key).length;
+          const val = lost.filter(l => l.loss_reason === r.key).reduce((s, l) => s + dealValue(l), 0);
+          return anBarRow(r.label, n, maxLoss, `${n} · ${val ? fmtMoney(val) : "—"}`, "var(--error)");
+        }).join("") : `<div class="an-empty">No lost leads in scope.</div>`}
+      </div>
+    </div>`;
+
+  /* ── Per-salesman ── */
+  const groups = new Map();
+  rows.forEach(l => {
+    const id = ownerId(l) || "__none__";
+    if (!groups.has(id)) groups.set(id, { name: ownerName(l) || "Unassigned", rows: [] });
+    groups.get(id).rows.push(l);
+  });
+
+  const reps = [...groups.values()].map(g => {
+    const gWon  = g.rows.filter(l => l.status === "won");
+    const gLost = g.rows.filter(l => l.status === "lost");
+    const gS2l  = avg(g.rows.map(speedToLeadMins));
+    return {
+      name:   g.name,
+      total:  g.rows.length,
+      open:   g.rows.filter(isOpen).length,
+      pipeVal: g.rows.filter(isOpen).reduce((s, l) => s + dealValue(l), 0),
+      won:    gWon.length,
+      wonVal: gWon.reduce((s, l) => s + dealValue(l), 0),
+      lost:   gLost.length,
+      conv:   g.rows.length ? (gWon.length / g.rows.length * 100) : 0,
+      aging:  g.rows.filter(isAging).length,
+      s2l:    gS2l,
+      comm:   gWon.reduce((s, l) => s + earnings(l), 0),
+    };
+  }).sort((a, b) => b.total - a.total);
+
+  const tot = reps.reduce((a, r) => ({
+    total: a.total + r.total, open: a.open + r.open, pipeVal: a.pipeVal + r.pipeVal,
+    won: a.won + r.won, wonVal: a.wonVal + r.wonVal, lost: a.lost + r.lost,
+    aging: a.aging + r.aging, comm: a.comm + r.comm,
+  }), { total: 0, open: 0, pipeVal: 0, won: 0, wonVal: 0, lost: 0, aging: 0, comm: 0 });
+
+  const th = t => `<th>${t}</th>`;
+  document.getElementById("anReps").innerHTML = `
+    <div class="an-section">
+      <div class="an-title">Per Salesman <span class="an-sub">· leads they captured, plus any reassigned to them</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            ${th("Salesman")}${th("Leads")}${th("Open")}${th("Pipeline Value")}
+            ${th("Won")}${th("Won Value")}${th("Lost")}${th("Conv %")}
+            ${th("Aging 7+")}${th("Avg Speed")}${th("Commission")}
+          </tr></thead>
+          <tbody>
+            ${reps.map(r => `<tr>
+              <td style="font-weight:700;">${escHtml(r.name)}</td>
+              <td>${r.total}</td>
+              <td>${r.open}</td>
+              <td style="font-family:var(--font-mono);">${fmtMoney(r.pipeVal)}</td>
+              <td style="color:var(--tertiary);font-weight:700;">${r.won}</td>
+              <td style="font-family:var(--font-mono);">${fmtMoney(r.wonVal)}</td>
+              <td>${r.lost}</td>
+              <td>${r.conv.toFixed(0)}%</td>
+              <td style="color:${r.aging ? "var(--error)" : "inherit"};font-weight:${r.aging ? 700 : 400};">${r.aging || "—"}</td>
+              <td>${r.s2l === null ? "—" : Math.round(r.s2l) + " min"}</td>
+              <td style="font-family:var(--font-mono);color:var(--amber);">${fmtMoney(Math.round(r.comm))}</td>
+            </tr>`).join("")}
+            <tr style="background:var(--surface-container-high);font-weight:800;">
+              <td>Total</td>
+              <td>${tot.total}</td>
+              <td>${tot.open}</td>
+              <td style="font-family:var(--font-mono);">${fmtMoney(tot.pipeVal)}</td>
+              <td style="color:var(--tertiary);">${tot.won}</td>
+              <td style="font-family:var(--font-mono);">${fmtMoney(tot.wonVal)}</td>
+              <td>${tot.lost}</td>
+              <td>${tot.total ? (tot.won / tot.total * 100).toFixed(0) : 0}%</td>
+              <td style="color:${tot.aging ? "var(--error)" : "inherit"};">${tot.aging || "—"}</td>
+              <td>—</td>
+              <td style="font-family:var(--font-mono);color:var(--amber);">${fmtMoney(Math.round(tot.comm))}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+/* ════ DRAG & DROP ════
+   Native HTML5 DnD (desktop). iOS Safari has no HTML5 DnD, so every card also
+   carries a ⋮ "Move to…" action — the board is fully usable without dragging. */
+function wireDragAndDrop() {
+  document.querySelectorAll(".kb-card").forEach(card => {
+    card.addEventListener("dragstart", e => {
+      dragId = card.dataset.id;
+      card.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", dragId); } catch {}
+    });
+    card.addEventListener("dragend", () => {
+      card.classList.remove("dragging");
+      document.querySelectorAll(".kb-col").forEach(c => c.classList.remove("drag-over"));
+    });
+  });
+
+  document.querySelectorAll(".kb-col").forEach(col => {
+    col.addEventListener("dragover", e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      col.classList.add("drag-over");
+    });
+    col.addEventListener("dragleave", e => {
+      if (!col.contains(e.relatedTarget)) col.classList.remove("drag-over");
+    });
+    col.addEventListener("drop", e => {
+      e.preventDefault();
+      col.classList.remove("drag-over");
+      const id = dragId || (() => { try { return e.dataTransfer.getData("text/plain"); } catch { return null; } })();
+      dragId = null;
+      if (!id) return;
+      const lead = LEADS.find(l => l.id === id);
+      if (!lead || lead.status === col.dataset.status) return;
+      moveLead(id, col.dataset.status);
+    });
+  });
+}
+
+/* ════ MOVE ════ */
+/* Optimistic: the card moves immediately, then rolls back if the server rejects. */
+async function moveLead(id, toStatus, extra) {
+  const lead = LEADS.find(l => l.id === id);
+  if (!lead) return;
+
+  /* Moving to Lost requires a reason — ask before we touch anything */
+  if (toStatus === "lost" && !lead.loss_reason && !(extra && extra.loss_reason)) {
+    openReasonModal(id);
+    return;
+  }
+
+  const prev = { status: lead.status, last_touch_at: lead.last_touch_at };
+  lead.status = toStatus;
+  lead.last_touch_at = { seconds: Math.floor(Date.now() / 1000) };   /* a move counts as a touch */
+  if (extra) Object.assign(lead, extra);
+  renderAll();
+
+  try {
+    const res = await authFetch(`${BASE_URL}/leads/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: toStatus, last_touch_at: new Date().toISOString(), ...(extra || {}) }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || "Move failed");
+    }
+    showToast(`Moved to ${leadStageLabel(toStatus)}`, "success");
+  } catch (e) {
+    lead.status = prev.status;                     /* roll back */
+    lead.last_touch_at = prev.last_touch_at;
+    renderAll();
+    showToast(e.message || "Could not move lead.", "error");
+  }
+}
+
+function openMoveModal(id) {
+  moveTargetId = id;
+  modalMode = "move";
+  const lead = LEADS.find(l => l.id === id);
+  document.getElementById("modalTitle").textContent = `Move "${lead?.customer_name || "lead"}" to…`;
+  document.getElementById("modalOptions").innerHTML = LEAD_COLUMNS
+    .filter(c => c.key !== lead?.status)
+    .map(c => `<button class="modal-opt" onclick="chooseMove('${c.key}')">${c.label}</button>`).join("");
+  document.getElementById("modalWrap").classList.add("open");
+}
+
+function chooseMove(status) {
+  closeModal();
+  if (moveTargetId) moveLead(moveTargetId, status);
+}
+
+function openReasonModal(id) {
+  moveTargetId = id;
+  modalMode = "reason";
+  document.getElementById("modalTitle").textContent = "Why was this lead lost?";
+  document.getElementById("modalOptions").innerHTML = LOSS_REASONS
+    .map(r => `<button class="modal-opt" onclick="chooseReason('${r.key}')">${r.label}</button>`).join("");
+  document.getElementById("modalWrap").classList.add("open");
+}
+
+function chooseReason(reason) {
+  closeModal();
+  if (moveTargetId) moveLead(moveTargetId, "lost", { loss_reason: reason });
+}
+
+function closeModal() {
+  document.getElementById("modalWrap").classList.remove("open");
+  modalMode = null;
+}
+
+/* ════ QUICK ACTIONS ════ */
+function callLead(id) {
+  const l = LEADS.find(x => x.id === id);
+  if (l?.phone) window.location.href = `tel:${l.phone}`;
+}
+
+function waLead(id) {
+  const l = LEADS.find(x => x.id === id);
+  if (!l?.phone) return;
+  const items = (l.products || []).map(p => p.product_name).filter(Boolean).join(", ") || l.product_interest || "";
+  const msg = `Hello ${l.customer_name || ""}, this is Hariom Electronics regarding your enquiry${items ? ` for ${items}` : ""}.`;
+  window.open(`https://wa.me/91${l.phone}?text=${encodeURIComponent(msg.trim())}`, "_blank");
+}
+
+/* ════ DETAIL DRAWER ════ */
+function openDrawer(id) {
+  const l = LEADS.find(x => x.id === id);
+  if (!l) return;
+  openLeadId = id;
+
+  document.getElementById("dwTitle").textContent = l.customer_name || "—";
+  document.getElementById("dwSub").innerHTML =
+    `${escHtml(l.phone || "")} ${mkStoreBadge(l.storeId, 16)} · <span class="badge badge-${stageOf(l)}">${leadStageLabel(l.status)}</span>`;
+
+  const dr = (k, v) => `<div class="read-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+
+  const products = (l.products || []);
+  const prodHtml = products.length
+    ? products.map(p => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>${escHtml(p.product_name)}</span><span style="font-weight:700;">${fmtMoney(p.quoted_price)}</span></div>`).join("")
+    : escHtml(l.product_interest || "—");
+
+  /* Owner options — the capturer may not be a staff record (an admin/accountant
+     lead stores a role name in created_by), so keep them selectable. */
+  const ownerNow = ownerId(l);
+  const ownerOpts = [`<option value="">— No owner —</option>`]
+    .concat(STAFF.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name || "Staff")}</option>`))
+    .concat(ownerNow && !STAFF.some(s => s.id === ownerNow)
+      ? [`<option value="${escHtml(ownerNow)}">${escHtml(ownerName(l) || ownerNow)}</option>`]
+      : [])
+    .join("");
+
+  const lostOpts = [`<option value="">— Select a reason —</option>`]
+    .concat(LOSS_REASONS.map(r => `<option value="${r.key}" ${l.loss_reason === r.key ? "selected" : ""}>${r.label}</option>`)).join("");
+
+  document.getElementById("dwBody").innerHTML = `
+    <div class="drawer-section">Contact</div>
+    ${dr("Phone", `<a href="tel:${escHtml(l.phone || "")}" style="color:var(--primary);font-weight:700;text-decoration:none;">${escHtml(l.phone || "—")}</a>${l.alternate_phone ? " / " + escHtml(l.alternate_phone) : ""}`)}
+    ${dr("Products", `<div>${prodHtml}</div>`)}
+    ${l.address ? dr("Address", escHtml(l.address)) : ""}
+    ${l.remarks ? dr("Remarks", escHtml(l.remarks)) : ""}
+    ${dr("Added by", `${escHtml(l.created_by_name || "—")} · ${fmtDate(l.created_at)}`)}
+
+    <div class="drawer-section">Pipeline</div>
+    <div class="field">
+      <label>Status</label>
+      <select id="dwStatus" onchange="onDrawerStatusChange()">
+        ${LEAD_COLUMNS.map(c => `<option value="${c.key}" ${l.status === c.key ? "selected" : ""}>${c.label}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field" id="dwLossWrap" style="display:${l.status === "lost" ? "" : "none"};">
+      <label>Loss reason <span style="color:var(--error);">*</span></label>
+      <select id="dwLossReason">${lostOpts}</select>
+    </div>
+    <div class="field">
+      <label>Owner <span style="text-transform:none;letter-spacing:0;color:var(--outline);">— reassigning overrides the capturer</span></label>
+      <select id="dwOwner" onchange="onDrawerOwnerChange()">${ownerOpts}</select>
+    </div>
+    <div class="field">
+      <label>Follow-up note</label>
+      <input id="dwNote" value="${escHtml(l.followup_note || "")}" placeholder="What happened / next step…">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Source</label>
+        <select id="dwSource">
+          <option value="">—</option>
+          ${LEAD_SOURCES.map(s => `<option value="${s.key}" ${l.source === s.key ? "selected" : ""}>${s.label}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field">
+        <label>Quote given</label>
+        <select id="dwQuoteGiven">
+          <option value="false" ${!l.quote_given ? "selected" : ""}>No</option>
+          <option value="true"  ${l.quote_given ? "selected" : ""}>Yes</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Sale type</label>
+      <select id="dwSaleType">
+        <option value=""         ${!l.sale_type ? "selected" : ""}>—</option>
+        <option value="one_call" ${l.sale_type === "one_call" ? "selected" : ""}>1-Call Sale</option>
+        <option value="followup" ${l.sale_type === "followup" ? "selected" : ""}>Follow-Up Sale</option>
+      </select>
+    </div>
+
+    <div class="drawer-section">Dates</div>
+    <div class="field-row">
+      <div class="field">
+        <label>First contact</label>
+        <input type="datetime-local" id="dwFirstContact" value="${tsToInput(l.first_contact_at, true)}">
+      </div>
+      <div class="field">
+        <label>Last touch</label>
+        <input type="datetime-local" id="dwLastTouch" value="${tsToInput(l.last_touch_at, true)}">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Visit date</label>
+        <input type="date" id="dwVisit" value="${tsToInput(l.visit_at, false)}">
+      </div>
+      <div class="field">
+        <label>Paid in full</label>
+        <input type="date" id="dwPaidInFull" value="${tsToInput(l.paid_in_full_at, false)}">
+      </div>
+    </div>
+
+    <div class="drawer-section">Money</div>
+    <div class="field-row">
+      <div class="field">
+        <label>Deal value (₹)</label>
+        <input type="number" id="dwDealValue" value="${l.deal_value ?? ""}" placeholder="0" oninput="recalcEarnings()">
+      </div>
+      <div class="field">
+        <label>Revised quote (₹)</label>
+        <input type="number" id="dwRevPrice" value="${l.admin_quoted_price ?? ""}" placeholder="0" oninput="recalcEarnings()">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Deposit (₹)</label>
+        <input type="number" id="dwDeposit" value="${l.deposit_amount ?? ""}" placeholder="0">
+      </div>
+      <div class="field">
+        <label>Cash collected (₹)</label>
+        <input type="number" id="dwCash" value="${l.cash_collected ?? ""}" placeholder="0">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Refund / clawback (₹)</label>
+        <input type="number" id="dwRefund" value="${l.refund_amount ?? ""}" placeholder="0" oninput="recalcEarnings()">
+      </div>
+      <div class="field">
+        <label>Commission %</label>
+        <input type="number" id="dwCommission" value="${l.commission_pct ?? ""}" placeholder="${DEFAULT_COMMISSION}" oninput="recalcEarnings()">
+      </div>
+    </div>
+    <div class="earnings-box">
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);">Earnings</span>
+      <span id="dwEarnings" style="font-family:var(--font-mono);font-size:18px;font-weight:800;color:var(--tertiary);">${fmtMoney(earnings(l))}</span>
+    </div>
+  `;
+
+  document.getElementById("dwOwner").value = ownerNow;
+
+  /* Show the rep's commission rate rather than a blank box that would save as 0 */
+  if (!l.commission_pct) {
+    const commEl = document.getElementById("dwCommission");
+    const rep = STAFF.find(s => s.id === ownerNow) || STAFF.find(s => s.id === l.created_by);
+    if (commEl) commEl.value = rep?.commission_pct || DEFAULT_COMMISSION;
+    recalcEarnings();
+  }
+
+  document.getElementById("dwFoot").innerHTML = `
+    <button class="btn btn-wa" onclick="waLead('${escHtml(l.id)}')">💬 WhatsApp</button>
+    <button class="btn btn-ghost" onclick="callLead('${escHtml(l.id)}')">📞 Call</button>
+    <div style="flex:1;"></div>
+    ${IS_SUPER_ADMIN ? `<button class="btn btn-danger" onclick="deleteLead('${escHtml(l.id)}')">Delete</button>` : ""}
+    <button class="btn btn-primary" id="dwSaveBtn" onclick="saveDrawer()">Save</button>
+  `;
+
+  document.getElementById("drawerOverlay").classList.add("open");
+  document.getElementById("drawer").classList.add("open");
+}
+
+function closeDrawer() {
+  document.getElementById("drawerOverlay").classList.remove("open");
+  document.getElementById("drawer").classList.remove("open");
+  openLeadId = null;
+}
+
+/* Loss reason only matters when the lead is actually lost */
+function onDrawerStatusChange() {
+  const st = document.getElementById("dwStatus").value;
+  document.getElementById("dwLossWrap").style.display = st === "lost" ? "" : "none";
+}
+
+/* Reassigning adopts the new owner's commission rate (still editable by hand) */
+function onDrawerOwnerChange() {
+  const sel = document.getElementById("dwOwner");
+  const commEl = document.getElementById("dwCommission");
+  if (!sel || !commEl) return;
+  const rep = STAFF.find(s => s.id === sel.value);
+  commEl.value = rep?.commission_pct || DEFAULT_COMMISSION;
+  recalcEarnings();
+}
+
+function recalcEarnings() {
+  const num = id => parseFloat(document.getElementById(id)?.value) || 0;
+  const rev = (num("dwDealValue") || num("dwRevPrice")) - num("dwRefund");
+  const pct = num("dwCommission");
+  document.getElementById("dwEarnings").textContent = fmtMoney(Math.round(rev * pct) / 100);
+}
+
+async function saveDrawer() {
+  const l = LEADS.find(x => x.id === openLeadId);
+  if (!l) return;
+  const btn = document.getElementById("dwSaveBtn");
+  const val = id => document.getElementById(id)?.value ?? "";
+  const numOrNull = id => { const v = val(id); return v === "" ? 0 : (parseFloat(v) || 0); };
+
+  const status = val("dwStatus");
+  const lossReason = val("dwLossReason");
+
+  if (status === "lost" && !lossReason) {
+    showToast("Pick a loss reason first.", "error");
+    return;
+  }
+
+  const ownerSel = document.getElementById("dwOwner");
+  const ownerText = ownerSel.options[ownerSel.selectedIndex]?.text || "";
+
+  const payload = {
+    status,
+    loss_reason: status === "lost" ? lossReason : "",
+    source: val("dwSource"),
+    quote_given: val("dwQuoteGiven") === "true",
+    sale_type: val("dwSaleType"),
+    followup_note: val("dwNote"),
+    assigned_to: ownerSel.value || "",
+    assigned_to_name: ownerSel.value ? ownerText : "",
+    deal_value: numOrNull("dwDealValue"),
+    admin_quoted_price: val("dwRevPrice") === "" ? null : numOrNull("dwRevPrice"),
+    deposit_amount: numOrNull("dwDeposit"),
+    cash_collected: numOrNull("dwCash"),
+    refund_amount: numOrNull("dwRefund"),
+    commission_pct: numOrNull("dwCommission"),
+    first_contact_at: val("dwFirstContact") || null,
+    last_touch_at:    val("dwLastTouch")   || null,
+    visit_at:         val("dwVisit")       || null,
+    paid_in_full_at:  val("dwPaidInFull")  || null,
+  };
+
+  btn.textContent = "Saving…";
+  btn.disabled = true;
+  try {
+    const res = await authFetch(`${BASE_URL}/leads/${openLeadId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || "Save failed");
+    }
+    showToast("Lead updated", "success");
+    closeDrawer();
+    await loadAll();
+  } catch (e) {
+    showToast(e.message || "Could not save.", "error");
+  } finally {
+    btn.textContent = "Save";
+    btn.disabled = false;
+  }
+}
+
+async function deleteLead(id) {
+  const l = LEADS.find(x => x.id === id);
+  if (!confirm(`Delete the lead for "${l?.customer_name || l?.phone || "this customer"}"?\n\nThis cannot be undone.`)) return;
+  try {
+    const res = await authFetch(`${BASE_URL}/leads/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || "Delete failed");
+    }
+    closeDrawer();
+    showToast("Lead deleted", "success");
+    await loadAll();
+  } catch (e) {
+    showToast(e.message || "Could not delete.", "error");
+  }
+}
+
+/* ════ THEME / SIDEBAR ════ */
+function toggleDarkMode() {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
+  localStorage.setItem("hariom_theme", isDark ? "light" : "dark");
+  document.getElementById("darkToggleBtn").textContent = isDark ? "🌙" : "☀️";
+}
+
+function openSidebar() {
+  document.getElementById("sidebar").classList.add("open");
+  document.getElementById("sidebarOverlay").classList.add("visible");
+}
+function closeSidebar() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarOverlay").classList.remove("visible");
+}
+
+document.getElementById("hamburgerBtn").addEventListener("click", openSidebar);
+document.getElementById("sidebarClose").addEventListener("click", closeSidebar);
+document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeModal(); closeDrawer(); closeSidebar(); }
+});
+
+/* ════ INIT ════ */
+(function init() {
+  const saved = localStorage.getItem("hariom_theme");
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+  document.getElementById("darkToggleBtn").textContent =
+    document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
+  buildOwnerFilter();
+  loadAll();
+})();
+</script>
+</body>
+</html>

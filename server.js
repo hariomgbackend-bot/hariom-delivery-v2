@@ -1869,6 +1869,9 @@ app.post("/admin/login", adminLoginLimiter, async (req, res) => {
     if (!staffSnap.empty) {
       const staffData = staffSnap.docs[0].data();
       if (staffData.active === false) return res.status(403).json({ error: "Account deactivated" });
+      // Verify the password before issuing anything — an email match alone is not auth
+      const match = await bcrypt.compare(password, staffData.passwordHash || "");
+      if (!match) return res.status(401).json({ error: "Invalid credentials" });
       const token = jwt.sign(
         { role: "admin", isSuperAdmin: true, email: email.toLowerCase().trim() },
         JWT_SECRET,
@@ -1983,6 +1986,10 @@ app.post("/accountant/login", adminLoginLimiter, async (req, res) => {
       const staffDoc = staffSnap.docs[0];
       const staffData = staffDoc.data();
       if (staffData.active === false) return res.status(403).json({ error: "Account deactivated" });
+      // Verify the password before issuing anything — an email match alone is not auth.
+      // purchase-ingestion.html logs in through this endpoint, so it must stay working.
+      const match = await bcrypt.compare(password, staffData.passwordHash || "");
+      if (!match) return res.status(401).json({ error: "Invalid credentials" });
       const storeName = staffData.storeId ? await resolveStoreName(staffData.storeId) : null;
       const token = jwt.sign(
         {
@@ -3010,17 +3017,22 @@ app.put("/delivery/:id", authenticate, async (req, res) => {
     if (req.body[field] !== undefined) update[field] = req.body[field];
   }
   if (req.body.estimated_delivery_time) {
-    // Admins may set past ETA for metadata corrections; accountant edits keep the restriction
     const isAdmin = req.user.role === "admin";
-    if (!isAdmin && new Date(req.body.estimated_delivery_time) < new Date()) {
-      return res.status(400).json({ error: "ETA cannot be in the past" });
+    let eta = req.body.estimated_delivery_time;
+    // Admins may set a past ETA for metadata corrections. For everyone else a past
+    // ETA must not dead-end the save (the edit form always re-submits the DO's
+    // existing ETA, so an old DO could never be saved) — push it to now + 30 min,
+    // which keeps the original intent of never scheduling into the past.
+    // "On-Demand" is not a date and passes straight through.
+    if (!isAdmin && !isNaN(new Date(eta)) && new Date(eta) < new Date()) {
+      eta = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     }
-    update.estimated_delivery_time = req.body.estimated_delivery_time;
+    update.estimated_delivery_time = eta;
     // Only pending/booked deliveries are re-derived from the ETA. Once a DO
     // is loaded/delivered/failed its status reflects the real journey — an
     // admin fixing the ETA must not regress it back to booked/pending.
     if (delivery.status === "pending" || delivery.status === "booked") {
-      update.status = statusForETA(req.body.estimated_delivery_time);
+      update.status = statusForETA(eta);
     }
   }
   if (Object.keys(update).length === 0) return res.status(400).json({ error: "No valid fields to update" });
@@ -5090,7 +5102,7 @@ app.get("/staff-list-public", async (req, res) => {
     if (Date.now() < cache.expiry) return res.json(cache.data);
     const snap = await getDocs(collection(db, "staff_users"));
     const data = snap.docs
-      .map(d => ({ id: d.id, name: d.data().name, role: d.data().role, weekly_off: d.data().weekly_off || "", color: d.data().color || "" }))
+      .map(d => ({ id: d.id, name: d.data().name, role: d.data().role, weekly_off: d.data().weekly_off || "", color: d.data().color || "", commission_pct: d.data().commission_pct ?? 0 }))
       .filter(s => s.role === "staff");
     trackReads("staff-list-public", snap.docs.length);
     cache.data = data; cache.expiry = Date.now() + cache.ttl;
@@ -5329,20 +5341,56 @@ app.delete("/staff/:id", authenticate, authorize(["admin"]), async (req, res) =>
    PUT    /leads/:id          — staff (own) / admin / accountant
    DELETE /leads/:id          — admin only
 ════════════════════════════════════════════════ */
+
+/* ── Lead pipeline vocabulary — single source of truth for every panel ──
+   Kanban column order is the array order (leads.html + staff.html both use it). */
+const LEAD_STATUSES = ["new", "quoted", "deposit", "followup", "visit", "won", "lost"];
+
+/* ── Loss reasons — required once a lead is marked lost ── */
+const LEAD_LOSS_REASONS = ["price", "timing", "competitor", "ghosted", "not_qualified"];
+
+/* ── Convert a client-supplied date (ISO string / ms / Date) into a Firestore
+      Timestamp, or null when empty/invalid. Used by the CRM card date fields. ── */
+function toLeadTs(v) {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
+}
+
+/* ── Money/percent fields arrive as strings from number inputs ── */
+function toLeadNum(v) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 app.get("/leads", authenticate, authorize(["admin", "accountant", "staff", "service"]), async (req, res) => {
   try {
     const leadsConstraints = [];
     addStoreFilter(leadsConstraints, req.user, undefined, req);
-    if (req.user.role === "staff" && req.user.staff_id) {
-      leadsConstraints.push(where("created_by", "==", req.user.staff_id));
-    }
-    const q = leadsConstraints.length > 0 ? query(collection(db, "leads"), ...leadsConstraints) : collection(db, "leads");
-    const snap  = await getDocs(q);
-    let leads   = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    trackReads("leads", snap.docs.length);
 
-    // Sort: open/followup first, then by created_at desc
-    const statusOrder = { open: 0, followup: 1, sale: 2, lost: 3 };
+    let leads;
+    if (req.user.role === "staff" && req.user.staff_id) {
+      /* A salesman sees the leads he currently OWNS — `assigned_to` is the
+         reassignment override, `created_by` is whoever captured it. Two equality
+         queries merged, because the owner is "one field or the other". */
+      const me = req.user.staff_id;
+      const [reassigned, captured] = await Promise.all([
+        getDocs(query(collection(db, "leads"), ...leadsConstraints, where("assigned_to", "==", me))),
+        getDocs(query(collection(db, "leads"), ...leadsConstraints, where("created_by", "==", me))),
+      ]);
+      const byId = new Map();
+      [...reassigned.docs, ...captured.docs].forEach(d => byId.set(d.id, { id: d.id, ...d.data() }));
+      trackReads("leads", byId.size);
+      leads = [...byId.values()].filter(l => (l.assigned_to || l.created_by) === me);
+    } else {
+      const q = leadsConstraints.length > 0 ? query(collection(db, "leads"), ...leadsConstraints) : collection(db, "leads");
+      const snap = await getDocs(q);
+      leads = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      trackReads("leads", snap.docs.length);
+    }
+
+    // Sort: active pipeline first, closed last, then by created_at desc
+    const statusOrder = { new: 0, quoted: 1, deposit: 2, followup: 3, visit: 4, won: 5, lost: 6 };
     leads.sort((a, b) => {
       const sd = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
       if (sd !== 0) return sd;
@@ -5361,9 +5409,21 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
       customer_name, phone, alternate_phone,
       product_interest, quoted_price, remarks, status,
       address,
-      products   // new: array of { product_name, quoted_price }
+      products,   // new: array of { product_name, quoted_price }
+      // ── CRM card fields (leads.html) ──
+      source, first_contact_at, last_touch_at, visit_at,
+      quote_given, sale_type, loss_reason,
+      deposit_amount, deal_value, cash_collected,
+      paid_in_full_at, refund_amount, commission_pct,
+      assigned_to, assigned_to_name
     } = req.body;
     if (!phone || phone.length !== 10 || !/^\d+$/.test(phone)) return res.status(400).json({ error: "Valid 10-digit phone required" });
+
+    // Pipeline status — anything unrecognised lands in "new"
+    const leadStatus = LEAD_STATUSES.includes(status) ? status : "new";
+    if (leadStatus === "lost" && !loss_reason) {
+      return res.status(400).json({ error: "Loss reason required when status is Lost" });
+    }
 
     // Support both legacy single-product and new multi-product format
     const productsArray = Array.isArray(products) && products.length > 0
@@ -5377,8 +5437,10 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
 
     if (!productsArray.length) return res.status(400).json({ error: "At least one product required" });
 
-    const now     = Timestamp.now();
-    const expires = Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    // A product with a price on it means a quote was given
+    const salesArrayHasPrice = productsArray.some(p => p.quoted_price > 0);
+
+    const now = Timestamp.now();
 
     const docRef = await addDoc(collection(db, "leads"), {
       storeId:          req.user.storeId || "",
@@ -5392,19 +5454,36 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
       // New multi-product array
       products:         productsArray,
       remarks:          remarks         || "",
-      status:           status          || "open",
+      status:           leadStatus,
       created_by:       req.user.staff_id || req.user.role,
       created_by_name:  req.user.name    || req.user.role,
       created_by_role:  req.user.role,
       created_at:       now,
-      expires_at:       expires,
       followup_note:    "",
       admin_quoted_price: null,
-      converted_delivery_id: null
+      converted_delivery_id: null,
+      // ── CRM card fields (leads.html) ──
+      source:           source        || "",
+      /* Quoting a price IS giving a quote — derive it so nobody has to tick a box.
+         Explicit on edit (PUT), so the CRM drawer still has the final say. */
+      quote_given:      !!quote_given || salesArrayHasPrice,
+      sale_type:        sale_type     || "",
+      loss_reason:      leadStatus === "lost" ? (loss_reason || "") : "",
+      deposit_amount:   toLeadNum(deposit_amount),
+      deal_value:       toLeadNum(deal_value),
+      cash_collected:   toLeadNum(cash_collected),
+      refund_amount:    toLeadNum(refund_amount),
+      commission_pct:   toLeadNum(commission_pct),
+      first_contact_at: toLeadTs(first_contact_at),
+      last_touch_at:    toLeadTs(last_touch_at),
+      visit_at:         toLeadTs(visit_at),
+      paid_in_full_at:  toLeadTs(paid_in_full_at),
+      assigned_to:      assigned_to      || "",
+      assigned_to_name: assigned_to_name || ""
     });
 
-    // Push notification to accountant if status is "sale"
-    if (status === "sale") {
+    // Push notification to accountant once a deal is won
+    if (leadStatus === "won") {
       (async () => {
         try {
           const raiser = req.user.name || req.user.role;
@@ -5416,7 +5495,18 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
       })();
     }
 
-    res.json({ success: true, id: docRef.id });
+    /* Soft duplicate check — the same number is often captured twice. Non-blocking:
+       a salesman may legitimately log a second enquiry for the same customer. */
+    let existingLeads = [];
+    try {
+      const dupSnap = await getDocs(query(collection(db, "leads"), where("phone", "==", phone)));
+      existingLeads = dupSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(l => l.id !== docRef.id)
+        .map(l => ({ id: l.id, status: l.status, customer_name: l.customer_name || "", created_at: l.created_at || null }));
+    } catch (e) { console.warn("[lead duplicate check]", e.message); }
+
+    res.json({ success: true, id: docRef.id, existingLeads });
   } catch (err) {
     console.error("/leads POST error:", err.message);
     res.status(500).json({ error: err.message });
@@ -5437,22 +5527,56 @@ app.put("/leads/:id", authenticate, authorize(["admin", "accountant", "staff"]),
     const allowed = [
       "customer_name", "phone", "alternate_phone", "address",
       "product_interest", "quoted_price", "products", "remarks", "status",
-      "followup_note", "admin_quoted_price", "converted_delivery_id"
+      "followup_note", "admin_quoted_price", "converted_delivery_id",
+      "assigned_to", "assigned_to_name",
+      // ── CRM card fields (leads.html) ──
+      "source", "quote_given", "sale_type", "loss_reason",
+      "deposit_amount", "deal_value", "cash_collected", "refund_amount", "commission_pct",
+      "first_contact_at", "last_touch_at", "visit_at", "paid_in_full_at"
     ];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
 
-    // Only admin/accountant can set admin_quoted_price and followup_note
+    // Date fields arrive as ISO strings from the drawer — normalise to Timestamps
+    ["first_contact_at", "last_touch_at", "visit_at", "paid_in_full_at"].forEach(k => {
+      if (updates[k] !== undefined) updates[k] = toLeadTs(updates[k]);
+    });
+
+    // Status must be one of the 7 pipeline stages; clearing "lost" clears its reason
+    if (updates.status !== undefined) {
+      if (!LEAD_STATUSES.includes(updates.status)) {
+        return res.status(400).json({ error: `Invalid status: ${updates.status}` });
+      }
+      if (updates.status !== "lost") updates.loss_reason = "";
+    }
+
+    // Loss reason is mandatory on the resulting state, not just on the payload
+    const nextStatus = updates.status ?? snap.data().status;
+    const nextLoss   = updates.loss_reason !== undefined ? updates.loss_reason : snap.data().loss_reason;
+    if (nextStatus === "lost" && !nextLoss) {
+      return res.status(400).json({ error: "Loss reason required when status is Lost" });
+    }
+
+    // Closing the deal — money, commission and ownership belong to admin/accountant
     if (req.user.role === "staff") {
       delete updates.admin_quoted_price;
       delete updates.followup_note;
+      delete updates.assigned_to;
+      delete updates.assigned_to_name;
+      delete updates.deposit_amount;
+      delete updates.deal_value;
+      delete updates.cash_collected;
+      delete updates.paid_in_full_at;
+      delete updates.refund_amount;
+      delete updates.commission_pct;
+      delete updates.sale_type;
     }
 
     const prevStatus = snap.data().status;
     await updateDoc(refDoc, { ...updates, updated_at: Timestamp.now() });
 
-    // Push notification to accountant if status changed to "sale"
-    if (req.body.status === "sale" && prevStatus !== "sale") {
+    // Push notification to accountant if the deal was just marked won
+    if (updates.status === "won" && prevStatus !== "won") {
       (async () => {
         try {
           const raiser = req.user.name || req.user.role;
@@ -6232,27 +6356,13 @@ app.delete("/brands/:id", authenticate, authorize(["admin"]), async (req, res) =
 
 /* ════════════════════════════════════════════════
    STORES / BRANCHES
-   GET /api/stores — list all stores
+   GET  /api/stores — list all stores (defined earlier, public — panels call it
+                      before login, so do NOT declare a second GET here)
    POST /api/stores — add a store
    PUT /api/stores/:id — update a store
    DELETE /api/stores/:id — delete a store
    POST /api/stores/seed — seed default stores (admin only)
 ════════════════════════════════════════════════ */
-app.get("/api/stores", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
-  console.log("[AUTH STORES] hit at line 5259");
-  try {
-    const cache = getRefCache("stores");
-    if (Date.now() < cache.expiry) return res.json(cache.data);
-    const snap = await getDocs(collection(db, "stores"));
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    trackReads("stores", snap.docs.length);
-    cache.data = data; cache.expiry = Date.now() + cache.ttl;
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.post("/api/stores", authenticate, authorize(["admin"]), async (req, res) => {
   try {
     const { key, name, address, phone, altPhone, lat, lng, radiusM } = req.body;

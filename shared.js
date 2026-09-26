@@ -151,6 +151,14 @@ function emptyStateSVG(type) {
   return m[type] || m.box;
 }
 
+/* ── Is this product an air conditioner? (split/window ACs are photographed as
+      indoor + outdoor units; other products get a single unlabelled photo) ── */
+function isACProductName(name) {
+  if (!name) return false;
+  const p = String(name).toUpperCase();
+  return /\bAC\b|\bAIR\s*CONDITIONER\b|SPLIT\s+AC|WINDOW\s+AC|INVERTER\s+AC/i.test(p);
+}
+
 /* ── Unified auth fetch ── */
 async function authFetch(url, options = {}) {
   const token = typeof window.authGetToken === "function" ? window.authGetToken() : null;
@@ -178,4 +186,55 @@ async function authFetch(url, options = {}) {
     throw new Error("401");
   }
   return res;
+}
+
+/* ════════════════════════════════════════════════
+   LEAD PIPELINE VOCABULARY — single browser-side source
+
+   Every panel renders leads from these, so the status set and the loss reasons
+   can never drift apart again (a duplicated copy is what let the staff panel
+   send a status the server would reject).
+
+   server.js holds the matching LEAD_STATUSES / LEAD_LOSS_REASONS — keep the two
+   in step when a stage is added.
+════════════════════════════════════════════════ */
+
+/* Stage order here is the Kanban column order. `accent` colours the column. */
+const LEAD_STAGES = [
+  { key: "new",      label: "New",             accent: "var(--primary)"  },
+  { key: "quoted",   label: "Quoted",          accent: "#818cf8"         },
+  { key: "deposit",  label: "Deposit",         accent: "#38bdf8"         },
+  { key: "followup", label: "Follow-Up",       accent: "var(--amber)"    },
+  { key: "visit",    label: "Visit Follow-Up", accent: "#c084fc"         },
+  { key: "won",      label: "Won",             accent: "var(--tertiary)" },
+  { key: "lost",     label: "Lost",            accent: "var(--error)"    },
+];
+
+/* Required when a lead is marked lost */
+const LEAD_LOSS_REASONS = [
+  { key: "price",         label: "Price"         },
+  { key: "timing",        label: "Timing"        },
+  { key: "competitor",    label: "Competitor"    },
+  { key: "ghosted",       label: "Ghosted"       },
+  { key: "not_qualified", label: "Not Qualified" },
+];
+
+/* How the customer came in */
+const LEAD_SOURCES = [
+  { key: "walk_in",  label: "Walk-in"  },
+  { key: "phone",    label: "Phone"    },
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "referral", label: "Referral" },
+  { key: "repeat",   label: "Repeat"   },
+  { key: "other",    label: "Other"    },
+];
+
+/* Raw status key → display label ("followup" reads badly on a badge) */
+function leadStageLabel(key) {
+  return (LEAD_STAGES.find(s => s.key === key) || {}).label || key || "";
+}
+
+/* Raw status key → full { key, label, accent } record */
+function leadStageMeta(key) {
+  return LEAD_STAGES.find(s => s.key === key) || { key, label: key, accent: "var(--outline)" };
 }

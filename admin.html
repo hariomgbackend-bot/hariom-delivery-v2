@@ -15,10 +15,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
-  <script src="/shared.js?v=2"></script>
+  <script src="/shared.js?v=3"></script>
 
   <link rel="stylesheet" href="/design-system.css?v=2">
   <style>
@@ -1259,25 +1258,6 @@
     [data-theme="light"] .dark-toggle { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
     [data-theme="light"] #payoutChips > div { background: #f8fafc !important; }
 
-    /* ── INCENTIVE CALCULATOR ── */
-    .inc-calc-input { width: 100%; padding: 10px 14px; background: var(--surface-container-high); border: none; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 13px; color: var(--on-surface); outline: none; -webkit-appearance: none; }
-    .inc-collapse-card { background: var(--surface-container-low); border: 1px solid var(--outline-variant); border-radius: 16px; margin-bottom: 12px; overflow: hidden; }
-    .inc-collapse-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; cursor: pointer; user-select: none; }
-    .inc-collapse-header:active { background: var(--surface-container); }
-    .inc-collapse-title { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; color: var(--on-surface); }
-    .inc-collapse-chevron { font-size: 18px; color: var(--on-surface-variant); transition: transform 0.2s ease; }
-    .inc-collapse-body { padding: 0 16px 16px; }
-    .inc-collapse-body.hidden { display: none; }
-    .inc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .inc-table th { padding: 10px 12px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--on-surface-variant); background: var(--surface-container-high); border-bottom: 1px solid var(--outline-variant); cursor: pointer; white-space: nowrap; }
-    .inc-table th:hover { color: var(--on-surface); }
-    .inc-table th.sorted { color: var(--primary); }
-    .inc-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
-    .inc-table tr:last-child td { border-bottom: none; }
-    .inc-table tr:hover td { background: var(--surface-container-low); }
-    .inc-table .num { text-align: right; font-weight: 600; }
-    .inc-search { width: 100%; padding: 10px 14px; background: var(--surface-container-high); border: none; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 13px; color: var(--on-surface); outline: none; }
-
     /* ── PRICE GUIDE ── */
     .pg-save-bar { position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface-container);border-radius:14px;margin-bottom:12px;border:1px solid var(--outline-variant); }
     .pg-save-bar .count { font-size:12px;font-weight:700;color:var(--amber);flex:1; }
@@ -1595,16 +1575,6 @@
       Staff Permissions
     </button>
 
-    <button class="sidebar-item" id="nav-leads-admin" onclick="showView('leads-admin')">
-      <span class="material-symbols-outlined">contacts</span>
-      Leads/Sales
-    </button>
-
-    <button class="sidebar-item" id="nav-incentive" onclick="showView('incentive')">
-      <span class="material-symbols-outlined">workspace_premium</span>
-      Incentive
-    </button>
-
     <button class="sidebar-item" id="nav-product-normalizer" onclick="showView('product-normalizer')">
       <span class="material-symbols-outlined">merge</span>
       Product Cleanup
@@ -1616,11 +1586,6 @@
     <a class="sidebar-item" href="analytics.html">
       <span class="material-symbols-outlined">insights</span>
       Analytics
-    </a>
-
-    <a class="sidebar-item" id="nav-sales-analytics" onclick="showView('sales-analytics')">
-      <span class="material-symbols-outlined">trending_up</span>
-      Sales Analytics
     </a>
 
     <a class="sidebar-item" href="service_analytics.html" onclick="goToServiceAnalytics(event)">
@@ -2326,176 +2291,6 @@
       </div>
     </section>
 
-    <!-- ════ VIEW: LEADS (ADMIN) ════ -->
-    <section id="view-leads-admin" style="display:none;">
-      <div class="section-heading">
-        <div>
-          <div class="section-title-lg">Leads Pipeline</div>
-          <div class="section-subtitle">All leads from staff — update quotes and follow-up notes</div>
-        </div>
-      </div>
-
-      <!-- Modern search + filter row -->
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
-        <div class="search-wrap icon-search" style="flex:1;min-width:200px;">
-          <input id="leadAdminSearch"
-            placeholder="Search name, phone or product…"
-            autocomplete="search"
-            oninput="renderLeadsAdmin()"
-            style="width:100%;height:42px;padding:0 14px 0 44px;background:var(--surface-container-high);
-              border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;
-              color:var(--on-surface);outline:none;transition:box-shadow 0.2s;"
-            onfocus="this.style.boxShadow='0 0 0 2px var(--primary)'"
-            onblur="this.style.boxShadow=''">
-        </div>
-        <div class="filter-bar" style="margin:0;flex-wrap:nowrap;">
-          <button class="filter-btn activeFilter" onclick="setLeadFilter('all',this)">All</button>
-          <button class="filter-btn" onclick="setLeadFilter('open',this)">Open</button>
-          <button class="filter-btn" onclick="setLeadFilter('followup',this)">Follow Up</button>
-          <button class="filter-btn" onclick="setLeadFilter('sale',this)">Sale</button>
-          <button class="filter-btn" onclick="setLeadFilter('lost',this)">Lost</button>
-          <button class="filter-btn" onclick="setLeadFilter('expiring',this)">⚠ Expiring</button>
-          <select id="leadStoreFilter" onchange="setLeadStoreFilter(this.value)" style="margin-left:auto;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;">
-            <option value="all">🏪 All Stores</option>
-            <option value="Alandi">🏪 Alandi</option>
-            <option value="Dhanore">🏪 Dhanore</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Table -->
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Customer</th><th style="width:38px;text-align:center;">St</th><th>Phone</th><th>Products</th><th>Admin Quote</th>
-              <th>Status</th><th>Expiry</th><th>By</th><th>Follow-up</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="leadsAdminBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- ════ VIEW: INCENTIVE ════ -->
-    <section id="view-incentive" style="display:none;">
-      <div class="section-heading">
-        <div>
-          <div class="section-title-lg">Incentive Calculator</div>
-          <div class="section-subtitle">Calculate staff incentives based on sales performance</div>
-        </div>
-      </div>
-
-      <!-- Settings Collapsible -->
-      <div class="inc-collapse-card">
-        <div class="inc-collapse-header" onclick="toggleIncPanel('incSettingsBody', this)">
-          <div class="inc-collapse-title">
-            <span style="font-size:16px;">⚙️</span>
-            <span>Settings</span>
-          </div>
-          <span class="inc-collapse-chevron">›</span>
-        </div>
-        <div class="inc-collapse-body hidden" id="incSettingsBody">
-          <div style="margin-bottom:10px;">
-            <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Incentive %</label>
-            <input type="number" class="inc-calc-input" id="incPercent" value="5" min="0" max="100" step="0.1" style="width:100%;">
-          </div>
-          <div style="margin-bottom:10px;">
-            <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Buzz Words</label>
-            <input type="text" class="inc-calc-input" id="incBuzzWords" placeholder="SERVICE,AMC" style="width:100%;text-transform:uppercase;">
-          </div>
-          <div style="font-size:10px;color:var(--outline);margin-bottom:10px;">Samsung, Haier, IFB always excluded</div>
-          <button onclick="saveIncSettings()" style="width:100%;padding:8px;background:var(--primary-container);color:var(--on-primary-container);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Save</button>
-        </div>
-      </div>
-
-      <!-- Calculator Collapsible -->
-      <div class="inc-collapse-card">
-        <div class="inc-collapse-header" onclick="toggleIncPanel('incCalcBody', this)">
-          <div class="inc-collapse-title">
-            <span style="font-size:16px;">🧮</span>
-            <span>Calculator</span>
-          </div>
-          <span class="inc-collapse-chevron">›</span>
-        </div>
-        <div class="inc-collapse-body hidden" id="incCalcBody">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
-            <div>
-              <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">Staff</label>
-              <select class="inc-calc-input" id="incStaffSelect" style="width:100%;">
-                <option value="">All Staff</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">From</label>
-              <input type="date" class="inc-calc-input" id="incFromDate" style="width:100%;">
-            </div>
-            <div>
-              <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:6px;">To</label>
-              <input type="date" class="inc-calc-input" id="incToDate" style="width:100%;">
-            </div>
-          </div>
-          <button onclick="calculateIncentive()" style="width:100%;padding:10px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Calculate</button>
-        </div>
-      </div>
-
-      <div id="incResultCard" style="display:none;margin-bottom:16px;">
-        <div style="background:linear-gradient(135deg,rgba(78,222,163,0.15),rgba(39,174,96,0.1));border:1px solid rgba(78,222,163,0.3);border-radius:14px;padding:16px 20px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tertiary);margin-bottom:2px;" id="incResultLabel">Total Incentive</div>
-            <div style="font-size:10px;color:var(--on-surface-variant);">Rate: <strong id="incRateDisplay">5%</strong></div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:28px;font-weight:900;color:var(--tertiary);" id="incTotalIncentive">₹0</div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-          <div style="background:var(--surface-container-low);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
-            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-bottom:4px;">Total Sales</div>
-            <div style="font-size:16px;font-weight:800;color:var(--primary);" id="incTotalSales">₹0</div>
-          </div>
-          <div style="background:var(--surface-container-low);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
-            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-bottom:4px;">Brand Excl.</div>
-            <div style="font-size:16px;font-weight:800;color:var(--error);" id="incExcludedSales">₹0</div>
-          </div>
-          <div style="background:var(--surface-container-low);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
-            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);margin-bottom:4px;">Buzz Excl.</div>
-            <div style="font-size:16px;font-weight:800;color:var(--amber);" id="incBuzzExcluded">₹0</div>
-          </div>
-        </div>
-      </div>
-
-      <div id="incTableSection" style="display:none;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <div style="font-size:13px;font-weight:700;color:var(--on-surface);">Individual Sales</div>
-          <div style="font-size:11px;color:var(--on-surface-variant);" id="incPageInfo">Page 1 of 1</div>
-        </div>
-        <div class="search-wrap icon-search" style="margin-bottom:12px;">
-          <input type="text" class="inc-search" id="incSearchInput" placeholder="Search product, customer, staff…" autocomplete="search" oninput="filterIncentiveTable()" style="padding-left:44px;">
-        </div>
-        <div style="overflow-x:auto;border-radius:12px;border:1px solid var(--outline-variant);">
-          <table class="inc-table">
-            <thead>
-              <tr>
-                <th onclick="sortIncTable('date')" id="incThDate">Date ↕</th>
-                <th onclick="sortIncTable('staff')" id="incThStaff">Staff ↕</th>
-                <th onclick="sortIncTable('product')" id="incThProduct">Product ↕</th>
-                <th onclick="sortIncTable('customer')" id="incThCustomer">Customer ↕</th>
-                <th onclick="sortIncTable('price')" id="incThPrice" class="num">Price ↕</th>
-                <th onclick="sortIncTable('incentive')" id="incThIncentive" class="num">Incentive ↕</th>
-              </tr>
-            </thead>
-            <tbody id="incTableBody"></tbody>
-          </table>
-        </div>
-        <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:14px;">
-          <button onclick="incGoToPage(incCurrentPage - 1)" id="incPrevBtn" style="padding:8px 16px;background:var(--surface-container-highest);color:var(--on-surface);border:1px solid var(--outline-variant);border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">← Prev</button>
-          <span id="incPageLabel" style="font-size:12px;color:var(--on-surface-variant);font-weight:600;">1</span>
-          <button onclick="incGoToPage(incCurrentPage + 1)" id="incNextBtn" style="padding:8px 16px;background:var(--surface-container-highest);color:var(--on-surface);border:1px solid var(--outline-variant);border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Next →</button>
-        </div>
-      </div>
-    </section>
-
     <!-- ════ VIEW: PRODUCT NAME CLEANUP ════ -->
     <section id="view-product-normalizer" style="display:none;">
       <div class="section-heading">
@@ -2761,150 +2556,6 @@
       <div id="gbpilotHost" style="background:var(--surface-container-low);border-radius:18px;padding:6px;border:1px solid rgba(173,198,255,0.08);"></div>
     </section>
 
-    <!-- ════ VIEW: SALES ANALYTICS ════ -->
-    <section id="view-sales-analytics" style="display:none;">
-      <div class="section-heading">
-        <div>
-          <div class="section-title-lg">Sales Analytics</div>
-          <div class="section-subtitle">Leads, Sales & Incentive performance by staff</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <select id="saRange" onchange="loadSalesAnalytics()" style="background:var(--surface-container-low);color:var(--on-surface);border:1px solid var(--outline-variant);border-radius:10px;padding:8px 12px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;">
-            <option value="7">Last 7 Days</option>
-            <option value="30" selected>Last 30 Days</option>
-            <option value="90">Last 90 Days</option>
-            <option value="0">All Time</option>
-          </select>
-          <select id="saStoreFilter" onchange="loadSalesAnalytics()" style="background:var(--surface-container-low);color:var(--on-surface);border:1px solid var(--outline-variant);border-radius:10px;padding:8px 12px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;"></select>
-        </div>
-      </div>
-
-      <!-- Overview Cards -->
-      <div id="saOverviewCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px;">
-        <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(173,198,255,0.06);position:relative;overflow:hidden;">
-          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--primary-container),var(--primary));"></div>
-          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:10px;">Total Leads</div>
-          <div id="saLeadsCount" style="font-family:var(--font-mono);font-size:28px;font-weight:700;letter-spacing:-1px;color:var(--primary);">—</div>
-          <div id="saLeadsSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;"><div class="skeleton-line" style="height:11px;width:80px;"></div></div>
-        </div>
-        <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(78,222,163,0.06);position:relative;overflow:hidden;">
-          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--tertiary-container),var(--tertiary));"></div>
-          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:10px;">Total Sales</div>
-          <div id="saSalesCount" style="font-family:var(--font-mono);font-size:28px;font-weight:700;letter-spacing:-1px;color:var(--tertiary);">—</div>
-          <div id="saSalesSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;"><div class="skeleton-line" style="height:11px;width:80px;"></div></div>
-        </div>
-        <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(245,158,11,0.06);position:relative;overflow:hidden;">
-          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#d97706,#fbbf24);"></div>
-          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:10px;">Total Revenue</div>
-          <div id="saRevenue" style="font-family:var(--font-mono);font-size:28px;font-weight:700;letter-spacing:-1px;color:var(--amber);">—</div>
-          <div id="saRevenueSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;"><div class="skeleton-line" style="height:11px;width:80px;"></div></div>
-        </div>
-        <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(192,132,252,0.06);position:relative;overflow:hidden;">
-          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#7c3aed,#c084fc);"></div>
-          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:10px;">Incentives Paid</div>
-          <div id="saIncentives" style="font-family:var(--font-mono);font-size:28px;font-weight:700;letter-spacing:-1px;color:#c084fc;">—</div>
-          <div id="saIncentivesSub" style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;"><div class="skeleton-line" style="height:11px;width:80px;"></div></div>
-        </div>
-      </div>
-
-      <!-- Conversion Rate -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;">
-        <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(78,222,163,0.08);text-align:center;">
-          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:8px;">Conversion Rate</div>
-          <div id="saConversion" style="font-family:var(--font-mono);font-size:32px;font-weight:900;color:var(--tertiary);">—%</div>
-          <div style="font-size:10px;color:var(--outline);margin-top:4px;">Leads → Sales</div>
-        </div>
-        <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(173,198,255,0.08);text-align:center;">
-          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:8px;">Avg Sale Value</div>
-          <div id="saAvgSale" style="font-family:var(--font-mono);font-size:32px;font-weight:900;color:var(--primary);">—</div>
-          <div style="font-size:10px;color:var(--outline);margin-top:4px;">Per transaction</div>
-        </div>
-        <div style="background:var(--surface-container-low);border-radius:16px;padding:20px 18px;border:1px solid rgba(251,191,36,0.08);text-align:center;">
-          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:8px;">Active Staff</div>
-          <div id="saActiveStaff" style="font-family:var(--font-mono);font-size:32px;font-weight:900;color:var(--amber);">—</div>
-          <div style="font-size:10px;color:var(--outline);margin-top:4px;">With sales data</div>
-        </div>
-      </div>
-
-      <!-- Charts Row 1: Leads Status & Staff Revenue -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
-        <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(255,255,255,0.04);">
-          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--on-surface-variant);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
-            <span style="display:inline-block;width:3px;height:14px;border-radius:2px;background:var(--primary);"></span>
-            Leads by Status
-          </div>
-          <div style="position:relative;height:240px;">
-            <canvas id="saChartLeadsStatus"></canvas>
-          </div>
-        </div>
-        <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(255,255,255,0.04);">
-          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--on-surface-variant);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
-            <span style="display:inline-block;width:3px;height:14px;border-radius:2px;background:var(--tertiary);"></span>
-            Staff Revenue Distribution
-          </div>
-          <div style="position:relative;height:240px;">
-            <canvas id="saChartStaffRevenue"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- Charts Row 2: Top Products & Top Brands -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
-        <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(255,255,255,0.04);">
-          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--on-surface-variant);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
-            <span style="display:inline-block;width:3px;height:14px;border-radius:2px;background:var(--amber);"></span>
-            Top Products by Revenue
-          </div>
-          <div style="position:relative;height:280px;">
-            <canvas id="saChartTopProducts"></canvas>
-          </div>
-        </div>
-        <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(255,255,255,0.04);">
-          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--on-surface-variant);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
-            <span style="display:inline-block;width:3px;height:14px;border-radius:2px;background:var(--purple,#c084fc);"></span>
-            Top Brands by Revenue
-          </div>
-          <div style="position:relative;height:280px;">
-            <canvas id="saChartTopBrands"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- Staff Leaderboard Table -->
-      <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(255,255,255,0.04);margin-bottom:20px;">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--on-surface-variant);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
-          <span style="display:inline-block;width:3px;height:14px;border-radius:2px;background:var(--sky,#38bdf8);"></span>
-          Staff Leaderboard
-        </div>
-          <div id="saStaffTable" style="overflow-x:auto;">
-            <div style="padding:20px;"><div class="skeleton-card"><div class="skeleton-line" style="height:18px;width:50%;"></div><div class="skeleton-line" style="height:13px;width:30%;"></div></div></div>
-          </div>
-      </div>
-
-      <!-- Recent Activity Table -->
-      <div style="background:var(--surface-container-low);border-radius:18px;padding:22px;border:1px solid rgba(255,255,255,0.04);">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--on-surface-variant);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
-          <span style="display:inline-block;width:3px;height:14px;border-radius:2px;background:var(--sky,#38bdf8);"></span>
-          Recent Sales
-        </div>
-        <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead>
-              <tr style="background:rgba(45,52,73,0.5);">
-                <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:left;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;">Date</th>
-                <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:left;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;">Staff</th>
-                <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:left;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;">Product</th>
-                <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:left;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;">Customer</th>
-                <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:right;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;">Price</th>
-                <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:right;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;">Incentive</th>
-              </tr>
-            </thead>
-            <tbody id="saRecentSales"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
     <!-- ════ VIEW: ACTIVITY LOG ════ -->
     <section id="view-activity-log" style="display:none;">
       <div class="section-heading">
@@ -2935,13 +2586,6 @@
 
   </div><!-- /.content -->
 
-  <!-- LEAD DETAIL POPUP (admin) -->
-  <div class="popup-overlay" id="leadAdminPopup" style="display:none;">
-    <div class="popup-card" style="max-width:560px;">
-      <div id="leadAdminPopupContent"></div>
-      <div class="popup-actions" id="leadAdminPopupActions" style="margin-top:16px;"></div>
-    </div>
-  </div>
 </div><!-- /.main-wrap -->
 
 <!-- DETAIL POPUP -->
@@ -2995,10 +2639,7 @@ const VIEW_LABELS = {
   stores:          'Stores',
   attendance:      'Staff Attendance',
   permissions:     'Staff Permissions',
-  'leads-admin':   'Leads Pipeline',
   'product-normalizer': 'Product Name Cleanup',
-  'incentive':     'Incentive Calculator',
-  'sales-analytics': 'Sales Analytics',
   'links': 'Panel Links',
   'gbpilot': 'GBPilot',
   'activity-log': 'Activity Log'
@@ -3008,7 +2649,7 @@ let currentAdminView = 'deliveries';
 function showView(view) {
   currentAdminView = view;
   ['categories','models'].forEach(k => { const n = document.getElementById('nav-' + k); if (n) n.classList.remove('active'); });
-  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','stores','attendance','permissions','leads-admin','product-normalizer','incentive','sales-analytics','links','gbpilot','activity-log'].forEach(v => {
+  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','stores','attendance','permissions','product-normalizer','links','gbpilot','activity-log'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) {
       el.style.display = v === view ? '' : 'none';
@@ -3033,10 +2674,7 @@ function showView(view) {
   if (view === 'stores')          { stLoadData(); }
   if (view === 'attendance')      { attLoadData(); }
   if (view === 'permissions')     { loadPermissions(); }
-  if (view === 'leads-admin')     { loadLeadsAdmin(); }
   if (view === 'product-normalizer') { loadProductNormalizer(); }
-  if (view === 'incentive')           { loadIncentiveData(); }
-  if (view === 'sales-analytics')    { loadSalesAnalytics(); }
   // Hide delivery stat cards on non-delivery views
   const summaryCards = document.getElementById('summaryCards');
   if (summaryCards) summaryCards.style.display = view === 'deliveries' ? '' : 'none';
@@ -3595,7 +3233,7 @@ const STAFF_COLORS = ['#f59e0b','#3b82f6','#10b981','#f43f5e','#8b5cf6','#06b6d4
 
 function populateStoreFilterSelects() {
   if (!_stores || !_stores.length) return;
-  const ids = ['adminStoreFilter', 'scStoreFilter', 'leadStoreFilter', 'adCalStoreFilter', 'adCalAgaStore'];
+  const ids = ['adminStoreFilter', 'scStoreFilter', 'adCalStoreFilter', 'adCalAgaStore'];
   ids.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
@@ -4345,7 +3983,9 @@ async function loadAdmin() {
     { bg: "#fefce8", border: "#ca8a04", text: "#713f12" },
   ];
 
+  window.__deliveryCache = window.__deliveryCache || {};
   pageData.forEach(d => {
+    window.__deliveryCache[d.id] = d;
     const row = document.createElement("tr");
 
     const loaded    = d.loaded_timestamp    ? new Date(d.loaded_timestamp.seconds * 1000)    : null;
@@ -4397,7 +4037,7 @@ async function loadAdmin() {
         ${(d.status !== "delivered" && d.status !== "failed" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
       </td>
       <td style="white-space:nowrap">${formatETA(d.estimated_delivery_time)}</td>
-      <td><button class="btn-sm" onclick='event.stopPropagation();viewDetails(${JSON.stringify(d)})'>Full&nbsp;View</button></td>
+      <td><button class="btn-sm" onclick='event.stopPropagation();viewDetails(window.__deliveryCache["${escHtml(d.id)}"])'>Full&nbsp;View</button></td>
     `;
 
     // Build expanded detail row
@@ -4438,11 +4078,11 @@ async function loadAdmin() {
         </div>
         <div class="detail-expand-item">
           <span class="detail-expand-label">Loaded Photo</span>
-          <span class="detail-expand-value">${d.photo_loaded_url ? `<button class="btn-sm" onclick="viewImage('${escHtml(d.photo_loaded_url)}')">📷 View</button>` : "—"}</span>
+          <span class="detail-expand-value">${d.photo_loaded_url ? `<button class="btn-sm" onclick="viewImage('${escHtml(d.photo_loaded_url)}')">📷 Indoor</button>` : "—"}${d.photo_loaded_outdoor_url ? ` <button class="btn-sm" onclick="viewImage('${escHtml(d.photo_loaded_outdoor_url)}')">📷 Outdoor</button>` : ""}</span>
         </div>
         <div class="detail-expand-item">
           <span class="detail-expand-label">Delivered Photo</span>
-          <span class="detail-expand-value">${d.photo_delivered_url ? `<button class="btn-sm" onclick="viewImage('${escHtml(d.photo_delivered_url)}')">📷 View</button>` : "—"}</span>
+          <span class="detail-expand-value">${d.photo_delivered_url ? `<button class="btn-sm" onclick="viewImage('${escHtml(d.photo_delivered_url)}')">📷 Indoor</button>` : "—"}${d.photo_delivered_outdoor_url ? ` <button class="btn-sm" onclick="viewImage('${escHtml(d.photo_delivered_outdoor_url)}')">📷 Outdoor</button>` : ""}</span>
         </div>
         <div class="detail-expand-item">
           <span class="detail-expand-label">Location</span>
@@ -4682,8 +4322,10 @@ function viewDetails(d) {
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + escHtml(d.loaded_location.lat) + ',' + escHtml(d.loaded_location.lng) + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
     <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + escHtml(d.delivered_location.lat) + ',' + escHtml(d.delivered_location.lng) + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Loaded Photo</b><span id="adminLoadedPhotoDisplay">${d.photo_loaded_url ? '<a href="' + escHtml(d.photo_loaded_url) + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
-    <div class="detail-row"><b>Delivered Photo</b><span id="adminDeliveredPhotoDisplay">${d.photo_delivered_url ? '<a href="' + escHtml(d.photo_delivered_url) + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    <div class="detail-row"><b>Loaded Photo (Indoor)</b><span id="adminLoadedPhotoDisplay">${d.photo_loaded_url ? '<a href="' + escHtml(d.photo_loaded_url) + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    ${d.photo_loaded_outdoor_url ? `<div class="detail-row"><b>Loaded Photo (Outdoor)</b><span><a href="${escHtml(d.photo_loaded_outdoor_url)}" target="_blank" style="color:var(--accent)">View Photo</a></span></div>` : ""}
+    <div class="detail-row"><b>Delivered Photo (Indoor)</b><span id="adminDeliveredPhotoDisplay">${d.photo_delivered_url ? '<a href="' + escHtml(d.photo_delivered_url) + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}</span></div>
+    ${d.photo_delivered_outdoor_url ? `<div class="detail-row"><b>Delivered Photo (Outdoor)</b><span><a href="${escHtml(d.photo_delivered_outdoor_url)}" target="_blank" style="color:var(--accent)">View Photo</a></span></div>` : ""}
     <div id="adminCorrectArea" style="display:none;margin-top:8px;"></div>
 
     ${d.status === "failed" ? `
@@ -4708,6 +4350,9 @@ function viewImage(url) {
   document.getElementById("downloadLink").href = url;
   document.getElementById("imgPopup").style.display = "flex";
 }
+
+/* AC products have indoor + outdoor units and need two photos.
+   isACProductName() now lives in /shared.js?v=3 */
 
 function enableEdit() {
   const d = currentDeliveryObj;
@@ -4773,7 +4418,13 @@ function enableEdit() {
             📦 Porter App — details (invoice no, vehicle, courier) are filled by the Porter driver at handover.
           </div>
         </div>
-        <div id="adminEtaWrap" style="display:${d.estimated_delivery_time === "On-Demand" ? "none" : "block"};">
+        <div style="margin-bottom:8px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--on-surface);text-transform:none;letter-spacing:0;">
+            <input type="checkbox" id="edit_set_eta" onchange="toggleEditEta()" style="accent-color:var(--accent);">
+            ⏱ Set ETA?
+          </label>
+        </div>
+        <div id="adminEtaWrap" style="display:none;">
           <div class="edit-field"><label>ETA</label><input type="datetime-local" id="edit_eta" value="${formatEtaForInput(d.estimated_delivery_time)}"></div>
         </div>
         <div class="edit-field"><label>Serial Number</label><input id="edit_serial" value="${escHtml(d.product_serial_number || "")}"></div>
@@ -4787,14 +4438,24 @@ function enableEdit() {
         <div style="margin-top:12px;padding:14px;background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.15);border-radius:12px;">
           <div style="font-size:10px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">📷 Replace Photos (optional)</div>
           <div class="edit-field" style="margin-bottom:10px;">
-            <label>Loaded Photo</label>
+            <label>Loaded Photo (Indoor Unit)</label>
             ${d.photo_loaded_url ? `<div style="margin-bottom:4px;"><a href="${escHtml(d.photo_loaded_url)}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
             <input type="file" id="edit_loaded_photo" accept="image/*" style="font-size:13px;color:var(--on-surface);">
           </div>
-          <div class="edit-field">
-            <label>Delivered Photo</label>
+          <div class="edit-field" style="margin-bottom:10px;">
+            <label>Loaded Photo (Outdoor Unit${isACProductName(d.product_name) ? " — AC" : " — optional"})</label>
+            ${d.photo_loaded_outdoor_url ? `<div style="margin-bottom:4px;"><a href="${escHtml(d.photo_loaded_outdoor_url)}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
+            <input type="file" id="edit_loaded_photo_outdoor" accept="image/*" style="font-size:13px;color:var(--on-surface);">
+          </div>
+          <div class="edit-field" style="margin-bottom:10px;">
+            <label>Delivered Photo (Indoor Unit)</label>
             ${d.photo_delivered_url ? `<div style="margin-bottom:4px;"><a href="${escHtml(d.photo_delivered_url)}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
             <input type="file" id="edit_delivered_photo" accept="image/*" style="font-size:13px;color:var(--on-surface);">
+          </div>
+          <div class="edit-field">
+            <label>Delivered Photo (Outdoor Unit${isACProductName(d.product_name) ? " — AC" : " — optional"})</label>
+            ${d.photo_delivered_outdoor_url ? `<div style="margin-bottom:4px;"><a href="${escHtml(d.photo_delivered_outdoor_url)}" target="_blank" style="font-size:12px;color:var(--primary);">View current →</a></div>` : ""}
+            <input type="file" id="edit_delivered_photo_outdoor" accept="image/*" style="font-size:13px;color:var(--on-surface);">
           </div>
         </div>
 
@@ -4957,13 +4618,17 @@ async function updateDelivery(id) {
     }
 
     // 2. If photos were selected, upload them via /correctDelivery
-    const loadedFile    = document.getElementById("edit_loaded_photo")?.files?.[0];
-    const deliveredFile = document.getElementById("edit_delivered_photo")?.files?.[0];
+    const loadedFile          = document.getElementById("edit_loaded_photo")?.files?.[0];
+    const deliveredFile       = document.getElementById("edit_delivered_photo")?.files?.[0];
+    const loadedOutFile       = document.getElementById("edit_loaded_photo_outdoor")?.files?.[0];
+    const deliveredOutFile    = document.getElementById("edit_delivered_photo_outdoor")?.files?.[0];
 
-    if (loadedFile || deliveredFile) {
+    if (loadedFile || deliveredFile || loadedOutFile || deliveredOutFile) {
       const fd = new FormData();
-      if (loadedFile)    fd.append("loaded_photo",    loadedFile);
-      if (deliveredFile) fd.append("delivered_photo", deliveredFile);
+      if (loadedFile)       fd.append("loaded_photo",    loadedFile);
+      if (deliveredFile)    fd.append("delivered_photo", deliveredFile);
+      if (loadedOutFile)    fd.append("loaded_photo_outdoor",    loadedOutFile);
+      if (deliveredOutFile) fd.append("delivered_photo_outdoor", deliveredOutFile);
 
       const photoRes = await authFetch(`${BASE_URL}/correctDelivery/${id}`, {
         method: "POST",
@@ -6068,191 +5733,6 @@ async function savePermissions() {
   } catch(e) { msg.style.color='var(--error)'; msg.textContent='Network error.'; }
 }
 
-/* LEADS ADMIN */
-let allLeadsAdmin = [];
-let leadAdminFilter = 'all';
-let leadStoreFilter = 'all';
-
-function setLeadStoreFilter(val) {
-  leadStoreFilter = val;
-  loadLeadsAdmin();
-}
-
-async function loadLeadsAdmin() {
-  try {
-    const storeQ = leadStoreFilter && leadStoreFilter !== "all" ? `?store=${encodeURIComponent(leadStoreFilter)}` : "";
-    const res = await authFetch(`${BASE_URL}/leads${storeQ}`);
-    allLeadsAdmin = await res.json();
-    renderLeadsAdmin();
-  } catch(e) { console.error('loadLeadsAdmin:', e.message); }
-}
-
-function setLeadFilter(f, btn) {
-  leadAdminFilter = f;
-  document.querySelectorAll('#view-leads-admin .filter-btn').forEach(b => b.classList.toggle('activeFilter', b === btn));
-  renderLeadsAdmin();
-}
-
-function renderLeadsAdmin() {
-  const tbody = document.getElementById('leadsAdminBody');
-  if (!tbody) return;
-  const q   = (document.getElementById('leadAdminSearch')?.value || '').toLowerCase();
-  const now = Date.now();
-  const ss  = {
-    open:      {bg:'rgba(173,198,255,0.15)',cl:'var(--primary)'},
-    followup:  {bg:'rgba(245,158,11,0.15)', cl:'var(--amber)'},
-    sale:      {bg:'rgba(78,222,163,0.15)', cl:'var(--tertiary)'},
-    lost:      {bg:'rgba(255,180,171,0.15)',cl:'var(--error)'}
-  };
-
-  let leads = allLeadsAdmin.filter(l => {
-    if (q) {
-      const hay = [l.customer_name,l.phone,l.product_interest,...(l.products||[]).map(p=>p.product_name)].join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    if (leadAdminFilter === 'expiring') {
-      const d = l.expires_at?.seconds ? Math.ceil((l.expires_at.seconds*1000-now)/(24*3600*1000)) : 99;
-      return d <= 2 && d >= 0;
-    }
-    if (leadAdminFilter !== 'all') return l.status === leadAdminFilter;
-    return true;
-  });
-
-  if (!leads.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--on-surface-variant);">No leads found</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = leads.map(l => {
-    const prodSummary = l.products?.length > 1
-      ? `${escHtml(l.products[0].product_name)} <span style="color:var(--primary);font-weight:700;">+${l.products.length-1}</span>`
-      : (escHtml(l.product_interest)||'--');
-    const adminPrice = l.admin_quoted_price!=null
-      ? `<span style="color:var(--tertiary);font-weight:700;">₹${l.admin_quoted_price}</span>`
-      : `<span style="color:var(--on-surface-variant);">₹${l.quoted_price||0}</span>`;
-    const days = l.expires_at?.seconds ? Math.ceil((l.expires_at.seconds*1000-now)/(24*3600*1000)) : null;
-    const exp  = days===null?'--':days<0?`<span style="color:var(--error)">Expired</span>`
-               : days<=2?`<span style="color:var(--amber)">⚠ ${days}d</span>` : days+'d';
-    const s = ss[l.status]||{bg:'transparent',cl:'var(--on-surface)'};
-    const stCircle = mkStoreBadge(l.storeId, 22);
-    return `<tr style="cursor:pointer;" onclick="openLeadAdminPopup('${escHtml(l.id)}')">
-      <td style="font-weight:700;">${escHtml(l.customer_name||'--')}</td>
-      <td style="text-align:center;">${stCircle}</td>
-      <td style="font-size:12px;">${escHtml(l.phone||'--')}</td>
-      <td style="font-size:12px;">${prodSummary}</td>
-      <td>${adminPrice}</td>
-      <td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:${s.bg};color:${s.cl};">${escHtml(l.status)}</span></td>
-      <td style="font-size:12px;">${exp}</td>
-      <td style="font-size:11px;color:var(--on-surface-variant);">${escHtml(l.created_by_name||'--')}</td>
-      <td style="font-size:12px;color:var(--amber);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(l.followup_note||'--')}</td>
-      <td onclick="event.stopPropagation()" style="white-space:nowrap;">
-        <button onclick="openLeadAdminPopup('${escHtml(l.id)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(173,198,255,0.1);color:var(--primary);margin-right:4px;">View</button>
-        <button onclick="openLeadAdminPopup('${escHtml(l.id)}')" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(78,222,163,0.1);color:var(--tertiary);margin-right:4px;">Edit</button>
-        <button onclick="deleteLead('${escHtml(l.id)}','${escHtml((l.customer_name||l.phone||'').replace(/'/g,"\\'"))}',event)" style="padding:4px 10px;font-size:11px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:rgba(255,180,171,0.1);color:var(--error);">Delete</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function openLeadAdminPopup(id) {
-  const l = allLeadsAdmin.find(x=>x.id===id);
-  if (!l) return;
-  const now = Date.now();
-  const createdDate = l.created_at?.seconds
-    ? new Date(l.created_at.seconds*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '--';
-  const expiryDate  = l.expires_at?.seconds
-    ? new Date(l.expires_at.seconds*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '--';
-  const days = l.expires_at?.seconds ? Math.ceil((l.expires_at.seconds*1000-now)/(24*3600*1000)) : null;
-  const ss   = {open:'background:rgba(173,198,255,0.15);color:var(--primary)',followup:'background:rgba(245,158,11,0.15);color:var(--amber)',converted:'background:rgba(78,222,163,0.15);color:var(--tertiary)',lost:'background:rgba(255,180,171,0.15);color:var(--error)'};
-
-  const prodsHtml = l.products?.length
-    ? `<div style="background:var(--surface-container);border-radius:10px;padding:10px;margin-top:4px;">
-        ${l.products.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);"><span>${escHtml(p.product_name)}</span><span style="font-weight:700;">₹${p.quoted_price||0}</span></div>`).join('')}
-        ${l.admin_quoted_price!=null?`<div style="padding-top:8px;font-size:12px;color:var(--tertiary);font-weight:700;">Admin revised: ₹${l.admin_quoted_price}</div>`:''}
-      </div>`
-    : `₹${l.admin_quoted_price??l.quoted_price??0} — ${escHtml(l.product_interest||'--')}`;
-
-  const dr = (lbl,val) => `<div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;align-items:flex-start;"><span style="min-width:100px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--on-surface-variant);padding-top:2px;flex-shrink:0;">${lbl}</span><span style="flex:1;">${val}</span></div>`;
-
-  document.getElementById('leadAdminPopupContent').innerHTML = `
-    <h3 style="font-size:20px;font-weight:900;letter-spacing:-0.3px;color:var(--on-surface);margin-bottom:8px;">${escHtml(l.customer_name||'--')}</h3>
-    <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;">
-      <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;${ss[l.status]||''}">${escHtml(l.status)}</span>
-      ${days!==null&&days<=2?`<span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(245,158,11,0.15);color:var(--amber);">⚠ ${days<0?'Expired':days+'d left'}</span>`:''}
-    </div>
-    <div style="border-top:1px solid var(--border);">
-      ${dr('Phone',`<a href="tel:${escHtml(l.phone)}" style="color:var(--primary);font-weight:700;text-decoration:none;">${escHtml(l.phone||'--')}</a>${l.alternate_phone?' / '+escHtml(l.alternate_phone):''}`)}
-      ${dr('Products',prodsHtml)}
-      ${l.remarks?dr('Remarks',escHtml(l.remarks)):''}
-      ${l.followup_note?dr('Follow-up',`<span style="color:var(--amber);font-weight:600;">${escHtml(l.followup_note)}</span>`):''}
-      ${dr('Added by',`${escHtml(l.created_by_name||'--')} · ${createdDate}`)}
-      ${dr('Expires',expiryDate)}
-    </div>
-    <div style="margin-top:16px;padding:14px;background:var(--surface-container);border-radius:12px;">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--on-surface-variant);margin-bottom:10px;">Update Lead</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <div>
-          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:4px;">Revised Price (₹)</label>
-          <input id="laRevPrice" type="number" value="${l.admin_quoted_price??''}" placeholder="Amount"
-            style="width:100%;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;">
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:4px;">Status</label>
-          <select id="laStatus" style="width:100%;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;-webkit-appearance:none;">
-            <option value="open"      ${l.status==='open'?'selected':''}>Open</option>
-            <option value="followup"  ${l.status==='followup'?'selected':''}>Follow Up</option>
-            <option value="sale"      ${l.status==='sale'?'selected':''}>Sale</option>
-            <option value="lost"      ${l.status==='lost'?'selected':''}>Lost</option>
-          </select>
-        </div>
-      </div>
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:4px;">Follow-up Note</label>
-      <input id="laNote" value="${escHtml(l.followup_note||'')}" placeholder="Add a note for the staff..."
-        style="width:100%;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none;margin-bottom:10px;">
-      <div id="laMsg" style="font-size:12px;font-weight:600;min-height:14px;margin-bottom:8px;"></div>
-      <button onclick="saveLeadAdminUpdate('${escHtml(l.id)}')"
-        style="padding:9px 20px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">
-        Save Changes
-      </button>
-    </div>`;
-
-  document.getElementById('leadAdminPopupActions').innerHTML =
-    `<button onclick="closeLeadAdminPopup()" style="padding:9px 16px;background:var(--surface-container-highest);color:var(--on-surface-variant);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Close</button>`;
-
-  const pop = document.getElementById('leadAdminPopup');
-  pop.style.cssText = 'display:flex;align-items:flex-end;justify-content:center;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:200;overflow-y:auto;padding:30px 16px;';
-}
-
-function closeLeadAdminPopup() {
-  const pop = document.getElementById('leadAdminPopup');
-  if (pop) pop.style.display = 'none';
-}
-
-async function saveLeadAdminUpdate(id) {
-  const msg    = document.getElementById('laMsg');
-  const price  = document.getElementById('laRevPrice').value;
-  const status = document.getElementById('laStatus').value;
-  const note   = document.getElementById('laNote').value.trim();
-  const upd    = { status };
-  if (price !== '') upd.admin_quoted_price = parseFloat(price)||0;
-  if (note)         upd.followup_note = note;
-  msg.style.color = 'var(--primary)'; msg.textContent = 'Saving...';
-  try {
-    const res = await authFetch(`${BASE_URL}/leads/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(upd)});
-    if (!res.ok) { msg.style.color='var(--error)'; msg.textContent='Failed.'; return; }
-    msg.style.color = 'var(--tertiary)'; msg.textContent = 'Saved!';
-    await loadLeadsAdmin();
-    setTimeout(() => openLeadAdminPopup(id), 300);
-  } catch(e) { msg.style.color='var(--error)'; msg.textContent='Network error.'; }
-}
-
-function openLeadAdminEdit(id) { openLeadAdminPopup(id); }
-
-document.addEventListener('click', e => {
-  const pop = document.getElementById('leadAdminPopup');
-  if (pop && e.target === pop) closeLeadAdminPopup();
-});
-
 </script>
 
 <script>
@@ -6426,593 +5906,6 @@ function confirmDeleteSCTicket(id) {
       loadServiceCount();
     } catch (e) { showToast("Network error.", 'error'); }
   })();
-}
-
-/* ════ DELETE * LEAD ════ */
-async function deleteLead(id, name, event) {
-  event.stopPropagation();
-  if (!confirm(`Delete lead for "${name}"?\n\nThis cannot be undone.`)) return;
-  try {
-    const res = await authFetch(`${BASE_URL}/leads/${id}`, { method: 'DELETE' });
-    if (!res.ok) { const d = await res.json(); showToast(d.error || 'Failed to delete.', 'error'); return; }
-    // Close popup if open
-    closeLeadAdminPopup();
-    await loadLeadsAdmin();
-  } catch(e) { showToast('Network error.', 'error'); }
-}
-
-/* ════════════════════════════════════════════════
-   INCENTIVE CALCULATOR
-═══════════════════════════════════════════════ */
-
-/* ── Toggle collapsible panel ── */
-function toggleIncPanel(bodyId, headerEl) {
-  const body = document.getElementById(bodyId);
-  if (!body) return;
-  const isOpen = !body.classList.contains('hidden');
-  body.classList.toggle('hidden', isOpen);
-  const chevron = headerEl.querySelector('.inc-collapse-chevron');
-  if (chevron) {
-    chevron.textContent = isOpen ? '›' : '⌄';
-    chevron.style.transform = isOpen ? '' : 'rotate(90deg)';
-  }
-}
-let incAllSales = [];
-let incFilteredSales = [];
-let incSortField = 'date';
-let incSortDir = -1;
-let incCurrentPage = 1;
-const INC_PAGE_SIZE = 10;
-
-function loadIncSettings() {
-  const saved = localStorage.getItem('incSettings');
-  if (saved) {
-    const settings = JSON.parse(saved);
-    document.getElementById('incPercent').value = settings.percent || 5;
-    document.getElementById('incBuzzWords').value = settings.buzzWords || '';
-  }
-}
-
-function saveIncSettings() {
-  const settings = {
-    percent: parseFloat(document.getElementById('incPercent').value) || 5,
-    buzzWords: document.getElementById('incBuzzWords').value.trim().toUpperCase()
-  };
-  localStorage.setItem('incSettings', JSON.stringify(settings));
-  showToast('Settings saved');
-}
-
-function initIncDates() {
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-  document.getElementById('incFromDate').value = firstDay.toISOString().split('T')[0];
-  document.getElementById('incToDate').value = today.toISOString().split('T')[0];
-}
-
-async function loadIncentiveData() {
-  loadIncSettings();
-  
-  // Load sales and populate staff dropdown
-  try {
-    const res = await authFetch(`${BASE_URL}/incentives/sales`);
-    incAllSales = await res.json();
-    
-    // Populate staff dropdown
-    const staffMap = {};
-    incAllSales.forEach(s => {
-      const sid = s.staff_id || 'unknown';
-      const sname = s.staff_name || 'Unknown Staff';
-      if (!staffMap[sid]) staffMap[sid] = sname;
-    });
-    
-    const sel = document.getElementById('incStaffSelect');
-    sel.innerHTML = '<option value="">All Staff</option>' +
-      Object.entries(staffMap).sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) =>
-        `<option value="${id}">${escHtml(name)}</option>`
-      ).join('');
-    
-    await calculateIncentive();
-  } catch(e) {
-    console.error('Failed to load sales:', e);
-  }
-}
-
-async function calculateIncentive() {
-  const staffId = document.getElementById('incStaffSelect').value;
-  const fromDate = document.getElementById('incFromDate').value;
-  const toDate = document.getElementById('incToDate').value;
-  const incentivePct = parseFloat(document.getElementById('incPercent').value) || 5;
-  const buzzWordsInput = document.getElementById('incBuzzWords').value.trim();
-  const buzzWords = buzzWordsInput ? buzzWordsInput.toUpperCase().split(',').map(w => w.trim()).filter(w => w) : [];
-  
-  const resultCard = document.getElementById('incResultCard');
-  const tableSection = document.getElementById('incTableSection');
-  
-  resultCard.style.display = 'block';
-  
-  // Default excluded brands
-  const excludedBrands = ['SAMSUNG', 'HAIER', 'IFB'];
-  
-  // Table always shows ALL sales (sorted by date, latest first)
-  incFilteredSales = incAllSales.filter(s => {
-    if (staffId && s.staff_id !== staffId) return false;
-    return true;
-  });
-  
-  // Calculate incentives for table display
-  incFilteredSales.forEach(s => {
-    const productName = (s.product_name || '').toUpperCase();
-    const salePrice = s.sale_price || 0;
-    let isExcluded = excludedBrands.some(b => productName.includes(b));
-    if (!isExcluded && buzzWords.length > 0) {
-      isExcluded = buzzWords.some(b => productName.includes(b));
-    }
-    s._excluded = isExcluded;
-    s._incentive = isExcluded ? 0 : Math.round(salePrice * incentivePct / 100);
-  });
-  
-  // For summary: filter by date ONLY if both dates are set
-  const useDateFilter = fromDate && toDate;
-  let summarySales = incAllSales.filter(s => {
-    if (staffId && s.staff_id !== staffId) return false;
-    if (useDateFilter) {
-      const saleTs = (s.sale_timestamp?.seconds || 0) * 1000;
-      const fromTs = new Date(fromDate + 'T00:00:00').getTime();
-      const toTs = new Date(toDate + 'T23:59:59').getTime();
-      if (saleTs < fromTs || saleTs > toTs) return false;
-    }
-    return true;
-  });
-  
-  // Calculate summary totals
-  let totalSales = 0, totalExcludedBrand = 0, totalExcludedBuzz = 0, totalIncentive = 0;
-  summarySales.forEach(s => {
-    const productName = (s.product_name || '').toUpperCase();
-    const salePrice = s.sale_price || 0;
-    totalSales += salePrice;
-    let isExcluded = false;
-    for (const brand of excludedBrands) {
-      if (productName.includes(brand)) { isExcluded = true; totalExcludedBrand += salePrice; break; }
-    }
-    if (!isExcluded && buzzWords.length > 0) {
-      for (const buzz of buzzWords) {
-        if (productName.includes(buzz)) { isExcluded = true; totalExcludedBuzz += salePrice; break; }
-      }
-    }
-    if (!isExcluded) totalIncentive += Math.round(salePrice * incentivePct / 100);
-  });
-  
-  // Reset to page 1 when data changes
-  incCurrentPage = 1;
-  
-  // Update summary
-  const staffName = staffId ? (document.querySelector(`#incStaffSelect option[value="${staffId}"]`)?.textContent || 'Staff') : 'All Staff';
-  document.getElementById('incResultLabel').textContent = staffName === 'All Staff' ? 'Total Incentive Payable' : `${staffName}'s Incentive`;
-  document.getElementById('incTotalIncentive').textContent = '₹' + totalIncentive.toLocaleString('en-IN');
-  document.getElementById('incTotalSales').textContent = '₹' + totalSales.toLocaleString('en-IN');
-  document.getElementById('incExcludedSales').textContent = '₹' + totalExcludedBrand.toLocaleString('en-IN');
-  document.getElementById('incBuzzExcluded').textContent = '₹' + totalExcludedBuzz.toLocaleString('en-IN');
-  document.getElementById('incRateDisplay').textContent = incentivePct + '%';
-  
-  renderIncTable();
-  tableSection.style.display = '';
-}
-
-function renderIncTable() {
-  const tbody = document.getElementById('incTableBody');
-  const search = (document.getElementById('incSearchInput')?.value || '').toLowerCase();
-  
-  let filtered = incFilteredSales;
-  if (search) {
-    filtered = incFilteredSales.filter(s =>
-      (s.staff_name || '').toLowerCase().includes(search) ||
-      (s.product_name || '').toLowerCase().includes(search) ||
-      (s.customer_name || '').toLowerCase().includes(search)
-    );
-  }
-  
-  // Sort
-  filtered.sort((a, b) => {
-    let aVal, bVal;
-    switch (incSortField) {
-      case 'date': aVal = a.sale_timestamp?.seconds || 0; bVal = b.sale_timestamp?.seconds || 0; break;
-      case 'staff': aVal = (a.staff_name || '').toLowerCase(); bVal = (b.staff_name || '').toLowerCase(); return incSortDir * aVal.localeCompare(bVal);
-      case 'product': aVal = (a.product_name || '').toLowerCase(); bVal = (b.product_name || '').toLowerCase(); return incSortDir * aVal.localeCompare(bVal);
-      case 'customer': aVal = (a.customer_name || '').toLowerCase(); bVal = (b.customer_name || '').toLowerCase(); return incSortDir * aVal.localeCompare(bVal);
-      case 'price': aVal = a.sale_price || 0; bVal = b.sale_price || 0; break;
-      case 'incentive': aVal = a._incentive || 0; bVal = b._incentive || 0; break;
-      default: aVal = a.sale_timestamp?.seconds || 0; bVal = b.sale_timestamp?.seconds || 0;
-    }
-    return incSortDir * (bVal - aVal);
-  });
-  
-  // Pagination
-  const totalPages = Math.ceil(filtered.length / INC_PAGE_SIZE) || 1;
-  if (incCurrentPage > totalPages) incCurrentPage = totalPages;
-  const startIdx = (incCurrentPage - 1) * INC_PAGE_SIZE;
-  const endIdx = startIdx + INC_PAGE_SIZE;
-  const pageData = filtered.slice(startIdx, endIdx);
-  
-  // Update pagination controls
-  document.getElementById('incPageInfo').textContent = `Showing ${startIdx + 1}-${Math.min(endIdx, filtered.length)} of ${filtered.length} (${totalPages} pages)`;
-  document.getElementById('incPageLabel').textContent = `${incCurrentPage} / ${totalPages}`;
-  document.getElementById('incPrevBtn').disabled = incCurrentPage <= 1;
-  document.getElementById('incPrevBtn').style.opacity = incCurrentPage <= 1 ? '0.5' : '1';
-  document.getElementById('incNextBtn').disabled = incCurrentPage >= totalPages;
-  document.getElementById('incNextBtn').style.opacity = incCurrentPage >= totalPages ? '0.5' : '1';
-  
-  if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--on-surface-variant);">No sales found</td></tr>';
-    return;
-  }
-  
-  tbody.innerHTML = pageData.map(s => {
-    const date = new Date((s.sale_timestamp?.seconds || 0) * 1000);
-    const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    return `
-      <tr>
-        <td style="white-space:nowrap;">${dateStr}</td>
-        <td>${escHtml(s.staff_name || 'Unknown')}</td>
-        <td>${escHtml(s.product_name || '-')}</td>
-        <td>${escHtml(s.customer_name || '-')}</td>
-        <td class="num">₹${(s.sale_price || 0).toLocaleString('en-IN')}</td>
-        <td class="num" style="color:${s._excluded ? 'var(--error)' : 'var(--tertiary)'};font-weight:700;">${s._excluded ? 'Excluded' : '₹' + s._incentive.toLocaleString('en-IN')}</td>
-      </tr>
-    `;
-  }).join('');
-  
-  // Update sort indicators
-  document.querySelectorAll('#incTable th').forEach(th => th.classList.remove('sorted'));
-  const sortId = 'incTh' + incSortField.charAt(0).toUpperCase() + incSortField.slice(1);
-  const sortTh = document.getElementById(sortId);
-  if (sortTh) sortTh.classList.add('sorted');
-}
-
-function filterIncentiveTable() {
-  incCurrentPage = 1;
-  renderIncTable();
-}
-
-function incGoToPage(page) {
-  const totalPages = Math.ceil(incFilteredSales.length / INC_PAGE_SIZE) || 1;
-  if (page < 1 || page > totalPages) return;
-  incCurrentPage = page;
-  renderIncTable();
-}
-
-function sortIncTable(field) {
-  if (incSortField === field) {
-    incSortDir *= -1;
-  } else {
-    incSortField = field;
-    incSortDir = -1;
-  }
-  renderIncTable();
-}
-
-/* ════ SALES ANALYTICS ════ */
-let saCharts = {};
-
-function destroySACharts() {
-  Object.values(saCharts).forEach(chart => chart?.destroy());
-  saCharts = {};
-}
-
-/* Reuse chart instances across view opens (avoid destroy/recreate flicker) */
-function saChart(key, canvasId, config) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  const existing = saCharts[key];
-  if (existing) {
-    try {
-      existing.data = config.data;
-      existing.options = config.options;
-      existing.update();
-      return;
-    } catch (e) { try { existing.destroy(); } catch (_) {} }
-  }
-  saCharts[key] = new Chart(canvas, config);
-}
-
-function chartDefaults() {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        labels: { color: '#c2c6d6', font: { family: "'Inter', sans-serif", size: 11 }, padding: 12, boxWidth: 12 }
-      },
-      tooltip: {
-        backgroundColor: '#222a3d',
-        titleColor: '#dae2fd',
-        bodyColor: '#c2c6d6',
-        borderColor: 'rgba(173,198,255,0.15)',
-        borderWidth: 1,
-        padding: 10,
-        titleFont: { family: "'Inter', sans-serif", weight: '600' },
-        bodyFont: { family: "'JetBrains Mono', monospace" },
-        callbacks: {
-          label: function(ctx) {
-            const val = ctx.parsed?.y ?? ctx.parsed ?? 0;
-            if (typeof val === 'object') return '';
-            return typeof val === 'number' ? '₹' + val.toLocaleString('en-IN') : val;
-          }
-        }
-      }
-    },
-    scales: {
-      x: { ticks: { color: '#8c909f', font: { family: "'Inter', sans-serif", size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-      y: { ticks: { color: '#8c909f', font: { family: "'JetBrains Mono', monospace", size: 10 }, callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) }, grid: { color: 'rgba(255,255,255,0.04)' } }
-    }
-  };
-}
-
-async function populateStoreSelect(selId) {
-  const sel = document.getElementById(selId);
-  if (!sel) return;
-  if (!_stores || !_stores.length) {
-    try {
-      const res = await authFetch(`${BASE_URL}/api/stores`);
-      if (res.ok) { _stores = await res.json(); _storeNameById = {}; _stores.forEach(s => { _storeNameById[s.id] = s.name; }); }
-    } catch {}
-  }
-  if (_stores && _stores.length) {
-    sel.innerHTML = (_stores.length > 1 ? '<option value="all">All Stores</option>' : '') +
-      _stores.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('');
-    if (!sel.value || sel.value === 'all' && _stores.length === 1) sel.value = _stores[0].id;
-  }
-}
-
-async function loadSalesAnalytics() {
-  await populateStoreSelect('saStoreFilter');
-  
-  const days = parseInt(document.getElementById('saRange')?.value || '30');
-  const now = Date.now();
-  const fromTs = days > 0 ? now - days * 24 * 60 * 60 * 1000 : 0;
-  
-  const saStore = document.getElementById('saStoreFilter')?.value || 'all';
-  const saQ = saStore && saStore !== 'all' ? `?store=${encodeURIComponent(saStore)}` : '';
-  try {
-    const [leadsRes, salesRes] = await Promise.all([
-      authFetch(`${BASE_URL}/leads${saQ}`),
-      authFetch(`${BASE_URL}/incentives/sales`)
-    ]);
-    
-    const allLeads = await leadsRes.json();
-    const allSales = await salesRes.json();
-    
-    const leads = allLeads.filter(l => { const ts = (l.created_at?.seconds || 0) * 1000; return ts >= fromTs; });
-    const sales = allSales.filter(s => { const ts = (s.sale_timestamp?.seconds || 0) * 1000; return ts >= fromTs; });
-    
-    const totalRevenue = sales.reduce((sum, s) => sum + (s.sale_price || 0), 0);
-    const avgSaleValue = sales.length > 0 ? totalRevenue / sales.length : 0;
-    const excludedBrands = ['SAMSUNG', 'HAIER', 'IFB'];
-    
-    // Staff aggregation
-    const staffMap = {};
-    leads.forEach(l => {
-      const sid = l.created_by || 'unknown';
-      const sname = l.created_by_name || 'Unknown';
-      if (!staffMap[sid]) staffMap[sid] = { name: sname, leads: 0, sales: 0, revenue: 0 };
-      staffMap[sid].leads++;
-    });
-    sales.forEach(s => {
-      const sid = s.staff_id || 'unknown';
-      const sname = s.staff_name || 'Unknown';
-      if (!staffMap[sid]) staffMap[sid] = { name: sname, leads: 0, sales: 0, revenue: 0 };
-      staffMap[sid].sales++;
-      staffMap[sid].revenue += s.sale_price || 0;
-    });
-    
-    // Top products & brands
-    const productMap = {}, brandMap = {};
-    const brandPatterns = ['SAMSUNG','LG','HAIER','IFB','WHIRLPOOL','PANASONIC','SONY','MI','REALME','OPPO','VIVO','ONEPLUS','APPLE','BOAT','JBL','PHILIPS','BAJAJ','USHA','HAVELLS','CROMpton','SYMPHONY','VOLTAS','BLUE STAR','HITACHI','DAIKIN','MITubishi','GODREJ','KELVINATOR'];
-    sales.forEach(s => {
-      const pname = s.product_name || 'Unknown';
-      if (!productMap[pname]) productMap[pname] = { name: pname, count: 0, revenue: 0 };
-      productMap[pname].count++;
-      productMap[pname].revenue += s.sale_price || 0;
-      
-      const upname = pname.toUpperCase();
-      let brand = 'Other';
-      for (const bp of brandPatterns) { if (upname.includes(bp)) { brand = bp; break; } }
-      if (!brandMap[brand]) brandMap[brand] = { name: brand, count: 0, revenue: 0 };
-      brandMap[brand].count++;
-      brandMap[brand].revenue += s.sale_price || 0;
-    });
-    const topProducts = Object.values(productMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
-    const topBrands = Object.values(brandMap).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
-    
-    // Leads status
-    const statusMap = { open: 0, followup: 0, converted: 0, lost: 0 };
-    leads.forEach(l => { const s = l.status || 'open'; statusMap[s] = (statusMap[s] || 0) + 1; });
-    
-    // Overview cards
-    document.getElementById('saLeadsCount').textContent = leads.length;
-    document.getElementById('saLeadsSub').textContent = days > 0 ? `Last ${days} days` : 'All time';
-    document.getElementById('saSalesCount').textContent = sales.length;
-    document.getElementById('saSalesSub').textContent = days > 0 ? `Last ${days} days` : 'All time';
-    document.getElementById('saRevenue').textContent = '₹' + Math.round(totalRevenue).toLocaleString('en-IN');
-    document.getElementById('saRevenueSub').textContent = days > 0 ? `Last ${days} days` : 'All time';
-    
-    let totalIncentives = 0;
-    sales.forEach(s => {
-      const isExcl = excludedBrands.some(b => (s.product_name || '').toUpperCase().includes(b));
-      if (!isExcl) totalIncentives += (s.sale_price || 0) * 0.05;
-    });
-    document.getElementById('saIncentives').textContent = '₹' + Math.round(totalIncentives).toLocaleString('en-IN');
-    document.getElementById('saIncentivesSub').textContent = days > 0 ? `Last ${days} days` : 'All time';
-    
-    const convertedLeads = leads.filter(l => l.status === 'converted').length;
-    document.getElementById('saConversion').textContent = (leads.length > 0 ? (convertedLeads / leads.length * 100) : 0).toFixed(1) + '%';
-    document.getElementById('saAvgSale').textContent = '₹' + Math.round(avgSaleValue).toLocaleString('en-IN');
-    document.getElementById('saActiveStaff').textContent = Object.keys(staffMap).length;
-    
-    // === CHARTS ===
-    
-    // Chart 1: Leads by Status (Doughnut)
-    const statusColors = ['#4d8eff', '#f59e0b', '#4edea3', '#ffb4ab'];
-    const statusLabels = { open: 'Open', followup: 'Follow-up', converted: 'Converted', lost: 'Lost' };
-    const statusEntries = Object.entries(statusMap);
-    saChart('leadsStatus', 'saChartLeadsStatus', {
-      type: 'doughnut',
-      data: {
-        labels: statusEntries.map(([k]) => statusLabels[k] || k),
-        datasets: [{
-          data: statusEntries.map(([, v]) => v),
-          backgroundColor: statusColors,
-          borderColor: '#0b1326',
-          borderWidth: 3,
-          hoverOffset: 8
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '65%',
-        plugins: {
-          legend: { position: 'bottom', labels: { color: '#c2c6d6', font: { family: "'Inter', sans-serif", size: 11 }, padding: 16, boxWidth: 12 } },
-          tooltip: {
-            backgroundColor: '#222a3d', titleColor: '#dae2fd', bodyColor: '#c2c6d6',
-            borderColor: 'rgba(173,198,255,0.15)', borderWidth: 1, padding: 10,
-            callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} (${((ctx.parsed / leads.length) * 100).toFixed(1)}%)` }
-          }
-        }
-      }
-    });
-    
-    // Chart 2: Staff Revenue (Horizontal Bar)
-    const staffList = Object.values(staffMap).sort((a, b) => b.revenue - a.revenue);
-    saChart('staffRevenue', 'saChartStaffRevenue', {
-      type: 'bar',
-      data: {
-        labels: staffList.map(s => s.name),
-        datasets: [{
-          label: 'Revenue',
-          data: staffList.map(s => s.revenue),
-          backgroundColor: 'rgba(78,222,163,0.7)',
-          borderColor: '#4edea3',
-          borderWidth: 1,
-          borderRadius: 6,
-          borderSkipped: false
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        ...chartDefaults(),
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ₹${(ctx.parsed.x || 0).toLocaleString('en-IN')}` } } },
-        scales: {
-          x: { ...chartDefaults().scales.x, ticks: { ...chartDefaults().scales.x.ticks, callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) } },
-          y: { ...chartDefaults().scales.y, ticks: { color: '#8c909f', font: { family: "'Inter', sans-serif", size: 10 } }, grid: { display: false } }
-        }
-      }
-    });
-    
-    // Chart 3: Top Products (Horizontal Bar)
-    saChart('topProducts', 'saChartTopProducts', {
-      type: 'bar',
-      data: {
-        labels: topProducts.map(p => p.name.length > 20 ? p.name.substring(0, 18) + '…' : p.name),
-        datasets: [{
-          label: 'Revenue',
-          data: topProducts.map(p => p.revenue),
-          backgroundColor: topProducts.map((_, i) => `rgba(251,191,36,${0.9 - i * 0.08})`),
-          borderColor: '#fbbf24',
-          borderWidth: 1,
-          borderRadius: 6,
-          borderSkipped: false
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { title: ctx => topProducts[ctx[0].dataIndex]?.name || '', label: ctx => ` ₹${(ctx.parsed.x || 0).toLocaleString('en-IN')}` } } },
-        scales: {
-          x: { ticks: { color: '#8c909f', font: { family: "'JetBrains Mono', monospace", size: 10 }, callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) }, grid: { color: 'rgba(255,255,255,0.04)' } },
-          y: { ticks: { color: '#8c909f', font: { family: "'Inter', sans-serif", size: 10 } }, grid: { display: false } }
-        }
-      }
-    });
-    
-    // Chart 4: Top Brands (Pie)
-    const brandColors = ['#4d8eff','#4edea3','#f59e0b','#c084fc','#38bdf8','#f472b6','#fb923c','#a3e635'];
-    saChart('topBrands', 'saChartTopBrands', {
-      type: 'pie',
-      data: {
-        labels: topBrands.map(b => b.name),
-        datasets: [{
-          data: topBrands.map(b => b.revenue),
-          backgroundColor: brandColors,
-          borderColor: '#0b1326',
-          borderWidth: 2,
-          hoverOffset: 10
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'right', labels: { color: '#c2c6d6', font: { family: "'Inter', sans-serif", size: 10 }, padding: 8, boxWidth: 10 } },
-          tooltip: {
-            backgroundColor: '#222a3d', titleColor: '#dae2fd', bodyColor: '#c2c6d6',
-            borderColor: 'rgba(173,198,255,0.15)', borderWidth: 1, padding: 10,
-            callbacks: { label: ctx => ` ₹${(ctx.parsed || 0).toLocaleString('en-IN')} (${((ctx.parsed / totalRevenue) * 100).toFixed(1)}%)` }
-          }
-        }
-      }
-    });
-    
-    // Staff Leaderboard Table
-    const maxRevenue = Math.max(...staffList.map(s => s.revenue), 1);
-    document.getElementById('saStaffTable').innerHTML = staffList.length === 0
-      ? '<div style="text-align:center;padding:30px;color:var(--outline);">No staff data available</div>'
-      : `<table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead><tr style="background:rgba(45,52,73,0.5);">
-            <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:left;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;">#</th>
-            <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:left;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;">Staff</th>
-            <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:center;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;">Leads</th>
-            <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:center;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;">Sales</th>
-            <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:right;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;">Revenue</th>
-            <th style="color:var(--on-surface-variant);padding:10px 14px;text-align:right;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;">Progress</th>
-          </tr></thead>
-          <tbody>${staffList.map((s, i) => `
-            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-              <td style="padding:12px 14px;color:var(--outline);font-family:var(--font-mono);font-weight:700;">${i + 1}</td>
-              <td style="padding:12px 14px;font-weight:600;">${escHtml(s.name)}</td>
-              <td style="padding:12px 14px;text-align:center;font-family:var(--font-mono);color:var(--primary);">${s.leads}</td>
-              <td style="padding:12px 14px;text-align:center;font-family:var(--font-mono);color:var(--tertiary);">${s.sales}</td>
-              <td style="padding:12px 14px;text-align:right;font-family:var(--font-mono);color:var(--amber);">₹${s.revenue.toLocaleString('en-IN')}</td>
-              <td style="padding:12px 14px;min-width:120px;"><div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${Math.round(s.revenue / maxRevenue * 100)}%;background:linear-gradient(90deg,var(--tertiary-container),var(--tertiary));border-radius:3px;"></div></div></td>
-            </tr>`).join('')}</tbody></table>`;
-    
-    // Recent Sales Table
-    const recentSales = sales.slice(0, 20);
-    document.getElementById('saRecentSales').innerHTML = recentSales.length === 0
-      ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--outline);">No sales found</td></tr>'
-      : recentSales.map(s => {
-        const date = new Date((s.sale_timestamp?.seconds || 0) * 1000);
-        const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        const pname = (s.product_name || '').toUpperCase();
-        const isExcl = excludedBrands.some(b => pname.includes(b));
-        const incentive = isExcl ? 0 : Math.round((s.sale_price || 0) * 0.05);
-        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-          <td style="padding:11px 14px;white-space:nowrap;color:var(--on-surface-variant);font-size:11px;">${dateStr}</td>
-          <td style="padding:11px 14px;font-weight:600;">${escHtml(s.staff_name || 'Unknown')}</td>
-          <td style="padding:11px 14px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;">${escHtml(s.product_name || '-')}</td>
-          <td style="padding:11px 14px;color:var(--on-surface-variant);font-size:11px;">${escHtml(s.customer_name || '-')}</td>
-          <td style="padding:11px 14px;text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--amber);">₹${(s.sale_price || 0).toLocaleString('en-IN')}</td>
-          <td style="padding:11px 14px;text-align:right;font-family:var(--font-mono);font-weight:700;color:${isExcl ? 'var(--error)' : 'var(--tertiary)'};">${isExcl ? 'Excl.' : '₹' + incentive.toLocaleString('en-IN')}</td>
-        </tr>`;
-      }).join('');
-    
-  } catch(e) {
-    console.error('Failed to load sales analytics:', e);
-    ['saLeadsCount','saSalesCount','saRevenue','saIncentives'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = '!';
-    });
-  }
 }
 
 /* ════ PRICE GUIDE ════ */

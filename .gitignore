@@ -7,3 +7,20 @@ tally_products.json
 audit.log
 audit_results.txt
 nul
+
+# Heavy binary assets / installer bundles (kept on disk, not in git)
+delivered_photos/
+BridgePackage/
+bridgeInstaller/
+bridgeInstaller.zip
+*.exe
+*.zip
+eng.traineddata
+
+# Scratch + verification artifacts
+_test_*
+test-*.mjs
+*_block*.js
+*.log
+query
+_cresale/

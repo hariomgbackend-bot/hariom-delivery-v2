@@ -1530,7 +1530,7 @@
   </div>
 </nav>
 
-<script src="/shared.js?v=2"></script>
+<script src="/shared.js?v=3"></script>
 
 <script>
 
@@ -2173,12 +2173,8 @@ let driverSessionToken   = null;   // JWT issued on PIN login — used for refre
 let cachedGpsPosition    = null;   // Pre-warmed GPS so driver doesn't wait on swipe
 let precompressedBlobOutdoor = null; // AC outdoor photo (compressed)
 
-// Returns true if product name suggests it's an AC (has indoor + outdoor units)
-function isACProductName(name) {
-  if (!name) return false;
-  const p = String(name).toUpperCase();
-  return /\bAC\b|\bAIR\s*CONDITIONER\b|SPLIT\s+AC|WINDOW\s+AC|INVERTER\s+AC/i.test(p);
-}
+/* isACProductName() — true when the product is an AC (has indoor + outdoor units).
+   Defined in /shared.js?v=3 so every panel uses one copy. */
 
 /* ═══════════════════════════════════════
    TOAST
@@ -3983,7 +3979,15 @@ async function openIosScanner() {
 
   try {
     iosStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: {
+        facingMode: { ideal: "environment" },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
+        // 720p + no focus request left the camera in a fixed-focus state, so close-up
+        // barcode shots came out blurry. Ask for continuous autofocus (best-effort:
+        // unsupported advanced constraints are ignored, not fatal).
+        advanced: [{ focusMode: "continuous" }]
+      }
     });
     video.srcObject = iosStream;
     await video.play();
@@ -4029,20 +4033,25 @@ async function openIosScanner() {
         const attempt = iosDecodeCount;
         statusEl.textContent = "● Scanning… (" + attempt + ")";
 
-        // Crop + greyscale the centre strip (barcode zone) before sending
-        const cropH   = Math.floor(canvas.height * 0.42);
-        const cropY   = Math.floor(canvas.height * 0.29);
+        // Crop the barcode zone before sending. This was a narrow centre strip
+        // (42% of the height, starting at 29%) — a barcode held above or below it
+        // could never decode, no matter how good the focus was. Widen to 70% of the
+        // frame starting at 15%, which still trims the cluttered top/bottom edges.
+        const cropH   = Math.floor(canvas.height * 0.70);
+        const cropY   = Math.floor(canvas.height * 0.15);
         const cropCanvas = document.createElement("canvas");
         cropCanvas.width  = canvas.width;
         cropCanvas.height = cropH;
         const cctx = cropCanvas.getContext("2d");
         cctx.drawImage(canvas, 0, cropY, canvas.width, cropH, 0, 0, canvas.width, cropH);
 
-        // Greyscale + contrast boost
+        // Greyscale only. The previous ×1.4 contrast stretch around mid-grey clipped
+        // highlights and crushed shadows, which erased the thin bars of 1D barcodes —
+        // zxing decodes plain greyscale perfectly well.
         const imgData = cctx.getImageData(0, 0, cropCanvas.width, cropCanvas.height);
         const d = imgData.data;
         for (let i = 0; i < d.length; i += 4) {
-          const g = Math.min(255, Math.max(0, (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2] - 128) * 1.4 + 128));
+          const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
           d[i] = d[i+1] = d[i+2] = g;
         }
         cctx.putImageData(imgData, 0, 0);
@@ -4191,7 +4200,14 @@ async function toggleAndroidTorch() {
 async function openScanner() {
   try {
     scannerStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: {
+        facingMode: { ideal: "environment" },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
+        // See openIosScanner(): continuous autofocus is what makes close-up
+        // barcode shots decodable. Best-effort — ignored if unsupported.
+        advanced: [{ focusMode: "continuous" }]
+      }
     });
   } catch (err) {
     showToast(err.name === "NotAllowedError" ? "📷 Camera permission denied." : "📷 Camera error: " + err.message);
@@ -4242,7 +4258,10 @@ function startNativeDetector(video) {
         if (results.length > 0) { handleScanResult(results[0].rawValue); return; }
       } catch (_) {}
     }
-    scannerTimer = requestAnimationFrame(detect);
+    // Throttle to ~6 fps. Running detect() every animation frame (up to 60/s) hogs the
+    // main thread, which starves the camera's hardware autofocus — the feed lags and
+    // focus never settles, so close-up barcodes stay blurry.
+    setTimeout(() => { scannerTimer = requestAnimationFrame(detect); }, 150);
   }
   detect();
 }
@@ -4266,8 +4285,20 @@ async function startHtml5QrDetector(video) {
   const scanner = new Html5Qrcode("html5qr-container");
   try {
     await scanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 250, height: 150 } },
+      // Same two root causes as the native detector: no resolution/focus request
+      // (fixed focus → blurry close-ups) and a tiny 250×150 scan box the barcode
+      // had to land inside to be seen at all.
+      {
+        facingMode: { ideal: "environment" },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
+        advanced: [{ focusMode: "continuous" }]
+      },
+      {
+        fps: 10,
+        // Scan most of the viewfinder instead of a small window
+        qrbox: (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(h * 0.5) })
+      },
       (text) => { handleScanResult(text); scanner.stop().catch(() => {}); },
       () => {}
     );

@@ -1,9 +1,15 @@
 import { Router, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { createRequire } from "module";
 import { config } from "../config.js";
 import { getDb } from "../utils/firestore.js";
 import { logger } from "../utils/logger.js";
 import { ApiResponse } from "../types.js";
+
+/* bcrypt lives in the root install, and has no bundled types — require it so the
+   build stays clean (same pattern the main server uses). */
+const require = createRequire(import.meta.url);
+const bcrypt = require("bcrypt") as { compare: (data: string, hash: string) => Promise<boolean> };
 
 const router = Router();
 const log = logger("auth");
@@ -44,6 +50,12 @@ router.post("/auth/login", async (req: Request, res: Response) => {
       const staffData = staffSnap.docs[0].data();
       if (staffData.active === false) {
         res.status(403).json({ success: false, error: "Account deactivated" } satisfies ApiResponse);
+        return;
+      }
+      // Verify the password before issuing anything — an email match alone is not auth
+      const match = await bcrypt.compare(password, staffData.passwordHash || "");
+      if (!match) {
+        res.status(401).json({ success: false, error: "Invalid credentials" } satisfies ApiResponse);
         return;
       }
       const token = jwt.sign(
