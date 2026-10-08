@@ -104,6 +104,13 @@
       pointer-events: none;
     }
 
+    /* Touch devices have no hover: keep per-tag edit/duplicate/delete controls visible */
+    @media (hover: none) {
+      .tag-actions {
+        opacity: 1 !important;
+      }
+    }
+
     /* Custom Scrollbars */
     ::-webkit-scrollbar {
       width: 6px;
@@ -923,7 +930,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       }
 
       return `
-        <div class="shelf-tag" id="${tag.id}">
+        <div class="shelf-tag group" id="${tag.id}">
           
           <!-- TIER 1: BRAND HEADER (Exact 0.52in matching physical sample) -->
           <div class="h-[0.52in] text-white flex items-center justify-between px-2 shrink-0 relative overflow-hidden" style="background-color: ${color};">
@@ -1000,7 +1007,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
 
           ${!isPreview ? `
             <!-- Queue Card Action Tools on Hover -->
-            <div class="no-print absolute top-1 right-1 opacity-0 hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 rounded p-0.5 shadow-md border border-slate-300 z-10">
+            <div class="tag-actions no-print absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 rounded p-0.5 shadow-md border border-slate-300 z-10">
               <button onclick="editQueuedTag('${tag.id}')" title="Edit Tag" class="p-1 hover:bg-blue-100 text-blue-700 rounded font-bold text-[10px]">✎</button>
               <button onclick="duplicateTagById('${tag.id}')" title="Duplicate Tag" class="p-1 hover:bg-slate-100 text-slate-700 rounded font-bold text-[10px]">⧉</button>
               <button onclick="deleteQueuedTag('${tag.id}')" title="Delete Tag" class="p-1 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px]">&times;</button>
