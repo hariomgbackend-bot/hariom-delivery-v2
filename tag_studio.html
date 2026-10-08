@@ -1,0 +1,2023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hari Om Electronics - Precision Display Tag Studio & A4 Engine</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Professional Retail & Brand Display Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;0,900;1,800&family=Cinzel:wght@700;800;900&family=Inter:wght@400;500;600;700;800;900&family=Montserrat:ital,wght@0,600;0,700;0,800;0,900;1,900&family=Outfit:wght@500;600;700;800;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            outfit: ['Outfit', 'sans-serif'],
+            montserrat: ['Montserrat', 'sans-serif'],
+            condensed: ['Barlow Condensed', 'sans-serif'],
+            cinzel: ['Cinzel', 'serif'],
+            space: ['Space Grotesk', 'sans-serif'],
+            archivo: ['Archivo Black', 'sans-serif']
+          },
+          colors: {
+            slateDark: '#090d16',
+            panelDark: '#131b2e',
+            borderDark: '#232f48'
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* CSS Variables for 4" x 2.5" physical card and A4 geometry */
+    :root {
+      --tag-w: 4in;
+      --tag-h: 2.5in;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background-color: #0b0f19;
+      color: #f1f5f9;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* A4 PHYSICAL SHEET (8.27in x 11.69in / 210mm x 297mm) */
+    .a4-print-sheet {
+      width: 210mm;
+      min-height: 297mm;
+      height: 297mm;
+      background: #ffffff;
+      box-sizing: border-box;
+      margin: 0 auto;
+      /* Margins: (210mm - 203.2mm) = 6.8mm -> 3.4mm left/right; (297mm - 254mm) = 43mm -> 21.5mm top/bottom */
+      padding: 21.5mm 3.4mm;
+      display: grid;
+      grid-template-columns: repeat(2, 4in);
+      grid-template-rows: repeat(4, 2.5in);
+      justify-content: center;
+      align-content: center;
+      position: relative;
+      box-shadow: 0 10px 30px -5px rgba(0,0,0,0.6);
+      page-break-after: always;
+      break-after: page;
+    }
+
+    /* CARD STRUCTURE (4" WIDE x 2.5" TALL) */
+    .shelf-tag {
+      width: 4in;
+      height: 2.5in;
+      box-sizing: border-box;
+      background: #ffffff;
+      color: #0f172a;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Hairline Cutting Crop Guides */
+    .crop-marks-on .shelf-tag {
+      border: 0.3pt dashed #cbd5e1;
+    }
+
+    .crop-marks-on .shelf-tag::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 0.15pt solid rgba(0,0,0,0.08);
+      pointer-events: none;
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* PRINT RULES */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+      body {
+        background: transparent !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .print-surface {
+        display: block !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: transparent !important;
+      }
+      .a4-print-sheet {
+        box-shadow: none !important;
+        margin: 0 !important;
+        padding: 21.5mm 3.4mm !important;
+        height: 297mm !important;
+        width: 210mm !important;
+        page-break-after: always !important;
+        break-after: page !important;
+      }
+      .crop-marks-on .shelf-tag {
+        border: 0.25pt dashed #94a3b8 !important;
+      }
+    }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-100 select-none">
+
+  <!-- TOP GLOBAL NAVIGATION BAR -->
+  <header class="no-print bg-slateDark border-b border-borderDark px-5 py-2.5 flex items-center justify-between z-30 shrink-0">
+    <div class="flex items-center space-x-3.5">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-rose-600 to-amber-500 flex items-center justify-center font-black text-white text-lg shadow-md font-montserrat">
+        H
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-sm font-extrabold tracking-wide uppercase text-white font-montserrat">
+            Hari Om Electronics
+          </h1>
+          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600/30 text-blue-300 border border-blue-500/30 tracking-wider">
+            PRO STUDIO v3.2
+          </span>
+        </div>
+        <p class="text-[11px] text-slate-400 font-medium">Alandi | Dhanore Stores &bull; 4&quot; &times; 2.5&quot; Standard Acrylic Tag System (8 / A4 Sheet)</p>
+      </div>
+    </div>
+
+    <!-- Global Toolbar -->
+    <div class="flex items-center space-x-2.5">
+      <!-- Crop Marks Toggle -->
+      <button onclick="toggleCropMarks()" id="cropBtn" class="px-2.5 py-1.5 text-xs font-semibold bg-panelDark hover:bg-slate-800 text-slate-200 border border-borderDark rounded-md transition flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
+        <span id="cropLabel">Cut Guides: ON</span>
+      </button>
+
+      <!-- Clear Queue -->
+      <button onclick="clearCurrentQueue()" class="px-2.5 py-1.5 text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 rounded-md transition">
+        Clear Queue
+      </button>
+
+      <!-- Print Button -->
+      <button onclick="window.print()" class="px-4 py-1.5 text-xs font-extrabold bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-md shadow-lg shadow-emerald-950 transition flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        PRINT A4 (<span id="topSheetCount">0</span> Sheets)
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- LEFT SIDEBAR: Multi-Tab Console -->
+    <aside class="no-print w-[490px] min-w-[490px] bg-slateDark border-r border-borderDark flex flex-col h-full z-20">
+      
+      <!-- TAB NAVIGATION HEADERS -->
+      <nav class="flex flex-wrap border-b border-borderDark bg-panelDark px-2 pt-2 gap-1 text-xs font-bold">
+        <button onclick="switchTab('tag-builder')" id="tab-btn-tag-builder" class="tab-trigger active px-3 py-2 rounded-t-lg bg-slateDark text-blue-400 border-t-2 border-blue-500 flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          Tag Builder
+        </button>
+        <button onclick="switchTab('catalog-memory')" id="tab-btn-catalog-memory" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H6a2 2 0 00-2 2z"/></svg>
+          Catalog
+        </button>
+        <button onclick="switchTab('bulk-import')" id="tab-btn-bulk-import" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Bulk CSV
+        </button>
+        <button onclick="switchTab('feature-memory')" id="tab-btn-feature-memory" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          Icon Memory
+        </button>
+        <button onclick="switchTab('brand-manager')" id="tab-btn-brand-manager" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
+          Brand Profiles
+        </button>
+        <button onclick="switchTab('system-sync')" id="tab-btn-system-sync" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+          Backup
+        </button>
+      </nav>
+
+      <!-- TAB 1: TAG BUILDER FORM -->
+      <div id="tab-tag-builder" class="tab-content flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+        
+        <!-- Quick Preset Toolbar -->
+        <div class="bg-panelDark p-2.5 rounded-lg border border-borderDark">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Load Fast Preset</span>
+            <span class="text-[10px] text-blue-400 font-mono">1-Click Auto Fill</span>
+          </div>
+          <div class="grid grid-cols-4 gap-1.5 text-[11px]">
+            <button type="button" onclick="loadSamplePreset('samsung55')" class="py-1 px-1 bg-slateDark hover:bg-blue-950 border border-slate-700 hover:border-blue-500 rounded font-bold text-slate-200 truncate transition">Samsung 55&quot;</button>
+            <button type="button" onclick="loadSamplePreset('sony50')" class="py-1 px-1 bg-slateDark hover:bg-slate-800 border border-slate-700 hover:border-slate-400 rounded font-bold text-slate-200 truncate transition">Sony 50&quot;</button>
+            <button type="button" onclick="loadSamplePreset('lg65')" class="py-1 px-1 bg-slateDark hover:bg-rose-950 border border-slate-700 hover:border-rose-500 rounded font-bold text-slate-200 truncate transition">LG 65&quot;</button>
+            <button type="button" onclick="loadSamplePreset('hisense75')" class="py-1 px-1 bg-slateDark hover:bg-teal-950 border border-slate-700 hover:border-teal-500 rounded font-bold text-slate-200 truncate transition">Hisense 75&quot;</button>
+            <button type="button" onclick="loadSamplePreset('haier43')" class="py-1 px-1 bg-slateDark hover:bg-blue-900 border border-slate-700 rounded font-bold text-slate-200 truncate transition">Haier 43&quot;</button>
+            <button type="button" onclick="loadSamplePreset('lgRef260')" class="py-1 px-1 bg-slateDark hover:bg-rose-950 border border-slate-700 rounded font-bold text-slate-200 truncate transition">LG Ref 260L</button>
+            <button type="button" onclick="loadSamplePreset('godrejRef')" class="py-1 px-1 bg-slateDark hover:bg-purple-950 border border-slate-700 rounded font-bold text-slate-200 truncate transition">Godrej 240L</button>
+            <button type="button" onclick="loadSamplePreset('boschWm')" class="py-1 px-1 bg-slateDark hover:bg-slate-800 border border-slate-700 rounded font-bold text-slate-200 truncate transition">Bosch WM 8kg</button>
+          </div>
+        </div>
+
+        <form id="tagForm" onsubmit="event.preventDefault(); commitTagToQueue();">
+          
+          <!-- Category & Brand Selection -->
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block font-bold text-slate-300 text-[10px] uppercase tracking-wider mb-1">Category</label>
+              <select id="fieldCategory" onchange="handleCategorySelection()" class="w-full bg-panelDark border border-borderDark rounded-md px-2.5 py-1.5 font-bold text-slate-100 focus:outline-none focus:border-blue-500">
+                <option value="TV">Television (LED / QLED / OLED)</option>
+                <option value="REF">Refrigerator (Fridge)</option>
+                <option value="WM">Washing Machine</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-300 text-[10px] uppercase tracking-wider mb-1">Brand Profile</label>
+              <select id="fieldBrand" onchange="handleBrandSelection()" class="w-full bg-panelDark border border-borderDark rounded-md px-2.5 py-1.5 font-extrabold text-white focus:outline-none focus:border-blue-500"></select>
+            </div>
+          </div>
+
+          <!-- Brand Customization & Color -->
+          <div class="grid grid-cols-3 gap-2 bg-panelDark p-2.5 rounded-lg border border-borderDark mt-2.5 items-center">
+            <div class="col-span-1">
+              <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Brand Theme</label>
+              <div class="flex items-center space-x-1.5">
+                <input type="color" id="fieldBrandColor" oninput="syncLivePreview()" class="w-7 h-7 rounded border border-borderDark cursor-pointer bg-transparent">
+                <span id="labelBrandColor" class="text-[11px] font-mono text-slate-300">#002F6C</span>
+              </div>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Custom Brand Heading (Optional)</label>
+              <input type="text" id="fieldCustomBrandName" oninput="syncLivePreview()" placeholder="Leave empty for brand default" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-100 font-bold">
+            </div>
+          </div>
+
+          <!-- Header Subtitle & Gold Badge -->
+          <div class="grid grid-cols-2 gap-2.5 mt-2.5">
+            <div>
+              <label class="block font-bold text-slate-300 text-[10px] uppercase tracking-wider mb-1">Series / Subtitle</label>
+              <input type="text" id="fieldSeries" oninput="syncLivePreview()" value="LED TV" placeholder="e.g. BRAVIA, Crystal UHD" class="w-full bg-panelDark border border-borderDark rounded-md px-2.5 py-1.5 text-slate-100 font-bold">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-300 text-[10px] uppercase tracking-wider mb-1">Top-Right Gold Badge</label>
+              <input type="text" id="fieldGoldBadge" oninput="syncLivePreview()" value="4K ULTRA HD" placeholder="e.g. 4K ULTRA HD, 4K HDR" class="w-full bg-panelDark border border-borderDark rounded-md px-2.5 py-1.5 text-amber-300 font-black font-space">
+            </div>
+          </div>
+
+          <!-- Spec Left Box: Primary Size / Capacity & Subtitle -->
+          <div class="grid grid-cols-2 gap-2.5 bg-blue-950/20 p-2.5 rounded-lg border border-blue-900/40 mt-2.5">
+            <div>
+              <label id="labelMainSpec" class="block font-bold text-blue-300 uppercase tracking-wider text-[10px] mb-1">Screen Size (Inches)</label>
+              <input type="text" id="fieldMainSpec" oninput="handleMainSpecInput()" value="55" placeholder="55" class="w-full bg-panelDark border border-blue-800/60 rounded-md px-2.5 py-1.5 text-white font-black text-sm">
+            </div>
+            <div>
+              <label id="labelSubSpec" class="block font-bold text-blue-300 uppercase tracking-wider text-[10px] mb-1">Metric Subtitle</label>
+              <input type="text" id="fieldSubSpec" oninput="syncLivePreview()" value="(139 cm)" placeholder="(139 cm)" class="w-full bg-panelDark border border-blue-800/60 rounded-md px-2.5 py-1.5 text-slate-200 font-bold">
+            </div>
+          </div>
+
+          <!-- Title & Sub-line -->
+          <div class="mt-2.5">
+            <label class="block font-bold text-slate-300 text-[10px] uppercase tracking-wider mb-1">Product Description / Features Line</label>
+            <input type="text" id="fieldTitle" oninput="syncLivePreview()" value="Crystal UHD Smart TV" placeholder="e.g. Smart QLED TV Dolby Vision • Atmos" class="w-full bg-panelDark border border-borderDark rounded-md px-2.5 py-1.5 text-white font-bold">
+          </div>
+
+          <!-- Pricing & Calculations -->
+          <div class="bg-rose-950/20 p-2.5 rounded-lg border border-rose-900/40 mt-2.5 space-y-2">
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block font-bold text-rose-300 uppercase tracking-wider text-[10px] mb-1">Special Offer Price (₹)</label>
+                <input type="number" id="fieldSpecialPrice" oninput="calculateSavingsAndSync()" value="44990" placeholder="44990" class="w-full bg-panelDark border border-rose-700/60 rounded-md px-2.5 py-1.5 text-rose-300 font-black text-sm font-montserrat">
+              </div>
+              <div>
+                <label class="block font-bold text-slate-300 uppercase tracking-wider text-[10px] mb-1">MRP (₹)</label>
+                <input type="number" id="fieldMrp" oninput="calculateSavingsAndSync()" value="62900" placeholder="62900" class="w-full bg-panelDark border border-borderDark rounded-md px-2.5 py-1.5 text-slate-200 font-bold text-sm font-montserrat">
+              </div>
+            </div>
+
+            <!-- Auto-Calculated Savings Display -->
+            <div class="flex items-center justify-between text-[11px] pt-1 border-t border-rose-900/30 text-rose-200/90 font-medium">
+              <span>Savings: <strong id="calcSavingsTxt" class="text-yellow-300 font-bold">₹17,910 (28% OFF)</strong></span>
+              <label class="inline-flex items-center cursor-pointer gap-1 text-[10px] text-slate-400">
+                <input type="checkbox" id="fieldShowSavings" onchange="syncLivePreview()" class="rounded bg-slateDark border-slate-700 text-rose-600 focus:ring-0">
+                <span>Print Save Badge</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Professional Retail Extensions: Model #, Warranty, BEE Energy & Finance -->
+          <div class="bg-panelDark p-2.5 rounded-lg border border-borderDark mt-2.5 space-y-2">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Retail Retail Stamps &amp; Finance</span>
+            <div id="catalogNotice" class="hidden flex text-[10px] font-bold text-emerald-300 bg-emerald-950/40 border border-emerald-700/50 rounded px-2 py-1 items-center gap-1">
+              <span>✓</span><span id="catalogNoticeText"></span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Model / SKU Stamp</label>
+                <input type="text" id="fieldModelNo" list="modelMemoryList" oninput="syncLivePreview()" onchange="handleModelNoChange(this.value)" value="55CUE60AKLXL" placeholder="e.g. 55CUE60AKLXL" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200 font-mono text-[11px]">
+                <datalist id="modelMemoryList"></datalist>
+              </div>
+              <div>
+                <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Energy Rating (Stars)</label>
+                <select id="fieldBeeStars" onchange="syncLivePreview()" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-amber-300 font-bold text-[11px]">
+                  <option value="none">None / Not Applicable</option>
+                  <option value="5">5 Star BEE India</option>
+                  <option value="4">4 Star BEE India</option>
+                  <option value="3">3 Star BEE India</option>
+                  <option value="2">2 Star BEE India</option>
+                  <option value="1">1 Star BEE India</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Warranty Badge</label>
+                <input type="text" id="fieldWarranty" oninput="syncLivePreview()" value="1 Year Comprehensive" placeholder="e.g. 1 Year Comprehensive" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200 text-[11px]">
+              </div>
+              <div>
+                <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Finance / EMI Pill</label>
+                <input type="text" id="fieldEmi" oninput="syncLivePreview()" value="Zero Down Payment" placeholder="e.g. EMI from ₹1,999/-" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200 text-[11px]">
+              </div>
+            </div>
+          </div>
+
+          <!-- 4 Feature Slot Selectors -->
+          <div class="bg-panelDark p-2.5 rounded-lg border border-borderDark mt-2.5">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">4 Feature Badges</span>
+              <span class="text-[10px] text-blue-400 font-semibold cursor-pointer" onclick="switchTab('feature-memory')">+ Manage Icons</span>
+            </div>
+            <div id="featureSlotEditorContainer" class="space-y-1.5">
+              <!-- Dynamically populated from active memory -->
+            </div>
+          </div>
+
+          <!-- Store Footer Identity -->
+          <div class="grid grid-cols-2 gap-2 text-[11px] mt-2.5">
+            <div>
+              <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Store Header</label>
+              <input type="text" id="fieldStoreName" oninput="syncLivePreview()" value="Hari Om Electronics" class="w-full bg-panelDark border border-borderDark rounded px-2 py-1 text-slate-200 font-bold">
+            </div>
+            <div>
+              <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Branch Locations</label>
+              <input type="text" id="fieldBranches" oninput="syncLivePreview()" value="Alandi | Dhanore" class="w-full bg-panelDark border border-borderDark rounded px-2 py-1 text-slate-200 font-bold">
+            </div>
+          </div>
+
+          <!-- Action Submission -->
+          <div class="pt-3 flex gap-2">
+            <button type="submit" id="btnSubmitTag" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-extrabold rounded-md shadow-md transition flex items-center justify-center gap-1.5 text-xs">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              <span id="btnSubmitText">Push Tag to Print Queue</span>
+            </button>
+            <button type="button" id="btnCancelEdit" onclick="cancelEditingMode()" class="hidden px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-md transition text-xs">
+              Cancel
+            </button>
+          </div>
+
+        </form>
+      </div>
+
+      <!-- TAB: CATALOG MEMORY (SAVED MODELS) -->
+      <div id="tab-catalog-memory" class="tab-content hidden flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-sky-400 text-xs uppercase">Catalog Memory</h3>
+            <span class="text-[10px] text-slate-400">Saved models: <strong id="catalogCountLabel" class="text-white">0</strong></span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">Every tag you push with a Model No is remembered automatically. Load one to auto-fill the whole form, or push a copy straight to the print sheet.</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark space-y-2">
+          <div class="grid grid-cols-2 gap-2">
+            <select id="catalogFilterCategory" onchange="renderCatalogList()" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200 font-bold">
+              <option value="">All Categories</option>
+              <option value="TV">Television</option>
+              <option value="REF">Refrigerator</option>
+              <option value="WM">Washing Machine</option>
+            </select>
+            <select id="catalogFilterBrand" onchange="renderCatalogList()" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200 font-bold">
+              <option value="">All Brands</option>
+            </select>
+          </div>
+          <input type="text" id="catalogSearchInput" oninput="renderCatalogList()" placeholder="Search model, brand, size, title…" class="w-full bg-slateDark border border-borderDark rounded px-2.5 py-1.5 text-slate-200 font-mono text-[11px] focus:outline-none focus:border-sky-500">
+        </div>
+
+        <!-- Saved Models List -->
+        <div id="catalogListContainer" class="space-y-1.5 max-h-[44vh] overflow-y-auto pr-1"></div>
+
+        <!-- Export / Import -->
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Backup &amp; Share Catalog</span>
+          <div class="flex gap-2">
+            <button onclick="exportCatalogJSON()" class="flex-1 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded transition">
+              ⬇ Export Catalog (JSON)
+            </button>
+            <label class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded text-center cursor-pointer transition">
+              ⬆ Import Catalog (JSON)
+              <input type="file" id="catalogImportFile" accept=".json" onchange="importCatalogJSON(event)" class="hidden">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: BULK IMPORT -->
+      <div id="tab-bulk-import" class="tab-content hidden flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark">
+          <h3 class="font-bold text-sm text-cyan-400 mb-1">Bulk Excel / CSV Tag Importer</h3>
+          <p class="text-slate-400 leading-relaxed text-[11px]">
+            Copy-paste rows directly from your inventory spreadsheet. Tab-separated or comma-separated supported.
+          </p>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 text-[10px] uppercase mb-1">Format: Brand, Category, Size/Cap, Series, Title, SpecialPrice, MRP, ModelNo</label>
+          <textarea id="bulkImportInput" rows="10" placeholder="Samsung	TV	55	LED TV	Crystal UHD Smart TV	44990	62900	55CUE60
+LG	TV	65	UHD AI	Smart LED TV α5 AI	69990	89990	65UR7500
+Sony	TV	50	BRAVIA	Google TV LED TV	54990	74900	KD-50X74L
+Hisense	TV	75	QLED	Smart QLED TV Dolby Vision	109990	149990	75E7K
+LG	REF	260 L	GL-S292	Smart Inverter Double Door	26490	33990	GL-S292RDSY
+Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="w-full bg-slateDark border border-borderDark rounded-lg p-3 font-mono text-[11px] text-cyan-200 focus:outline-none focus:border-cyan-500"></textarea>
+        </div>
+
+        <button onclick="runBulkImport()" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold rounded-md transition shadow flex items-center justify-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Process &amp; Generate All Tags
+        </button>
+      </div>
+
+      <!-- TAB 3: ICON & FEATURE MEMORY MANAGER -->
+      <div id="tab-feature-memory" class="tab-content hidden flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark flex items-center justify-between">
+          <div>
+            <h3 class="font-bold text-amber-400 text-xs uppercase">Feature &amp; Icon Memory</h3>
+            <p class="text-[11px] text-slate-400">Add or edit icons and labels saved in browser storage</p>
+          </div>
+          <button onclick="resetDefaultFeatures()" class="text-[10px] bg-slateDark hover:bg-slate-800 text-slate-300 px-2 py-1 rounded border border-borderDark">Reset Defaults</button>
+        </div>
+
+        <!-- Add New Feature Creator -->
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark space-y-2.5">
+          <span class="text-[10px] font-bold text-slate-300 uppercase block tracking-wider">+ Create Custom Feature</span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Feature Identifier ID</label>
+              <input type="text" id="newFeatId" placeholder="e.g. dolby_atmos" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200">
+            </div>
+            <div>
+              <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Category</label>
+              <select id="newFeatCategory" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200">
+                <option value="TV">Television</option>
+                <option value="REF">Refrigerator</option>
+                <option value="WM">Washing Machine</option>
+                <option value="ALL">Universal</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Badge Caption (use \n for line break)</label>
+            <input type="text" id="newFeatLabel" placeholder="e.g. Dolby\nVision • Atmos" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200">
+          </div>
+
+          <div>
+            <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">SVG Code or Icon Preset</label>
+            <textarea id="newFeatSvg" rows="2" placeholder="<svg viewBox='0 0 24 24'>...</svg>" class="w-full bg-slateDark border border-borderDark rounded p-1.5 font-mono text-[10px] text-amber-200"></textarea>
+          </div>
+
+          <button onclick="saveCustomFeatureToMemory()" class="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded transition">
+            Save Feature to Memory
+          </button>
+        </div>
+
+        <!-- Feature List -->
+        <div>
+          <span class="text-[10px] font-bold text-slate-400 uppercase block tracking-wider mb-2">Installed Features In Memory (<span id="featCountLabel">0</span>)</span>
+          <div id="installedFeaturesList" class="space-y-1.5 max-h-[300px] overflow-y-auto pr-1"></div>
+        </div>
+      </div>
+
+      <!-- TAB 4: BRAND MANAGER -->
+      <div id="tab-brand-manager" class="tab-content hidden flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark">
+          <h3 class="font-bold text-emerald-400 text-xs uppercase mb-1">Brand Profile Configuration</h3>
+          <p class="text-[11px] text-slate-400">Customize brand theme colors, default series names, and badge styles.</p>
+        </div>
+
+        <!-- Add / Edit Brand -->
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark space-y-2.5">
+          <span class="text-[10px] font-bold text-slate-300 uppercase block tracking-wider">+ Register / Edit Brand</span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Brand Name</label>
+              <input type="text" id="brandMgrName" placeholder="e.g. Panasonic" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200 font-bold">
+            </div>
+            <div>
+              <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Header Hex Color</label>
+              <input type="color" id="brandMgrColor" value="#005bac" class="w-full h-7 rounded border border-borderDark cursor-pointer bg-transparent">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Default Series Text</label>
+              <input type="text" id="brandMgrSeries" placeholder="e.g. 4K GOOGLE TV" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200">
+            </div>
+            <div>
+              <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Default Gold Badge</label>
+              <input type="text" id="brandMgrBadge" placeholder="e.g. 4K ULTRA HD" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200">
+            </div>
+          </div>
+
+          <button onclick="saveBrandProfileToMemory()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded transition">
+            Save Brand Profile
+          </button>
+        </div>
+
+        <div id="installedBrandsList" class="space-y-1.5 max-h-[300px] overflow-y-auto pr-1"></div>
+      </div>
+
+      <!-- TAB 5: BACKUP & DATABASE EXPORT/IMPORT -->
+      <div id="tab-system-sync" class="tab-content hidden flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark space-y-2">
+          <h3 class="font-bold text-violet-400 text-xs uppercase">System Backup &amp; Portability</h3>
+          <p class="text-slate-400 text-[11px] leading-relaxed">
+            Download your configured brands, custom icons, and tag queues as a JSON backup file. Restore it on any store computer or laptop.
+          </p>
+          <div class="pt-2 flex gap-2">
+            <button onclick="exportDatabaseJSON()" class="flex-1 py-2 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded transition">
+              ⬇ Export System Backup
+            </button>
+            <label class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded text-center cursor-pointer transition">
+              ⬆ Restore Backup
+              <input type="file" id="jsonImportFile" accept=".json" onchange="importDatabaseJSON(event)" class="hidden">
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- RIGHT WORKSPACE: Live Preview Inspector & Paginated A4 Sheets -->
+    <main class="flex-1 flex flex-col h-full bg-[#070a12] overflow-hidden">
+      
+      <!-- SUB-BAR: Status, Scales & Actions -->
+      <div class="no-print bg-panelDark border-b border-borderDark px-5 py-2.5 flex items-center justify-between text-xs shrink-0">
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="font-bold text-slate-200 uppercase tracking-wider text-[11px]">Real-Time Inspector</span>
+          </div>
+          <span class="text-slate-500">|</span>
+          <div class="text-slate-300">
+            Queue: <strong id="barQueueCount" class="text-white font-bold">0</strong> tags 
+            (<strong id="barSheetCount" class="text-amber-400 font-bold">0</strong> A4 Pages)
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <button onclick="duplicateActiveTag(4)" class="px-2.5 py-1 bg-slateDark hover:bg-slate-800 text-slate-200 border border-borderDark rounded text-[11px] font-bold transition">
+            + 4 Copies
+          </button>
+          <button onclick="duplicateActiveTag(8)" class="px-2.5 py-1 bg-blue-900/40 hover:bg-blue-900/70 text-blue-300 border border-blue-700/60 rounded text-[11px] font-bold transition">
+            + Fill Sheet (8 Copies)
+          </button>
+        </div>
+      </div>
+
+      <!-- SCROLLABLE WORKSPACE CANVAS -->
+      <div class="flex-1 overflow-y-auto p-8 space-y-10 flex flex-col items-center print-surface">
+        
+        <!-- SINGLE LIVE TAG INSPECTOR CARD -->
+        <div class="no-print flex flex-col items-center">
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <span>Physical 4.0&quot; &times; 2.5&quot; Scale Preview</span>
+          </div>
+          <div id="liveInspectorContainer" class="shadow-2xl rounded-sm overflow-hidden border border-slate-700">
+            <!-- Rendered in JS -->
+          </div>
+        </div>
+
+        <!-- DIVIDER BAR -->
+        <div class="no-print w-full max-w-[210mm] flex items-center justify-between border-t border-slate-800 pt-6">
+          <div>
+            <h2 class="text-xs font-black uppercase tracking-wider text-slate-300">Printable A4 Sheet Queue</h2>
+            <p class="text-[11px] text-slate-500">Calibrated to 2 columns &times; 4 rows with 0.25pt registration guidelines</p>
+          </div>
+          <div class="text-[11px] text-slate-400 font-mono">
+            Sheet Dimension: 210mm &times; 297mm (Standard A4)
+          </div>
+        </div>
+
+        <!-- PRINTABLE SHEETS CONTAINER -->
+        <div id="sheetsRenderContainer" class="crop-marks-on flex flex-col items-center gap-10 w-full">
+          <!-- Injected dynamically based on queue -->
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    // EXPANDED 30+ SVG ICON REPOSITORY (Crisp, High-DPI vectors matching original retail tags)
+    const CORE_SVG_LIBRARY = {
+      resolution_4k: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM8 12V9H6.5v4.5h3V15H11v-3H8zm6.5-3h-2v6h2c.8 0 1.5-.7 1.5-1.5v-3c0-.8-.7-1.5-1.5-1.5zm0 4.5h-.5v-3h.5v3z"/></svg>`,
+      crystal_processor: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M6 4h12v2h1v12h-1v2H6v-2H5V6h1V4m3 5v6h6V9H9m1 1h4v4h-4v-4m-6-1h1v2H4v-2m0 4h1v2H4v-2M9 2h2v1H9V2m4 0h2v1h-2V2m6 7h1v2h-1V9m0 4h1v2h-1v-2M9 21h2v1H9v-1m4 0h2v1h-2v-1z"/></svg>`,
+      smart_tv_box: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>`,
+      wifi: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4zm0 4.5c2.93 0 5.6 1.12 7.6 2.97L12 18.78 4.4 11.47A11.36 11.36 0 0 1 12 8.5z"/></svg>`,
+      google_tv: `<svg viewBox="0 0 24 24" class="w-full h-full"><circle cx="6" cy="12" r="3.2" fill="#4285F4"/><circle cx="12" cy="6" r="3.2" fill="#EA4335"/><circle cx="18" cy="12" r="3.2" fill="#FBBC05"/><circle cx="12" cy="18" r="3.2" fill="#34A853"/></svg>`,
+      dolby_atmos: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M3 5v14h7c3.87 0 7-3.13 7-7s-3.13-7-7-7H3zm3.5 3.5H9c1.93 0 3.5 1.57 3.5 3.5S10.93 15.5 9 15.5H6.5v-7zM21 5v14h-7c3.87 0 7-3.13 7-7s-3.13-7-7-7h7z"/></svg>`,
+      sound_ai: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v10h-2zm-4 3h2v4H7zm8 0h2v4h-2z"/></svg>`,
+      game_mode: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H9v2H8v-2H6v-1h2V10h1v2h2v1zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm2-3c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>`,
+      qled: `<svg viewBox="0 0 24 24" class="w-full h-full"><circle cx="12" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M15 14l5 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+      ai_chip: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M6 3h12v2h2v14h-2v2H6v-2H4V5h2V3m2 4v10h8V7H8m1.5 2h5v6h-5V9z"/></svg>`,
+      star_5: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="#eab308"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>`,
+      inverter_motor: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.25 1.5C21.41 14.88 22 13.5 22 12c0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05C5.95 2.55 2 6.82 2 12c0 5.52 4.48 10 10 10 2.35 0 4.5-.81 6.21-2.18l-2.07-1.57C14.83 18.73 13.48 19 12 19zm1-11v4.25l3.5 2.08-.72 1.21L11.5 13V8h1.5z"/></svg>`,
+      warranty_shield: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>`,
+      wash_drum: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 15c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>`,
+      frost_free: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>`,
+      heater: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M12 2c1.1 0 2 .9 2 2v1.1C17.61 5.57 20 8.5 20 12c0 4.41-3.59 8-8 8s-8-3.59-8-8c0-3.5 2.39-6.43 6-6.9V4c0-1.1.9-2 2-2zm0 6c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>`,
+      convertible: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4 7.58 4 4 7.58 4 12H1l4 4 4-4H6z"/></svg>`,
+      bluetooth: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M14.88 16.29L13 14.41v4.88l1.88-3zm0-8.58L13 9.59V4.71l1.88 3zM17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29z"/></svg>`,
+      hdr: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-12 9H7v2h2v1.5H5.5v-6H9V12zm4.5 3.5h-1.5v-6h1.5v6zm6-2c0 .83-.67 1.5-1.5 1.5H16v-6h2c.83 0 1.5.67 1.5 1.5v3z"/></svg>`
+    };
+
+    // DEFAULT FEATURE PRESETS IN MEMORY
+    const INITIAL_FEATURE_MEMORY = [
+      { id: "resolution_4k", cat: "TV", label: "4K\nResolution", svgKey: "resolution_4k" },
+      { id: "crystal_processor", cat: "TV", label: "AI Crystal\nProcessor", svgKey: "crystal_processor" },
+      { id: "smart_tv_box", cat: "TV", label: "Smart TV\n(Tizen)", svgKey: "smart_tv_box" },
+      { id: "wifi", cat: "ALL", label: "Wi-Fi\nBuilt-in", svgKey: "wifi" },
+      { id: "google_tv", cat: "TV", label: "Google\nAssistant", svgKey: "google_tv" },
+      { id: "dolby_atmos", cat: "TV", label: "Dolby\nVision • Atmos", svgKey: "dolby_atmos" },
+      { id: "sound_ai", cat: "TV", label: "AI Sound\nPro", svgKey: "sound_ai" },
+      { id: "game_mode", cat: "TV", label: "Game\nMode", svgKey: "game_mode" },
+      { id: "qled", cat: "TV", label: "QLED\nDisplay", svgKey: "qled" },
+      { id: "ai_chip", cat: "TV", label: "α5 AI\nProcessor", svgKey: "ai_chip" },
+      { id: "star_5", cat: "ALL", label: "3 Star\nRating", svgKey: "star_5" },
+      { id: "inverter_motor", cat: "ALL", label: "Digital\nInverter", svgKey: "inverter_motor" },
+      { id: "frost_free", cat: "REF", label: "Frost\nFree", svgKey: "frost_free" },
+      { id: "warranty_shield", cat: "ALL", label: "10 Year\nWarranty", svgKey: "warranty_shield" },
+      { id: "convertible", cat: "REF", label: "Convertible\nZone", svgKey: "convertible" },
+      { id: "wash_drum", cat: "WM", label: "Front\nLoad", svgKey: "wash_drum" },
+      { id: "heater", cat: "WM", label: "In-built\nHeater", svgKey: "heater" }
+    ];
+
+    // DEFAULT BRAND DATABASE WITH AUTHENTIC TYPOGRAPHY RULES
+    const INITIAL_BRAND_PROFILES = {
+      Samsung: { color: "#002F6C", badge: "4K ULTRA HD", series: "LED TV", fontType: "samsung", customName: "" },
+      LG: { color: "#68001D", badge: "4K ULTRA HD", series: "UHD AI ThinQ", fontType: "lg", customName: "" },
+      Sony: { color: "#111111", badge: "4K HDR", series: "BRAVIA", fontType: "sony", customName: "" },
+      Hisense: { color: "#008B9B", badge: "4K ULTRA HD", series: "Smart QLED TV", fontType: "hisense", customName: "" },
+      Haier: { color: "#005BAC", badge: "4K ULTRA HD", series: "Google TV", fontType: "default", customName: "" },
+      TCL: { color: "#D91B24", badge: "4K HDR", series: "QLED Google TV", fontType: "default", customName: "" },
+      Whirlpool: { color: "#003366", badge: "6TH SENSE", series: "INTELLIFRESH", fontType: "default", customName: "" },
+      Godrej: { color: "#7A1753", badge: "5 STAR INVERTER", series: "EDGE DUO", fontType: "default", customName: "" },
+      IFB: { color: "#C8102E", badge: "AI POWERED", series: "SENATOR SMART", fontType: "default", customName: "" },
+      Bosch: { color: "#1C2833", badge: "GERMAN TECH", series: "SERIES 6", fontType: "default", customName: "" },
+      BPL: { color: "#004B87", badge: "SMART TV", series: "VIVID 4K", fontType: "default", customName: "" },
+      Foxsky: { color: "#1E293B", badge: "4K SMART LED", series: "ANDROID 11", fontType: "default", customName: "" },
+      Bush: { color: "#22313F", badge: "HD READY", series: "FRAMELESS", fontType: "default", customName: "" },
+      NVY: { color: "#1E1B4B", badge: "FRAMELESS", series: "PRO SERIES", fontType: "default", customName: "" },
+      Zebronics: { color: "#111111", badge: "DOLBY AUDIO", series: "CINEMA SERIES", fontType: "default", customName: "" },
+      Akiva: { color: "#0F766E", badge: "SMART TV", series: "TROPICAL", fontType: "default", customName: "" },
+      Other: { color: "#1E293B", badge: "SPECIAL", series: "SMART APPLIANCE", fontType: "default", customName: "" }
+    };
+
+    // RUNTIME APPLICATION STATE
+    let tagQueue = [];
+    let featureMemory = [];
+    let brandProfiles = {};
+    let customSvgDict = {};
+    let editingId = null;
+    let cutlinesVisible = true;
+
+    // INITIALIZATION
+    window.addEventListener('DOMContentLoaded', () => {
+      loadSystemFromStorage();
+      populateBrandSelectBox();
+      renderBrandManagerList();
+      renderFeatureMemoryList();
+      handleCategorySelection();
+      syncLivePreview();
+      renderAllSheets();
+      refreshModelDatalist();
+      populateCatalogBrandFilter();
+      renderCatalogList();
+    });
+
+    // STORAGE ENGINE
+    function loadSystemFromStorage() {
+      try {
+        const rawQueue = localStorage.getItem('hoe_tag_queue');
+        tagQueue = rawQueue ? JSON.parse(rawQueue) : [];
+
+        const rawFeats = localStorage.getItem('hoe_feature_memory');
+        featureMemory = rawFeats ? JSON.parse(rawFeats) : JSON.parse(JSON.stringify(INITIAL_FEATURE_MEMORY));
+
+        const rawBrands = localStorage.getItem('hoe_brand_profiles');
+        brandProfiles = rawBrands ? JSON.parse(rawBrands) : JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILES));
+
+        const rawSvgs = localStorage.getItem('hoe_custom_svgs');
+        customSvgDict = rawSvgs ? JSON.parse(rawSvgs) : {};
+
+        if (tagQueue.length === 0) {
+          seedRealisticDefaultTags();
+        }
+      } catch (err) {
+        console.warn('Storage initialization fallback triggered:', err);
+        tagQueue = [];
+        featureMemory = JSON.parse(JSON.stringify(INITIAL_FEATURE_MEMORY));
+        brandProfiles = JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILES));
+      }
+    }
+
+    function saveSystemToStorage() {
+      try {
+        localStorage.setItem('hoe_tag_queue', JSON.stringify(tagQueue));
+        localStorage.setItem('hoe_feature_memory', JSON.stringify(featureMemory));
+        localStorage.setItem('hoe_brand_profiles', JSON.stringify(brandProfiles));
+        localStorage.setItem('hoe_custom_svgs', JSON.stringify(customSvgDict));
+      } catch (err) {
+        console.warn('Error saving to LocalStorage:', err);
+      }
+    }
+
+    function seedRealisticDefaultTags() {
+      tagQueue = [
+        createTagDataInstance({ brand: 'Samsung', category: 'TV', mainSpec: '55', subSpec: '(139 cm)', series: 'LED TV', badge: '4K ULTRA HD', title: 'Crystal UHD Smart TV', specialPrice: 44990, mrp: 62900, modelNo: '55CUE60AKLXL' }),
+        createTagDataInstance({ brand: 'LG', category: 'TV', mainSpec: '65', subSpec: '(164 cm)', series: 'UHD AI ThinQ', badge: '4K ULTRA HD', title: 'Smart LED TV α5 AI Processor', specialPrice: 69990, mrp: 89990, modelNo: '65UR7500PSC' }),
+        createTagDataInstance({ brand: 'Sony', category: 'TV', mainSpec: '50', subSpec: '(126 cm)', series: 'BRAVIA', badge: '4K HDR', title: 'Google TV Smart LED TV', specialPrice: 54990, mrp: 74900, modelNo: 'KD-50X74L' }),
+        createTagDataInstance({ brand: 'Hisense', category: 'TV', mainSpec: '75', subSpec: '(190 cm)', series: 'QLED TV', badge: '4K ULTRA HD', title: 'Smart QLED TV Dolby Vision • Atmos', specialPrice: 109990, mrp: 149990, modelNo: '75E7K-PRO' }),
+        createTagDataInstance({ brand: 'Haier', category: 'TV', mainSpec: '43', subSpec: '(108 cm)', series: 'Google TV', badge: 'BEZEL LESS', title: '4K Ultra HD Smart LED TV', specialPrice: 28990, mrp: 41990, modelNo: 'LE43K6600UG' }),
+        createTagDataInstance({ brand: 'TCL', category: 'TV', mainSpec: '55', subSpec: '(139 cm)', series: 'QLED 4K', badge: '120Hz DLG', title: 'Metallic Bezel-Less Google TV', specialPrice: 38990, mrp: 64990, modelNo: '55T6G' }),
+        createTagDataInstance({ brand: 'LG', category: 'REF', mainSpec: '260 L', subSpec: 'Double Door', series: 'GL-S292RDSY', badge: '3 STAR INVERTER', title: 'Smart Inverter Frost Free Refrigerator', specialPrice: 26490, mrp: 33990, modelNo: 'GL-S292RDSY' }),
+        createTagDataInstance({ brand: 'Bosch', category: 'WM', mainSpec: '8.0 kg', subSpec: 'Front Load', series: 'SERIES 6', badge: 'GERMAN TECH', title: 'Anti-Tangle Inverter Front Load', specialPrice: 38990, mrp: 51900, modelNo: 'WAJ2426AIN' })
+      ];
+      saveSystemToStorage();
+    }
+
+    // Indian Currency Formatter: 109990 -> 1,09,990
+    function formatIndianRupee(raw) {
+      if (!raw && raw !== 0) return '0';
+      const clean = String(raw).replace(/[^0-9]/g, '');
+      if (!clean) return '0';
+      return parseInt(clean, 10).toLocaleString('en-IN');
+    }
+
+    // Resolves SVG from core library or custom user SVG dictionary
+    function resolveSvgVector(svgKey) {
+      if (customSvgDict[svgKey]) return customSvgDict[svgKey];
+      if (CORE_SVG_LIBRARY[svgKey]) return CORE_SVG_LIBRARY[svgKey];
+      return CORE_SVG_LIBRARY['resolution_4k'];
+    }
+
+    // Factory to construct standardized tag data
+    function createTagDataInstance(overrides = {}) {
+      const brand = overrides.brand || 'Samsung';
+      const cat = overrides.category || 'TV';
+      const brandConf = brandProfiles[brand] || brandProfiles['Other'] || INITIAL_BRAND_PROFILES['Samsung'];
+
+      // Pick 4 features default to this category
+      const availableFeats = featureMemory.filter(f => f.cat === cat || f.cat === 'ALL');
+      const selectedFeats = overrides.features || availableFeats.slice(0, 4).map(f => ({
+        id: f.id,
+        label: f.label,
+        svgKey: f.svgKey
+      }));
+
+      return {
+        id: overrides.id || ('tag_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
+        brand: brand,
+        brandColor: overrides.brandColor || brandConf.color,
+        customBrandName: overrides.customBrandName || brandConf.customName || '',
+        category: cat,
+        series: overrides.series || brandConf.series,
+        badge: overrides.badge || brandConf.badge,
+        mainSpec: overrides.mainSpec || '55',
+        subSpec: overrides.subSpec || '(139 cm)',
+        title: overrides.title || 'Smart LED TV',
+        specialPrice: formatIndianRupee(overrides.specialPrice || 44990),
+        mrp: formatIndianRupee(overrides.mrp || 62900),
+        modelNo: overrides.modelNo || '',
+        beeStars: overrides.beeStars || 'none',
+        warranty: overrides.warranty || '',
+        emi: overrides.emi || '',
+        showSavings: overrides.showSavings || false,
+        features: selectedFeats,
+        storeName: overrides.storeName || 'Hari Om Electronics',
+        branches: overrides.branches || 'Alandi | Dhanore'
+      };
+    }
+
+    // AUTHENTIC BRAND HEADER RENDERER
+    function renderBrandTypographyMarkup(tag) {
+      const brand = tag.brand;
+      const custom = tag.customBrandName;
+
+      if (custom) {
+        return `<div class="text-[1.25rem] font-black tracking-tight leading-none uppercase font-montserrat">${custom}</div>`;
+      }
+
+      if (brand === 'Sony') {
+        return `<div class="text-[1.22rem] font-black tracking-[0.2em] uppercase font-cinzel leading-none">SONY</div>`;
+      }
+      if (brand === 'LG') {
+        return `
+          <div class="flex items-center space-x-1.5">
+            <div class="w-4 h-4 rounded-full border-[1.5px] border-white flex items-center justify-center font-bold text-[8px] leading-none shrink-0 font-sans">L</div>
+            <div class="text-[1.25rem] font-black tracking-tight font-outfit leading-none">LG</div>
+          </div>
+        `;
+      }
+      if (brand === 'Samsung') {
+        return `<div class="text-[1.26rem] font-black tracking-[-0.04em] uppercase font-montserrat leading-none">SAMSUNG</div>`;
+      }
+      if (brand === 'Hisense') {
+        return `<div class="text-[1.25rem] font-black tracking-tight font-outfit leading-none">Hisense</div>`;
+      }
+
+      return `<div class="text-[1.2rem] font-black uppercase tracking-normal leading-none font-montserrat">${brand}</div>`;
+    }
+
+    // MAIN VECTOR/HTML GENERATION FOR A 4" x 2.5" CARD
+    function buildTagCardMarkup(tag, isPreview = false) {
+      const color = tag.brandColor || '#002F6C';
+      const brandMarkup = renderBrandTypographyMarkup(tag);
+
+      // Clean, zero-overflow 4 feature badges
+      const featuresHTML = (tag.features || []).slice(0, 4).map(f => {
+        const svg = resolveSvgVector(f.svgKey || f.id);
+        const formatted = (f.label || '').replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
+        return `
+          <div class="flex flex-col items-center justify-center text-center px-0.5 overflow-hidden">
+            <div class="w-4 h-4 flex items-center justify-center text-slate-900 mb-0.5 shrink-0">
+              ${svg}
+            </div>
+            <div class="text-[0.49rem] font-extrabold leading-[1.05] text-slate-900 tracking-tight uppercase line-clamp-2">
+              ${formatted}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Retail stamps (Model # / Warranty / Savings)
+      let retailStampsMarkup = '';
+      if (tag.modelNo || tag.warranty) {
+        retailStampsMarkup = `
+          <div class="flex items-center justify-between text-[0.48rem] font-bold text-slate-500 pt-0.5 border-t border-slate-100 mt-0.5 font-mono">
+            <span>${tag.modelNo ? 'MOD: ' + tag.modelNo : ''}</span>
+            <span>${tag.warranty ? tag.warranty : ''}</span>
+          </div>
+        `;
+      }
+
+      // Energy Star Rating Icon if set
+      let beeBadgeMarkup = '';
+      if (tag.beeStars && tag.beeStars !== 'none') {
+        beeBadgeMarkup = `
+          <span class="inline-flex items-center gap-0.5 bg-amber-400 text-slate-950 px-1 py-0.2 rounded text-[0.52rem] font-black tracking-tight shrink-0 font-space ml-1">
+            ★ ${tag.beeStars} STAR
+          </span>
+        `;
+      }
+
+      return `
+        <div class="shelf-tag" id="${tag.id}">
+          
+          <!-- TIER 1: BRAND HEADER (Exact 0.52in matching physical sample) -->
+          <div class="h-[0.52in] text-white flex items-center justify-between px-2 shrink-0 relative overflow-hidden" style="background-color: ${color};">
+            
+            <!-- Left: Authentic Brand Identity -->
+            <div class="flex items-center shrink-0 pr-1">
+              ${brandMarkup}
+            </div>
+
+            <!-- Middle: Product Series Line -->
+            <div class="text-[0.78rem] font-black uppercase tracking-wide px-1 text-center truncate flex-1 font-montserrat">
+              ${tag.series}
+            </div>
+
+            <!-- Right: Gold Badge -->
+            <div class="shrink-0 border-[1.5px] border-amber-300 text-amber-300 px-1.5 py-0.5 rounded-[2px] font-space text-[0.6rem] font-black tracking-tight text-center leading-none">
+              ${tag.badge}
+            </div>
+
+          </div>
+
+          <!-- TIER 2: SPECIFICATION & PRICING GRID (1.18in) -->
+          <div class="h-[1.18in] grid grid-cols-[0.88in_1.38in_1.74in] items-center px-2 py-1 shrink-0 bg-white">
+            
+            <!-- Column 1: Huge Diagonal Size / Capacity -->
+            <div class="flex flex-col items-center justify-center border-r-[1.5px] border-slate-200 pr-1 h-[88%]">
+              <span class="text-[1.95rem] font-black leading-none tracking-tighter text-slate-950 font-condensed">${tag.mainSpec}</span>
+              <span class="text-[0.66rem] font-black text-slate-700 leading-tight tracking-tight mt-0.5 text-center">${tag.subSpec}</span>
+            </div>
+
+            <!-- Column 2: Product Name & Model Line -->
+            <div class="px-1.5 flex flex-col justify-center overflow-hidden">
+              <div class="text-[0.76rem] font-black leading-[1.18] text-slate-950 tracking-tight font-sans line-clamp-3">
+                ${tag.title}
+              </div>
+              ${retailStampsMarkup}
+            </div>
+
+            <!-- Column 3: Red Special Price Pill (ZERO-OVERFLOW DESIGN) -->
+            <div class="flex flex-col items-center justify-center pl-1 max-w-full">
+              
+              <!-- Red Pill Capsule with Internal Strict Clamping -->
+              <div class="bg-[#d90429] text-white rounded-[14px] px-2 py-1 w-full text-center shadow-sm flex flex-col items-center justify-center overflow-hidden">
+                <div class="text-[0.54rem] font-extrabold tracking-wider uppercase text-rose-100 leading-none">
+                  Special Price ${beeBadgeMarkup}
+                </div>
+                <div class="text-[1.12rem] font-black text-yellow-300 tracking-tight leading-none mt-0.5 font-montserrat whitespace-nowrap overflow-hidden">
+                  &#8377; ${tag.specialPrice}/-
+                </div>
+              </div>
+
+              <!-- Strike-through MRP -->
+              <div class="text-[0.66rem] font-bold text-slate-700 mt-1 whitespace-nowrap leading-none">
+                MRP : <span class="line-through font-black text-slate-950">&#8377; ${tag.mrp}/-</span>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- TIER 3: 4 FEATURE SLOTS (0.55in) -->
+          <div class="h-[0.55in] grid grid-cols-4 items-center border-t border-slate-200 bg-slate-50/70 px-1 shrink-0">
+            ${featuresHTML}
+          </div>
+
+          <!-- TIER 4: STORE IDENTITY FOOTER (0.25in) -->
+          <div class="h-[0.25in] text-white flex items-center justify-between px-3 shrink-0 text-[0.64rem] font-bold" style="background-color: ${color};">
+            <span class="uppercase font-black tracking-wider font-montserrat">${tag.storeName}</span>
+            <div class="flex items-center space-x-1.5 opacity-90 text-[0.60rem]">
+              <span>${tag.branches}</span>
+              ${tag.emi ? `<span class="bg-white/20 text-white px-1 rounded text-[0.52rem] font-bold">${tag.emi}</span>` : ''}
+            </div>
+          </div>
+
+          ${!isPreview ? `
+            <!-- Queue Card Action Tools on Hover -->
+            <div class="no-print absolute top-1 right-1 opacity-0 hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 rounded p-0.5 shadow-md border border-slate-300 z-10">
+              <button onclick="editQueuedTag('${tag.id}')" title="Edit Tag" class="p-1 hover:bg-blue-100 text-blue-700 rounded font-bold text-[10px]">✎</button>
+              <button onclick="duplicateTagById('${tag.id}')" title="Duplicate Tag" class="p-1 hover:bg-slate-100 text-slate-700 rounded font-bold text-[10px]">⧉</button>
+              <button onclick="deleteQueuedTag('${tag.id}')" title="Delete Tag" class="p-1 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px]">&times;</button>
+            </div>
+          ` : ''}
+
+        </div>
+      `;
+    }
+
+    // LIVE PREVIEW SYNCHRONIZATION
+    function syncLivePreview() {
+      const current = readActiveForm();
+      document.getElementById('labelBrandColor').textContent = current.brandColor;
+      const previewWrapper = document.getElementById('liveInspectorContainer');
+      previewWrapper.innerHTML = buildTagCardMarkup(current, true);
+    }
+
+    function readActiveForm() {
+      const features = [];
+      for (let i = 0; i < 4; i++) {
+        const iconSel = document.getElementById(`fslot_icon_${i}`);
+        const textInp = document.getElementById(`fslot_txt_${i}`);
+        features.push({
+          id: iconSel ? iconSel.value : 'resolution_4k',
+          svgKey: iconSel ? iconSel.value : 'resolution_4k',
+          label: textInp ? textInp.value : 'Feature'
+        });
+      }
+
+      return {
+        id: editingId || ('tag_' + Date.now()),
+        brand: document.getElementById('fieldBrand').value,
+        brandColor: document.getElementById('fieldBrandColor').value,
+        customBrandName: document.getElementById('fieldCustomBrandName').value.trim(),
+        category: document.getElementById('fieldCategory').value,
+        series: document.getElementById('fieldSeries').value,
+        badge: document.getElementById('fieldGoldBadge').value,
+        mainSpec: document.getElementById('fieldMainSpec').value,
+        subSpec: document.getElementById('fieldSubSpec').value,
+        title: document.getElementById('fieldTitle').value,
+        specialPrice: formatIndianRupee(document.getElementById('fieldSpecialPrice').value),
+        mrp: formatIndianRupee(document.getElementById('fieldMrp').value),
+        modelNo: document.getElementById('fieldModelNo').value,
+        beeStars: document.getElementById('fieldBeeStars').value,
+        warranty: document.getElementById('fieldWarranty').value,
+        emi: document.getElementById('fieldEmi').value,
+        showSavings: document.getElementById('fieldShowSavings').checked,
+        features: features,
+        storeName: document.getElementById('fieldStoreName').value,
+        branches: document.getElementById('fieldBranches').value
+      };
+    }
+
+    function calculateSavingsAndSync() {
+      const sp = parseInt(document.getElementById('fieldSpecialPrice').value, 10) || 0;
+      const mrp = parseInt(document.getElementById('fieldMrp').value, 10) || 0;
+      const calcSpan = document.getElementById('calcSavingsTxt');
+
+      if (mrp > sp && sp > 0) {
+        const diff = mrp - sp;
+        const pct = Math.round((diff / mrp) * 100);
+        calcSpan.textContent = `₹${diff.toLocaleString('en-IN')} (${pct}% OFF)`;
+      } else {
+        calcSpan.textContent = `₹0 (0% OFF)`;
+      }
+      syncLivePreview();
+    }
+
+    function handleCategorySelection() {
+      const cat = document.getElementById('fieldCategory').value;
+      const mainLbl = document.getElementById('labelMainSpec');
+      const subLbl = document.getElementById('labelSubSpec');
+      const mainInp = document.getElementById('fieldMainSpec');
+      const subInp = document.getElementById('fieldSubSpec');
+
+      if (cat === 'TV') {
+        mainLbl.textContent = 'Screen Size (Inches)';
+        subLbl.textContent = 'Metric (cm)';
+        if (!mainInp.value || mainInp.value.includes('L') || mainInp.value.includes('kg')) {
+          mainInp.value = '55';
+        }
+        handleMainSpecInput();
+      } else if (cat === 'REF') {
+        mainLbl.textContent = 'Capacity (Litres)';
+        subLbl.textContent = 'Door Configuration';
+        mainInp.value = '240 L';
+        subInp.value = 'Double Door';
+      } else if (cat === 'WM') {
+        mainLbl.textContent = 'Capacity (Kg)';
+        subLbl.textContent = 'Machine Type';
+        mainInp.value = '7.5 kg';
+        subInp.value = 'Front Load';
+      }
+
+      renderFeatureSlotSelectors(cat);
+      syncLivePreview();
+    }
+
+    function handleMainSpecInput() {
+      const cat = document.getElementById('fieldCategory').value;
+      if (cat === 'TV') {
+        const inch = parseFloat(document.getElementById('fieldMainSpec').value);
+        if (!isNaN(inch) && inch > 0) {
+          const cm = Math.round(inch * 2.54);
+          document.getElementById('fieldSubSpec').value = `(${cm} cm)`;
+        }
+      }
+      syncLivePreview();
+    }
+
+    function handleBrandSelection() {
+      const brand = document.getElementById('fieldBrand').value;
+      const conf = brandProfiles[brand] || brandProfiles['Other'];
+
+      document.getElementById('fieldBrandColor').value = conf.color;
+      document.getElementById('labelBrandColor').textContent = conf.color;
+      document.getElementById('fieldSeries').value = conf.series;
+      document.getElementById('fieldGoldBadge').value = conf.badge;
+
+      syncLivePreview();
+    }
+
+    function renderFeatureSlotSelectors(category) {
+      const container = document.getElementById('featureSlotEditorContainer');
+      container.innerHTML = '';
+
+      const available = featureMemory.filter(f => f.cat === category || f.cat === 'ALL');
+
+      for (let i = 0; i < 4; i++) {
+        const item = available[i] || available[0] || { id: 'resolution_4k', label: 'Feature', svgKey: 'resolution_4k' };
+        const row = document.createElement('div');
+        row.className = 'grid grid-cols-5 gap-1.5 items-center';
+
+        const select = document.createElement('select');
+        select.id = `fslot_icon_${i}`;
+        select.className = 'col-span-2 bg-slateDark border border-borderDark rounded px-1.5 py-1 text-[11px] font-bold text-slate-200';
+        select.onchange = () => {
+          const matched = featureMemory.find(f => f.id === select.value);
+          if (matched) {
+            document.getElementById(`fslot_txt_${i}`).value = matched.label;
+          }
+          syncLivePreview();
+        };
+
+        featureMemory.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f.id;
+          opt.textContent = f.id.replace(/_/g, ' ');
+          if (f.id === item.id) opt.selected = true;
+          select.appendChild(opt);
+        });
+
+        const textInput = document.createElement('input');
+        textInput.type = 'text';
+        textInput.id = `fslot_txt_${i}`;
+        textInput.value = item.label;
+        textInput.className = 'col-span-3 bg-slateDark border border-borderDark rounded px-2 py-1 text-[11px] font-bold text-slate-100';
+        textInput.oninput = syncLivePreview;
+
+        row.appendChild(select);
+        row.appendChild(textInput);
+        container.appendChild(row);
+      }
+    }
+
+    function commitTagToQueue() {
+      const tag = readActiveForm();
+
+      if (editingId) {
+        const idx = tagQueue.findIndex(t => t.id === editingId);
+        if (idx !== -1) tagQueue[idx] = tag;
+        editingId = null;
+        document.getElementById('btnSubmitText').textContent = 'Push Tag to Print Queue';
+        document.getElementById('btnCancelEdit').classList.add('hidden');
+      } else {
+        tagQueue.unshift(tag);
+      }
+
+      // Silently remember this product (keyed by Model No) so specs never need re-entry
+      if (tag.modelNo && tag.modelNo.trim()) {
+        saveToCatalog({
+          id: catalogIdFor(tag.modelNo, tag.id),
+          category: tag.category,
+          brand: tag.brand,
+          modelNo: tag.modelNo.trim(),
+          size: tag.mainSpec || '',
+          sizeSub: tag.subSpec || '',
+          title: tag.title || '',
+          title1: tag.title || '',
+          title2: '',
+          mrp: parseMoney(tag.mrp),
+          offerPrice: parseMoney(tag.specialPrice),
+          headerBadge: tag.badge || '',
+          series: tag.series || '',
+          color: tag.brandColor || '#002F6C',
+          customBrandName: tag.customBrandName || '',
+          beeStars: tag.beeStars || 'none',
+          warranty: tag.warranty || '',
+          emi: tag.emi || '',
+          storeName: tag.storeName || 'Hari Om Electronics',
+          branches: tag.branches || 'Alandi | Dhanore',
+          features: (tag.features || []).slice(0, 4).map(f => ({
+            icon: f.svgKey || f.id,
+            text: f.label || ''
+          }))
+        });
+      }
+
+      saveSystemToStorage();
+      renderAllSheets();
+    }
+
+    function editQueuedTag(id) {
+      const tag = tagQueue.find(t => t.id === id);
+      if (!tag) return;
+
+      editingId = id;
+      document.getElementById('btnSubmitText').textContent = 'Update Queued Tag';
+      document.getElementById('btnCancelEdit').classList.remove('hidden');
+
+      document.getElementById('fieldCategory').value = tag.category;
+      handleCategorySelection();
+
+      document.getElementById('fieldBrand').value = tag.brand;
+      document.getElementById('fieldBrandColor').value = tag.brandColor;
+      document.getElementById('labelBrandColor').textContent = tag.brandColor;
+      document.getElementById('fieldCustomBrandName').value = tag.customBrandName || '';
+      document.getElementById('fieldSeries').value = tag.series;
+      document.getElementById('fieldGoldBadge').value = tag.badge;
+      document.getElementById('fieldMainSpec').value = tag.mainSpec;
+      document.getElementById('fieldSubSpec').value = tag.subSpec;
+      document.getElementById('fieldTitle').value = tag.title;
+      document.getElementById('fieldSpecialPrice').value = tag.specialPrice.replace(/,/g, '');
+      document.getElementById('fieldMrp').value = tag.mrp.replace(/,/g, '');
+      document.getElementById('fieldModelNo').value = tag.modelNo || '';
+      document.getElementById('fieldBeeStars').value = tag.beeStars || 'none';
+      document.getElementById('fieldWarranty').value = tag.warranty || '';
+      document.getElementById('fieldEmi').value = tag.emi || '';
+      document.getElementById('fieldStoreName').value = tag.storeName;
+      document.getElementById('fieldBranches').value = tag.branches;
+
+      (tag.features || []).forEach((f, i) => {
+        const sel = document.getElementById(`fslot_icon_${i}`);
+        const inp = document.getElementById(`fslot_txt_${i}`);
+        if (sel) sel.value = f.id || f.svgKey;
+        if (inp) inp.value = f.label;
+      });
+
+      calculateSavingsAndSync();
+      switchTab('tag-builder');
+      document.querySelector('aside').scrollTop = 0;
+    }
+
+    function cancelEditingMode() {
+      editingId = null;
+      document.getElementById('btnSubmitText').textContent = 'Push Tag to Print Queue';
+      document.getElementById('btnCancelEdit').classList.add('hidden');
+      syncLivePreview();
+    }
+
+    function duplicateTagById(id) {
+      const tag = tagQueue.find(t => t.id === id);
+      if (!tag) return;
+      const copy = JSON.parse(JSON.stringify(tag));
+      copy.id = 'tag_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+      tagQueue.push(copy);
+      saveSystemToStorage();
+      renderAllSheets();
+    }
+
+    function duplicateActiveTag(count) {
+      const current = readActiveForm();
+      for (let i = 0; i < count; i++) {
+        const copy = JSON.parse(JSON.stringify(current));
+        copy.id = 'tag_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+        tagQueue.push(copy);
+      }
+      saveSystemToStorage();
+      renderAllSheets();
+    }
+
+    function deleteQueuedTag(id) {
+      tagQueue = tagQueue.filter(t => t.id !== id);
+      if (editingId === id) cancelEditingMode();
+      saveSystemToStorage();
+      renderAllSheets();
+    }
+
+    function clearCurrentQueue() {
+      if (tagQueue.length === 0) return;
+      tagQueue = [];
+      cancelEditingMode();
+      saveSystemToStorage();
+      renderAllSheets();
+    }
+
+    function renderAllSheets() {
+      const container = document.getElementById('sheetsRenderContainer');
+      container.innerHTML = '';
+
+      const total = tagQueue.length;
+      document.getElementById('barQueueCount').textContent = total;
+      const numSheets = Math.ceil(total / 8) || 0;
+      document.getElementById('barSheetCount').textContent = numSheets;
+      document.getElementById('topSheetCount').textContent = numSheets;
+
+      if (total === 0) {
+        container.innerHTML = `
+          <div class="no-print bg-panelDark border border-dashed border-borderDark rounded-xl p-12 text-center max-w-md my-12">
+            <div class="w-12 h-12 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">🏷️</div>
+            <h3 class="font-bold text-white text-sm">Print Sheet Queue is Empty</h3>
+            <p class="text-xs text-slate-400 mt-1">Use the Tag Builder form on the left or load a fast preset to populate tags.</p>
+          </div>
+        `;
+        return;
+      }
+
+      for (let p = 0; p < numSheets; p++) {
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'a4-print-sheet';
+
+        const sliceTags = tagQueue.slice(p * 8, (p + 1) * 8);
+
+        sliceTags.forEach(tag => {
+          pageDiv.innerHTML += buildTagCardMarkup(tag, false);
+        });
+
+        // Fill remaining blanks to preserve 8-tag grid geometry
+        const emptySlots = 8 - sliceTags.length;
+        for (let e = 0; e < emptySlots; e++) {
+          pageDiv.innerHTML += `
+            <div class="shelf-tag border border-dashed border-slate-200 flex items-center justify-center bg-slate-50/50">
+              <span class="text-[10px] text-slate-300 font-bold uppercase tracking-widest no-print">Empty Slot</span>
+            </div>
+          `;
+        }
+
+        container.appendChild(pageDiv);
+      }
+    }
+
+    function toggleCropMarks() {
+      cutlinesVisible = !cutlinesVisible;
+      const container = document.getElementById('sheetsRenderContainer');
+      const label = document.getElementById('cropLabel');
+      if (cutlinesVisible) {
+        container.classList.add('crop-marks-on');
+        label.textContent = 'Cut Guides: ON';
+      } else {
+        container.classList.remove('crop-marks-on');
+        label.textContent = 'Cut Guides: OFF';
+      }
+    }
+
+    // TAB CONTROLLER
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-trigger').forEach(el => {
+        el.classList.remove('bg-slateDark', 'text-blue-400', 'border-t-2', 'border-blue-500');
+        el.classList.add('text-slate-400');
+      });
+
+      const activeEl = document.getElementById(`tab-${tabId}`);
+      const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+      if (activeEl && activeBtn) {
+        activeEl.classList.remove('hidden');
+        activeBtn.classList.add('bg-slateDark', 'text-blue-400', 'border-t-2', 'border-blue-500');
+        activeBtn.classList.remove('text-slate-400');
+      }
+    }
+
+    // BULK CSV PROCESSOR
+    function runBulkImport() {
+      const raw = document.getElementById('bulkImportInput').value.trim();
+      if (!raw) return;
+
+      const lines = raw.split(/\r?\n/);
+      let count = 0;
+
+      lines.forEach(line => {
+        if (!line.trim()) return;
+        const cols = line.includes('\t') ? line.split('\t') : line.split(',');
+        if (cols.length >= 5) {
+          const brand = cols[0].trim();
+          const category = (cols[1] || 'TV').trim().toUpperCase();
+          const size = cols[2].trim();
+          const series = cols[3].trim();
+          const title = cols[4].trim();
+          const sp = cols[5] ? cols[5].replace(/[^0-9]/g, '') : '29990';
+          const mrp = cols[6] ? cols[6].replace(/[^0-9]/g, '') : '39990';
+          const model = cols[7] ? cols[7].trim() : '';
+
+          let subSpec = '';
+          if (category === 'TV') {
+            const inch = parseFloat(size);
+            subSpec = (!isNaN(inch)) ? `(${Math.round(inch * 2.54)} cm)` : '';
+          } else if (category === 'REF') {
+            subSpec = 'Double Door';
+          } else {
+            subSpec = 'Front Load';
+          }
+
+          const tag = createTagDataInstance({
+            brand: brandProfiles[brand] ? brand : 'Other',
+            customBrandName: brandProfiles[brand] ? '' : brand,
+            category: category,
+            mainSpec: size,
+            subSpec: subSpec,
+            series: series,
+            title: title,
+            specialPrice: parseInt(sp, 10),
+            mrp: parseInt(mrp, 10),
+            modelNo: model
+          });
+
+          tagQueue.push(tag);
+          count++;
+        }
+      });
+
+      saveSystemToStorage();
+      renderAllSheets();
+      switchTab('tag-builder');
+    }
+
+    // FEATURE & ICON MEMORY ENGINE
+    function renderFeatureMemoryList() {
+      const container = document.getElementById('installedFeaturesList');
+      if (!container) return;
+      container.innerHTML = '';
+      document.getElementById('featCountLabel').textContent = featureMemory.length;
+
+      featureMemory.forEach((f, idx) => {
+        const row = document.createElement('div');
+        row.className = 'bg-slateDark p-2 rounded border border-borderDark flex items-center justify-between';
+        row.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <div class="w-5 h-5 flex items-center justify-center text-amber-300 shrink-0">
+              ${resolveSvgVector(f.svgKey || f.id)}
+            </div>
+            <div>
+              <div class="font-bold text-slate-200 text-[11px] leading-tight">${f.id}</div>
+              <div class="text-[9px] text-slate-400 font-mono">${f.cat} &bull; ${f.label.replace('\n', ' ')}</div>
+            </div>
+          </div>
+          <button onclick="removeFeatureFromMemory(${idx})" class="text-rose-400 hover:text-rose-300 font-bold px-1.5 py-0.5 rounded text-xs">&times;</button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function saveCustomFeatureToMemory() {
+      const id = document.getElementById('newFeatId').value.trim();
+      const cat = document.getElementById('newFeatCategory').value;
+      const label = document.getElementById('newFeatLabel').value.trim();
+      const svg = document.getElementById('newFeatSvg').value.trim();
+
+      if (!id || !label) {
+        alert('Please provide a feature ID and label.');
+        return;
+      }
+
+      if (svg) {
+        customSvgDict[id] = svg;
+      }
+
+      featureMemory.push({ id, cat, label, svgKey: id });
+      saveSystemToStorage();
+      renderFeatureMemoryList();
+      handleCategorySelection();
+
+      document.getElementById('newFeatId').value = '';
+      document.getElementById('newFeatLabel').value = '';
+      document.getElementById('newFeatSvg').value = '';
+    }
+
+    function removeFeatureFromMemory(index) {
+      featureMemory.splice(index, 1);
+      saveSystemToStorage();
+      renderFeatureMemoryList();
+      handleCategorySelection();
+    }
+
+    function resetDefaultFeatures() {
+      if (confirm('Reset feature and icon library to original defaults?')) {
+        featureMemory = JSON.parse(JSON.stringify(INITIAL_FEATURE_MEMORY));
+        saveSystemToStorage();
+        renderFeatureMemoryList();
+        handleCategorySelection();
+      }
+    }
+
+    // BRAND PROFILE MANAGER
+    function populateBrandSelectBox() {
+      const select = document.getElementById('fieldBrand');
+      select.innerHTML = '';
+      Object.keys(brandProfiles).forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b;
+        opt.textContent = b;
+        select.appendChild(opt);
+      });
+    }
+
+    function renderBrandManagerList() {
+      const container = document.getElementById('installedBrandsList');
+      if (!container) return;
+      container.innerHTML = '';
+
+      Object.keys(brandProfiles).forEach(brand => {
+        const conf = brandProfiles[brand];
+        const row = document.createElement('div');
+        row.className = 'bg-slateDark p-2 rounded border border-borderDark flex items-center justify-between';
+        row.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <span class="w-3.5 h-3.5 rounded" style="background-color: ${conf.color};"></span>
+            <div>
+              <div class="font-bold text-slate-200 text-[11px]">${brand}</div>
+              <div class="text-[9px] text-slate-400">${conf.badge} &bull; ${conf.series}</div>
+            </div>
+          </div>
+          <button onclick="deleteBrandProfile('${brand}')" class="text-rose-400 hover:text-rose-300 font-bold px-1.5 py-0.5 rounded text-xs">&times;</button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function saveBrandProfileToMemory() {
+      const name = document.getElementById('brandMgrName').value.trim();
+      const color = document.getElementById('brandMgrColor').value;
+      const series = document.getElementById('brandMgrSeries').value.trim() || 'LED TV';
+      const badge = document.getElementById('brandMgrBadge').value.trim() || '4K ULTRA HD';
+
+      if (!name) return;
+
+      brandProfiles[name] = { color, badge, series, fontType: 'default', customName: '' };
+      saveSystemToStorage();
+      populateBrandSelectBox();
+      renderBrandManagerList();
+
+      document.getElementById('brandMgrName').value = '';
+    }
+
+    function deleteBrandProfile(brand) {
+      if (brand === 'Samsung' || brand === 'LG' || brand === 'Sony') {
+        alert('Core brand profiles cannot be deleted.');
+        return;
+      }
+      delete brandProfiles[brand];
+      saveSystemToStorage();
+      populateBrandSelectBox();
+      renderBrandManagerList();
+    }
+
+    // DATABASE BACKUP / RESTORE
+    function exportDatabaseJSON() {
+      const dump = {
+        queue: tagQueue,
+        features: featureMemory,
+        brands: brandProfiles,
+        customSvgs: customSvgDict,
+        exportedAt: new Date().toISOString()
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dump, null, 2));
+      const a = document.createElement('a');
+      a.setAttribute("href", dataStr);
+      a.setAttribute("download", `HariOmElectronics_Backup_${Date.now()}.json`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    function importDatabaseJSON(evt) {
+      const file = evt.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (parsed.features) featureMemory = parsed.features;
+          if (parsed.brands) brandProfiles = parsed.brands;
+          if (parsed.queue) tagQueue = parsed.queue;
+          if (parsed.customSvgs) customSvgDict = parsed.customSvgs;
+
+          saveSystemToStorage();
+          populateBrandSelectBox();
+          renderBrandManagerList();
+          renderFeatureMemoryList();
+          handleCategorySelection();
+          renderAllSheets();
+          alert('System database restored successfully!');
+        } catch (err) {
+          alert('Invalid backup file format.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // PRESET LOADER
+    function loadSamplePreset(key) {
+      const map = {
+        samsung55: { cat: 'TV', brand: 'Samsung', size: '55', sub: '(139 cm)', series: 'LED TV', badge: '4K ULTRA HD', title: 'Crystal UHD Smart TV', sp: 44990, mrp: 62900, model: '55CUE60' },
+        sony50: { cat: 'TV', brand: 'Sony', size: '50', sub: '(126 cm)', series: 'BRAVIA', badge: '4K HDR', title: 'Google TV Smart LED TV', sp: 54990, mrp: 74900, model: 'KD-50X74L' },
+        lg65: { cat: 'TV', brand: 'LG', size: '65', sub: '(164 cm)', series: 'UHD AI ThinQ', badge: '4K ULTRA HD', title: 'Smart LED TV α5 AI Processor', sp: 69990, mrp: 89990, model: '65UR7500' },
+        hisense75: { cat: 'TV', brand: 'Hisense', size: '75', sub: '(190 cm)', series: 'QLED TV', badge: '4K ULTRA HD', title: 'Smart QLED TV Dolby Vision • Atmos', sp: 109990, mrp: 149990, model: '75E7K' },
+        haier43: { cat: 'TV', brand: 'Haier', size: '43', sub: '(108 cm)', series: 'Google TV', badge: 'BEZEL LESS', title: '4K Ultra HD Smart LED TV', sp: 28990, mrp: 41990, model: 'LE43K6600' },
+        lgRef260: { cat: 'REF', brand: 'LG', size: '260 L', sub: 'Double Door', series: 'GL-S292RDSY', badge: '3 STAR INVERTER', title: 'Smart Inverter Frost Free Refrigerator', sp: 26490, mrp: 33990, model: 'GL-S292' },
+        godrejRef: { cat: 'REF', brand: 'Godrej', size: '240 L', sub: 'Double Door', series: 'EDGE DUO', badge: '5 STAR INVERTER', title: 'Frost Free Multi-Air Flow Refrigerator', sp: 22990, mrp: 29990, model: 'RT-EON' },
+        boschWm: { cat: 'WM', brand: 'Bosch', size: '8.0 kg', sub: 'Front Load', series: 'SERIES 6', badge: 'GERMAN TECH', title: 'Anti-Tangle Inverter Front Load Machine', sp: 38990, mrp: 51900, model: 'WAJ2426' }
+      };
+
+      const cfg = map[key];
+      if (!cfg) return;
+
+      document.getElementById('fieldCategory').value = cfg.cat;
+      handleCategorySelection();
+      document.getElementById('fieldBrand').value = cfg.brand;
+      handleBrandSelection();
+      document.getElementById('fieldMainSpec').value = cfg.size;
+      document.getElementById('fieldSubSpec').value = cfg.sub;
+      document.getElementById('fieldSeries').value = cfg.series;
+      document.getElementById('fieldGoldBadge').value = cfg.badge;
+      document.getElementById('fieldTitle').value = cfg.title;
+      document.getElementById('fieldSpecialPrice').value = cfg.sp;
+      document.getElementById('fieldMrp').value = cfg.mrp;
+      document.getElementById('fieldModelNo').value = cfg.model;
+
+      calculateSavingsAndSync();
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       PRODUCT CATALOG / MODEL MEMORY ENGINE
+       Persistent memory of every saved product, keyed by model number.
+       Stored in localStorage under HARI_OM_PRODUCT_CATALOG.
+       ══════════════════════════════════════════════════════════════════ */
+    const CATALOG_STORAGE_KEY = 'HARI_OM_PRODUCT_CATALOG';
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function parseMoney(value) {
+      const n = parseInt(String(value == null ? '' : value).replace(/[^0-9]/g, ''), 10);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function catalogIdFor(modelNo, fallbackSeed) {
+      const base = String(modelNo || fallbackSeed || 'model')
+        .trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      return 'model_' + (base || ('m' + Date.now()));
+    }
+
+    function getCatalog() {
+      try {
+        const raw = localStorage.getItem(CATALOG_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) {
+        console.warn('Catalog read failed:', err);
+        return [];
+      }
+    }
+
+    function persistCatalog(list) {
+      try {
+        localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(list));
+      } catch (err) {
+        console.warn('Catalog save failed:', err);
+      }
+    }
+
+    // Reads the live form and normalizes it to the catalog schema
+    function formToCatalogProduct() {
+      const tag = readActiveForm();
+      const features = (tag.features || []).slice(0, 4).map(f => ({
+        icon: f.svgKey || f.id,
+        text: f.label || ''
+      }));
+      return {
+        id: catalogIdFor(tag.modelNo, tag.id),
+        category: tag.category,
+        brand: tag.brand,
+        modelNo: (tag.modelNo || '').trim(),
+        size: tag.mainSpec || '',
+        sizeSub: tag.subSpec || '',
+        title: tag.title || '',
+        title1: tag.title || '',
+        title2: '',
+        mrp: parseMoney(tag.mrp),
+        offerPrice: parseMoney(tag.specialPrice),
+        headerBadge: tag.badge || '',
+        series: tag.series || '',
+        color: tag.brandColor || '#002F6C',
+        customBrandName: tag.customBrandName || '',
+        beeStars: tag.beeStars || 'none',
+        warranty: tag.warranty || '',
+        emi: tag.emi || '',
+        storeName: tag.storeName || 'Hari Om Electronics',
+        branches: tag.branches || 'Alandi | Dhanore',
+        features: features,
+        lastUpdated: Date.now()
+      };
+    }
+
+    function saveToCatalog(product) {
+      if (!product || !(product.modelNo || '').trim()) return null;
+      const list = getCatalog();
+      const id = product.id || catalogIdFor(product.modelNo);
+      const entry = Object.assign({}, product, { id: id, lastUpdated: Date.now() });
+      const idx = list.findIndex(p => p.id === id);
+      let existed = idx !== -1;
+      if (existed) list[idx] = Object.assign({}, list[idx], entry);
+      else list.push(entry);
+      persistCatalog(list);
+      afterCatalogMutation();
+      return { entry: entry, updated: existed };
+    }
+
+    function deleteFromCatalog(id) {
+      persistCatalog(getCatalog().filter(p => p.id !== id));
+      afterCatalogMutation();
+    }
+
+    function findInCatalog(query) {
+      const q = String(query || '').trim().toLowerCase();
+      const list = getCatalog();
+      if (!q) return list;
+      return list.filter(p => [
+        p.modelNo, p.brand, p.size, p.series, p.title, p.category
+      ].join(' ').toLowerCase().includes(q));
+    }
+
+    function findCatalogByModel(modelNo) {
+      const m = String(modelNo || '').trim().toLowerCase();
+      if (!m) return null;
+      return getCatalog().find(p => String(p.modelNo || '').trim().toLowerCase() === m) || null;
+    }
+
+    function afterCatalogMutation() {
+      refreshModelDatalist();
+      populateCatalogBrandFilter();
+      if (document.getElementById('catalogListContainer')) renderCatalogList();
+    }
+
+    function refreshModelDatalist() {
+      const dl = document.getElementById('modelMemoryList');
+      if (!dl) return;
+      dl.innerHTML = '';
+      getCatalog()
+        .slice()
+        .sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0))
+        .forEach(p => {
+          if (!p.modelNo) return;
+          const opt = document.createElement('option');
+          opt.value = p.modelNo;
+          const meta = [p.brand, p.size].filter(Boolean).join(' · ');
+          if (meta) opt.label = meta;
+          dl.appendChild(opt);
+        });
+    }
+
+    let catalogNoticeTimer = null;
+    function showCatalogNotice(message) {
+      const el = document.getElementById('catalogNotice');
+      const txt = document.getElementById('catalogNoticeText');
+      if (!el || !txt) return;
+      txt.textContent = message;
+      el.classList.remove('hidden');
+      if (catalogNoticeTimer) clearTimeout(catalogNoticeTimer);
+      catalogNoticeTimer = setTimeout(() => el.classList.add('hidden'), 4500);
+    }
+
+    // Applies the 4 saved feature slots, adding options that are not in the current list
+    function applyCatalogFeatures(features) {
+      for (let i = 0; i < 4; i++) {
+        const sel = document.getElementById(`fslot_icon_${i}`);
+        const txt = document.getElementById(`fslot_txt_${i}`);
+        if (!sel || !txt) continue;
+        const f = features[i];
+        if (!f) continue;
+        const key = f.icon || f.svgKey || f.id;
+        if (key && !Array.from(sel.options).some(o => o.value === key)) {
+          const opt = document.createElement('option');
+          opt.value = key;
+          opt.textContent = String(key).replace(/_/g, ' ');
+          sel.appendChild(opt);
+        }
+        if (key) sel.value = key;
+        txt.value = f.text || f.label || '';
+      }
+    }
+
+    // Auto-fill every field from a saved catalog entry
+    function loadModelIntoForm(entry, fromAutofill) {
+      if (!entry) return;
+
+      document.getElementById('fieldCategory').value = entry.category || 'TV';
+      handleCategorySelection();
+
+      const brandSel = document.getElementById('fieldBrand');
+      if (entry.brand && !Array.from(brandSel.options).some(o => o.value === entry.brand)) {
+        const opt = document.createElement('option');
+        opt.value = entry.brand;
+        opt.textContent = entry.brand;
+        brandSel.appendChild(opt);
+      }
+      brandSel.value = entry.brand || 'Other';
+      handleBrandSelection();
+
+      const color = entry.color || '#002F6C';
+      document.getElementById('fieldBrandColor').value = color;
+      document.getElementById('labelBrandColor').textContent = color;
+      document.getElementById('fieldCustomBrandName').value = entry.customBrandName || '';
+      document.getElementById('fieldSeries').value = entry.series || '';
+      document.getElementById('fieldGoldBadge').value = entry.headerBadge || '';
+      document.getElementById('fieldMainSpec').value = entry.size || '';
+      document.getElementById('fieldSubSpec').value = entry.sizeSub || '';
+      document.getElementById('fieldTitle').value = entry.title || [entry.title1, entry.title2].filter(Boolean).join(' ') || '';
+      document.getElementById('fieldModelNo').value = entry.modelNo || '';
+      document.getElementById('fieldSpecialPrice').value = entry.offerPrice || 0;
+      document.getElementById('fieldMrp').value = entry.mrp || 0;
+      document.getElementById('fieldBeeStars').value = entry.beeStars || 'none';
+      document.getElementById('fieldWarranty').value = entry.warranty || '';
+      document.getElementById('fieldEmi').value = entry.emi || '';
+      document.getElementById('fieldStoreName').value = entry.storeName || 'Hari Om Electronics';
+      document.getElementById('fieldBranches').value = entry.branches || 'Alandi | Dhanore';
+
+      applyCatalogFeatures(entry.features || []);
+      calculateSavingsAndSync();
+
+      if (fromAutofill) showCatalogNotice('Auto-filled from Catalog Memory: ' + (entry.modelNo || entry.title || 'saved model'));
+    }
+
+    // Fired when the Model No field loses focus / a datalist entry is picked
+    function handleModelNoChange(value) {
+      const entry = findCatalogByModel(value);
+      if (entry) loadModelIntoForm(entry, true);
+    }
+
+    // Builds a printable tag object from a catalog entry
+    function catalogProductToTag(entry) {
+      let features = (entry.features || []).slice(0, 4).map(f => {
+        const key = f.icon || f.svgKey || f.id || 'resolution_4k';
+        return { id: key, svgKey: key, label: f.text || f.label || '' };
+      });
+      if (features.length === 0) {
+        features = [{ id: 'resolution_4k', svgKey: 'resolution_4k', label: '4K\nResolution' }];
+      }
+      return {
+        id: 'tag_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        brand: entry.brand || 'Other',
+        brandColor: entry.color || '#002F6C',
+        customBrandName: entry.customBrandName || '',
+        category: entry.category || 'TV',
+        series: entry.series || '',
+        badge: entry.headerBadge || '',
+        mainSpec: entry.size || '',
+        subSpec: entry.sizeSub || '',
+        title: entry.title || [entry.title1, entry.title2].filter(Boolean).join(' ') || '',
+        specialPrice: formatIndianRupee(entry.offerPrice || 0),
+        mrp: formatIndianRupee(entry.mrp || 0),
+        modelNo: entry.modelNo || '',
+        beeStars: entry.beeStars || 'none',
+        warranty: entry.warranty || '',
+        emi: entry.emi || '',
+        showSavings: false,
+        features: features,
+        storeName: entry.storeName || 'Hari Om Electronics',
+        branches: entry.branches || 'Alandi | Dhanore'
+      };
+    }
+
+    function loadCatalogEntryIntoForm(id) {
+      const entry = getCatalog().find(p => p.id === id);
+      if (!entry) return;
+      loadModelIntoForm(entry, true);
+      switchTab('tag-builder');
+      const aside = document.querySelector('aside');
+      if (aside) aside.scrollTop = 0;
+    }
+
+    function addCatalogEntryToQueue(id) {
+      const entry = getCatalog().find(p => p.id === id);
+      if (!entry) return;
+      tagQueue.unshift(catalogProductToTag(entry));
+      saveSystemToStorage();
+      renderAllSheets();
+      switchTab('tag-builder');
+    }
+
+    function deleteCatalogEntry(id) {
+      const entry = getCatalog().find(p => p.id === id);
+      if (!entry) return;
+      if (!confirm(`Remove ${entry.brand || ''} ${entry.modelNo || ''} from Catalog Memory?`)) return;
+      deleteFromCatalog(id);
+    }
+
+    function populateCatalogBrandFilter() {
+      const sel = document.getElementById('catalogFilterBrand');
+      if (!sel) return;
+      const current = sel.value;
+      const brands = Array.from(new Set(getCatalog().map(p => p.brand).filter(Boolean))).sort();
+      sel.innerHTML = '<option value="">All Brands</option>';
+      brands.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b;
+        opt.textContent = b;
+        sel.appendChild(opt);
+      });
+      sel.value = brands.includes(current) ? current : '';
+    }
+
+    function renderCatalogList() {
+      const container = document.getElementById('catalogListContainer');
+      if (!container) return;
+
+      const catSel = document.getElementById('catalogFilterCategory');
+      const brandSel = document.getElementById('catalogFilterBrand');
+      const searchEl = document.getElementById('catalogSearchInput');
+      const q = (searchEl ? searchEl.value : '').trim().toLowerCase();
+      const cat = catSel ? catSel.value : '';
+      const brand = brandSel ? brandSel.value : '';
+
+      let list = getCatalog();
+      if (cat) list = list.filter(p => p.category === cat);
+      if (brand) list = list.filter(p => p.brand === brand);
+      if (q) {
+        list = list.filter(p => [
+          p.modelNo, p.brand, p.size, p.series, p.title, p.category
+        ].join(' ').toLowerCase().includes(q));
+      }
+      list = list.slice().sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
+
+      const countEl = document.getElementById('catalogCountLabel');
+      if (countEl) countEl.textContent = getCatalog().length;
+
+      container.innerHTML = '';
+      if (list.length === 0) {
+        container.innerHTML = `<div class="bg-slateDark border border-dashed border-borderDark rounded-lg p-6 text-center text-[11px] text-slate-400">No saved models match. Push a tag with a Model No to remember it.</div>`;
+        return;
+      }
+
+      list.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'bg-slateDark p-2.5 rounded-lg border border-borderDark flex items-center justify-between gap-2';
+        row.innerHTML = `
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[11px] font-black text-white truncate">${escapeHtml(p.brand || '')} ${escapeHtml(p.modelNo || '')}</span>
+              <span class="text-[9px] font-bold px-1 py-0.5 rounded bg-blue-600/20 text-blue-300 border border-blue-500/30 shrink-0">${escapeHtml(p.category || '')}</span>
+            </div>
+            <div class="text-[10px] text-slate-400 truncate">${escapeHtml(p.size || '')}${p.sizeSub ? ' · ' + escapeHtml(p.sizeSub) : ''} · &#8377;${(p.offerPrice || 0).toLocaleString('en-IN')}</div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button onclick="loadCatalogEntryIntoForm('${p.id}')" title="Load into form" class="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition">Load</button>
+            <button onclick="addCatalogEntryToQueue('${p.id}')" title="Add one copy to the print queue" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold transition">+ Queue</button>
+            <button onclick="deleteCatalogEntry('${p.id}')" title="Delete from memory" class="px-2 py-1 bg-rose-950/50 hover:bg-rose-900/70 text-rose-300 border border-rose-800/60 rounded text-[10px] font-bold transition">&times;</button>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function exportCatalogJSON() {
+      const list = getCatalog();
+      if (list.length === 0) {
+        alert('Catalog Memory is empty — nothing to export yet.');
+        return;
+      }
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(list, null, 2));
+      const a = document.createElement('a');
+      a.setAttribute('href', dataStr);
+      a.setAttribute('download', 'hari_om_catalog.json');
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    function importCatalogJSON(evt) {
+      const file = evt.target.files && evt.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          let parsed = JSON.parse(e.target.result);
+          if (!Array.isArray(parsed) && parsed && Array.isArray(parsed.catalog)) parsed = parsed.catalog;
+          if (!Array.isArray(parsed)) throw new Error('Invalid catalog format');
+
+          const list = getCatalog();
+          let added = 0, updated = 0;
+          parsed.forEach(raw => {
+            if (!raw || (!raw.modelNo && !raw.id)) return;
+            const id = raw.id || catalogIdFor(raw.modelNo);
+            const entry = Object.assign({}, raw, { id: id, lastUpdated: raw.lastUpdated || Date.now() });
+            const idx = list.findIndex(p => p.id === id);
+            if (idx === -1) { list.push(entry); added++; }
+            else { list[idx] = Object.assign({}, list[idx], entry); updated++; }
+          });
+
+          persistCatalog(list);
+          afterCatalogMutation();
+          renderCatalogList();
+          alert(`Catalog imported — ${added} new model(s), ${updated} updated.`);
+        } catch (err) {
+          alert('Invalid catalog JSON file.');
+        } finally {
+          evt.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+</html>
