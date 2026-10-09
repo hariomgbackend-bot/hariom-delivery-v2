@@ -133,6 +133,12 @@
         size: A4 portrait;
         margin: 0;
       }
+
+      /* App shell must expand/flow so every sheet paginates (no fixed h-screen clipping) */
+      html, body {
+        height: auto !important;
+        overflow: visible !important;
+      }
       body {
         background: transparent !important;
         margin: 0 !important;
@@ -143,21 +149,41 @@
       .no-print {
         display: none !important;
       }
-      .print-surface {
+      main, .print-surface {
         display: block !important;
+        height: auto !important;
+        overflow: visible !important;
         padding: 0 !important;
         margin: 0 !important;
         background: transparent !important;
       }
+
+      /* Sheets stack as plain block: no flex gap, no margins from space-y */
+      #sheetsRenderContainer {
+        display: block !important;
+        gap: 0 !important;
+        margin: 0 !important;
+        width: auto !important;
+      }
+
       .a4-print-sheet {
         box-shadow: none !important;
         margin: 0 !important;
         padding: 21.5mm 3.4mm !important;
         height: 297mm !important;
         width: 210mm !important;
-        page-break-after: always !important;
+        overflow: hidden !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
         break-after: page !important;
+        page-break-after: always !important;
       }
+      /* No forced break after the FINAL sheet -> no trailing blank page */
+      .a4-print-sheet:last-child {
+        break-after: auto !important;
+        page-break-after: auto !important;
+      }
+
       .crop-marks-on .shelf-tag {
         border: 0.25pt dashed #94a3b8 !important;
       }
