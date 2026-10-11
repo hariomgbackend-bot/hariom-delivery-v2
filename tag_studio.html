@@ -213,6 +213,21 @@
 
     <!-- Global Toolbar -->
     <div class="flex items-center space-x-2.5">
+      <!-- Cloud Workspace Sync -->
+      <div class="flex items-center gap-1.5 bg-panelDark border border-borderDark rounded-md px-2 py-1">
+        <select id="cloudStoreSelect" onchange="onStoreSelectChange()" title="Store workspace" class="bg-transparent text-slate-200 text-xs font-bold focus:outline-none cursor-pointer">
+          <option value="alandi">Alandi</option>
+          <option value="dhanore">Dhanore</option>
+        </select>
+        <span class="text-slate-600">|</span>
+        <span id="cloudStatus" class="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+          <span id="cloudDot" class="w-2 h-2 rounded-full inline-block bg-slate-500"></span>
+          <span id="cloudStatusText">Cloud off</span>
+        </span>
+        <button onclick="flushCloudSave()" id="cloudSaveBtn" title="Save workspace to cloud" class="ml-1 px-2 py-0.5 text-[11px] font-bold bg-sky-600 hover:bg-sky-500 text-white rounded transition">Save</button>
+        <button onclick="reloadFromCloud()" id="cloudReloadBtn" title="Reload workspace from cloud" class="hidden px-2 py-0.5 text-[11px] font-bold bg-amber-600 hover:bg-amber-500 text-white rounded transition">Reload</button>
+      </div>
+
       <!-- Crop Marks Toggle -->
       <button onclick="toggleCropMarks()" id="cropBtn" class="px-2.5 py-1.5 text-xs font-semibold bg-panelDark hover:bg-slate-800 text-slate-200 border border-borderDark rounded-md transition flex items-center gap-1.5">
         <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
@@ -370,6 +385,26 @@
                 <input type="checkbox" id="fieldShowSavings" onchange="syncLivePreview()" class="rounded bg-slateDark border-slate-700 text-rose-600 focus:ring-0">
                 <span>Print Save Badge</span>
               </label>
+            </div>
+
+            <!-- Printed price / MRP visual size (scales the text + pill on the tag, not the amount) -->
+            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-rose-900/30">
+              <div class="flex items-center justify-between bg-panelDark border border-borderDark rounded px-1.5 py-1">
+                <span class="text-[10px] font-bold text-rose-300 uppercase">Price Size</span>
+                <div class="flex items-center gap-1">
+                  <button type="button" onclick="adjustPriceScale('price', -0.05)" class="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 text-white font-black leading-none">−</button>
+                  <span id="priceScaleLabel" class="text-[10px] font-mono text-slate-300 w-9 text-center">100%</span>
+                  <button type="button" onclick="adjustPriceScale('price', 0.05)" class="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 text-white font-black leading-none">+</button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between bg-panelDark border border-borderDark rounded px-1.5 py-1">
+                <span class="text-[10px] font-bold text-slate-300 uppercase">MRP Size</span>
+                <div class="flex items-center gap-1">
+                  <button type="button" onclick="adjustPriceScale('mrp', -0.05)" class="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 text-white font-black leading-none">−</button>
+                  <span id="mrpScaleLabel" class="text-[10px] font-mono text-slate-300 w-9 text-center">100%</span>
+                  <button type="button" onclick="adjustPriceScale('mrp', 0.05)" class="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 text-white font-black leading-none">+</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -691,6 +726,10 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
 
   </div>
 
+  <!-- Firebase (compat) — cloud workspace sync (same project as listmaker.html) -->
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
   <script>
     // EXPANDED 30+ SVG ICON REPOSITORY (Crisp, High-DPI vectors matching original retail tags)
     const CORE_SVG_LIBRARY = {
@@ -764,6 +803,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
     let customSvgDict = {};
     let editingId = null;
     let cutlinesVisible = true;
+    let priceScale = 1;   // printed Special Price text + pill scale
+    let mrpScale = 1;     // printed MRP text scale
 
     // INITIALIZATION
     window.addEventListener('DOMContentLoaded', () => {
@@ -777,6 +818,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       refreshModelDatalist();
       populateCatalogBrandFilter();
       renderCatalogList();
+      initCloudWorkspace();
     });
 
     // STORAGE ENGINE
@@ -814,6 +856,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       } catch (err) {
         console.warn('Error saving to LocalStorage:', err);
       }
+      scheduleCloudSave();
     }
 
     function seedRealisticDefaultTags() {
@@ -877,6 +920,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         warranty: overrides.warranty || '',
         emi: overrides.emi || '',
         showSavings: overrides.showSavings || false,
+        priceScale: overrides.priceScale || 1,
+        mrpScale: overrides.mrpScale || 1,
         features: selectedFeats,
         storeName: overrides.storeName || 'Hari Om Electronics',
         branches: overrides.branches || 'Alandi | Dhanore'
@@ -917,6 +962,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
     function buildTagCardMarkup(tag, isPreview = false) {
       const color = tag.brandColor || '#002F6C';
       const brandMarkup = renderBrandTypographyMarkup(tag);
+      const pScale = Number(tag.priceScale) > 0 ? Number(tag.priceScale) : 1;
+      const mScale = Number(tag.mrpScale) > 0 ? Number(tag.mrpScale) : 1;
 
       // Clean, zero-overflow 4 feature badges
       const featuresHTML = (tag.features || []).slice(0, 4).map(f => {
@@ -956,7 +1003,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       }
 
       return `
-        <div class="shelf-tag group" id="${tag.id}">
+        <div class="shelf-tag group" id="${tag.id}" style="--p-scale:${pScale};--m-scale:${mScale}">
           
           <!-- TIER 1: BRAND HEADER (Exact 0.52in matching physical sample) -->
           <div class="h-[0.52in] text-white flex items-center justify-between px-2 shrink-0 relative overflow-hidden" style="background-color: ${color};">
@@ -999,17 +1046,17 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
             <div class="flex flex-col items-center justify-center pl-1 max-w-full">
               
               <!-- Red Pill Capsule with Internal Strict Clamping -->
-              <div class="bg-[#d90429] text-white rounded-[14px] px-2 py-1 w-full text-center shadow-sm flex flex-col items-center justify-center overflow-hidden">
+              <div class="bg-[#d90429] text-white w-full text-center shadow-sm flex flex-col items-center justify-center overflow-hidden" style="border-radius: calc(14px * var(--p-scale,1)); padding: calc(0.25rem * var(--p-scale,1)) calc(0.5rem * var(--p-scale,1));">
                 <div class="text-[0.54rem] font-extrabold tracking-wider uppercase text-rose-100 leading-none">
                   Special Price ${beeBadgeMarkup}
                 </div>
-                <div class="text-[1.12rem] font-black text-yellow-300 tracking-tight leading-none mt-0.5 font-montserrat whitespace-nowrap overflow-hidden">
+                <div class="font-black text-yellow-300 tracking-tight leading-none mt-0.5 font-montserrat whitespace-nowrap overflow-hidden" style="font-size: calc(1.12rem * var(--p-scale,1));">
                   &#8377; ${tag.specialPrice}/-
                 </div>
               </div>
 
               <!-- Strike-through MRP -->
-              <div class="text-[0.66rem] font-bold text-slate-700 mt-1 whitespace-nowrap leading-none">
+              <div class="font-bold text-slate-700 mt-1 whitespace-nowrap leading-none" style="font-size: calc(0.66rem * var(--m-scale,1));">
                 MRP : <span class="line-through font-black text-slate-950">&#8377; ${tag.mrp}/-</span>
               </div>
 
@@ -1082,6 +1129,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         warranty: document.getElementById('fieldWarranty').value,
         emi: document.getElementById('fieldEmi').value,
         showSavings: document.getElementById('fieldShowSavings').checked,
+        priceScale: priceScale,
+        mrpScale: mrpScale,
         features: features,
         storeName: document.getElementById('fieldStoreName').value,
         branches: document.getElementById('fieldBranches').value
@@ -1100,6 +1149,24 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       } else {
         calcSpan.textContent = `₹0 (0% OFF)`;
       }
+      syncLivePreview();
+    }
+
+    // Printed price / MRP visual size controls (scale the text + pill, not the amount)
+    const PRICE_SCALE_MIN = 0.6, PRICE_SCALE_MAX = 1.8;
+
+    function updatePriceScaleLabels() {
+      const p = document.getElementById('priceScaleLabel');
+      const m = document.getElementById('mrpScaleLabel');
+      if (p) p.textContent = Math.round(priceScale * 100) + '%';
+      if (m) m.textContent = Math.round(mrpScale * 100) + '%';
+    }
+
+    function adjustPriceScale(kind, delta) {
+      const clamp = v => Math.min(PRICE_SCALE_MAX, Math.max(PRICE_SCALE_MIN, Math.round(v * 100) / 100));
+      if (kind === 'price') priceScale = clamp(priceScale + delta);
+      else mrpScale = clamp(mrpScale + delta);
+      updatePriceScaleLabels();
       syncLivePreview();
     }
 
@@ -1236,6 +1303,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
           emi: tag.emi || '',
           storeName: tag.storeName || 'Hari Om Electronics',
           branches: tag.branches || 'Alandi | Dhanore',
+          priceScale: Number(tag.priceScale) > 0 ? Number(tag.priceScale) : 1,
+          mrpScale: Number(tag.mrpScale) > 0 ? Number(tag.mrpScale) : 1,
           features: (tag.features || []).slice(0, 4).map(f => ({
             icon: f.svgKey || f.id,
             text: f.label || ''
@@ -1275,6 +1344,10 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       document.getElementById('fieldEmi').value = tag.emi || '';
       document.getElementById('fieldStoreName').value = tag.storeName;
       document.getElementById('fieldBranches').value = tag.branches;
+
+      priceScale = Number(tag.priceScale) > 0 ? Number(tag.priceScale) : 1;
+      mrpScale = Number(tag.mrpScale) > 0 ? Number(tag.mrpScale) : 1;
+      updatePriceScaleLabels();
 
       (tag.features || []).forEach((f, i) => {
         const sel = document.getElementById(`fslot_icon_${i}`);
@@ -1708,6 +1781,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       } catch (err) {
         console.warn('Catalog save failed:', err);
       }
+      scheduleCloudSave();
     }
 
     // Reads the live form and normalizes it to the catalog schema
@@ -1738,6 +1812,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         emi: tag.emi || '',
         storeName: tag.storeName || 'Hari Om Electronics',
         branches: tag.branches || 'Alandi | Dhanore',
+        priceScale: Number(tag.priceScale) > 0 ? Number(tag.priceScale) : 1,
+        mrpScale: Number(tag.mrpScale) > 0 ? Number(tag.mrpScale) : 1,
         features: features,
         lastUpdated: Date.now()
       };
@@ -1866,6 +1942,10 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       document.getElementById('fieldStoreName').value = entry.storeName || 'Hari Om Electronics';
       document.getElementById('fieldBranches').value = entry.branches || 'Alandi | Dhanore';
 
+      priceScale = Number(entry.priceScale) > 0 ? Number(entry.priceScale) : 1;
+      mrpScale = Number(entry.mrpScale) > 0 ? Number(entry.mrpScale) : 1;
+      updatePriceScaleLabels();
+
       applyCatalogFeatures(entry.features || []);
       calculateSavingsAndSync();
 
@@ -1905,6 +1985,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         warranty: entry.warranty || '',
         emi: entry.emi || '',
         showSavings: false,
+        priceScale: Number(entry.priceScale) > 0 ? Number(entry.priceScale) : 1,
+        mrpScale: Number(entry.mrpScale) > 0 ? Number(entry.mrpScale) : 1,
         features: features,
         storeName: entry.storeName || 'Hari Om Electronics',
         branches: entry.branches || 'Alandi | Dhanore'
@@ -2051,6 +2133,258 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       };
       reader.readAsText(file);
     }
+
+    /* ══════════════════════════════════════════════════════════════════
+       CLOUD WORKSPACE SYNC  (Firebase Firestore, one doc per store)
+       localStorage stays the source of truth (offline-first); this
+       mirrors it to tag_studio_workspaces/{store} so closing the tab
+       never loses the queue, catalog, icons or brand profiles.
+       Mirrors the browser-direct Firestore pattern used by listmaker.html.
+       ══════════════════════════════════════════════════════════════════ */
+    const CLOUD_STORE_LSKEY = 'tag_studio_store';
+    const CLOUD_META_LSKEY = 'tag_studio_cloud_meta';
+    const CLOUD_DEVICE_LSKEY = 'tag_studio_device_id';
+    const CLOUD_COLLECTION = 'tag_studio_workspaces';
+    const CLOUD_SCHEMA_VERSION = 1;
+    const CLOUD_DEBOUNCE_MS = 1200;
+
+    let _cloudDb = null;
+    let _cloudSaveTimer = null;
+    let _cloudSaving = false;
+    let _cloudStop = false;        // set on conflict so we never clobber another device
+    let _cloudApplying = false;    // guard: suppress autosave while applying a remote doc
+    let _cloudBaseRevision = 0;    // revision we last loaded/saved
+
+    function cloudTime(ms) {
+      try { return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+      catch (e) { return ''; }
+    }
+
+    function getStoreKey() {
+      try { return localStorage.getItem(CLOUD_STORE_LSKEY) || 'alandi'; }
+      catch (e) { return 'alandi'; }
+    }
+
+    function setStoreKey(key) {
+      try { localStorage.setItem(CLOUD_STORE_LSKEY, key); } catch (e) {}
+    }
+
+    function cloudDeviceId() {
+      try {
+        let id = localStorage.getItem(CLOUD_DEVICE_LSKEY);
+        if (!id) { id = 'dev_' + Math.random().toString(36).slice(2, 10); localStorage.setItem(CLOUD_DEVICE_LSKEY, id); }
+        return id;
+      } catch (e) { return 'dev_unknown'; }
+    }
+
+    function cloudLocalMeta() {
+      try {
+        const raw = localStorage.getItem(CLOUD_META_LSKEY);
+        return raw ? JSON.parse(raw) : { updatedAt: 0, revision: 0, store: null };
+      } catch (e) { return { updatedAt: 0, revision: 0, store: null }; }
+    }
+
+    function setCloudMeta(meta) {
+      try { localStorage.setItem(CLOUD_META_LSKEY, JSON.stringify(meta)); } catch (e) {}
+    }
+
+    function setCloudStatus(state, text) {
+      const dot = document.getElementById('cloudDot');
+      const txt = document.getElementById('cloudStatusText');
+      const reload = document.getElementById('cloudReloadBtn');
+      const colors = { off: 'bg-slate-500', ok: 'bg-emerald-400', busy: 'bg-amber-400', warn: 'bg-amber-400', error: 'bg-rose-500' };
+      if (dot) dot.className = 'w-2 h-2 rounded-full inline-block ' + (colors[state] || 'bg-slate-500');
+      if (txt) { txt.textContent = text; txt.title = text; }
+      if (reload) reload.classList.toggle('hidden', state !== 'warn');
+    }
+
+    // Lazily create the Firestore handle. Returns null when Firebase is unavailable.
+    function cloudDb() {
+      if (_cloudDb) return _cloudDb;
+      if (typeof firebase === 'undefined' || !firebase.firestore) return null;
+      try {
+        if (!firebase.apps || !firebase.apps.length) {
+          firebase.initializeApp({
+            apiKey: "AIzaSyBfQlLpHbuRsZ7YKIFBj8Fa5o-HMo0SBrU",
+            authDomain: "hariom-delivery.firebaseapp.com",
+            projectId: "hariom-delivery",
+            storageBucket: "hariom-delivery.firebasestorage.app",
+            messagingSenderId: "60300951507",
+            appId: "1:60300951507:web:e5d55d0d18dc2000b47926"
+          });
+        }
+        _cloudDb = firebase.firestore();
+        try {
+          const p = _cloudDb.enablePersistence({ synchronizeTabs: true });
+          if (p && p.catch) p.catch(() => {});
+        } catch (e) {}
+        return _cloudDb;
+      } catch (err) {
+        console.warn('Cloud init failed:', err);
+        return null;
+      }
+    }
+
+    function collectWorkspace() {
+      return {
+        storeKey: getStoreKey(),
+        schemaVersion: CLOUD_SCHEMA_VERSION,
+        queue: tagQueue,
+        catalog: getCatalog(),
+        featureMemory: featureMemory,
+        brandProfiles: brandProfiles,
+        customSvgs: customSvgDict,
+        updatedAt: Date.now(),
+        updatedBy: { deviceId: cloudDeviceId() }
+      };
+    }
+
+    function initCloudWorkspace() {
+      const sel = document.getElementById('cloudStoreSelect');
+      if (sel) sel.value = getStoreKey();
+      const db = cloudDb();
+      if (!db) { setCloudStatus('off', 'Cloud off'); return; }
+      setCloudStatus('busy', 'Loading…');
+      pullWorkspace(false);
+    }
+
+    // Load this store's workspace; adopt it when it is newer than local state.
+    async function pullWorkspace(force) {
+      const db = cloudDb();
+      if (!db) { setCloudStatus('off', 'Cloud off'); return; }
+      const store = getStoreKey();
+      try {
+        const snap = await db.collection(CLOUD_COLLECTION).doc(store).get();
+        if (!snap.exists) {
+          _cloudBaseRevision = 0;
+          setCloudStatus('busy', 'Saving…');
+          await pushWorkspace(true);
+          return;
+        }
+        const data = snap.data() || {};
+        const remoteAt = Number(data.updatedAt) || 0;
+        const meta = cloudLocalMeta();
+        const localAt = (meta.store === store ? Number(meta.updatedAt) : 0) || 0;
+
+        if (force || remoteAt > localAt) {
+          applyWorkspace(data);
+          _cloudBaseRevision = Number(data.revision) || 0;
+          setCloudMeta({ updatedAt: remoteAt, revision: _cloudBaseRevision, store: store });
+          setCloudStatus('ok', (force ? 'Reloaded ' : 'Restored ') + cloudTime(remoteAt));
+        } else {
+          _cloudBaseRevision = Number(data.revision) || 0;
+          await pushWorkspace(true);
+        }
+      } catch (err) {
+        console.warn('Cloud load failed:', err);
+        setCloudStatus('error', 'Cloud offline');
+      }
+    }
+
+    // Adopt a remote workspace into state + localStorage, then re-render.
+    function applyWorkspace(data) {
+      _cloudApplying = true;
+      try {
+        if (Array.isArray(data.queue)) tagQueue = data.queue;
+        if (Array.isArray(data.featureMemory)) featureMemory = data.featureMemory;
+        if (data.brandProfiles && typeof data.brandProfiles === 'object') brandProfiles = data.brandProfiles;
+        if (data.customSvgs && typeof data.customSvgs === 'object') customSvgDict = data.customSvgs;
+        if (Array.isArray(data.catalog)) persistCatalog(data.catalog);
+        saveSystemToStorage();
+
+        populateBrandSelectBox();
+        renderBrandManagerList();
+        renderFeatureMemoryList();
+        handleCategorySelection();
+        refreshModelDatalist();
+        populateCatalogBrandFilter();
+        renderCatalogList();
+        syncLivePreview();
+        renderAllSheets();
+      } finally {
+        _cloudApplying = false;
+      }
+    }
+
+    function scheduleCloudSave() {
+      if (_cloudApplying || _cloudStop || !_cloudDb) return;
+      if (_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
+      setCloudStatus('busy', 'Unsaved…');
+      _cloudSaveTimer = setTimeout(() => { _cloudSaveTimer = null; pushWorkspace(false); }, CLOUD_DEBOUNCE_MS);
+    }
+
+    async function flushCloudSave() {
+      if (_cloudSaveTimer) { clearTimeout(_cloudSaveTimer); _cloudSaveTimer = null; }
+      await pushWorkspace(false);
+    }
+
+    // Read-then-write (offline-friendly). Bails out if another device changed the doc.
+    async function pushWorkspace(isInitial) {
+      const db = cloudDb();
+      if (!db) { setCloudStatus('off', 'Cloud off'); return; }
+      if (_cloudSaving) { if (!isInitial) scheduleCloudSave(); return; }
+      if (_cloudStop && !isInitial) return;
+
+      _cloudSaving = true;
+      const store = getStoreKey();
+      const payload = collectWorkspace();
+      const ref = db.collection(CLOUD_COLLECTION).doc(store);
+      try {
+        let currentRev = _cloudBaseRevision;
+        try {
+          const snap = await ref.get();
+          currentRev = (snap && snap.exists) ? (Number(snap.data().revision) || 0) : 0;
+        } catch (e) { currentRev = _cloudBaseRevision; }
+
+        if (currentRev !== _cloudBaseRevision) {
+          _cloudStop = true;
+          setCloudStatus('warn', 'Other device changed — Reload');
+          return;
+        }
+
+        const rev = currentRev + 1;
+        await ref.set(Object.assign({}, payload, {
+          revision: rev,
+          serverUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }));
+        _cloudBaseRevision = rev;
+        setCloudMeta({ updatedAt: payload.updatedAt, revision: rev, store: store });
+        setCloudStatus('ok', 'Saved ' + cloudTime(payload.updatedAt));
+      } catch (err) {
+        console.warn('Cloud save failed:', err);
+        setCloudStatus('error', 'Cloud offline');
+      } finally {
+        _cloudSaving = false;
+      }
+    }
+
+    function reloadFromCloud() {
+      _cloudStop = false;
+      _cloudBaseRevision = 0;
+      setCloudStatus('busy', 'Loading…');
+      pullWorkspace(true);
+    }
+
+    async function onStoreSelectChange() {
+      const sel = document.getElementById('cloudStoreSelect');
+      const newStore = sel.value;
+      const oldStore = getStoreKey();
+      if (newStore === oldStore) return;
+      if (!confirm('Switch to the "' + newStore + '" workspace? Current tags are saved first.')) {
+        sel.value = oldStore;
+        return;
+      }
+      await flushCloudSave();
+      setStoreKey(newStore);
+      _cloudStop = false;
+      _cloudBaseRevision = 0;
+      pullWorkspace(true);
+    }
+
+    // Best-effort flush when the tab is hidden/closed (debounce would otherwise drop it).
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && _cloudSaveTimer) flushCloudSave();
+    });
   </script>
 </body>
 </html>
