@@ -7,7 +7,7 @@
    Bump CACHE_NAME on any change to force a clean install.
 ══════════════════════════════════════════════════ */
 
-const CACHE_NAME = "hariom-dms-v5";
+const CACHE_NAME = "hariom-dms-v6";
 const OFFLINE_URL = "/offline.html";
 
 // Only these static asset types get cached (stale-while-revalidate).
@@ -23,6 +23,10 @@ const PRECACHE_URLS = [
   "/staff-manifest.json",
   "/design-system.css",
   "/shared.js",
+  // Proof-photo stamping must work with no network at all, and cross-origin
+  // requests are never cached by this worker (see the fetch handler below), so
+  // the QR encoder has to be served locally and precached here.
+  "/vendor/qrcode.min.js",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png"
 ];

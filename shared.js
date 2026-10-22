@@ -62,6 +62,38 @@ function escHtml(s) {
   return String(s||"").replace(/&#x2F;/g,"/").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
+/* ── Proof-stamp verdict badge ──
+   Reads the per-stage verdict the server records on a delivery
+   (proof_stamp_loaded / proof_stamp_delivered / proof_stamp_failed).
+   Deliveries recorded before stamping existed have no verdict and render nothing. */
+function proofStampBadge(delivery, stage) {
+  const s = delivery && delivery["proof_stamp_" + stage];
+  if (!s || !s.status) return "";
+
+  const styles = {
+    verified: ["rgba(22,163,74,0.15)",  "#16a34a", "rgba(22,163,74,0.35)",  "✓ Proof verified"],
+    flagged:  ["rgba(245,158,11,0.15)", "#b45309", "rgba(245,158,11,0.40)", "⚠ Proof flagged"],
+    missing:  ["rgba(148,163,184,0.18)","#64748b", "rgba(148,163,184,0.45)","– No proof stamp"]
+  };
+  const [bg, fg, border, label] = styles[s.status] || styles.missing;
+
+  const bits = [];
+  if (s.ts && s.ts.seconds) {
+    bits.push("stamped " + new Date(s.ts.seconds * 1000).toLocaleString("en-IN", {
+      day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
+    }));
+  }
+  bits.push(s.lat != null && s.lng != null
+    ? s.lat.toFixed(5) + ", " + s.lng.toFixed(5)
+    : "no coordinates");
+  if (s.accuracy_m != null) bits.push("±" + Math.round(s.accuracy_m) + "m");
+  if (Array.isArray(s.reasons) && s.reasons.length) bits.push(s.reasons.join("; "));
+
+  return `<div title="${escHtml(bits.join(" · "))}" style="display:inline-block;margin-top:6px;` +
+         `padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;` +
+         `background:${bg};color:${fg};border:1px solid ${border};">${label}</div>`;
+}
+
 /* ── XML tag extractor (multiline) ── */
 function tagAll(name, t) {
   const re = new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "gi");

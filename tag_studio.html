@@ -224,7 +224,9 @@
           <span id="cloudDot" class="w-2 h-2 rounded-full inline-block bg-slate-500"></span>
           <span id="cloudStatusText">Cloud off</span>
         </span>
-        <button onclick="flushCloudSave()" id="cloudSaveBtn" title="Save workspace to cloud" class="ml-1 px-2 py-0.5 text-[11px] font-bold bg-sky-600 hover:bg-sky-500 text-white rounded transition">Save</button>
+        <span class="text-slate-600">|</span>
+        <span id="currentFileName" class="text-[10px] font-bold text-sky-300 max-w-[140px] truncate" title="Current file">Untitled</span>
+        <button onclick="saveFileNow()" id="cloudSaveBtn" title="Save the open file" class="ml-1 px-2 py-0.5 text-[11px] font-bold bg-sky-600 hover:bg-sky-500 text-white rounded transition">Save</button>
         <button onclick="reloadFromCloud()" id="cloudReloadBtn" title="Reload workspace from cloud" class="hidden px-2 py-0.5 text-[11px] font-bold bg-amber-600 hover:bg-amber-500 text-white rounded transition">Reload</button>
       </div>
 
@@ -262,6 +264,10 @@
         <button onclick="switchTab('catalog-memory')" id="tab-btn-catalog-memory" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
           <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H6a2 2 0 00-2 2z"/></svg>
           Catalog
+        </button>
+        <button onclick="switchTab('files')" id="tab-btn-files" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Files
         </button>
         <button onclick="switchTab('bulk-import')" id="tab-btn-bulk-import" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
           <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
@@ -522,6 +528,38 @@
             <label class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded text-center cursor-pointer transition">
               ⬆ Import Catalog (JSON)
               <input type="file" id="catalogImportFile" accept=".json" onchange="importCatalogJSON(event)" class="hidden">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: FILES (saved workspaces) -->
+      <div id="tab-files" class="tab-content hidden flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-amber-300 text-xs uppercase">Files</h3>
+            <span class="text-[10px] text-slate-400">Saved: <strong id="filesCountLabel" class="text-white">0</strong></span>
+          </div>
+          <div class="mt-1.5 flex items-center gap-1.5">
+            <span class="text-[10px] font-bold text-slate-400 uppercase">Open:</span>
+            <span id="currentFileNameTab" class="text-[11px] font-black text-sky-300 truncate">Untitled</span>
+          </div>
+          <div class="pt-2 flex gap-2">
+            <button onclick="newFile()" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold rounded transition">New</button>
+            <button onclick="saveFileNow()" class="flex-1 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded transition">Save</button>
+            <button onclick="saveFileAs()" class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Save As</button>
+          </div>
+        </div>
+
+        <div id="filesListContainer" class="space-y-1.5 max-h-[46vh] overflow-y-auto pr-1"></div>
+
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Backup &amp; Share File</span>
+          <div class="flex gap-2">
+            <button onclick="exportFile()" class="flex-1 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded transition">⬇ Export File (JSON)</button>
+            <label class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded text-center cursor-pointer transition">
+              ⬆ Import File (JSON)
+              <input type="file" id="fileImportInput" accept=".json" onchange="importFile(event)" class="hidden">
             </label>
           </div>
         </div>
@@ -818,7 +856,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       refreshModelDatalist();
       populateCatalogBrandFilter();
       renderCatalogList();
-      initCloudWorkspace();
+      initFiles();
     });
 
     // STORAGE ENGINE
@@ -2135,25 +2173,29 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
     }
 
     /* ══════════════════════════════════════════════════════════════════
-       CLOUD WORKSPACE SYNC  (Firebase Firestore, one doc per store)
-       localStorage stays the source of truth (offline-first); this
-       mirrors it to tag_studio_workspaces/{store} so closing the tab
-       never loses the queue, catalog, icons or brand profiles.
+       CLOUD FILE LIBRARY  (Firebase Firestore, named files per store)
+       Each file is a full workspace snapshot (queue + catalog + icons +
+       brand profiles + custom SVGs). localStorage caches the file list and
+       the open file so the tool still works offline; Firestore is the mirror.
        Mirrors the browser-direct Firestore pattern used by listmaker.html.
        ══════════════════════════════════════════════════════════════════ */
     const CLOUD_STORE_LSKEY = 'tag_studio_store';
-    const CLOUD_META_LSKEY = 'tag_studio_cloud_meta';
     const CLOUD_DEVICE_LSKEY = 'tag_studio_device_id';
-    const CLOUD_COLLECTION = 'tag_studio_workspaces';
+    const FILES_LSKEY = 'tag_studio_files_cache';
+    const OPEN_FILES_LSKEY = 'tag_studio_open_files';
+    const FILES_COLLECTION = 'tag_studio_files';
+    const LEGACY_COLLECTION = 'tag_studio_workspaces';
     const CLOUD_SCHEMA_VERSION = 1;
     const CLOUD_DEBOUNCE_MS = 1200;
 
+    let openFileId = null;
+    let openFileName = 'Untitled';
     let _cloudDb = null;
     let _cloudSaveTimer = null;
     let _cloudSaving = false;
     let _cloudStop = false;        // set on conflict so we never clobber another device
-    let _cloudApplying = false;    // guard: suppress autosave while applying a remote doc
-    let _cloudBaseRevision = 0;    // revision we last loaded/saved
+    let _cloudApplying = false;    // guard: suppress autosave while applying a file
+    let _cloudBaseRevision = 0;    // revision of the open file we last loaded/saved
 
     function cloudTime(ms) {
       try { return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
@@ -2177,16 +2219,46 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       } catch (e) { return 'dev_unknown'; }
     }
 
-    function cloudLocalMeta() {
-      try {
-        const raw = localStorage.getItem(CLOUD_META_LSKEY);
-        return raw ? JSON.parse(raw) : { updatedAt: 0, revision: 0, store: null };
-      } catch (e) { return { updatedAt: 0, revision: 0, store: null }; }
+    function readJSON(key, fallback) {
+      try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+      catch (e) { return fallback; }
     }
 
-    function setCloudMeta(meta) {
-      try { localStorage.setItem(CLOUD_META_LSKEY, JSON.stringify(meta)); } catch (e) {}
+    function writeJSON(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
     }
+
+    function getLocalFiles() {
+      const v = readJSON(FILES_LSKEY, []);
+      return Array.isArray(v) ? v : [];
+    }
+
+    function setLocalFiles(list) { writeJSON(FILES_LSKEY, list); }
+
+    function getLocalFile(id) { return getLocalFiles().find(f => f.id === id) || null; }
+
+    function upsertLocalFile(file) {
+      const list = getLocalFiles();
+      const i = list.findIndex(f => f.id === file.id);
+      if (i === -1) list.push(file); else list[i] = Object.assign({}, list[i], file);
+      setLocalFiles(list);
+      return list;
+    }
+
+    function removeLocalFile(id) { setLocalFiles(getLocalFiles().filter(f => f.id !== id)); }
+
+    function getOpenFileId(store) {
+      const m = readJSON(OPEN_FILES_LSKEY, {});
+      return m[store || getStoreKey()] || null;
+    }
+
+    function setOpenFileId(store, id) {
+      const m = readJSON(OPEN_FILES_LSKEY, {});
+      if (id) m[store || getStoreKey()] = id; else delete m[store || getStoreKey()];
+      writeJSON(OPEN_FILES_LSKEY, m);
+    }
+
+    function filesForStore(list, store) { return list.filter(f => (f.store || 'alandi') === store); }
 
     function setCloudStatus(state, text) {
       const dot = document.getElementById('cloudDot');
@@ -2225,9 +2297,11 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       }
     }
 
-    function collectWorkspace() {
+    function collectFileData(name) {
       return {
-        storeKey: getStoreKey(),
+        id: openFileId || newFileId(),
+        name: (name || openFileName || 'Untitled'),
+        store: getStoreKey(),
         schemaVersion: CLOUD_SCHEMA_VERSION,
         queue: tagQueue,
         catalog: getCatalog(),
@@ -2239,46 +2313,125 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       };
     }
 
-    function initCloudWorkspace() {
-      const sel = document.getElementById('cloudStoreSelect');
-      if (sel) sel.value = getStoreKey();
-      const db = cloudDb();
-      if (!db) { setCloudStatus('off', 'Cloud off'); return; }
-      setCloudStatus('busy', 'Loading…');
-      pullWorkspace(false);
+    function newFileId() {
+      return 'file_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     }
 
-    // Load this store's workspace; adopt it when it is newer than local state.
-    async function pullWorkspace(force) {
+    function initFiles() {
+      const sel = document.getElementById('cloudStoreSelect');
+      if (sel) sel.value = getStoreKey();
+      renderFilesList();
       const db = cloudDb();
-      if (!db) { setCloudStatus('off', 'Cloud off'); return; }
+      if (!db) { setCloudStatus('off', 'Cloud off'); ensureOpenFile(); return; }
+      setCloudStatus('busy', 'Loading…');
+      pullFiles();
+    }
+
+    // Fetch this store's files, merge into the local cache (newest wins), then open one.
+    async function pullFiles() {
+      const db = cloudDb();
+      if (!db) { setCloudStatus('off', 'Cloud off'); await ensureOpenFile(); return; }
       const store = getStoreKey();
       try {
-        const snap = await db.collection(CLOUD_COLLECTION).doc(store).get();
-        if (!snap.exists) {
-          _cloudBaseRevision = 0;
-          setCloudStatus('busy', 'Saving…');
-          await pushWorkspace(true);
-          return;
-        }
-        const data = snap.data() || {};
-        const remoteAt = Number(data.updatedAt) || 0;
-        const meta = cloudLocalMeta();
-        const localAt = (meta.store === store ? Number(meta.updatedAt) : 0) || 0;
-
-        if (force || remoteAt > localAt) {
-          applyWorkspace(data);
-          _cloudBaseRevision = Number(data.revision) || 0;
-          setCloudMeta({ updatedAt: remoteAt, revision: _cloudBaseRevision, store: store });
-          setCloudStatus('ok', (force ? 'Reloaded ' : 'Restored ') + cloudTime(remoteAt));
-        } else {
-          _cloudBaseRevision = Number(data.revision) || 0;
-          await pushWorkspace(true);
-        }
+        const snap = await db.collection(FILES_COLLECTION).where('store', '==', store).get();
+        const remote = [];
+        snap.forEach(d => remote.push(Object.assign({ id: d.id }, d.data())));
+        remote.forEach(rf => {
+          const lf = getLocalFile(rf.id);
+          if (!lf || (Number(rf.updatedAt) || 0) >= (Number(lf.updatedAt) || 0)) upsertLocalFile(rf);
+        });
+        renderFilesList();
+        await ensureOpenFile();
       } catch (err) {
-        console.warn('Cloud load failed:', err);
+        console.warn('Files load failed:', err);
         setCloudStatus('error', 'Cloud offline');
+        await ensureOpenFile();
       }
+    }
+
+    // Open the last-open file for this store, else the most recent, else migrate/create one.
+    async function ensureOpenFile() {
+      const store = getStoreKey();
+      const list = filesForStore(getLocalFiles(), store);
+      if (list.length === 0) {
+        const migrated = await migrateLegacyWorkspace(store);
+        if (migrated) { openFile(migrated.id, true); return; }
+        const f = collectFileData('Default');
+        f.id = newFileId();
+        openFileId = f.id; openFileName = f.name;
+        setOpenFileId(store, f.id);
+        upsertLocalFile(f);
+        setOpenFileUI(); renderFilesList();
+        await saveOpenFile(true);
+        return;
+      }
+      const wantId = getOpenFileId(store);
+      const target = list.find(f => f.id === wantId)
+        || list.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+      openFile(target.id, true);
+    }
+
+    // One-time import of the old single-doc workspace (tag_studio_workspaces/{store}).
+    async function migrateLegacyWorkspace(store) {
+      const db = cloudDb();
+      if (!db) return null;
+      try {
+        const snap = await db.collection(LEGACY_COLLECTION).doc(store).get();
+        if (!snap.exists) return null;
+        const d = snap.data() || {};
+        const f = {
+          id: newFileId(), name: 'Default', store: store, schemaVersion: CLOUD_SCHEMA_VERSION,
+          queue: d.queue || [], catalog: d.catalog || [], featureMemory: d.featureMemory || [],
+          brandProfiles: d.brandProfiles || {}, customSvgs: d.customSvgs || {},
+          updatedAt: d.updatedAt || Date.now(), updatedBy: d.updatedBy || { deviceId: cloudDeviceId() }
+        };
+        upsertLocalFile(f); renderFilesList();
+        await pushFileDoc(f, true);
+        return f;
+      } catch (e) { console.warn('Legacy migration skipped:', e); return null; }
+    }
+
+    // Adopt a file into state + re-render (also refreshes the open-file UI).
+    function openFile(id, isInitial) {
+      const f = getLocalFile(id);
+      if (!f) return;
+      _cloudStop = false;
+      _cloudBaseRevision = Number(f.revision) || 0;
+      openFileId = f.id;
+      openFileName = f.name || 'Untitled';
+      setOpenFileId(getStoreKey(), f.id);
+      applyWorkspace(f);
+      setOpenFileUI();
+      renderFilesList();
+      if (!isInitial) setCloudStatus('ok', 'Opened "' + openFileName + '"');
+    }
+
+    function openFileById(id) { openFile(id, false); switchTab('tag-builder'); }
+
+    async function newFile() {
+      const name = prompt('New file name:', 'Untitled ' + new Date().toLocaleDateString());
+      if (name === null) return;
+      const f = {
+        id: newFileId(),
+        name: (name || '').trim() || 'Untitled',
+        store: getStoreKey(),
+        schemaVersion: CLOUD_SCHEMA_VERSION,
+        queue: [],
+        catalog: [],
+        featureMemory: JSON.parse(JSON.stringify(INITIAL_FEATURE_MEMORY)),
+        brandProfiles: JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILES)),
+        customSvgs: {},
+        updatedAt: Date.now(),
+        updatedBy: { deviceId: cloudDeviceId() }
+      };
+      _cloudStop = false; _cloudBaseRevision = 0;
+      openFileId = f.id; openFileName = f.name;
+      setOpenFileId(getStoreKey(), f.id);
+      upsertLocalFile(f);
+      applyWorkspace(f);
+      setOpenFileUI(); renderFilesList();
+      await saveOpenFile(true);
+      switchTab('tag-builder');
     }
 
     // Adopt a remote workspace into state + localStorage, then re-render.
@@ -2310,25 +2463,29 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       if (_cloudApplying || _cloudStop || !_cloudDb) return;
       if (_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
       setCloudStatus('busy', 'Unsaved…');
-      _cloudSaveTimer = setTimeout(() => { _cloudSaveTimer = null; pushWorkspace(false); }, CLOUD_DEBOUNCE_MS);
+      _cloudSaveTimer = setTimeout(() => { _cloudSaveTimer = null; saveOpenFile(false); }, CLOUD_DEBOUNCE_MS);
     }
 
     async function flushCloudSave() {
       if (_cloudSaveTimer) { clearTimeout(_cloudSaveTimer); _cloudSaveTimer = null; }
-      await pushWorkspace(false);
+      await saveOpenFile(false);
     }
 
-    // Read-then-write (offline-friendly). Bails out if another device changed the doc.
-    async function pushWorkspace(isInitial) {
+    async function saveFileNow() { await flushCloudSave(); }
+
+    // Read-then-write the OPEN file (offline-friendly), with a revision CAS conflict guard.
+    async function saveOpenFile(isInitial) {
       const db = cloudDb();
-      if (!db) { setCloudStatus('off', 'Cloud off'); return; }
+      if (!db) { setCloudStatus('off', 'Cloud off'); cacheOpenFileLocally(); return; }
       if (_cloudSaving) { if (!isInitial) scheduleCloudSave(); return; }
       if (_cloudStop && !isInitial) return;
+      if (!openFileId) { openFileId = newFileId(); setOpenFileId(getStoreKey(), openFileId); }
 
       _cloudSaving = true;
-      const store = getStoreKey();
-      const payload = collectWorkspace();
-      const ref = db.collection(CLOUD_COLLECTION).doc(store);
+      const file = collectFileData(openFileName);
+      file.id = openFileId;
+      file.revision = _cloudBaseRevision;
+      const ref = db.collection(FILES_COLLECTION).doc(openFileId);
       try {
         let currentRev = _cloudBaseRevision;
         try {
@@ -2341,28 +2498,218 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
           setCloudStatus('warn', 'Other device changed — Reload');
           return;
         }
-
         const rev = currentRev + 1;
-        await ref.set(Object.assign({}, payload, {
+        await ref.set(Object.assign({}, file, {
           revision: rev,
           serverUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }));
         _cloudBaseRevision = rev;
-        setCloudMeta({ updatedAt: payload.updatedAt, revision: rev, store: store });
-        setCloudStatus('ok', 'Saved ' + cloudTime(payload.updatedAt));
+        file.revision = rev;
+        upsertLocalFile(file);
+        renderFilesList();
+        setCloudStatus('ok', 'Saved ' + cloudTime(file.updatedAt));
       } catch (err) {
-        console.warn('Cloud save failed:', err);
+        console.warn('File save failed:', err);
+        upsertLocalFile(file);
+        renderFilesList();
         setCloudStatus('error', 'Cloud offline');
       } finally {
         _cloudSaving = false;
       }
     }
 
-    function reloadFromCloud() {
+    function cacheOpenFileLocally() {
+      if (!openFileId) return;
+      const file = collectFileData(openFileName);
+      file.id = openFileId;
+      upsertLocalFile(file);
+      renderFilesList();
+    }
+
+    // Write one cached file doc to Firestore (rename / duplicate / Save As).
+    async function pushFileDoc(file, isNew) {
+      const db = cloudDb();
+      if (!db) { setCloudStatus('off', 'Cloud off'); return; }
+      const ref = db.collection(FILES_COLLECTION).doc(file.id);
+      try {
+        let currentRev = 0;
+        try {
+          const snap = await ref.get();
+          currentRev = (snap && snap.exists) ? (Number(snap.data().revision) || 0) : 0;
+        } catch (e) {}
+        if (!isNew && currentRev > (Number(file.revision) || 0)) {
+          _cloudStop = true; setCloudStatus('warn', 'Other device changed — Reload');
+          return;
+        }
+        const rev = currentRev + 1;
+        await ref.set(Object.assign({}, file, {
+          revision: rev,
+          serverUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }));
+        file.revision = rev;
+        upsertLocalFile(file);
+        if (file.id === openFileId) { _cloudBaseRevision = rev; setCloudStatus('ok', 'Saved ' + cloudTime(file.updatedAt)); }
+        renderFilesList();
+      } catch (err) { console.warn('File write failed:', err); setCloudStatus('error', 'Cloud offline'); }
+    }
+
+    async function saveFileAs() {
+      const name = prompt('Save as (file name):', (openFileName || 'Untitled') + ' copy');
+      if (name === null) return;
+      const f = collectFileData((name || '').trim() || 'Untitled');
+      f.id = newFileId();
+      f.revision = 0;
+      _cloudStop = false; _cloudBaseRevision = 0;
+      openFileId = f.id; openFileName = f.name;
+      setOpenFileId(getStoreKey(), f.id);
+      upsertLocalFile(f);
+      setOpenFileUI(); renderFilesList();
+      await pushFileDoc(f, true);
+    }
+
+    async function renameFile(id) {
+      const f = getLocalFile(id); if (!f) return;
+      const name = prompt('Rename file:', f.name || 'Untitled');
+      if (name === null) return;
+      f.name = (name || '').trim() || f.name;
+      f.updatedAt = Date.now();
+      upsertLocalFile(f);
+      if (id === openFileId) { openFileName = f.name; setOpenFileUI(); }
+      renderFilesList();
+      await pushFileDoc(f, false);
+    }
+
+    async function duplicateFile(id) {
+      const f = getLocalFile(id); if (!f) return;
+      const copy = JSON.parse(JSON.stringify(f));
+      copy.id = newFileId();
+      copy.name = (f.name || 'Untitled') + ' (copy)';
+      copy.updatedAt = Date.now();
+      copy.revision = 0;
+      upsertLocalFile(copy);
+      renderFilesList();
+      await pushFileDoc(copy, true);
+    }
+
+    async function deleteFile(id) {
+      const f = getLocalFile(id); if (!f) return;
+      if (!confirm('Delete file "' + (f.name || '') + '"? This cannot be undone.')) return;
+      removeLocalFile(id);
+      const db = cloudDb();
+      if (db) { try { await db.collection(FILES_COLLECTION).doc(id).delete(); } catch (e) { console.warn(e); } }
+      if (id === openFileId) {
+        openFileId = null;
+        const list = filesForStore(getLocalFiles(), getStoreKey())
+          .slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        if (list[0]) openFile(list[0].id, true);
+        else { openFileName = 'Untitled'; setOpenFileId(getStoreKey(), null); setOpenFileUI(); }
+      }
+      renderFilesList();
+    }
+
+    function exportFile() {
+      if (!openFileId) { alert('No file is open.'); return; }
+      const f = collectFileData(openFileName); f.id = openFileId;
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(f, null, 2));
+      const a = document.createElement('a');
+      a.setAttribute('href', dataStr);
+      a.setAttribute('download', (openFileName || 'tag-studio').replace(/[^\w\-]+/g, '_') + '.json');
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+
+    function importFile(evt) {
+      const file = evt.target.files && evt.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          const f = {
+            id: newFileId(),
+            name: ((parsed.name || file.name.replace(/\.json$/i, '') || 'Imported').toString()).slice(0, 80),
+            store: getStoreKey(),
+            schemaVersion: CLOUD_SCHEMA_VERSION,
+            queue: parsed.queue || [],
+            catalog: parsed.catalog || [],
+            featureMemory: parsed.featureMemory || [],
+            brandProfiles: parsed.brandProfiles || {},
+            customSvgs: parsed.customSvgs || {},
+            updatedAt: Date.now(),
+            updatedBy: { deviceId: cloudDeviceId() }
+          };
+          _cloudStop = false; _cloudBaseRevision = 0;
+          upsertLocalFile(f);
+          openFile(f.id, false);
+          saveOpenFile(true);
+        } catch (err) { alert('Invalid file JSON.'); }
+        finally { evt.target.value = ''; }
+      };
+      reader.readAsText(file);
+    }
+
+    function renderFilesList() {
+      const container = document.getElementById('filesListContainer');
+      if (!container) return;
+      const store = getStoreKey();
+      const list = filesForStore(getLocalFiles(), store).slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      const countEl = document.getElementById('filesCountLabel');
+      if (countEl) countEl.textContent = list.length;
+      container.innerHTML = '';
+      if (list.length === 0) {
+        container.innerHTML = '<div class="bg-slateDark border border-dashed border-borderDark rounded-lg p-6 text-center text-[11px] text-slate-400">No files yet. Press “New” to create one.</div>';
+        return;
+      }
+      list.forEach(f => {
+        const active = f.id === openFileId;
+        const row = document.createElement('div');
+        row.className = 'p-2.5 rounded-lg border flex items-center justify-between gap-2 ' + (active ? 'bg-blue-950/30 border-blue-700/50' : 'bg-slateDark border-borderDark');
+        row.innerHTML = `
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[11px] font-black text-white truncate">${escapeHtml(f.name || 'Untitled')}</span>
+              ${active ? '<span class="text-[9px] font-bold px-1 py-0.5 rounded bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 shrink-0">OPEN</span>' : ''}
+            </div>
+            <div class="text-[10px] text-slate-400 truncate">${(f.queue || []).length} tags · ${escapeHtml(cloudTime(f.updatedAt))}</div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button onclick="openFileById('${f.id}')" class="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold">Open</button>
+            <button onclick="renameFile('${f.id}')" title="Rename" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-[10px] font-bold">&#9998;</button>
+            <button onclick="duplicateFile('${f.id}')" title="Duplicate" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-[10px] font-bold">&#10697;</button>
+            <button onclick="deleteFile('${f.id}')" title="Delete" class="px-2 py-1 bg-rose-950/50 hover:bg-rose-900/70 text-rose-300 border border-rose-800/60 rounded text-[10px] font-bold">&times;</button>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function setOpenFileUI() {
+      const a = document.getElementById('currentFileName');
+      if (a) { a.textContent = openFileName || 'Untitled'; a.title = openFileName || 'Untitled'; }
+      const b = document.getElementById('currentFileNameTab');
+      if (b) b.textContent = openFileName || 'Untitled';
+    }
+
+    async function reloadFromCloud() {
+      const db = cloudDb();
+      if (!db) { setCloudStatus('off', 'Cloud off'); return; }
       _cloudStop = false;
-      _cloudBaseRevision = 0;
       setCloudStatus('busy', 'Loading…');
-      pullWorkspace(true);
+      try {
+        if (openFileId) {
+          const snap = await db.collection(FILES_COLLECTION).doc(openFileId).get();
+          if (snap.exists) {
+            const f = Object.assign({ id: openFileId }, snap.data());
+            _cloudBaseRevision = Number(f.revision) || 0;
+            upsertLocalFile(f);
+            applyWorkspace(f);
+            openFileName = f.name || openFileName;
+            setOpenFileUI();
+          }
+        }
+        await pullFiles();
+        renderFilesList();
+        setCloudStatus('ok', 'Reloaded');
+      } catch (err) { console.warn('Reload failed:', err); setCloudStatus('error', 'Cloud offline'); }
     }
 
     async function onStoreSelectChange() {
@@ -2370,15 +2717,18 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       const newStore = sel.value;
       const oldStore = getStoreKey();
       if (newStore === oldStore) return;
-      if (!confirm('Switch to the "' + newStore + '" workspace? Current tags are saved first.')) {
+      if (!confirm('Switch to the "' + newStore + '" store? The open file is saved first.')) {
         sel.value = oldStore;
         return;
       }
       await flushCloudSave();
       setStoreKey(newStore);
-      _cloudStop = false;
-      _cloudBaseRevision = 0;
-      pullWorkspace(true);
+      _cloudStop = false; _cloudBaseRevision = 0; openFileId = null; openFileName = 'Untitled';
+      setOpenFileUI(); renderFilesList();
+      const db = cloudDb();
+      if (!db) { setCloudStatus('off', 'Cloud off'); await ensureOpenFile(); return; }
+      setCloudStatus('busy', 'Loading…');
+      await pullFiles();
     }
 
     // Best-effort flush when the tab is hidden/closed (debounce would otherwise drop it).

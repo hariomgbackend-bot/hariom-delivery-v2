@@ -1900,6 +1900,10 @@ async function syncPendingActions() {
           });
         }
 
+        // Raw stamp payload captured at action time — lets the server verify the
+        // burned-in data even when the QR itself cannot be read back.
+        if (action.proof_stamp_raw) formData.append("proof_stamp_raw", action.proof_stamp_raw);
+
         // Preserve the real capture time so the server stores the offline action's
         // timestamp rather than the later sync time.
         if (action.action_timestamp) formData.append("action_timestamp", action.action_timestamp);
@@ -2922,7 +2926,7 @@ async function openDelivery(id) {
   if (currentStatus === "pending") {
     // At warehouse — a single fresh fix is fine for marking as loaded
     navigator.geolocation.getCurrentPosition(
-      pos => { cachedGpsPosition = pos; },
+      pos => { cachedGpsPosition = pos; saveLastKnownGps(pos); },
       () => { cachedGpsPosition = null; },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -2934,7 +2938,7 @@ async function openDelivery(id) {
       navigator.geolocation.clearWatch(window._deliveryGpsWatch);
     }
     window._deliveryGpsWatch = navigator.geolocation.watchPosition(
-      pos => { cachedGpsPosition = pos; /* cache latest fix */ },
+      pos => { cachedGpsPosition = pos; saveLastKnownGps(pos); /* cache latest fix */ },
       () => {},
       { enableHighAccuracy: true, maximumAge: 0 }
     );
@@ -3028,6 +3032,237 @@ function compressImage(file) {
   });
 }
 
+/* ═══════════════════════════════════════
+   PROOF STAMP — burned-in timestamp + coordinates
+   Every proof photo gets a dark band with the capture time, the GPS fix and a QR
+   carrying the same data. Because it is burned into the pixels it survives
+   re-compression, stripped EXIF, and being forwarded over WhatsApp. The server
+   re-reads the QR on upload (decodeProofStamp in server.js) and records a verdict.
+   Stamping is mandatory but must NEVER block a delivery — on any failure the
+   original blob is returned untouched.
+═══════════════════════════════════════ */
+
+const LAST_GPS_KEY = "lastKnownGps";
+const STAMP_QUIET_MODULES = 4;
+
+/* Remember the most recent real fix. Indoors a fresh high-accuracy fix usually
+   times out, so this lets the delivery still record an honest, age-labelled
+   location instead of being blocked. */
+function saveLastKnownGps(pos) {
+  if (!pos?.coords) return;
+  try {
+    localStorage.setItem(LAST_GPS_KEY, JSON.stringify({
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      acc: pos.coords.accuracy ?? null,
+      t:   Date.now()
+    }));
+  } catch (_) {}
+}
+
+function getLastKnownGps() {
+  try {
+    const raw = localStorage.getItem(LAST_GPS_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (typeof o?.lat !== "number" || typeof o?.lng !== "number") return null;
+    return o;
+  } catch (_) { return null; }
+}
+
+/* GPS chain: live fix → last known fix → nothing. Never throws. */
+function resolveStampPos() {
+  if (cachedGpsPosition?.coords) {
+    return {
+      lat:   cachedGpsPosition.coords.latitude,
+      lng:   cachedGpsPosition.coords.longitude,
+      acc:   cachedGpsPosition.coords.accuracy ?? null,
+      ageMs: 0
+    };
+  }
+  const last = getLastKnownGps();
+  if (last) return { lat: last.lat, lng: last.lng, acc: last.acc, ageMs: Date.now() - last.t };
+  return null;
+}
+
+/* H1|<deliveryId>|<tsSec>|<lat>|<lng>|<acc>  — '-' for anything unavailable.
+   Deliberately terse: a real Firestore id is ~20 chars and every extra character
+   widens the QR, which costs decode reliability after compression. The driver id
+   is not included — the server already knows which driver submitted the photo. */
+function buildStampPayload(deliveryId, tsMs, pos) {
+  const sec = Math.floor((tsMs || Date.now()) / 1000);
+  const lat = pos ? pos.lat.toFixed(5) : "-";
+  const lng = pos ? pos.lng.toFixed(5) : "-";
+  const acc = pos && pos.acc != null ? String(Math.round(pos.acc)) : "-";
+  return "H1|" + deliveryId + "|" + sec + "|" + lat + "|" + lng + "|" + acc;
+}
+
+let _qrEncoderPromise = null;
+
+/* Loads a LOCAL copy, never a CDN — the service worker does not cache
+   cross-origin requests, so a CDN encoder would be missing on a cold offline
+   load and mandatory stamping would fail exactly when it matters most. */
+function loadQrEncoder() {
+  if (window.qrcode) return Promise.resolve(window.qrcode);
+  if (!_qrEncoderPromise) {
+    _qrEncoderPromise = _loadScript("/vendor/qrcode.min.js")
+      .then(() => window.qrcode || null)
+      .catch(() => null);
+  }
+  return _qrEncoderPromise;
+}
+
+/* QR sized to fit INSIDE the band, and the band capped at 32% of the height: a
+   QR taller than its band gets cropped and can never be read back. */
+function stampLayout(w, h) {
+  const pad = Math.max(12, Math.round(w * 0.012));
+  let qrTarget = Math.max(150, Math.min(Math.round(w * 0.18), 260));
+  qrTarget = Math.min(qrTarget, Math.round(h * 0.32) - pad * 2);
+  qrTarget = Math.max(qrTarget, 96);
+  return { pad, qrTarget, bandH: qrTarget + pad * 2 };
+}
+
+function drawQrToCanvas(ctx, qr, x, y, sidePx) {
+  const n     = qr.getModuleCount();
+  const total = n + STAMP_QUIET_MODULES * 2;
+  const cell  = Math.max(1, Math.floor(sidePx / total));
+  const size  = cell * total;
+  // Opaque white plate including the quiet zone — the dark scrim behind it would
+  // otherwise let JPEG artefacts destroy the code.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = "#000000";
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (qr.isDark(r, c)) {
+        ctx.fillRect(x + (c + STAMP_QUIET_MODULES) * cell,
+                     y + (r + STAMP_QUIET_MODULES) * cell, cell, cell);
+      }
+    }
+  }
+  return size;
+}
+
+function formatStampTime(tsMs) {
+  try {
+    return new Date(tsMs).toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+    }) + " IST";
+  } catch (_) {
+    return new Date(tsMs).toISOString();
+  }
+}
+
+function formatStampCoords(pos) {
+  if (!pos) return "Location unavailable — no GPS fix";
+  const lat = Math.abs(pos.lat).toFixed(5) + "°" + (pos.lat >= 0 ? "N" : "S");
+  const lng = Math.abs(pos.lng).toFixed(5) + "°" + (pos.lng >= 0 ? "E" : "W");
+  const acc = pos.acc != null ? " ±" + Math.round(pos.acc) + "m" : "";
+  const stale = pos.ageMs > 60000 ? " (last fix " + Math.round(pos.ageMs / 60000) + "m old)" : "";
+  return lat + ", " + lng + acc + stale;
+}
+
+/* Burn the stamp in and return a new JPEG Blob, or the original blob unchanged
+   if anything at all goes wrong. */
+async function stampProofPhoto(blob, meta) {
+  try {
+    if (!blob) return blob;
+    const { deliveryId, ts = Date.now(), pos = null } = meta || {};
+    if (!deliveryId) return blob;
+
+    const encoder = await loadQrEncoder();   // null is fine — text stamp still lands
+    const bitmap  = await createImageBitmap(blob);
+    const w = bitmap.width, h = bitmap.height;
+    if (!w || !h) { bitmap.close?.(); return blob; }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+
+    const { pad, qrTarget, bandH } = stampLayout(w, h);
+    const bandTop = h - bandH;
+
+    ctx.fillStyle = "rgba(0,0,0,0.72)";
+    ctx.fillRect(0, bandTop, w, bandH);
+
+    let qrSize = 0;
+    if (encoder) {
+      try {
+        const qr = encoder(0, "M");          // 0 = auto-pick the smallest version
+        qr.addData(buildStampPayload(deliveryId, ts, pos));
+        qr.make();
+        qrSize = drawQrToCanvas(ctx, qr, w - pad - qrTarget,
+                                bandTop + Math.floor((bandH - qrTarget) / 2), qrTarget);
+      } catch (_) { qrSize = 0; }
+    }
+
+    const lines = [
+      { text: "HARIOM DELIVERY PROOF",               color: "#7ee0b0" },
+      { text: formatStampTime(ts),                    color: "#ffffff" },
+      { text: formatStampCoords(pos),                 color: "#ffffff" },
+      { text: "DOB #" + deliveryId,                   color: "#cfd6e6" }
+    ];
+    const textX    = pad;
+    const textW    = w - qrSize - pad * 3;
+    const lineH    = (bandH - pad * 2) / lines.length;
+    const fontFor  = size => "700 " + size + "px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+
+    let fs = Math.max(11, Math.floor(lineH * 0.74));
+    for (let i = 0; i < 24 && fs > 11; i++) {
+      ctx.font = fontFor(fs);
+      const widest = Math.max(...lines.map(l => ctx.measureText(l.text).width));
+      if (widest <= textW) break;
+      fs -= 1;
+    }
+    ctx.font = fontFor(fs);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    lines.forEach((l, i) => {
+      ctx.fillStyle = l.color;
+      ctx.fillText(l.text, textX, bandTop + pad + lineH * (i + 0.5));
+    });
+
+    const out = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.85));
+    return out || blob;
+  } catch (err) {
+    console.warn("[Stamp] failed — submitting the unstamped photo", err);
+    return blob;
+  }
+}
+
+/* The stamped image is also saved to the device. */
+function downloadStampedProof(blob, filename) {
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch (err) {
+    console.warn("[Stamp] device save failed", err);
+  }
+}
+
+/* Single entry point for every proof photo: stamp it, save a copy to the device,
+   and hand back the blob to upload or queue. Always resolves with a usable Blob. */
+async function prepareProofPhoto(blob, { deliveryId, actionType, pos, ts } = {}) {
+  const when    = ts || Date.now();
+  const stamped = await stampProofPhoto(blob, { deliveryId, ts: when, pos });
+  if (stamped && stamped !== blob) {
+    downloadStampedProof(stamped,
+      "Hariom_Proof_" + deliveryId + "_" + (actionType || "proof") + "_" + when + ".jpg");
+  }
+  return stamped;
+}
+
 /* ── LOADED-PHOTO / HANDOVER PHOTO ──
    The driver simply takes a photo and submits it with the serial.
    Label OCR/verification is NOT done on the driver panel — it happens
@@ -3119,11 +3354,20 @@ async function updateDelivery() {
   if (!isOnline()) {
     isProcessingAction = true;
 
-    // Compress photo and store as Blob in IndexedDB — avoids localStorage 5 MB cap
+    // One fix for both the stamp and the queued action, so the QR payload and the
+    // coordinates we later submit always agree.
+    const stampPos  = resolveStampPos();
+    const stampTs   = Date.now();
+    const stampMeta = { deliveryId: currentDeliveryId, actionType, pos: stampPos, ts: stampTs };
+    const stampRaw  = buildStampPayload(currentDeliveryId, stampTs, stampPos);
+
+    // Compress photo, burn the stamp in, then store as Blob in IndexedDB —
+    // avoids localStorage 5 MB cap
     let photoStored = false;
     try {
-      const blobToStore = precompressedBlob || await compressImage(fileInput.files[0]);
+      const plain       = precompressedBlob || await compressImage(fileInput.files[0]);
       precompressedBlob = null;
+      const blobToStore = await prepareProofPhoto(plain, stampMeta);
       const idbKey = photoIdbKey(currentDeliveryId, actionType);
       photoStored = await savePhotoToIdb(idbKey, blobToStore);
     } catch (e) {
@@ -3134,8 +3378,11 @@ async function updateDelivery() {
     let outdoorPhotoStored = false;
     if (isAC && outdoorInput?.files?.length) {
       try {
-        const outdoorBlob = precompressedBlobOutdoor || await compressImage(outdoorInput.files[0]);
+        const plainOutdoor = precompressedBlobOutdoor || await compressImage(outdoorInput.files[0]);
         precompressedBlobOutdoor = null;
+        const outdoorBlob = await prepareProofPhoto(plainOutdoor, {
+          ...stampMeta, actionType: actionType + "_outdoor"
+        });
         const outIdbKey = photoIdbKey(currentDeliveryId, actionType + "_outdoor");
         outdoorPhotoStored = await savePhotoToIdb(outIdbKey, outdoorBlob);
       } catch (e) {
@@ -3151,9 +3398,9 @@ async function updateDelivery() {
       serial: document.getElementById("serialInput")?.value?.trim() || null,
       freight: document.getElementById("freightInput")?.value?.trim() || null,
       // Capture GPS at action time so sync can submit real coordinates
-      gps: cachedGpsPosition
-        ? { lat: cachedGpsPosition.coords.latitude, lng: cachedGpsPosition.coords.longitude }
-        : null,
+      gps: stampPos ? { lat: stampPos.lat, lng: stampPos.lng } : null,
+      // Lets the server still validate the stamp if the QR read fails at sync time
+      proof_stamp_raw: stampRaw,
       driver_id: currentDriverId || null,
       pin:       currentDriverPin || null,
       ...(isPorterDelivery ? {
@@ -3205,23 +3452,47 @@ async function updateDelivery() {
   }
 
   const formData = new FormData();
-  if (compressedOutdoorBlob) {
-    // AC: send as photo_indoor + photo_outdoor (server expects these names)
-    formData.append("photo_indoor",  compressedBlob, "indoor.jpg");
-    formData.append("photo_outdoor", compressedOutdoorBlob, "outdoor.jpg");
-  } else {
-    // Non-AC: single photo as 'photo'
-    formData.append("photo", compressedBlob, "upload.jpg");
-  }
 
   // Use pre-warmed GPS if available (avoids 2-5s wait), else get fresh
-  function doSubmit(pos) {
-    formData.append("lat",       pos.coords.latitude);
-    formData.append("lng",       pos.coords.longitude);
+  async function doSubmit(pos) {
+    // GPS is best-effort and never blocks a delivery: fall back to the last known
+    // fix, and record nothing at all if there has never been one.
+    const stampPos = pos?.coords
+      ? { lat: pos.coords.latitude, lng: pos.coords.longitude,
+          acc: pos.coords.accuracy ?? null, ageMs: 0 }
+      : resolveStampPos();
+    const stampTs = Date.now();
+
+    // Stamp before appending so the QR carries exactly the coordinates we submit.
+    const stampedMain = await prepareProofPhoto(compressedBlob, {
+      deliveryId: currentDeliveryId, actionType, pos: stampPos, ts: stampTs
+    });
+    let stampedOutdoor = null;
+    if (compressedOutdoorBlob) {
+      stampedOutdoor = await prepareProofPhoto(compressedOutdoorBlob, {
+        deliveryId: currentDeliveryId, actionType: actionType + "_outdoor",
+        pos: stampPos, ts: stampTs
+      });
+    }
+
+    if (stampedOutdoor) {
+      // AC: send as photo_indoor + photo_outdoor (server expects these names)
+      formData.append("photo_indoor",  stampedMain, "indoor.jpg");
+      formData.append("photo_outdoor", stampedOutdoor, "outdoor.jpg");
+    } else {
+      // Non-AC: single photo as 'photo'
+      formData.append("photo", stampedMain, "upload.jpg");
+    }
+
+    if (stampPos) {
+      formData.append("lat", stampPos.lat);
+      formData.append("lng", stampPos.lng);
+    }
+    formData.append("proof_stamp_raw", buildStampPayload(currentDeliveryId, stampTs, stampPos));
     formData.append("driver_id", currentDriverId);
     formData.append("pin",       currentDriverPin);
     formData.append("_offline_sync", "true");
-    if (cachedGpsPosition) formData.append("action_timestamp", Date.now());
+    formData.append("action_timestamp", stampTs);
 
     const serialInput = document.getElementById("serialInput");
     if ((currentStatus === "pending" || isPorterDelivery) && !currentDeliveryData.product_serial_number) {
@@ -3290,11 +3561,22 @@ async function updateDelivery() {
     fetch(`${BASE_URL}${endpoint}`, fetchOpts)
       .then(res => {
         isProcessingAction = false;
-        if (!res.ok) { showToast("⚠ Update failed. Try again."); if(widget) widget.style.pointerEvents="auto"; return; }
+        // 409 is the server's idempotency guard: this delivery is ALREADY recorded
+        // (e.g. the response to a previous attempt was lost). From the driver's
+        // point of view that is a success, not a failure — saying otherwise made a
+        // recorded delivery look broken and invited endless retries.
+        const alreadyRecorded = res.status === 409;
+        if (!res.ok && !alreadyRecorded) {
+          showToast("⚠ Update failed. Try again.");
+          if (widget) widget.style.pointerEvents = "auto";
+          return;
+        }
         vibrate([100, 50, 200]);
-        showToast(isPorterDelivery
-          ? "📦 Porter handover confirmed!"
-          : (currentStatus === "pending" ? "✅ Marked as Loaded!" : "🎉 Marked as Delivered!"));
+        showToast(alreadyRecorded
+          ? "✅ Already recorded — refreshing"
+          : (isPorterDelivery
+              ? "📦 Porter handover confirmed!"
+              : (currentStatus === "pending" ? "✅ Marked as Loaded!" : "🎉 Marked as Delivered!")));
         closePopup();
         silentRefresh();   // lightweight — reuses session token, no PIN re-auth
       })
@@ -3311,14 +3593,16 @@ async function updateDelivery() {
   } else {
     // "loaded → delivered" — use the GPS Promise we started at the top of this
     // function (while still inside the user-gesture context on iOS).
-    try {
-      const pos = await gpsPromise;
-      doSubmit(pos);
-    } catch (e) {
-      isProcessingAction = false;
-      showToast("📍 Location access required. Please enable it in Settings → Safari → Location and try again.");
-      if (widget) widget.style.pointerEvents = "auto";
+    // A failure here must NOT abort the delivery: indoors a high-accuracy fix
+    // routinely times out, and the server accepts a delivery with no coordinates
+    // (it just omits delivered_location). Fall back to the last known fix and
+    // submit anyway, saying so on the stamp.
+    let pos = null;
+    try { pos = await gpsPromise; } catch (_) { pos = null; }
+    if (!pos?.coords && !resolveStampPos()) {
+      showToast("📍 No GPS fix — recording without location");
     }
+    doSubmit(pos);
   }
 }
 
@@ -3379,6 +3663,19 @@ async function submitFailure() {
   const origBtnText = confirmBtn?.textContent;
   if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = "Submitting…"; }
 
+  // Stamp the failure photo once, up front, and reuse it for the live submit and
+  // the offline fallback below — so it is stamped and saved to the device once.
+  const stampPos  = resolveStampPos();
+  const stampTs   = Date.now();
+  const stampRaw  = buildStampPayload(currentDeliveryId, stampTs, stampPos);
+  const stampMeta = { deliveryId: currentDeliveryId, actionType: "failed", pos: stampPos, ts: stampTs };
+
+  let stampedFailureBlob = null;
+  if (photoInput?.files?.length) {
+    const compressed = await compressImage(photoInput.files[0]);
+    stampedFailureBlob = await prepareProofPhoto(compressed, stampMeta);
+  }
+
   // ── OFFLINE PATH ────────────────────────────────────────────────────────────
   // Queue the failure locally (reason + photo in IndexedDB) so it syncs when
   // network returns — mirrors the loaded/delivered offline flow.
@@ -3391,14 +3688,11 @@ async function submitFailure() {
     }
     try {
       let photoStored = false;
-      if (photoInput?.files?.length) {
-        const blob = await compressImage(photoInput.files[0]);
-        photoStored = await savePhotoToIdb(photoIdbKey(currentDeliveryId, "failed"), blob);
+      if (stampedFailureBlob) {
+        photoStored = await savePhotoToIdb(photoIdbKey(currentDeliveryId, "failed"), stampedFailureBlob);
       }
-      const gps = cachedGpsPosition
-        ? { lat: cachedGpsPosition.coords.latitude, lng: cachedGpsPosition.coords.longitude }
-        : null;
-      addOfflineAction(currentDeliveryId, "failed", { reason, photoStored, gps, driver_id: currentDriverId || null, pin: currentDriverPin || null });
+      const gps = stampPos ? { lat: stampPos.lat, lng: stampPos.lng } : null;
+      addOfflineAction(currentDeliveryId, "failed", { reason, photoStored, gps, proof_stamp_raw: stampRaw, driver_id: currentDriverId || null, pin: currentDriverPin || null });
 
       const delivery = allDeliveriesData.find(d => d.id === currentDeliveryId);
       if (delivery) delivery.status = "failed";
@@ -3423,11 +3717,15 @@ async function submitFailure() {
   formData.append("_offline_sync", "true");
   formData.append("driver_id", currentDriverId);
   formData.append("pin",       currentDriverPin);
-  if (cachedGpsPosition) formData.append("action_timestamp", Date.now());
+  formData.append("action_timestamp", stampTs);
+  if (stampPos) {
+    formData.append("lat", stampPos.lat);
+    formData.append("lng", stampPos.lng);
+  }
+  formData.append("proof_stamp_raw", stampRaw);
 
-  if (photoInput?.files?.length) {
-    const compressed = await compressImage(photoInput.files[0]);
-    formData.append("photo", compressed, "failure.jpg");
+  if (stampedFailureBlob) {
+    formData.append("photo", stampedFailureBlob, "failure.jpg");
   }
 
   try {
@@ -3451,14 +3749,11 @@ async function submitFailure() {
     // Network dropped mid-submit — fall back to the offline queue.
     try {
       let photoStored = false;
-      if (photoInput?.files?.length) {
-        const blob = await compressImage(photoInput.files[0]);
-        photoStored = await savePhotoToIdb(photoIdbKey(currentDeliveryId, "failed"), blob);
+      if (stampedFailureBlob) {
+        photoStored = await savePhotoToIdb(photoIdbKey(currentDeliveryId, "failed"), stampedFailureBlob);
       }
-      const gps = cachedGpsPosition
-        ? { lat: cachedGpsPosition.coords.latitude, lng: cachedGpsPosition.coords.longitude }
-        : null;
-      addOfflineAction(currentDeliveryId, "failed", { reason, photoStored, gps, driver_id: currentDriverId || null, pin: currentDriverPin || null });
+      const gps = stampPos ? { lat: stampPos.lat, lng: stampPos.lng } : null;
+      addOfflineAction(currentDeliveryId, "failed", { reason, photoStored, gps, proof_stamp_raw: stampRaw, driver_id: currentDriverId || null, pin: currentDriverPin || null });
       const delivery = allDeliveriesData.find(d => d.id === currentDeliveryId);
       if (delivery) delivery.status = "failed";
       vibrate([100, 50, 100, 50, 200]);
@@ -3984,8 +4279,10 @@ async function openIosScanner() {
         width:  { ideal: 1920 },
         height: { ideal: 1080 },
         // 720p + no focus request left the camera in a fixed-focus state, so close-up
-        // barcode shots came out blurry. Ask for continuous autofocus (best-effort:
-        // unsupported advanced constraints are ignored, not fatal).
+        // barcode shots came out blurry. Note focusMode is a hint only here — Safari
+        // does not expose focus constraints at all, and Chromium ignores this at
+        // getUserMedia time (see applyCameraFocus()). On iOS the OS camera's own AF
+        // is reached through Night Scan, not this path.
         advanced: [{ focusMode: "continuous" }]
       }
     });
@@ -4164,6 +4461,84 @@ let scannerStream  = null;
 let scannerTimer   = null;
 let scannerActive  = false;
 let androidTorchOn = false;
+let afRetriggerTimer = null;   // repeats single-shot AF on sensors without continuous mode
+let afHandbackTimer  = null;   // restores continuous AF after a tap-to-focus
+
+/* ── Autofocus ──
+   focusMode passed to getUserMedia is ignored by Chromium (issue 40787187), so the
+   `advanced: [{ focusMode: "continuous" }]` in the constraints below never took
+   effect — the camera stayed in whatever fixed-focus mode it opened with. Focus
+   constraints only apply to a live track, via applyConstraints(). */
+async function applyCameraFocus(stream) {
+  const track = stream?.getVideoTracks?.()[0];
+  if (!track) return;
+  const modes = (track.getCapabilities?.() || {}).focusMode || [];
+
+  // Preferred: hardware continuous AF.
+  if (modes.includes("continuous")) {
+    try {
+      await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+      return;
+    } catch (_) { /* fall through to the narrower modes */ }
+  }
+
+  // Some sensors only expose single-shot. Repeat it, otherwise the lens locks once
+  // on the background and never re-acquires a barcode held up close.
+  if (modes.includes("single-shot")) {
+    const sweep = () => track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] }).catch(() => {});
+    sweep();
+    clearInterval(afRetriggerTimer);
+    afRetriggerTimer = setInterval(sweep, 2000);
+    return;
+  }
+
+  // Manual-only sensors: park the lens in the close-up range.
+  if (modes.includes("manual")) {
+    const range = (track.getCapabilities?.() || {}).focusDistance;
+    if (!range) return;
+    const { min = 0, max = 1 } = range;
+    try {
+      await track.applyConstraints({
+        advanced: [{ focusMode: "manual", focusDistance: Math.min(max, Math.max(min, 0.2)) }]
+      });
+    } catch (_) {}
+  }
+}
+
+/* The stream behind the visible preview — native path keeps it in scannerStream,
+   html5-qrcode owns its own video element. */
+function activeVideoTrack() {
+  const stream = scannerStream || document.querySelector("#html5qr-container video")?.srcObject;
+  return stream?.getVideoTracks?.()[0] || null;
+}
+
+/* Tapping the scan frame forces a fresh AF sweep aimed at the centre of the frame,
+   then hands back to continuous. Continuous AF alone often settles on the
+   background when a barcode is held close to the lens. */
+async function refocusScan() {
+  const track = activeVideoTrack();
+  if (!scannerActive || !track) return;
+  const modes = (track.getCapabilities?.() || {}).focusMode || [];
+  if (!modes.includes("single-shot") && !modes.includes("continuous")) return;
+  try {
+    await track.applyConstraints({
+      advanced: [{ focusMode: "single-shot", pointsOfInterest: [{ x: 0.5, y: 0.5 }] }]
+    });
+  } catch (_) {
+    // pointsOfInterest unsupported — a plain single-shot sweep still helps.
+    try { await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] }); }
+    catch (_) { return; }
+  }
+  clearTimeout(afHandbackTimer);
+  afHandbackTimer = setTimeout(() => {
+    if (scannerActive) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+  }, 1200);
+}
+
+function stopCameraFocusTimers() {
+  clearInterval(afRetriggerTimer); afRetriggerTimer = null;
+  clearTimeout(afHandbackTimer);   afHandbackTimer  = null;
+}
 
 async function toggleAndroidTorch() {
   const btn   = document.getElementById("androidTorchBtn");
@@ -4204,8 +4579,8 @@ async function openScanner() {
         facingMode: { ideal: "environment" },
         width:  { ideal: 1920 },
         height: { ideal: 1080 },
-        // See openIosScanner(): continuous autofocus is what makes close-up
-        // barcode shots decodable. Best-effort — ignored if unsupported.
+        // Only a hint here — Chromium drops focusMode at getUserMedia time, so the
+        // real request happens in applyCameraFocus() once the track is live.
         advanced: [{ focusMode: "continuous" }]
       }
     });
@@ -4234,6 +4609,10 @@ async function openScanner() {
       _ab.style.opacity = "0.5";
     }
   } catch (_) {}
+
+  // Focus can only be set on a live track — this is the fix for the blurry
+  // close-up scans; the constraint in getUserMedia above does nothing.
+  await applyCameraFocus(scannerStream);
 
   if (screen.orientation?.lock) screen.orientation.lock("portrait").catch(() => {});
 
@@ -4285,9 +4664,8 @@ async function startHtml5QrDetector(video) {
   const scanner = new Html5Qrcode("html5qr-container");
   try {
     await scanner.start(
-      // Same two root causes as the native detector: no resolution/focus request
-      // (fixed focus → blurry close-ups) and a tiny 250×150 scan box the barcode
-      // had to land inside to be seen at all.
+      // The resolution request is worth keeping, but focusMode here is a hint only —
+      // Chromium drops it at getUserMedia time (see applyCameraFocus()).
       {
         facingMode: { ideal: "environment" },
         width:  { ideal: 1920 },
@@ -4302,6 +4680,8 @@ async function startHtml5QrDetector(video) {
       (text) => { handleScanResult(text); scanner.stop().catch(() => {}); },
       () => {}
     );
+    // html5-qrcode owns its own stream — reach it through its video element.
+    await applyCameraFocus(document.querySelector("#html5qr-container video")?.srcObject);
   } catch (err) {
     showToast("📷 Camera error: " + (err?.message || err));
     closeScanner();
@@ -4441,6 +4821,7 @@ function closeScanner() {
   scannerActive = false;
   selfPickupScanTargetId = null;  // reset in case user cancelled
   cancelAnimationFrame(scannerTimer);
+  stopCameraFocusTimers();
   // Must turn off torch BEFORE stopping the stream — track dies with the stream
   if (androidTorchOn && scannerStream) {
     try { scannerStream.getVideoTracks()[0]?.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {}); } catch (_) {}
@@ -4462,6 +4843,12 @@ document.getElementById("scannerOverlay")?.addEventListener("click", e => {
 });
 document.querySelector(".btn-scanner-close")?.addEventListener("touchend", e => { e.preventDefault(); closeScanner(); }, { passive: false });
 document.querySelector(".btn-scanner-close")?.addEventListener("click", closeScanner);
+
+// Tap inside the scan frame forces a re-focus. Taps on the dim surround still
+// cancel the scanner, so skip those.
+document.getElementById("scannerViewport")?.addEventListener("click", e => {
+  if (!e.target.classList.contains("scanner-dim")) refocusScan();
+});
 
 if (!IS_IOS) {
   window.addEventListener("popstate", () => { if (scannerActive) { closeScanner(); history.pushState(null, ""); } });
@@ -4657,6 +5044,9 @@ function buildDispatcherCard(d) {
 
   const selectId  = "assignSel_" + d.id;
   const detailId  = "ddetail_" + d.id;
+  // An AC is handed over as two units, so collection needs an indoor + outdoor
+  // photo — the server enforces both for AC products on /markSelfPickup.
+  const isAC = isACProductName(d.product_name);
   const driverOptions = dispatcherDriverList.map(dr =>
     `<option value="${dr.id}" data-name="${escHtml(dr.driver_name)}">${escHtml(dr.driver_name)}</option>`
   ).join("");
@@ -4771,9 +5161,14 @@ function buildDispatcherCard(d) {
             ` : `
               <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Serial: <strong style="color:var(--text);">${escHtml(d.product_serial_number)}</strong></div>
             `}
-            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Proof Photo *</label>
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">${isAC ? "Indoor Unit Photo *" : "Proof Photo *"}</label>
             <input type="file" id="sp_photo_${d.id}" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
               style="display:block;width:100%;box-sizing:border-box;margin-top:4px;margin-bottom:10px;font-size:13px;">
+            ${isAC ? `
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Outdoor Unit Photo *</label>
+            <input type="file" id="sp_photo_outdoor_${d.id}" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
+              style="display:block;width:100%;box-sizing:border-box;margin-top:4px;margin-bottom:10px;font-size:13px;">
+            ` : ""}
             ${isPorterDel(d) ? `
             <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Porter Details *</label>
             <input id="sp_porter_invoice_${d.id}" placeholder="Porter Invoice / Order No *" value="${escHtml(d.porter_invoice_number) || ""}"
@@ -5147,13 +5542,19 @@ async function confirmDispatchAssign(deliveryId, selectId) {
 async function confirmSelfPickup(deliveryId) {
   const msg       = document.getElementById("dcard_msg_" + deliveryId);
   const photoInput = document.getElementById("sp_photo_" + deliveryId);
+  const outdoorInput = document.getElementById("sp_photo_outdoor_" + deliveryId); // AC only
   const serialInput = document.getElementById("sp_serial_" + deliveryId); // null if serial already set
   const delivery  = allDeliveriesData.find(d => String(d.id) === String(deliveryId));
   const isPorter  = isPorterDel(delivery);
+  const isAC      = isACProductName(delivery?.product_name);
 
   // Validate
   if (!photoInput?.files?.length) {
-    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Please take a proof photo first"; }
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = isAC ? "⚠ Please take the indoor unit photo first" : "⚠ Please take a proof photo first"; }
+    return;
+  }
+  if (isAC && !outdoorInput?.files?.length) {
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Please take the outdoor unit photo too"; }
     return;
   }
   if (serialInput && !serialInput.value.trim()) {
@@ -5182,22 +5583,48 @@ async function confirmSelfPickup(deliveryId) {
   const btn = document.querySelector(`#sp_form_${deliveryId} button[onclick]`);
   const origText = btn?.textContent;
 
+  // Stamp the handover photo once up front so the offline and online paths send
+  // exactly the same stamped image.
+  const stampPos  = resolveStampPos();
+  const stampTs   = Date.now();
+  const stampRaw  = buildStampPayload(deliveryId, stampTs, stampPos);
+  const stampMeta = { deliveryId, actionType: "selfpickup", pos: stampPos, ts: stampTs };
+
+  const plainPhoto  = await compressImage(photoInput.files[0]);
+  const stampedBlob = await prepareProofPhoto(plainPhoto, stampMeta);
+  // AC: stamp the outdoor unit photo alongside the indoor one
+  const stampedOutdoorBlob = isAC
+    ? await prepareProofPhoto(await compressImage(outdoorInput.files[0]), {
+        ...stampMeta, actionType: "selfpickup_outdoor"
+      })
+    : null;
+
   // ── OFFLINE PATH ────────────────────────────────────────────────────────────
   if (!isOnline()) {
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
     if (msg) { msg.style.color = var_muted(); msg.textContent = "Saving offline…"; }
 
     try {
-      const compressed = await compressImage(photoInput.files[0]);
       const idbKey = photoIdbKey(deliveryId, "selfpickup");
-      await savePhotoToIdb(idbKey, compressed);
+      await savePhotoToIdb(idbKey, stampedBlob);
     } catch (e) {
       console.warn("[Offline] Self-pickup photo IDB save failed", e);
+    }
+
+    // AC: the outdoor photo syncs alongside the indoor one under "_outdoor"
+    if (stampedOutdoorBlob) {
+      try {
+        await savePhotoToIdb(photoIdbKey(deliveryId, "selfpickup_outdoor"), stampedOutdoorBlob);
+      } catch (e) {
+        console.warn("[Offline] Self-pickup outdoor photo IDB save failed", e);
+      }
     }
 
     addOfflineAction(deliveryId, "selfpickup", {
       serial: serialInput ? serialInput.value.trim() : null,
       photoStored: true,
+      gps: stampPos ? { lat: stampPos.lat, lng: stampPos.lng } : null,
+      proof_stamp_raw: stampRaw,
       driver_id: currentDriverId || null,
       pin:       currentDriverPin || null,
       ...(isPorter ? {
@@ -5230,12 +5657,21 @@ async function confirmSelfPickup(deliveryId) {
   if (msg) { msg.style.color = var_muted(); msg.textContent = "Uploading photo…"; }
 
   try {
-    // Compress photo
-    const compressed = await compressImage(photoInput.files[0]);
-
     const formData = new FormData();
-    formData.append("photo", compressed, "selfpickup.jpg");
+    if (stampedOutdoorBlob) {
+      // AC: server requires both units under the indoor/outdoor field names
+      formData.append("photo_indoor",  stampedBlob, "indoor.jpg");
+      formData.append("photo_outdoor", stampedOutdoorBlob, "outdoor.jpg");
+    } else {
+      formData.append("photo", stampedBlob, "selfpickup.jpg");
+    }
     formData.append("confirmed_by", "staff");
+    formData.append("action_timestamp", stampTs);
+    if (stampPos) {
+      formData.append("lat", stampPos.lat);
+      formData.append("lng", stampPos.lng);
+    }
+    formData.append("proof_stamp_raw", stampRaw);
     if (serialInput) {
       formData.append("serial", serialInput.value.trim());
     }

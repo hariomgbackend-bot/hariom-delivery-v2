@@ -4476,6 +4476,7 @@ function openViewPopup(id) {
             ${delivery.loaded_timestamp ? `
               <div style="margin-top:8px;font-size:10px;color:#94a3b8;">🕓 Loaded ${fmtActionStamp(delivery.loaded_timestamp)}</div>
             ` : ""}
+            ${proofStampBadge(delivery, "loaded")}
           </div>` : ""}
         ${delivery.photo_delivered_url || delivery.photo_delivered_outdoor_url ? `
           <div style="flex:1;min-width:120px;">
@@ -4501,6 +4502,7 @@ function openViewPopup(id) {
             ${delivery.delivered_timestamp ? `
               <div style="margin-top:8px;font-size:10px;color:#94a3b8;">🕓 Delivered ${fmtActionStamp(delivery.delivered_timestamp)}</div>
             ` : ""}
+            ${proofStampBadge(delivery, "delivered")}
           </div>` : ""}
       </div>` : ""}
 
@@ -4520,6 +4522,7 @@ function openViewPopup(id) {
           <img src="${delivery.failure_photo_url}"
             onclick="openPhotoLightbox('${escHtml(delivery.failure_photo_url)}','Failure Photo')"
             style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:2px solid #fca5a5;">
+          ${proofStampBadge(delivery, "failed")}
         </div>` : ""}
       ${!delivery.product_returned ? `
         <div style="background:#fef9c3;border-radius:8px;padding:10px 12px;font-size:13px;color:#92400e;margin:10px 0;">

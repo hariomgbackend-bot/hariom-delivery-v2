@@ -3264,6 +3264,18 @@ app.post("/markLoaded/:id", upload.fields([
     invalidateDeliveriesCache();
     res.json({ success: true });
 
+    // Verify the burned-in proof stamp in the background — decodes the in-memory
+    // upload, so there is no re-download of the photo we just stored.
+    verifyAndStoreProofStamp({
+      refDoc,
+      deliveryId:  req.params.id,
+      buffer:      (indoorPhoto || outdoorPhoto)?.buffer,
+      formLat:     req.body?.lat,
+      formLng:     req.body?.lng,
+      rawFallback: req.body?.proof_stamp_raw,
+      stage:       "loaded"
+    });
+
     sendAccountantPush("📦 Delivery Loaded", `${delivery.customer_name} - ${delivery.address}`)
       .catch(e => console.warn("Push error:", e.message));
   } catch (error) {
@@ -3395,6 +3407,17 @@ app.post("/markDelivered/:id", upload.fields([
     // Run distance calculation + notifications in background (non-blocking)
     (async () => {
       try {
+        // Record the proof-stamp verdict first — it is what the office audits.
+        await verifyAndStoreProofStamp({
+          refDoc,
+          deliveryId:  req.params.id,
+          buffer:      (indoorPhoto || outdoorPhoto)?.buffer,
+          formLat:     delivLat,
+          formLng:     delivLng,
+          rawFallback: req.body?.proof_stamp_raw,
+          stage:       "delivered"
+        });
+
         let distance_km = null;
         const loadedLoc = deliveryData.loaded_location;
         if (loadedLoc?.lat && loadedLoc?.lng && delivLat && delivLng) {
@@ -3877,6 +3900,18 @@ app.post("/markFailed/:id", upload.single("photo"), offlineSyncAuth, async (req,
     // Respond immediately, push in background
     invalidateDeliveriesCache();
     res.json({ success: true });
+
+    // Verify the burned-in proof stamp (background — never affects the response).
+    verifyAndStoreProofStamp({
+      refDoc:      deliveryRef,
+      deliveryId:  id,
+      buffer:      req.file?.buffer,
+      formLat:     req.body?.lat,
+      formLng:     req.body?.lng,
+      rawFallback: req.body?.proof_stamp_raw,
+      stage:       "failed"
+    });
+
     const urgentPrefix = isDamage ? "🔴 URGENT — " : "";
     sendAccountantPush(
       urgentPrefix + "Delivery Failed",
@@ -6799,9 +6834,19 @@ app.post("/markSelfPickup/:id", upload.fields([
 
     res.json({ success: true });
 
-    // Background: notifications + auto-ticket
+    // Background: proof-stamp verdict, notifications + auto-ticket
     (async () => {
       try {
+        await verifyAndStoreProofStamp({
+          refDoc,
+          deliveryId:  req.params.id,
+          buffer:      (indoorPhoto || outdoorPhoto)?.buffer,
+          formLat:     req.body?.lat,
+          formLng:     req.body?.lng,
+          rawFallback: req.body?.proof_stamp_raw,
+          stage:       "delivered"
+        });
+
         const freshSnap = await getDoc(refDoc);
         const d         = freshSnap.data();
         await sendAccountantPush(
@@ -7429,6 +7474,169 @@ async function extractLabelLocal(base64, mimetype) {
   }
 }
 
+/* ════════════════════════════════════════════════
+   PROOF STAMP VERIFICATION
+   The driver app burns a QR into every proof photo (stampProofPhoto in
+   driver_interface.html) carrying:
+       H1|<deliveryId>|<tsSec>|<lat>|<lng>|<acc>
+   We decode it from the uploaded image and record a verdict on the delivery.
+   This is integrity/consistency evidence, NOT cryptographic anti-forgery — the
+   payload is produced by the client, so a determined driver could re-stamp.
+   A missing, unreadable or mismatched stamp must NEVER reject a delivery; it
+   only flags it for audit.
+   ════════════════════════════════════════════════ */
+
+const STAMP_PREFIX             = "H1|";
+const STAMP_MAX_FUTURE_MS      = 24 * 60 * 60 * 1000;       // tolerate a day of clock skew
+const STAMP_MAX_AGE_MS         = 30 * 24 * 60 * 60 * 1000;  // older than this is implausible
+const STAMP_COORD_TOLERANCE_M  = 200;                       // stamp coords vs submitted coords
+
+function parseStampPayload(text) {
+  if (typeof text !== "string") return null;
+  const trimmed = text.trim();
+  if (!trimmed.startsWith(STAMP_PREFIX)) return null;
+  const parts = trimmed.split("|");
+  if (parts.length < 6) return null;
+
+  const [, deliveryId, tsSec, lat, lng, acc] = parts;
+  const num = v => {
+    if (v === "-" || v === "" || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const tsNum = Number(tsSec);
+  return {
+    version:    parts[0],
+    deliveryId: deliveryId || null,
+    tsMs:       Number.isFinite(tsNum) ? tsNum * 1000 : null,
+    lat:        num(lat),
+    lng:        num(lng),
+    accM:       num(acc),
+    raw:        trimmed
+  };
+}
+
+/* Decode the burned-in QR from an uploaded image buffer. */
+async function decodeProofStamp(buf) {
+  if (!buf?.length) return null;
+  try {
+    const results = await readBarcodes(buf);
+    for (const r of results) {
+      const text = (r.text || "").trim();
+      // Accept it if zxing calls it a QR code, or if it parses as our payload —
+      // either signal alone is enough for a stamp we produced ourselves.
+      if (r.format !== "QRCode" && !text.startsWith(STAMP_PREFIX)) continue;
+      const parsed = parseStampPayload(text);
+      if (parsed) return parsed;
+    }
+  } catch (err) {
+    console.warn("[stamp] decode failed:", err.message);
+  }
+  return null;
+}
+
+/* Metres between two coordinates (equirectangular — accurate enough at this scale). */
+function metresBetween(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1) * Math.cos(toRad((lat1 + lat2) / 2));
+  return Math.sqrt(dLat * dLat + dLng * dLng) * R;
+}
+
+function buildStampVerdict(parsed, { deliveryId, formLat, formLng, fromImage }) {
+  if (!parsed) {
+    return {
+      found:  false,
+      status: "missing",
+      reasons: ["no readable proof stamp in the photo"],
+      checked_at: Timestamp.now()
+    };
+  }
+
+  const reasons = [];
+  const now     = Date.now();
+
+  const matchesDelivery = parsed.deliveryId === String(deliveryId);
+  if (!matchesDelivery) reasons.push("stamp delivery id does not match this delivery");
+
+  let tsSane = false;
+  if (parsed.tsMs != null) {
+    const delta = now - parsed.tsMs;
+    tsSane = delta > -STAMP_MAX_FUTURE_MS && delta < STAMP_MAX_AGE_MS;
+    if (!tsSane) reasons.push("stamp timestamp is implausible");
+  } else {
+    reasons.push("stamp has no timestamp");
+  }
+
+  let coordsMatch = null;
+  const fLat = Number(formLat), fLng = Number(formLng);
+  if (parsed.lat != null && parsed.lng != null) {
+    if (Number.isFinite(fLat) && Number.isFinite(fLng)) {
+      const dist = metresBetween(fLat, fLng, parsed.lat, parsed.lng);
+      coordsMatch = dist <= STAMP_COORD_TOLERANCE_M;
+      if (!coordsMatch) {
+        reasons.push(`stamp coordinates differ from the submitted ones by ${Math.round(dist)}m`);
+      }
+    }
+  } else {
+    reasons.push("stamp has no coordinates");
+  }
+
+  // A payload taken from the submitted form rather than read out of the image is
+  // client-asserted, so it can never be "verified".
+  if (!fromImage) {
+    reasons.push("stamp QR could not be read from the photo — contents not verified against the image");
+  }
+
+  return {
+    found:             true,
+    raw:               parsed.raw,
+    delivery_id:       parsed.deliveryId,
+    ts:                parsed.tsMs != null ? Timestamp.fromMillis(parsed.tsMs) : null,
+    lat:               parsed.lat,
+    lng:               parsed.lng,
+    accuracy_m:        parsed.accM,
+    matches_delivery:  matchesDelivery,
+    ts_sane:           tsSane,
+    coords_match:      coordsMatch,
+    status:            reasons.length ? "flagged" : "verified",
+    reasons,
+    checked_at:        Timestamp.now()
+  };
+}
+
+/* Decode + persist the verdict. Called after the response has been sent, so it can
+   never delay or fail a driver submission.
+   `stage` maps to the proof photo being checked — "loaded" → photo_loaded_url,
+   "delivered" → photo_delivered_url (also used by self-pickup), "failed" →
+   failure_photo_url. Each stage gets its own field so a later stage cannot
+   overwrite an earlier verdict; proof_stamp_status always reflects the latest. */
+const STAMP_STAGES = ["loaded", "delivered", "failed"];
+
+async function verifyAndStoreProofStamp({ refDoc, deliveryId, buffer, formLat, formLng, rawFallback, stage = "delivered" }) {
+  try {
+    let parsed    = await decodeProofStamp(buffer);
+    let fromImage = !!parsed;
+
+    // The client also sends the payload it burned in, so an unreadable (but still
+    // present) stamp is graded on its contents instead of reported as missing.
+    if (!parsed && rawFallback) parsed = parseStampPayload(String(rawFallback));
+
+    const verdict = buildStampVerdict(parsed, { deliveryId, formLat, formLng, fromImage });
+    const safeStage = STAMP_STAGES.includes(stage) ? stage : "delivered";
+
+    await updateDoc(refDoc, {
+      ["proof_stamp_" + safeStage]: verdict,
+      proof_stamp_status: verdict.status,
+      proof_stamp_stage:  safeStage
+    });
+    invalidateDeliveriesCache();
+  } catch (err) {
+    console.warn("[stamp] verification failed:", err.message);
+  }
+}
+
 // ── NEW: POST /decode-barcode ──
 // Accepts a PNG image buffer from the iOS/Android scanner render loop.
 // Decodes barcodes using the zxing-wasm reader and applies format priority
@@ -7728,6 +7936,79 @@ app.post("/verify-label/:id", authenticate, authorize(["admin", "accountant"]), 
   } catch (error) {
     console.error("❌ /verify-label error:", error);
     res.status(500).json({ error: "Failed to verify label: " + error.message });
+  }
+});
+
+/* ──────────────────────────────────────────────
+   PROOF STAMP RE-CHECK
+   POST /verify-stamp/:id   (?force=1 to re-run)
+   Re-decodes the burned-in stamp from the STORED photo. Needed for deliveries
+   recorded before this feature existed, and to re-check a flagged proof. The
+   verdict is persisted on the delivery either way.
+
+   Guards mirror /verify-label: completed results are reused unless ?force=1, and
+   a per-delivery in-flight set stops two decodes running for the same DO.
+   ────────────────────────────────────────────── */
+const _stampInFlight = new Set();
+
+app.post("/verify-stamp/:id", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  const deliveryId = req.params.id;
+  try {
+    const refDoc = doc(db, "deliveries", deliveryId);
+    const snap   = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    const delivery = snap.data();
+
+    // Which proof photo are we checking? Mirrors the stage mapping used on write.
+    const stage = delivery.photo_delivered_url ? "delivered"
+                : delivery.failure_photo_url  ? "failed"
+                : "loaded";
+    const stampField = "proof_stamp_" + stage;
+
+    if (req.query.force !== "1" && delivery[stampField]?.status) {
+      return res.json({ ...delivery[stampField], reused: true });
+    }
+
+    if (_stampInFlight.has(deliveryId)) {
+      return res.json({ inFlight: true, message: "Stamp check already running for this delivery" });
+    }
+    _stampInFlight.add(deliveryId);
+
+    try {
+      const photoUrl = stage === "delivered" ? delivery.photo_delivered_url
+                     : stage === "failed"    ? delivery.failure_photo_url
+                     : delivery.photo_loaded_url;
+      if (!photoUrl) return res.status(400).json({ error: "No photo on this delivery to check" });
+
+      const photoRes = await fetch(photoUrl);
+      if (!photoRes.ok) return res.status(502).json({ error: "Failed to fetch stored photo" });
+      const buf = Buffer.from(
+        photoRes.arrayBuffer ? await photoRes.arrayBuffer() : await photoRes.buffer()
+      );
+
+      const loc     = stage === "loaded" ? delivery.loaded_location : delivery.delivered_location;
+      const parsed  = await decodeProofStamp(buf);
+      const verdict = buildStampVerdict(parsed, {
+        deliveryId,
+        formLat:   loc?.lat,
+        formLng:   loc?.lng,
+        fromImage: !!parsed
+      });
+
+      await updateDoc(refDoc, {
+        [stampField]: verdict,
+        proof_stamp_status: verdict.status,
+        proof_stamp_stage:  stage
+      });
+      invalidateDeliveriesCache();
+      res.json(verdict);
+    } finally {
+      _stampInFlight.delete(deliveryId);
+    }
+  } catch (error) {
+    console.error("❌ /verify-stamp error:", error);
+    res.status(500).json({ error: "Failed to verify stamp: " + error.message });
   }
 });
 

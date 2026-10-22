@@ -30,11 +30,17 @@ messaging.onBackgroundMessage(function(payload) {
    Cache version — bump when the asset list / behavior
    changes so `activate` clears the stale cache.
 ════════════════════════════════════════════════════ */
-const CACHE_NAME = "hariom-shell-v4";
+const CACHE_NAME = "hariom-shell-v5";
 const SHELL_ASSETS = [
   "/driver_interface.html",
   "/design-system.css?v=2",
   "/shared.js?v=2",
+  // Proof-photo stamping must work with no network at all, and cross-origin
+  // requests are never cached by this worker, so the QR encoder is served
+  // locally and precached here. Both service workers precache it because either
+  // can end up controlling the driver page (purchase-ingestion.html registers
+  // service-worker.js at the default scope "/").
+  "/vendor/qrcode.min.js",
   "/driver-manifest.json",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png"
