@@ -191,6 +191,43 @@ function isACProductName(name) {
   return /\bAC\b|\bAIR\s*CONDITIONER\b|SPLIT\s+AC|WINDOW\s+AC|INVERTER\s+AC/i.test(p);
 }
 
+/* ── Downscale a captured photo before upload.
+      Caps the long edge at 1280px and re-encodes as q0.75 JPEG, which is what
+      makes a phone photo small enough to submit over mobile data. Never rejects:
+      on any decode/encode failure (or after 10s) it resolves with the original
+      file so a capture is never blocked by compression. ── */
+function compressImage(file) {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = blob => { if (!settled) { settled = true; resolve(blob || file); } };
+    const fail  = () => finish(file);
+
+    const timer = setTimeout(fail, 10000);   // hard cap — never hang the caller
+
+    const reader = new FileReader();
+    reader.onerror = fail;
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = fail;
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const max = 1280;
+          let w = img.width, h = img.height;
+          if (!w || !h) return fail();
+          if (w > max) { h = Math.round(h * max / w); w = max; }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          canvas.toBlob(b => { clearTimeout(timer); finish(b); }, "image/jpeg", 0.75);
+          if (!canvas.toBlob) fail();   // very old engines
+        } catch (err) { fail(); }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /* ── Unified auth fetch ── */
 async function authFetch(url, options = {}) {
   const token = typeof window.authGetToken === "function" ? window.authGetToken() : null;

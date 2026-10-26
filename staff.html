@@ -838,7 +838,7 @@
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
-<script src="/shared.js?v=3"></script>
+<script src="/shared.js?v=4"></script>
 </head>
 <body>
 
@@ -922,6 +922,11 @@
           <div class="home-card-icon" style="background:rgba(77,142,255,0.12);">📦</div>
           <div class="home-card-label">Deliveries</div>
           <div class="home-card-count muted">→</div>
+        </div>
+        <div class="home-card" onclick="switchTab('capture')">
+          <div class="home-card-icon" style="background:rgba(22,163,74,0.12);">🏪</div>
+          <div class="home-card-label">Self Pickup</div>
+          <div class="home-card-count muted">photo first</div>
         </div>
         <div class="home-card" onclick="switchTab('leads')">
           <div class="home-card-icon" style="background:rgba(78,222,163,0.12);">📋</div>
@@ -1523,11 +1528,51 @@
       </div>
     </div>
 
+    <!-- TAB: SELF PICKUP CAPTURE -->
+    <div id="tabCapture" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">🏪 Self Pickup</div>
+      <div style="font-size:13px;color:var(--on-surface-variant);margin-bottom:14px;">
+        Photograph the unit the customer is collecting, then tap the DO it belongs to.
+      </div>
+
+      <input type="file" id="capInput" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
+        style="display:none;" onchange="capOnPhoto(event)">
+      <input type="file" id="capOutdoorInput" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
+        style="display:none;" onchange="capOnOutdoor(event)">
+
+      <div id="capStartWrap">
+        <button class="btn-full btn-full-primary" style="padding:15px;font-size:15px;" onclick="capTake()">📸 Take photo</button>
+      </div>
+
+      <div id="capPhotoWrap" style="display:none;">
+        <img id="capPreview" alt="captured photo"
+          style="width:100%;max-height:220px;object-fit:cover;border-radius:14px;border:1px solid var(--border);">
+        <div id="capOutdoorWrap" style="display:none;margin-top:10px;">
+          <img id="capOutdoorPreview" alt="captured outdoor unit"
+            style="width:100%;max-height:180px;object-fit:cover;border-radius:14px;border:1px solid var(--border);">
+        </div>
+        <button class="btn btn-gray" style="width:100%;margin-top:10px;padding:12px;" onclick="capTake()">↻ Retake photo</button>
+      </div>
+
+      <div class="page-title" id="capListTitle" style="display:none;font-size:15px;margin-top:24px;">Tap the DO this photo is for</div>
+      <div id="capList"></div>
+    </div>
+
   </div><!-- /mainPanel -->
 </div><!-- /container -->
 
 <!-- ══ TOAST ══ -->
 <div id="toast"></div>
+
+<!-- ══ SELF PICKUP CONFIRM POPUP ══ -->
+<div class="popup" id="capPopup">
+  <div class="popup-box">
+    <div id="capPopupContent"></div>
+  </div>
+</div>
 
 <!-- ══ DELIVERY DETAIL POPUP ══ -->
 <div class="popup" id="delivPopup">
@@ -1622,7 +1667,7 @@ function esc(s) {
 }
 
 /* isACProductName() — ACs need indoor + outdoor unit photos.
-   Defined in /shared.js?v=3 so every panel uses one copy. */
+   Defined in /shared.js?v=4 so every panel uses one copy. */
 
 /* ── ALL STATE DECLARATIONS (hoisted to avoid TDZ errors) ── */
 let staffToken       = null;
@@ -1694,6 +1739,7 @@ document.addEventListener("keydown", e => {
     closeLeadPopup();
     closeCalLeavePopup();
     closeCalNotePopup();
+    closeCapPopup();
   }
 });
 
@@ -1932,7 +1978,7 @@ function doLogout() {
 /* ── TAB SWITCH ── */
 function switchTab(tab) {
   currentTab = tab;
-  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", attendance:"tabAttendance", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview" };
+  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", attendance:"tabAttendance", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview", capture:"tabCapture" };
   Object.keys(idMap).forEach(k => {
     const el = document.getElementById(idMap[k]);
     if (el) el.style.display = k === tab ? "" : "none";
@@ -1945,6 +1991,7 @@ function switchTab(tab) {
   if (tab === "attendance") attInit();
   if (tab === "slabs") stSlLoadData();
   if (tab === "takeReview") trRender();
+  if (tab === "capture") capInit();
 }
 
 /* ── TAB: TAKE REVIEW (Google review QR wizard) ── */
@@ -3142,6 +3189,9 @@ document.getElementById("calLeavePopup").addEventListener("click", function(e) {
 document.getElementById("calNotePopup").addEventListener("click", function(e) {
   if (e.target === this) closeCalNotePopup();
 });
+document.getElementById("capPopup").addEventListener("click", function(e) {
+  if (e.target === this) closeCapPopup();
+});
 
 /* ═══════════════════════════════════════
    PWA INSTALL PROMPT
@@ -3935,6 +3985,258 @@ async function deleteLead(id) {
     await loadLeads();
   } catch(e) {
     showToast("❌ Network error");
+  }
+}
+
+/* ═══════════════════════════════════════
+   SELF PICKUP CAPTURE (staff)
+
+   Photo first: shoot the unit the customer is collecting, then tap the DO it
+   belongs to. Confirming posts to /markSelfPickup — the same confirmation the
+   driver panel uses — which marks the DO collected and notifies the accountant.
+
+   Online only: staff.html has no offline queue, so the button says so plainly
+   rather than pretending to save.
+═══════════════════════════════════════ */
+let capPhotoBlob   = null;
+let capOutdoorBlob = null;
+let capPreviewUrl  = null;
+let capOutdoorUrl  = null;
+let capDelivery    = null;
+let capCandidates  = [];
+
+function capInit() {
+  // Keep a photo in progress — only clear when coming in fresh.
+  if (!capPhotoBlob) capReset();
+}
+
+function capTake() {
+  const input = document.getElementById("capInput");
+  if (!input) return;
+  input.value = "";   // let the same shot be captured again
+  input.click();
+}
+
+function capTakeOutdoor() {
+  const input = document.getElementById("capOutdoorInput");
+  if (!input) return;
+  input.value = "";
+  input.click();
+}
+
+async function capOnPhoto(ev) {
+  const f = ev.target.files?.[0];
+  if (!f) return;
+
+  capPhotoBlob   = await compressImage(f);
+  capOutdoorBlob = null;
+  capDelivery    = null;
+  if (capPreviewUrl) URL.revokeObjectURL(capPreviewUrl);
+  capPreviewUrl = URL.createObjectURL(capPhotoBlob);
+
+  document.getElementById("capPreview").src        = capPreviewUrl;
+  document.getElementById("capPhotoWrap").style.display   = "block";
+  document.getElementById("capStartWrap").style.display   = "none";
+  document.getElementById("capOutdoorWrap").style.display = "none";
+  document.getElementById("capListTitle").style.display   = "block";
+
+  await capLoadCandidates();
+}
+
+async function capOnOutdoor(ev) {
+  const f = ev.target.files?.[0];
+  if (!f) return;
+
+  capOutdoorBlob = await compressImage(f);
+  if (capOutdoorUrl) URL.revokeObjectURL(capOutdoorUrl);
+  capOutdoorUrl = URL.createObjectURL(capOutdoorBlob);
+
+  document.getElementById("capOutdoorPreview").src        = capOutdoorUrl;
+  document.getElementById("capOutdoorWrap").style.display = "block";
+  if (capDelivery) capRenderConfirm();   // refresh the "added / retake" label
+}
+
+async function capLoadCandidates() {
+  const list = document.getElementById("capList");
+  list.innerHTML = skeletons(2);
+  try {
+    // Only this store's active DOs, then filter to self-pickup here: a
+    // (storeId, is_self_pickup) composite index does not exist, but
+    // (storeId, status) does — so this stays index-backed and bounded.
+    const store = staffStoreId || "all";
+    const res  = await authFetch(`${BASE_URL}/deliveries?store=${encodeURIComponent(store)}&status=pending,booked&force=1`);
+    const data = await res.json();
+    const rows = Array.isArray(data) ? data : (data.data || []);
+    capCandidates = rows.filter(d => d.is_self_pickup === true);
+    capRenderList();
+  } catch (e) {
+    list.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('box')}</div><p>Couldn't load self pickups</p><small>Check the connection and try again</small></div>`;
+  }
+}
+
+function capRenderList() {
+  const list = document.getElementById("capList");
+  if (!capCandidates.length) {
+    list.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('check')}</div><p>No self pickups waiting</p><small>Nothing left to collect at this store</small></div>`;
+    return;
+  }
+  list.innerHTML = capCandidates.map(d => `
+    <div class="delivery-card" onclick="capPick('${esc(d.id)}')">
+      <div class="card-top">
+        <div>
+          <div class="card-name">${esc(d.customer_name)}</div>
+          <div class="card-product">${esc(d.product_name)}</div>
+        </div>
+        <div class="card-badges">
+          <span class="badge" style="background:rgba(22,163,74,0.15);color:#16a34a;border:1px solid rgba(22,163,74,0.3);">🏪 Self Pickup</span>
+        </div>
+      </div>
+      <div class="card-divider"></div>
+      <div class="card-footer">
+        <div class="card-address">${d.product_serial_number ? "Serial: " + esc(d.product_serial_number) : "Serial not recorded"}</div>
+        <div class="card-chevron">›</div>
+      </div>
+    </div>`).join("");
+  staggerCards(list);
+}
+
+function capPick(id) {
+  capDelivery = capCandidates.find(d => String(d.id) === String(id));
+  if (!capDelivery) return;
+  capRenderConfirm();
+}
+
+function capRenderConfirm() {
+  const d          = capDelivery;
+  const isAC       = isACProductName(d.product_name);
+  const needSerial = !d.product_serial_number;
+
+  document.getElementById("capPopupContent").innerHTML = `
+    <div class="popup-band popup-band-pending">
+      <div class="popup-name">${esc(d.customer_name)}</div>
+      <div style="font-size:14px;color:var(--on-surface-variant);margin-top:4px;">${esc(d.product_name)}</div>
+    </div>
+    <div class="popup-body" style="padding-top:14px;">
+      <img src="${capPreviewUrl || ""}" alt="captured photo"
+        style="width:100%;max-height:180px;object-fit:cover;border-radius:14px;border:1px solid var(--border);margin-bottom:12px;">
+
+      ${isAC ? `
+      <div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);border-radius:12px;padding:12px;margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#2563eb;margin-bottom:8px;">AC — outdoor unit photo required</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:${capOutdoorBlob ? "#166534" : "var(--on-surface-variant)"};">
+          ${capOutdoorBlob ? "✅ Outdoor photo added" : "Not taken yet"}
+        </div>
+        <button class="btn btn-gray" style="width:100%;padding:11px;" onclick="capTakeOutdoor()">
+          📸 ${capOutdoorBlob ? "Retake outdoor photo" : "Add outdoor photo"}
+        </button>
+      </div>` : ""}
+
+      ${needSerial ? `
+      <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Serial Number *</label>
+      <input id="capSerial" placeholder="Enter the serial number" autocomplete="off"
+        style="width:100%;box-sizing:border-box;margin:4px 0 12px;padding:11px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--surface);color:var(--text);outline:none;">
+      ` : `
+      <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value">${esc(d.product_serial_number)}</span></div>
+      `}
+
+      <button class="btn-full btn-full-primary" id="capConfirmBtn" style="padding:14px;font-size:15px;margin-top:6px;" onclick="capSubmit()">✅ Mark Collected</button>
+      <button class="btn btn-gray" style="width:100%;margin-top:8px;padding:12px;" onclick="closeCapPopup()">Cancel</button>
+      <div id="capMsg" style="font-size:12px;margin-top:8px;min-height:16px;font-weight:600;text-align:center;"></div>
+    </div>`;
+
+  document.getElementById("capPopup").classList.add("open");
+}
+
+function closeCapPopup() {
+  document.getElementById("capPopup").classList.remove("open");
+  capDelivery = null;
+}
+
+function capReset() {
+  if (capPreviewUrl) { URL.revokeObjectURL(capPreviewUrl); capPreviewUrl = null; }
+  if (capOutdoorUrl) { URL.revokeObjectURL(capOutdoorUrl); capOutdoorUrl = null; }
+  capPhotoBlob = capOutdoorBlob = capDelivery = null;
+
+  const set = (id, css) => { const el = document.getElementById(id); if (el) el.style.display = css; };
+  set("capPhotoWrap",   "none");
+  set("capStartWrap",   "block");
+  set("capListTitle",   "none");
+  set("capOutdoorWrap", "none");
+  const list = document.getElementById("capList");
+  if (list) list.innerHTML = "";
+  const input = document.getElementById("capInput");
+  if (input) input.value = "";
+}
+
+/* Best-effort fix — the collection happens at the shop, so a cached recent one
+   is good enough and a failure must not block the confirmation. */
+function capGetPosition() {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    );
+  });
+}
+
+async function capSubmit() {
+  const d = capDelivery;
+  if (!d) return;
+
+  const msg = document.getElementById("capMsg");
+  const btn = document.getElementById("capConfirmBtn");
+  const say = (text, colour) => { if (msg) { msg.style.color = colour; msg.textContent = text; } };
+
+  if (!navigator.onLine) { say("⚠ Needs a connection — try again when online", "var(--error)"); return; }
+  if (!capPhotoBlob)     { say("⚠ Take the photo first", "var(--error)"); return; }
+
+  // /markSelfPickup requires a serial whenever the DO has none.
+  const serialEl = document.getElementById("capSerial");
+  const serial   = serialEl ? serialEl.value.trim() : (d.product_serial_number || "");
+  if (!serial) {
+    say("⚠ Serial number is required", "var(--error)");
+    if (serialEl) serialEl.focus();
+    return;
+  }
+
+  const isAC = isACProductName(d.product_name);
+  if (isAC && !capOutdoorBlob) { say("⚠ Outdoor unit photo is required for an AC", "var(--error)"); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+  say("Uploading photo…", "var(--muted)");
+
+  try {
+    const formData = new FormData();
+    if (isAC && capOutdoorBlob) {
+      formData.append("photo_indoor",  capPhotoBlob,   "indoor.jpg");
+      formData.append("photo_outdoor", capOutdoorBlob, "outdoor.jpg");
+    } else {
+      formData.append("photo", capPhotoBlob, "selfpickup.jpg");
+    }
+    formData.append("confirmed_by", staffName || "staff");
+    formData.append("serial", serial);
+
+    const pos = await capGetPosition();
+    if (pos) { formData.append("lat", pos.lat); formData.append("lng", pos.lng); }
+
+    const res  = await authFetch(`${BASE_URL}/markSelfPickup/${d.id}`, { method: "POST", body: formData });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      if (btn) { btn.disabled = false; btn.textContent = "✅ Mark Collected"; }
+      say("⚠ " + (data.error || "Failed"), "var(--error)");
+      return;
+    }
+
+    showToast("✅ Self pickup confirmed!");
+    closeCapPopup();
+    capReset();
+    updateHomeCounts();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "✅ Mark Collected"; }
+    say("⚠ Network error. Retry.", "var(--error)");
   }
 }
 </script>
