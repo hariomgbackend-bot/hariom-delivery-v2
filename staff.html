@@ -835,6 +835,87 @@
     /* ════ ONCE-PER-DAY WELCOME ════ */
     @keyframes gradientShift {0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
+    /* ════ TAG REQUEST + QUOTATION ════ */
+    .trq-card {
+      background: var(--surface-container-high); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px; margin-bottom: 12px;
+    }
+    .trq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .trq-grid .full { grid-column: 1 / -1; }
+    .trq-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .trq-field > label {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .trq-field input, .trq-field select {
+      width: 100%; box-sizing: border-box; background: var(--surface-container-highest);
+      border: none; border-radius: 8px; padding: 9px 10px;
+      font-family: 'Inter', sans-serif; font-size: 13px; color: var(--on-surface); outline: none;
+    }
+    .ntprod-wrap { position: relative; }
+    .ntprod-drop {
+      display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 60;
+      background: var(--surface-container-highest); border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3); max-height: 180px; overflow-y: auto; margin-top: 3px;
+    }
+    .ntprod-item { padding: 9px 12px; font-size: 13px; cursor: pointer; color: var(--on-surface); }
+    .ntprod-item:hover { background: var(--surface-container-high); }
+
+    /* ── QUOTATION: A4 letterhead sheet ── */
+    #quotePrint { display: none; }
+    #quotePrint.quote-open {
+      display: block; position: fixed; inset: 0; z-index: 600;
+      overflow: auto; background: rgba(0,0,0,0.86); padding: 14px;
+    }
+    .quote-bar { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
+    .quote-bar button {
+      padding: 11px 20px; border: none; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+    .a4-print-sheet {
+      width: 210mm; min-height: 297mm; box-sizing: border-box; margin: 0 auto;
+      background: #fff; color: #111; padding: 13mm; font-family: 'Inter', sans-serif;
+      font-size: 12px; line-height: 1.45; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    .a4-print-sheet h1 { margin: 0; font-size: 22px; letter-spacing: -0.4px; color: #0b2a5b; }
+    .a4-print-sheet table { width: 100%; border-collapse: collapse; }
+    .a4-print-sheet th {
+      background: #0b2a5b; color: #fff; padding: 8px 10px; text-align: left;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .a4-print-sheet td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    .a4-print-sheet .num { text-align: right; white-space: nowrap; }
+    .qp-head {
+      display: flex; justify-content: space-between; gap: 14px; align-items: flex-start;
+      border-bottom: 3px solid #0b2a5b; padding-bottom: 10px;
+    }
+    .qp-meta { text-align: right; font-size: 11px; color: #374151; }
+    .qp-party { display: flex; gap: 14px; margin: 14px 0; }
+    .qp-box { flex: 1; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; }
+    .qp-label { font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.6px; }
+    .qp-totals { width: 62mm; margin: 10px 0 0 auto; }
+    .qp-totals div { display: flex; justify-content: space-between; padding: 4px 0; }
+    .qp-grand { border-top: 2px solid #0b2a5b; padding-top: 6px !important; font-weight: 800; font-size: 14px; color: #0b2a5b; }
+    .qp-terms { margin-top: 16px; padding-top: 10px; border-top: 1px dashed #d1d5db; font-size: 10px; color: #374151; }
+    .qp-sign { margin-top: 22px; text-align: right; font-size: 10px; color: #374151; }
+
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      /* Gated on body.quote-printing so a normal Ctrl+P of the panel is unaffected. */
+      body.quote-printing > * { display: none !important; }
+      body.quote-printing > #quotePrint { display: block !important; }
+      body.quote-printing #quotePrint {
+        position: static !important; inset: auto !important;
+        overflow: visible !important; background: #fff !important; padding: 0 !important;
+      }
+      .no-print { display: none !important; }
+      .a4-print-sheet {
+        width: 210mm !important; margin: 0 !important; box-shadow: none !important;
+        break-after: page; page-break-after: always;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      }
+    }
+
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
@@ -927,6 +1008,16 @@
           <div class="home-card-icon" style="background:rgba(22,163,74,0.12);">🏪</div>
           <div class="home-card-label">Self Pickup</div>
           <div class="home-card-count muted">photo first</div>
+        </div>
+        <div class="home-card" onclick="switchTab('tagRequest')">
+          <div class="home-card-icon" style="background:rgba(236,72,153,0.12);">🏷</div>
+          <div class="home-card-label">Tag Request</div>
+          <div class="home-card-count muted">to studio</div>
+        </div>
+        <div class="home-card" onclick="switchTab('quotation')">
+          <div class="home-card-icon" style="background:rgba(78,222,163,0.12);">🧾</div>
+          <div class="home-card-label">Quotation</div>
+          <div class="home-card-count muted">letterhead</div>
         </div>
         <div class="home-card" onclick="switchTab('leads')">
           <div class="home-card-icon" style="background:rgba(78,222,163,0.12);">📋</div>
@@ -1561,8 +1652,87 @@
       <div id="capList"></div>
     </div>
 
+    <!-- TAB: TAG REQUEST -->
+    <div id="tabTagRequest" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">🏷 Tag Request</div>
+      <div style="font-size:13px;color:var(--on-surface-variant);margin-bottom:14px;">
+        Request price tags for one product or a whole list. The studio applies its own brand
+        colours, icons and price sizes — you supply the product details.
+      </div>
+
+      <div id="trqList"></div>
+      <button class="btn btn-gray" style="width:100%;padding:12px;margin-bottom:14px;" onclick="trqAddTag()">+ Add another tag</button>
+
+      <div class="trq-field" style="margin-bottom:14px;">
+        <label>Note for the studio (optional)</label>
+        <input id="trqNote" placeholder="e.g. needed before the weekend offer">
+      </div>
+
+      <button class="btn-full btn-full-primary" id="trqSubmitBtn" style="padding:15px;font-size:15px;" onclick="trqSubmit()">📨 Send request to studio</button>
+      <div id="trqMsg" style="font-size:12px;margin-top:8px;min-height:16px;font-weight:600;text-align:center;"></div>
+
+      <div class="page-title" style="font-size:15px;margin-top:26px;">Recent requests</div>
+      <div id="trqHistory"></div>
+    </div>
+
+    <!-- TAB: QUOTATION -->
+    <div id="tabQuotation" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">🧾 Quotation</div>
+
+      <div class="trq-card">
+        <div class="trq-field">
+          <label>Start from a lead</label>
+          <select id="qtLeadSelect"><option value="">— Blank quotation —</option></select>
+        </div>
+        <button class="btn btn-gray" style="width:100%;padding:11px;margin-top:8px;" onclick="qtLoadLead()">Load customer &amp; products</button>
+      </div>
+
+      <div class="trq-card">
+        <div class="trq-grid">
+          <div class="trq-field full"><label>Customer name *</label><input id="qtName" placeholder="Customer name"></div>
+          <div class="trq-field"><label>Phone</label><input id="qtPhone" inputmode="tel" placeholder="Phone"></div>
+          <div class="trq-field"><label>Quote no.</label><input id="qtNumber" value="—" readonly></div>
+          <div class="trq-field full"><label>Address</label><input id="qtAddress" placeholder="Address"></div>
+        </div>
+      </div>
+
+      <label class="form-label">Line items</label>
+      <div id="qtItems"></div>
+      <button class="btn btn-gray" style="width:100%;padding:12px;margin-bottom:14px;" onclick="qtAddItem()">+ Add another line</button>
+
+      <div class="trq-card" style="display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:800;">
+        <span>Total (incl. GST)</span><span id="qtTotal">₹0</span>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-gray" style="flex:1;padding:13px;" onclick="qtPreview()">👁 Preview</button>
+        <button class="btn-full btn-full-primary" id="qtCreateBtn" style="flex:2;padding:13px;" onclick="qtCreate()">💾 Create &amp; Share</button>
+      </div>
+      <div id="qtMsg" style="font-size:12px;margin-top:8px;min-height:16px;font-weight:600;text-align:center;"></div>
+
+      <div class="page-title" style="font-size:15px;margin-top:26px;">Sent quotations</div>
+      <div id="qtHistory"></div>
+    </div>
+
   </div><!-- /mainPanel -->
 </div><!-- /container -->
+
+<!-- ══ QUOTATION PRINT SHEET ══
+     A direct child of <body> on purpose: the print rules isolate it with
+     `body.quote-printing > *`, which can only single out body-level nodes. -->
+<div id="quotePrint">
+  <div class="quote-bar no-print">
+    <button onclick="qtShareCurrent()" style="background:#25D366;color:#fff;">📤 Share PDF</button>
+    <button onclick="closeQuotePreview()" style="background:rgba(255,255,255,0.15);color:#fff;">✕ Close</button>
+  </div>
+  <div class="a4-print-sheet" id="quoteSheet"></div>
+</div>
 
 <!-- ══ TOAST ══ -->
 <div id="toast"></div>
@@ -1740,6 +1910,7 @@ document.addEventListener("keydown", e => {
     closeCalLeavePopup();
     closeCalNotePopup();
     closeCapPopup();
+    closeQuotePreview();
   }
 });
 
@@ -1978,7 +2149,7 @@ function doLogout() {
 /* ── TAB SWITCH ── */
 function switchTab(tab) {
   currentTab = tab;
-  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", attendance:"tabAttendance", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview", capture:"tabCapture" };
+  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", attendance:"tabAttendance", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview", capture:"tabCapture", tagRequest:"tabTagRequest", quotation:"tabQuotation" };
   Object.keys(idMap).forEach(k => {
     const el = document.getElementById(idMap[k]);
     if (el) el.style.display = k === tab ? "" : "none";
@@ -1992,6 +2163,8 @@ function switchTab(tab) {
   if (tab === "slabs") stSlLoadData();
   if (tab === "takeReview") trRender();
   if (tab === "capture") capInit();
+  if (tab === "tagRequest") trqInit();
+  if (tab === "quotation") qtInit();
 }
 
 /* ── TAB: TAKE REVIEW (Google review QR wizard) ── */
@@ -4237,6 +4410,1192 @@ async function capSubmit() {
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = "✅ Mark Collected"; }
     say("⚠ Network error. Retry.", "var(--error)");
+  }
+}
+
+/* ═══════════════════════════════════════
+   SHARED: product autocomplete for the Tag Request and Quotation tabs.
+
+   The lead form's own helpers are hard-wired to the lprod_ and lprice_ ids, and
+   its click delegation listens for .prod-dropdown-item, so these use their own
+   ids, their own dropdown class and their own delegation — the working lead flow
+   is not touched.
+═══════════════════════════════════════ */
+function ntProdSearch(prefix, idx, value) {
+  const drop = document.getElementById(prefix + "drop_" + idx);
+  if (!drop) return;
+  const q = String(value || "").trim().toUpperCase();
+  if (q.length < 2) { drop.style.display = "none"; drop.innerHTML = ""; return; }
+  const hits = (tallyNames || []).filter(n => String(n).toUpperCase().includes(q)).slice(0, 10);
+  drop.innerHTML = hits.length
+    ? hits.map(n => `<div class="ntprod-item" data-prefix="${prefix}" data-idx="${idx}" data-name="${esc(n)}">${esc(n)}</div>`).join("")
+    : `<div class="ntprod-item" style="color:var(--muted);cursor:default;">No match in the Tally list</div>`;
+  drop.style.display = "block";
+}
+
+function ntProdPick(prefix, idx, name) {
+  const input = document.getElementById(prefix + "prod_" + idx);
+  if (input) input.value = name;
+  const drop = document.getElementById(prefix + "drop_" + idx);
+  if (drop) { drop.style.display = "none"; drop.innerHTML = ""; }
+  if (prefix === "trq") trqOnProductPicked(idx, name);
+  if (prefix === "qt")  qtOnProductPicked(idx, name);
+}
+
+document.addEventListener("click", e => {
+  const item = e.target.closest(".ntprod-item");
+  if (item && item.dataset.name) { ntProdPick(item.dataset.prefix, item.dataset.idx, item.dataset.name); return; }
+  if (!e.target.closest(".ntprod-wrap")) {
+    document.querySelectorAll(".ntprod-drop").forEach(d => { d.style.display = "none"; });
+  }
+});
+
+/* Price-guide row for a Tally product name, if one is configured. */
+function ntPriceGuideRow(name) {
+  const n = String(name || "").trim().toUpperCase();
+  return (priceGuideData || []).find(p => String(p.productName || "").trim().toUpperCase() === n) || null;
+}
+
+function ntMoney(n) {
+  return "₹" + (Number(n) || 0).toLocaleString("en-IN");
+}
+
+/* ═══════════════════════════════════════
+   TAG REQUEST
+
+   Sends product data only. Colours, custom brand names, feature ICONS and price
+   scales stay in Tag Studio, which applies them when the request is loaded.
+═══════════════════════════════════════ */
+const TRQ_CATEGORIES = [["TV", "TV"], ["REF", "Refrigerator"], ["WM", "Washing Machine"]];
+const TRQ_STARS = [["none", "No rating"], ["5", "5 ★"], ["4", "4 ★"], ["3", "3 ★"], ["2", "2 ★"], ["1", "1 ★"]];
+let trqCount = 0;
+let trqOptions = null;   // the studio's own lists, from GET /tag-options
+
+async function trqInit() {
+  await trqLoadOptions();
+  trqWirePreview();
+  if (!document.getElementById("trqList").children.length) trqAddTag();
+  trqLoadHistory();
+}
+
+/* The studio's brands and features, so staff pick from exactly what the studio has
+   configured — including anything added there later. */
+async function trqLoadOptions() {
+  if (trqOptions) return trqOptions;
+  try {
+    const res = await authFetch(`${BASE_URL}/tag-options`);
+    trqOptions = res.ok ? await res.json() : null;
+  } catch (e) {
+    trqOptions = null;
+  }
+  if (!trqOptions) {
+    // Empty lists degrade to free-text fields rather than an empty dropdown.
+    trqOptions = { brands: [], brandProfiles: {}, features: [], categories: [], beeStars: [] };
+  }
+  return trqOptions;
+}
+
+const trqCategoryOptions = () => (trqOptions?.categories?.length
+  ? trqOptions.categories
+  : TRQ_CATEGORIES.map(([value, label]) => ({ value, label })));
+
+const trqStarOptions = () => (trqOptions?.beeStars?.length
+  ? trqOptions.beeStars
+  : TRQ_STARS.map(([value, label]) => ({ value, label })));
+
+function trqCategoryControl(idx) {
+  return `<select id="trqcategory_${idx}" onchange="trqOnCategoryChange(${idx})">` +
+    trqCategoryOptions().map(c => `<option value="${esc(c.value)}">${esc(c.label)}</option>`).join("") +
+    `</select>`;
+}
+
+function trqStarControl(idx) {
+  return `<select id="trqstars_${idx}">` +
+    trqStarOptions().map(c => `<option value="${esc(c.value)}">${esc(c.label)}</option>`).join("") +
+    `</select>`;
+}
+
+/* A dropdown when the studio has brands, plain text when it doesn't. */
+function trqBrandControl(idx) {
+  const brands = trqOptions?.brands || [];
+  if (!brands.length) return `<input id="trqbrand_${idx}" placeholder="e.g. SAMSUNG">`;
+  return `<select id="trqbrand_${idx}" onchange="trqOnBrandChange(${idx})">`
+    + `<option value="">— Select brand —</option>`
+    + brands.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join("")
+    + `</select>`;
+}
+
+/* Four feature slots. The studio picks the ICONS; the request carries the label
+   text plus the feature id, so the studio can match it exactly instead of
+   guessing from the text. */
+function trqFeatureControls(idx, category) {
+  const feats = (trqOptions?.features || []).filter(f => f.cat === category || f.cat === "ALL");
+  let html = "";
+  for (let n = 1; n <= 4; n++) {
+    html += `<div class="trq-field"><label>Feature ${n}</label>`
+      + (feats.length
+        ? `<select id="trqfeatsel_${n}_${idx}" onchange="trqOnFeaturePick(${n}, ${idx})">`
+          + `<option value="">— Feature —</option>`
+          + feats.map(f => `<option value="${esc(f.id)}">${esc(String(f.label || f.id).replace(/\s*\n\s*/g, " "))}</option>`).join("")
+          + `</select>`
+        : "")
+      + `<input id="trqfeat_${n}_${idx}" placeholder="Feature ${n} text" oninput="trqMarkCustomFeature(${n}, ${idx})">`
+      + `<input type="hidden" id="trqfeatid_${n}_${idx}">`
+      + `</div>`;
+  }
+  return html;
+}
+
+function trqWarrantyOptions() {
+  let html = "";
+  for (let y = 1; y <= 10; y++) {
+    const label = y + " Year" + (y === 1 ? "" : "s");
+    html += `<option value="${label}"${y === 1 ? " selected" : ""}>${label}</option>`;
+  }
+  return html;
+}
+
+/* ── Small live preview of the requested tag ──
+   Deliberately a light approximation: Tag Studio owns the real layout, colours and
+   icons, so this only has to show the staff member that the right details landed.
+   The brand colour comes from the studio's own profile, so it matches. */
+function trqPreviewHtml(idx) {
+  const val = id => document.getElementById(id)?.value?.trim() || "";
+
+  const brand = val("trqbrand_" + idx);
+  const prof  = (trqOptions?.brandProfiles || {})[brand] || {};
+  const color = prof.color || "#002F6C";
+
+  const series = val("trqseries_" + idx) || prof.series || "";
+  const badge  = val("trqbadge_" + idx)  || prof.badge  || "";
+  const title  = val("trqtitle_" + idx);
+  const main   = val("trqmain_" + idx);
+  const sub    = val("trqsub_" + idx);
+  const price  = val("trqprice_" + idx);
+  const mrp    = val("trqmrp_" + idx);
+  const feats  = [1, 2, 3, 4].map(n => val("trqfeat_" + n + "_" + idx)).filter(Boolean);
+  const store  = qtStoreInfo();
+
+  const money = v => {
+    const n = Number(String(v).replace(/[^0-9.]/g, ""));
+    return n ? "₹" + n.toLocaleString("en-IN") : "";
+  };
+  const cell = 'font-size:7px;font-weight:800;text-align:center;text-transform:uppercase;color:var(--on-surface-variant);line-height:1.15;min-height:8px;';
+
+  return `
+    <div style="max-width:290px;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.18);">
+      <div style="background:${color};color:#fff;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:10px;font-weight:900;letter-spacing:0.3px;text-transform:uppercase;white-space:nowrap;">${esc(brand || "BRAND")}</span>
+        <span style="flex:1;font-size:9px;font-weight:700;opacity:0.92;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(series)}</span>
+        <span style="font-size:7.5px;font-weight:900;color:#fbbf24;border:1px solid rgba(251,191,36,0.85);padding:1px 4px;border-radius:2px;white-space:nowrap;">${esc(badge)}</span>
+      </div>
+      <div style="border:1px solid var(--border);border-top:none;padding:8px;background:var(--surface);">
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+          <div style="min-width:46px;text-align:center;">
+            <div style="font-size:19px;font-weight:900;line-height:1;color:var(--on-surface);">${esc(main || "—")}</div>
+            <div style="font-size:7.5px;color:var(--muted);margin-top:1px;">${esc(sub)}</div>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:10px;font-weight:800;line-height:1.25;text-transform:uppercase;color:var(--on-surface);">${esc(title || "Product description")}</div>
+            <div style="display:flex;align-items:baseline;gap:6px;margin-top:6px;">
+              <span style="font-size:18px;font-weight:900;color:${color};line-height:1;">${money(price) || "₹—"}</span>
+              ${mrp ? `<span style="font-size:9px;text-decoration:line-through;color:var(--muted);">${money(mrp)}</span>` : ""}
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px;padding-top:6px;border-top:1px solid var(--border);">
+          ${[0, 1, 2, 3].map(i => `<div style="${cell}">${esc(feats[i] || "")}</div>`).join("")}
+        </div>
+        <div style="margin-top:6px;background:${color};color:#fff;border-radius:4px;padding:3px 6px;display:flex;justify-content:space-between;font-size:7px;font-weight:800;text-transform:uppercase;letter-spacing:0.3px;">
+          <span>${esc(QT_COMPANY.name)}</span><span>${esc(store.name || "")}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function trqRenderPreview(idx) {
+  const box = document.getElementById("trqpreview_" + idx);
+  if (box) box.innerHTML = trqPreviewHtml(idx);
+}
+
+let trqPreviewWired = false;
+function trqWirePreview() {
+  if (trqPreviewWired) return;
+  const list = document.getElementById("trqList");
+  if (!list) return;
+  const rerender = e => {
+    const card = e.target.closest(".trq-card");
+    if (card) trqRenderPreview(card.dataset.idx);
+  };
+  list.addEventListener("input", rerender);
+  list.addEventListener("change", rerender);
+  trqPreviewWired = true;
+}
+
+function trqOnFeaturePick(n, idx) {
+  const sel = document.getElementById(`trqfeatsel_${n}_${idx}`);
+  const txt = document.getElementById(`trqfeat_${n}_${idx}`);
+  const hid = document.getElementById(`trqfeatid_${n}_${idx}`);
+  const hit = sel && trqOptions ? (trqOptions.features || []).find(f => f.id === sel.value) : null;
+  if (txt) txt.value = hit ? String(hit.label || "").replace(/\s*\n\s*/g, " ") : "";
+  if (hid) hid.value = hit ? hit.id : "";
+  trqRenderPreview(idx);
+}
+
+/* A typed label means it is no longer one of the studio's known features. */
+function trqMarkCustomFeature(n, idx) {
+  const sel = document.getElementById(`trqfeatsel_${n}_${idx}`);
+  if (sel) sel.value = "";
+  const hid = document.getElementById(`trqfeatid_${n}_${idx}`);
+  if (hid) hid.value = "";
+}
+
+/* The studio's feature list is category-scoped, so changing category re-filters
+   the slots — carrying over whatever still applies. */
+function trqOnCategoryChange(idx) {
+  const wrap = document.getElementById("trqfeatwrap_" + idx);
+  if (!wrap) return;
+  const prev = [1, 2, 3, 4].map(n => ({
+    label: document.getElementById(`trqfeat_${n}_${idx}`)?.value || "",
+    id:    document.getElementById(`trqfeatid_${n}_${idx}`)?.value || ""
+  }));
+  wrap.innerHTML = trqFeatureControls(idx, document.getElementById("trqcategory_" + idx)?.value || "TV");
+  prev.forEach((p, i) => {
+    const n = i + 1;
+    const txt = document.getElementById(`trqfeat_${n}_${idx}`);
+    const hid = document.getElementById(`trqfeatid_${n}_${idx}`);
+    const sel = document.getElementById(`trqfeatsel_${n}_${idx}`);
+    if (txt) txt.value = p.label;
+    if (hid) hid.value = p.id;
+    if (sel && p.id && [...sel.options].some(o => o.value === p.id)) sel.value = p.id;
+  });
+  trqRenderPreview(idx);
+}
+
+/* Mirrors the studio's own brand change: the profile supplies the series and badge. */
+function trqOnBrandChange(idx) {
+  const brand = document.getElementById("trqbrand_" + idx)?.value || "";
+  const prof  = (trqOptions?.brandProfiles || {})[brand];
+  if (!prof) return;
+  const setIfEmpty = (id, v) => { const el = document.getElementById(id); if (el && !el.value && v) el.value = v; };
+  setIfEmpty("trqseries_" + idx, prof.series);
+  setIfEmpty("trqbadge_" + idx, prof.badge);
+  trqRenderPreview(idx);
+}
+
+function trqAddTag() {
+  const list = document.getElementById("trqList");
+  const idx  = ++trqCount;
+  const card = document.createElement("div");
+  card.className = "trq-card";
+  card.dataset.idx = idx;
+  card.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:11px;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.5px;">Tag ${list.children.length + 1}</span>
+      <button onclick="trqRemoveTag(${idx})" style="background:rgba(255,180,171,0.1);color:var(--error);border:none;border-radius:7px;padding:5px 10px;font-size:14px;cursor:pointer;">×</button>
+    </div>
+    <div class="trq-field" style="margin-bottom:8px;">
+      <label>Product (from Tally)</label>
+      <div class="ntprod-wrap">
+        <input id="trqprod_${idx}" placeholder="Search a product name…" autocomplete="off"
+          oninput="ntProdSearch('trq', ${idx}, this.value)" onfocus="ntProdSearch('trq', ${idx}, this.value)">
+        <div class="ntprod-drop" id="trqdrop_${idx}"></div>
+      </div>
+    </div>
+    <div class="trq-grid">
+      <div class="trq-field"><label>Category *</label>${trqCategoryControl(idx)}</div>
+      <div class="trq-field"><label>Brand</label>${trqBrandControl(idx)}</div>
+      <div class="trq-field"><label>Series</label><input id="trqseries_${idx}" placeholder="e.g. CRYSTAL 4K"></div>
+      <div class="trq-field"><label>Gold badge</label><input id="trqbadge_${idx}" placeholder="e.g. 4K ULTRA HD"></div>
+      <div class="trq-field"><label>Size / spec</label><input id="trqmain_${idx}" placeholder="e.g. 55"></div>
+      <div class="trq-field"><label>Sub spec</label><input id="trqsub_${idx}" placeholder="e.g. (139 cm)"></div>
+      <div class="trq-field full"><label>Product description *</label><input id="trqtitle_${idx}" placeholder="e.g. Smart LED TV"></div>
+      <div class="trq-field"><label>Offer price (₹) *</label><input id="trqprice_${idx}" inputmode="numeric" placeholder="44990"></div>
+      <div class="trq-field"><label>MRP (₹) *</label><input id="trqmrp_${idx}" inputmode="numeric" placeholder="62900"></div>
+      <div class="trq-field"><label>Model / SKU</label><input id="trqmodel_${idx}" placeholder="e.g. UA55CU7700"></div>
+      <div class="trq-field"><label>Energy rating</label>${trqStarControl(idx)}</div>
+      <div class="trq-field"><label>Warranty</label><select id="trqwarranty_${idx}">${trqWarrantyOptions()}</select></div>
+      <div class="trq-field full"><label>EMI pill</label><input id="trqemi_${idx}" placeholder="e.g. EMI ₹1,499"></div>
+    </div>
+    <div class="trq-grid" style="margin-top:8px;" id="trqfeatwrap_${idx}">${trqFeatureControls(idx, "TV")}</div>
+    <div style="margin-top:10px;">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:5px;">Preview</div>
+      <div id="trqpreview_${idx}"></div>
+    </div>`;
+  list.appendChild(card);
+  trqRenderPreview(idx);
+}
+
+function trqRemoveTag(idx) {
+  const card = document.querySelector(`#trqList .trq-card[data-idx="${idx}"]`);
+  if (!card) return;
+  if (document.getElementById("trqList").children.length <= 1) {
+    showToast("⚠ At least one tag is required");
+    return;
+  }
+  card.remove();
+  // Keep the visible numbering sane after a removal
+  [...document.getElementById("trqList").children].forEach((c, i) => {
+    const label = c.querySelector("span");
+    if (label) label.textContent = "Tag " + (i + 1);
+  });
+}
+
+/* Auto-fill what the product name already tells us, so a request is mostly typing-free. */
+function trqOnProductPicked(idx, name) {
+  const setIfEmpty = (id, v) => { const el = document.getElementById(id); if (el && !el.value) el.value = v; };
+
+  setIfEmpty("trqtitle_" + idx, name);
+
+  // Brand is a select when the studio has profiles, otherwise a text input.
+  const brandEl = document.getElementById("trqbrand_" + idx);
+  if (brandEl && !brandEl.value) {
+    const guessed = getBrand(name);
+    if (brandEl.tagName === "SELECT") {
+      const hit = [...brandEl.options].find(o => o.value && o.value.toUpperCase() === String(guessed).toUpperCase());
+      if (hit) { brandEl.value = hit.value; trqOnBrandChange(idx); }
+    } else {
+      brandEl.value = guessed;
+    }
+  }
+
+  const cat  = document.getElementById("trqcategory_" + idx);
+  const head = String(name).trim().toUpperCase().split(/\s+/)[0];
+  let newCat = null;
+  if (head === "LED" || head === "TV") newCat = "TV";
+  else if (head === "REF") newCat = "REF";
+  else if (head === "WM")  newCat = "WM";
+  if (cat && newCat && cat.value !== newCat && [...cat.options].some(o => o.value === newCat)) {
+    cat.value = newCat;
+    trqOnCategoryChange(idx);   // re-filter the feature slots for the new category
+  }
+
+  const pg = ntPriceGuideRow(name);
+  if (pg) {
+    setIfEmpty("trqmrp_" + idx, pg.mrp || "");
+    setIfEmpty("trqprice_" + idx, pg.mop || "");
+    if (pg.mrp || pg.mop) showToast("💡 Prices filled from the Price Guide");
+  }
+  trqRenderPreview(idx);
+}
+
+function trqCollect() {
+  const tags = [];
+  for (const card of document.getElementById("trqList").children) {
+    const i = card.dataset.idx;
+    const g = id => document.getElementById(id);
+    const featPairs = [1, 2, 3, 4]
+      .map(n => ({
+        label: g("trqfeat_" + n + "_" + i)?.value.trim() || "",
+        id:    g("trqfeatid_" + n + "_" + i)?.value.trim() || ""
+      }))
+      .filter(p => p.label);
+    tags.push({
+      category:      g("trqcategory_" + i)?.value || "TV",
+      brand:         g("trqbrand_" + i)?.value.trim()    || "",
+      series:        g("trqseries_" + i)?.value.trim()   || "",
+      badge:         g("trqbadge_" + i)?.value.trim()    || "",
+      mainSpec:      g("trqmain_" + i)?.value.trim()     || "",
+      subSpec:       g("trqsub_" + i)?.value.trim()      || "",
+      title:         g("trqtitle_" + i)?.value.trim()    || "",
+      specialPrice:  g("trqprice_" + i)?.value.trim()    || "",
+      mrp:           g("trqmrp_" + i)?.value.trim()      || "",
+      modelNo:       g("trqmodel_" + i)?.value.trim()    || "",
+      beeStars:      g("trqstars_" + i)?.value || "none",
+      warranty:      g("trqwarranty_" + i)?.value.trim() || "",
+      emi:           g("trqemi_" + i)?.value.trim()      || "",
+      // Filtered together, so the two arrays stay index-aligned for the studio.
+      featureLabels: featPairs.map(p => p.label),
+      featureIds:    featPairs.map(p => p.id)
+    });
+  }
+  return tags;
+}
+
+async function trqSubmit() {
+  const msg = document.getElementById("trqMsg");
+  const btn = document.getElementById("trqSubmitBtn");
+  const say = (t, c) => { if (msg) { msg.style.color = c; msg.textContent = t; } };
+
+  const tags = trqCollect();
+  for (let i = 0; i < tags.length; i++) {
+    if (!tags[i].title)         { say(`⚠ Tag ${i + 1}: product description is required`, "var(--error)"); return; }
+    if (!tags[i].specialPrice)  { say(`⚠ Tag ${i + 1}: offer price is required`, "var(--error)"); return; }
+    if (!tags[i].mrp)           { say(`⚠ Tag ${i + 1}: MRP is required`, "var(--error)"); return; }
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  say("Sending to studio…", "var(--muted)");
+  try {
+    const res = await authFetch(`${BASE_URL}/tag-requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tags,
+        note: document.getElementById("trqNote")?.value.trim() || ""
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { say("⚠ " + (data.error || "Failed"), "var(--error)"); return; }
+
+    showToast(`✅ Request sent — ${data.count} tag${data.count === 1 ? "" : "s"}`);
+    document.getElementById("trqList").innerHTML = "";
+    document.getElementById("trqNote").value = "";
+    trqCount = 0;
+    trqAddTag();
+    trqLoadHistory();
+  } catch (e) {
+    say("⚠ Network error. Retry.", "var(--error)");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "📨 Send request to studio"; }
+  }
+}
+
+async function trqLoadHistory() {
+  const box = document.getElementById("trqHistory");
+  if (!box) return;
+  box.innerHTML = skeletons(2);
+  try {
+    const res  = await authFetch(`${BASE_URL}/tag-requests`);
+    const data = await res.json();
+    const items = Array.isArray(data) ? data : [];
+    if (!items.length) {
+      box.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('clipboard')}</div><p>No requests yet</p></div>`;
+      return;
+    }
+    box.innerHTML = items.map(r => {
+      const n    = Array.isArray(r.tags) ? r.tags.length : 0;
+      const done = r.status === "done";
+      const when = r.requestedAt?.seconds
+        ? new Date(r.requestedAt.seconds * 1000).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+        : "—";
+      return `
+      <div class="delivery-card">
+        <div class="card-top">
+          <div>
+            <div class="card-name">${esc(r.requestedByName || "Staff")}</div>
+            <div class="card-product">${n} tag${n === 1 ? "" : "s"}${r.note ? " · " + esc(r.note) : ""}</div>
+          </div>
+          <div class="card-badges">
+            <span class="badge" style="${done
+              ? "background:rgba(78,222,163,0.15);color:#4edea3;border:1px solid rgba(78,222,163,0.3);"
+              : "background:rgba(255,179,0,0.15);color:#fbbf24;border:1px solid rgba(255,179,0,0.3);"}">${done ? "done" : "pending"}</span>
+          </div>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-footer">
+          <div class="card-address">${esc(when)}</div>
+          <div class="card-chevron">›</div>
+        </div>
+      </div>`;
+    }).join("");
+    staggerCards(box);
+  } catch (e) {
+    box.innerHTML = `<div class="empty-state"><p>Couldn't load requests</p></div>`;
+  }
+}
+
+/* ═══════════════════════════════════════
+   QUOTATION — A4 letterhead document
+
+   Prices entered are GST-inclusive (the house convention), so the taxable value
+   and the CGST/SGST split are backed out of the total rather than added on.
+═══════════════════════════════════════ */
+const QT_GST_RATE = 0.18;
+const QT_COMPANY  = { name: "Hari Om Electronics", gstin: "27AFJPC2223B1Z7" };
+const QT_TERMS = [
+  "Prices are inclusive of GST and are valid for 7 days from the date of this quotation.",
+  "Delivery and installation charges, if any, are not included unless stated above.",
+  "Warranty is as per the manufacturer's terms, serviced through authorised centres.",
+  "Goods once sold will not be taken back or exchanged."
+];
+let qtItemCount = 0;
+
+function qtInit() {
+  qtFillLeadOptions();
+  if (!document.getElementById("qtItems").children.length) qtAddItem();
+  qtLoadHistory();
+}
+
+function qtFillLeadOptions() {
+  const sel = document.getElementById("qtLeadSelect");
+  if (!sel) return;
+  const leads = Array.isArray(allLeads) ? allLeads : [];
+  sel.innerHTML = `<option value="">— Blank quotation —</option>` + leads.map(l =>
+    `<option value="${esc(l.id)}">${esc(l.customer_name || l.phone || "Lead")}${l.phone ? " · " + esc(l.phone) : ""}</option>`).join("");
+}
+
+function qtLoadLead() {
+  const id = document.getElementById("qtLeadSelect").value;
+  if (!id) { showToast("⚠ Pick a lead first"); return; }
+  const lead = (allLeads || []).find(l => String(l.id) === String(id));
+  if (!lead) { showToast("⚠ Lead not found"); return; }
+
+  document.getElementById("qtName").value    = lead.customer_name || "";
+  document.getElementById("qtPhone").value   = lead.phone || "";
+  document.getElementById("qtAddress").value = lead.address || lead.area || "";
+
+  const items = Array.isArray(lead.products) ? lead.products : [];
+  document.getElementById("qtItems").innerHTML = "";
+  qtItemCount = 0;
+  items.forEach(p => qtAddItem({ productName: p.product_name || "", rate: p.quoted_price || "" }));
+  if (!document.getElementById("qtItems").children.length) qtAddItem();
+  qtRecalc();
+  showToast("✅ Lead loaded");
+}
+
+function qtAddItem(prefill) {
+  const list = document.getElementById("qtItems");
+  const idx  = ++qtItemCount;
+  const row  = document.createElement("div");
+  row.className = "trq-card";
+  row.dataset.idx = idx;
+  row.style.padding = "10px";
+  row.innerHTML = `
+    <div class="trq-field" style="margin-bottom:6px;">
+      <label>Product</label>
+      <div class="ntprod-wrap">
+        <input id="qtprod_${idx}" placeholder="Search a product name…" autocomplete="off"
+          oninput="ntProdSearch('qt', ${idx}, this.value)" onfocus="ntProdSearch('qt', ${idx}, this.value)">
+        <div class="ntprod-drop" id="qtdrop_${idx}"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div class="trq-field" style="width:72px;"><label>Qty</label>
+        <input id="qtqty_${idx}" inputmode="numeric" value="1" oninput="qtRecalc()"></div>
+      <div class="trq-field" style="flex:1;"><label>Rate ₹ (incl. GST)</label>
+        <input id="qtrate_${idx}" inputmode="numeric" oninput="qtRecalc()"></div>
+      <button onclick="qtRemoveItem(${idx})" style="background:rgba(255,180,171,0.1);color:var(--error);border:none;border-radius:7px;padding:9px 11px;font-size:14px;cursor:pointer;flex-shrink:0;">×</button>
+    </div>`;
+  list.appendChild(row);
+
+  if (prefill) {
+    if (prefill.productName) document.getElementById("qtprod_" + idx).value = prefill.productName;
+    if (prefill.rate)        document.getElementById("qtrate_" + idx).value = prefill.rate;
+  }
+}
+
+function qtRemoveItem(idx) {
+  const row = document.querySelector(`#qtItems .trq-card[data-idx="${idx}"]`);
+  if (!row) return;
+  if (document.getElementById("qtItems").children.length <= 1) {
+    showToast("⚠ At least one line is required");
+    return;
+  }
+  row.remove();
+  qtRecalc();
+}
+
+function qtOnProductPicked(idx, name) {
+  const rate = document.getElementById("qtrate_" + idx);
+  const pg   = ntPriceGuideRow(name);
+  if (rate && !rate.value && pg) rate.value = pg.mop || pg.msp || pg.mrp || "";
+  qtRecalc();
+}
+
+function qtCollect() {
+  const items = [];
+  for (const row of document.getElementById("qtItems").children) {
+    const i = row.dataset.idx;
+    const g = id => document.getElementById(id);
+    items.push({
+      productName: g("qtprod_" + i)?.value.trim() || "",
+      qty:  Number(g("qtqty_" + i)?.value)  || 0,
+      rate: Number(g("qtrate_" + i)?.value) || 0
+    });
+  }
+  return items;
+}
+
+function qtTotals(items) {
+  const total   = items.reduce((s, it) => s + Math.round((it.qty || 0) * (it.rate || 0)), 0);
+  const taxable = Math.round(total / (1 + QT_GST_RATE));
+  const tax     = total - taxable;
+  const cgst    = Math.round(tax / 2);
+  const sgst    = tax - cgst;   // absorbs the rounding remainder so the lines sum exactly
+  return { total, taxable, cgst, sgst };
+}
+
+function qtRecalc() {
+  const el = document.getElementById("qtTotal");
+  if (el) el.textContent = ntMoney(qtTotals(qtCollect()).total);
+}
+
+function qtStoreInfo() {
+  const s   = (typeof STAFF_STORES !== "undefined" && STAFF_STORES[staffStoreId]) || {};
+  const def = STORE_DEFAULTS[storeDisplayName(staffStoreId)] || {};
+  return {
+    name:     s.name     || storeDisplayName(staffStoreId) || "",
+    address:  s.address  || def.address  || "",
+    phone:    s.phone    || def.phone    || "",
+    altPhone: s.altPhone || def.altPhone || ""
+  };
+}
+
+function qtBuildSheet({ number, customer, items, totals, date }) {
+  const store = qtStoreInfo();
+  const rows = items.map((it, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${esc(it.productName || "—")}</td>
+      <td class="num">${it.qty}</td>
+      <td class="num">${ntMoney(it.rate)}</td>
+      <td class="num">${ntMoney(Math.round(it.qty * it.rate))}</td>
+    </tr>`).join("");
+
+  return `
+    <div class="qp-head">
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <img src="/icons/hariom.ico" alt="" onerror="this.src='/icons/icon-192x192.png'"
+          style="width:58px;height:58px;object-fit:contain;border-radius:10px;">
+        <div>
+          <h1>${esc(QT_COMPANY.name)}</h1>
+          <div style="font-size:11px;color:#374151;margin-top:3px;font-weight:700;">${esc(store.name)} Branch</div>
+          <div style="font-size:11px;color:#374151;">${esc(store.address)}</div>
+          <div style="font-size:11px;color:#374151;">Ph: ${esc(store.phone)}${store.altPhone ? " / " + esc(store.altPhone) : ""}</div>
+          <div style="font-size:11px;color:#374151;">GSTIN: ${esc(QT_COMPANY.gstin)}</div>
+        </div>
+      </div>
+      <div class="qp-meta">
+        <div style="font-size:18px;font-weight:800;color:#0b2a5b;letter-spacing:0.5px;">QUOTATION</div>
+        <div style="margin-top:6px;"><b>No:</b> ${esc(number || "—")}</div>
+        <div><b>Date:</b> ${esc(date)}</div>
+        <div><b>Valid:</b> 7 days</div>
+      </div>
+    </div>
+
+    <div class="qp-party">
+      <div class="qp-box">
+        <div class="qp-label">Quotation for</div>
+        <div style="font-weight:700;margin-top:4px;">${esc(customer.name || "—")}</div>
+        ${customer.phone   ? `<div>Ph: ${esc(customer.phone)}</div>` : ""}
+        ${customer.address ? `<div>${esc(customer.address)}</div>` : ""}
+      </div>
+      <div class="qp-box">
+        <div class="qp-label">Prepared by</div>
+        <div style="margin-top:4px;">${esc(staffName || "Staff")}</div>
+        <div>${esc(store.name)} branch</div>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th style="width:8mm;">#</th>
+        <th>Description</th>
+        <th class="num" style="width:16mm;">Qty</th>
+        <th class="num" style="width:28mm;">Rate</th>
+        <th class="num" style="width:30mm;">Amount</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <div class="qp-totals">
+      <div><span>Taxable value</span><span>${ntMoney(totals.taxable)}</span></div>
+      <div><span>CGST @ 9%</span><span>${ntMoney(totals.cgst)}</span></div>
+      <div><span>SGST @ 9%</span><span>${ntMoney(totals.sgst)}</span></div>
+      <div class="qp-grand"><span>Total (incl. GST)</span><span>${ntMoney(totals.total)}</span></div>
+    </div>
+
+    <div class="qp-terms">
+      <div class="qp-label" style="margin-bottom:4px;">Terms &amp; conditions</div>
+      ${QT_TERMS.map(t => `<div>• ${esc(t)}</div>`).join("")}
+    </div>
+
+    <div class="qp-sign">
+      For ${esc(QT_COMPANY.name)}<br><br>
+      ______________________<br>
+      Authorised signatory
+    </div>`;
+}
+
+/* ── WhatsApp share ──
+   Same idiom as the delivery popup's buildWAMessage/shareOnWA: a formatted text
+   message handed to wa.me, so there is no PDF/image dependency. */
+let qtLastPayload = null;
+
+function qtWhatsAppUrl(phone) {
+  let digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return "https://wa.me/?text=";   // no number → WhatsApp's contact picker
+  // Indian numbers are routinely written with a leading trunk 0: 098226 32095
+  if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+  // A bare 10-digit number still needs the country code to open the right chat.
+  return "https://wa.me/" + (digits.length === 10 ? "91" + digits : digits) + "?text=";
+}
+
+/* ── Cover note ──
+   The itemised detail lives in the PDF now, so the chat message only says what
+   is attached. (wa.me cannot attach a file — the PDF itself travels through the
+   native share sheet, or a download the user attaches.) */
+function qtCoverNote({ number }) {
+  return `Quotation ${number} from ${QT_COMPANY.name} — PDF attached.`;
+}
+
+/* ── PDF engine ──
+   jsPDF is vendored at /vendor and precached by both service workers, so the
+   writer works with no network. Loaded lazily, cached in a promise. */
+let _qtJsPdfPromise = null;
+function _loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Failed to load " + src));
+    document.head.appendChild(s);
+  });
+}
+function qtLoadJsPdf() {
+  if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+  if (!_qtJsPdfPromise) {
+    _qtJsPdfPromise = _loadScriptOnce("/vendor/jspdf.umd.min.js")
+      .then(() => (window.jspdf && window.jspdf.jsPDF) || null)
+      .catch(() => null);
+  }
+  return _qtJsPdfPromise;
+}
+
+/* jsPDF cannot embed the .ico, so the logo goes in as the 256px PNG layer that
+   was extracted from it. */
+let _qtLogoPromise = null;
+function qtLogoDataUrl() {
+  if (_qtLogoPromise) return _qtLogoPromise;
+  _qtLogoPromise = fetch("/icons/hariom-256.png")
+    .then(r => (r.ok ? r.blob() : Promise.reject(new Error("logo HTTP " + r.status))))
+    .then(b => new Promise(res => {
+      const fr = new FileReader();
+      fr.onload  = () => res(fr.result);
+      fr.onerror = () => res(null);
+      fr.readAsDataURL(b);
+    }))
+    .catch(() => null);
+  return _qtLogoPromise;
+}
+
+/* Helvetica is the only built-in font and has no ₹ glyph (it is not in WinAnsi),
+   so the PDF prints "Rs." where the on-screen sheet prints ₹. */
+function qtPdfMoney(n) {
+  return "Rs. " + (Number(n) || 0).toLocaleString("en-IN");
+}
+
+async function qtBuildPdf(payload) {
+  const JsPDF = await qtLoadJsPdf();
+  if (!JsPDF) throw new Error("PDF engine unavailable");
+
+  const { number, customer = {}, items = [], totals = {}, date } = payload;
+  const store = qtStoreInfo();
+  const W = 595.28, H = 841.89, M = 40;
+  const right = W - M;
+  const doc = new JsPDF({ unit: "pt", format: "a4" });
+  let y = M;
+
+  /* ── Letterhead ── */
+  const logo = await qtLogoDataUrl();
+  if (logo) {
+    try { doc.addImage(logo, "PNG", M, y, 46, 46); } catch (e) { /* a missing logo must not block the quotation */ }
+  }
+  const tx = logo ? M + 58 : M;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(11, 42, 91);
+  doc.text(QT_COMPANY.name, tx, y + 15);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(90, 96, 110);
+  let ly = y + 30;
+  doc.text(store.name + " Branch", tx, ly); ly += 11;
+  if (store.address) { doc.text(doc.splitTextToSize(store.address, right - tx - 110)[0], tx, ly); ly += 11; }
+  doc.text("Ph: " + store.phone + (store.altPhone ? " / " + store.altPhone : ""), tx, ly); ly += 11;
+  doc.text("GSTIN: " + QT_COMPANY.gstin, tx, ly); ly += 11;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(11, 42, 91);
+  doc.text("QUOTATION", right, y + 15, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(90, 96, 110);
+  doc.text("No: " + (number || "-"), right, y + 31, { align: "right" });
+  doc.text("Date: " + date, right, y + 43, { align: "right" });
+  doc.text("Valid: 7 days", right, y + 55, { align: "right" });
+
+  y = Math.max(ly, y + 64) + 6;
+  doc.setDrawColor(11, 42, 91);
+  doc.setLineWidth(1.6);
+  doc.line(M, y, right, y);
+  y += 16;
+
+  /* ── Quotation-for / prepared-by boxes ── */
+  const gap  = 12;
+  const boxW = (W - M * 2 - gap) / 2;
+  const boxH = 66;
+  doc.setDrawColor(219, 222, 228);
+  doc.setLineWidth(0.8);
+  doc.rect(M, y, boxW, boxH);
+  doc.rect(M + boxW + gap, y, boxW, boxH);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(107, 114, 128);
+  doc.text("QUOTATION FOR", M + 8, y + 13);
+  doc.text("PREPARED BY", M + boxW + gap + 8, y + 13);
+
+  doc.setFontSize(10.5);
+  doc.setTextColor(17, 17, 17);
+  doc.text(String(customer.name || "-").slice(0, 44), M + 8, y + 29);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  let cy = y + 43;
+  if (customer.phone) { doc.text("Ph: " + customer.phone, M + 8, cy); cy += 11; }
+  if (customer.address) { doc.text(doc.splitTextToSize(customer.address, boxW - 16)[0], M + 8, cy); }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10.5);
+  doc.text(String(staffName || "Staff").slice(0, 44), M + boxW + gap + 8, y + 29);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(store.name + " branch", M + boxW + gap + 8, y + 43);
+  y += boxH + 18;
+
+  /* ── Items table ── */
+  const COLS = [
+    { title: "#",           x: M,       w: 24,  align: "left"  },
+    { title: "DESCRIPTION", x: M + 24,  w: 246, align: "left"  },
+    { title: "QTY",         x: M + 270, w: 44,  align: "right" },
+    { title: "RATE",        x: M + 314, w: 90,  align: "right" },
+    { title: "AMOUNT",      x: M + 404, w: 111, align: "right" }
+  ];
+  const rowH = 20;
+  const bottom = H - M;
+
+  const tableHeader = () => {
+    doc.setFillColor(11, 42, 91);
+    doc.rect(M, y, right - M, rowH, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(255, 255, 255);
+    COLS.forEach(c => doc.text(c.title, c.align === "right" ? c.x + c.w : c.x + 6, y + 13.5, { align: c.align }));
+    y += rowH;
+  };
+  const newPage = withHeader => {
+    doc.addPage();
+    y = M;
+    if (withHeader) tableHeader();
+  };
+
+  tableHeader();
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  items.forEach((it, i) => {
+    // Keep 170pt clear at the foot of a page for the totals and terms.
+    if (y + rowH > bottom - 170) newPage(true);
+    const amount = Math.round((it.qty || 0) * (it.rate || 0));
+    doc.setTextColor(17, 17, 17);
+    doc.text(String(i + 1), COLS[0].x + 6, y + 13.5);
+    doc.text(doc.splitTextToSize(String(it.productName || "-"), COLS[1].w - 10)[0], COLS[1].x + 6, y + 13.5);
+    doc.text(String(it.qty),      COLS[2].x + COLS[2].w, y + 13.5, { align: "right" });
+    doc.text(qtPdfMoney(it.rate), COLS[3].x + COLS[3].w, y + 13.5, { align: "right" });
+    doc.text(qtPdfMoney(amount),  COLS[4].x + COLS[4].w, y + 13.5, { align: "right" });
+    y += rowH;
+    doc.setDrawColor(235, 237, 240);
+    doc.setLineWidth(0.6);
+    doc.line(M, y, right, y);
+  });
+
+  /* ── Totals ── */
+  if (y + 150 > bottom) newPage(false);
+  y += 16;
+  const tw = 210;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(60, 66, 80);
+  [["Taxable value", qtPdfMoney(totals.taxable)],
+   ["CGST @ 9%",     qtPdfMoney(totals.cgst)],
+   ["SGST @ 9%",     qtPdfMoney(totals.sgst)]].forEach(([l, v]) => {
+    doc.text(l, right - tw, y);
+    doc.text(v, right, y, { align: "right" });
+    y += 14;
+  });
+  doc.setDrawColor(11, 42, 91);
+  doc.setLineWidth(1.2);
+  doc.line(right - tw, y - 4, right, y - 4);
+  y += 12;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(11, 42, 91);
+  doc.text("Total (incl. GST)", right - tw, y);
+  doc.text(qtPdfMoney(totals.total), right, y, { align: "right" });
+  y += 26;
+
+  /* ── Terms + signature ── */
+  if (y + 110 > bottom) newPage(false);
+  doc.setDrawColor(209, 213, 219);
+  doc.setLineWidth(0.6);
+  doc.line(M, y, right, y);
+  y += 12;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.text("TERMS & CONDITIONS", M, y);
+  y += 11;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(55, 65, 81);
+  QT_TERMS.forEach(t => {
+    doc.splitTextToSize("• " + t, right - M).forEach(line => { doc.text(line, M, y); y += 10; });
+  });
+
+  y += 24;
+  doc.setFontSize(9);
+  doc.setTextColor(55, 65, 81);
+  doc.text("For " + QT_COMPANY.name, right, y, { align: "right" });
+  doc.text("______________________", right, y + 34, { align: "right" });
+  doc.text("Authorised signatory", right, y + 46, { align: "right" });
+
+  return doc.output("blob");
+}
+
+/* Synchronous on purpose — the caller needs to know, while still inside the
+   click, whether a fallback window will be required. */
+function qtCanShareFiles() {
+  try {
+    return !!(navigator.canShare && navigator.share &&
+      navigator.canShare({ files: [new File([new Blob(["x"])], "q.pdf", { type: "application/pdf" })] }));
+  } catch (e) { return false; }
+}
+
+/* Re-sends whatever was last built — used by the preview bar's button. A click is
+   a real user gesture, so window.open here is never treated as a blocked popup. */
+function qtShareCurrent() {
+  if (!qtLastPayload) { showToast("⚠ Create the quotation first"); return; }
+  qtSharePdf(qtLastPayload);
+}
+
+/* `knownWin` is a window opened earlier inside the click; when omitted we open
+   one here (only valid from a click handler). */
+async function qtSharePdf(payload, knownWin) {
+  if (!payload) { showToast("⚠ Create the quotation first"); return; }
+
+  const canShareFiles = qtCanShareFiles();
+  const waWin = knownWin !== undefined ? knownWin : (canShareFiles ? null : window.open("", "_blank"));
+
+  try {
+    const blob     = await qtBuildPdf(payload);
+    const fileName = "Quotation-" + String(payload.number || "draft").replace(/[^\w-]+/g, "-") + ".pdf";
+    const file     = new File([blob], fileName, { type: "application/pdf" });
+    const cover    = qtCoverNote(payload);
+
+    if (canShareFiles && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: "Quotation " + payload.number, text: cover });
+      } catch (e) {
+        if (e && e.name === "AbortError") return;   // dismissed the share sheet — not a failure
+        throw e;
+      }
+    } else {
+      // No file sharing (typically desktop): hand over the PDF and open the chat.
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+      const chat = qtWhatsAppUrl(payload.customer?.phone) + encodeURIComponent(cover);
+      if (waWin) waWin.location = chat;
+      else if (!window.open(chat, "_blank")) showToast("⚠ Open WhatsApp and attach the downloaded PDF");
+      showToast("⬇ PDF downloaded — attach it in WhatsApp");
+    }
+
+    if (payload.id) qtMarkSent(payload.id, payload.customer?.phone || "", "whatsapp");
+  } catch (e) {
+    if (waWin) waWin.close();
+    console.error("Quotation PDF share failed:", e);
+    showToast("⚠ " + (e.message || "Could not create the PDF"));
+  }
+}
+
+async function qtMarkSent(id, to, channel) {
+  try {
+    await authFetch(`${BASE_URL}/quotations/${id}/sent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: channel || "whatsapp", to: to || "" })
+    });
+    qtLoadHistory();
+  } catch (e) {
+    console.warn("Could not record the send:", e.message);
+  }
+}
+
+/* ── Sent quotations ──
+   The record is written by the server on every send, so this list is the log of
+   what actually went out — with a re-send that rebuilds the payload from the
+   stored doc. */
+let qtHistory = [];
+
+function qtWhen(ts) {
+  return ts?.seconds
+    ? new Date(ts.seconds * 1000).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "—";
+}
+
+async function qtLoadHistory() {
+  const box = document.getElementById("qtHistory");
+  if (!box) return;
+  box.innerHTML = skeletons(2);
+  try {
+    const res  = await authFetch(`${BASE_URL}/quotations`);
+    const data = await res.json();
+    qtHistory = Array.isArray(data) ? data : [];
+
+    if (!qtHistory.length) {
+      box.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('receipt')}</div><p>No quotations yet</p></div>`;
+      return;
+    }
+
+    box.innerHTML = qtHistory.map(q => {
+      const sent    = !!q.sentAt?.seconds;
+      const total   = q.totals?.total || 0;
+      const details = sent
+        ? `Sent ${esc(qtWhen(q.sentAt))}${q.sentCount > 1 ? " · " + q.sentCount + "×" : ""}`
+        : `Created ${esc(qtWhen(q.createdAt))}`;
+      return `
+      <div class="delivery-card">
+        <div class="card-top">
+          <div>
+            <div class="card-name">${esc(q.number || "—")}</div>
+            <div class="card-product">${esc(q.customer?.name || "—")} · ${ntMoney(total)}</div>
+          </div>
+          <div class="card-badges">
+            <span class="badge" style="${sent
+              ? "background:rgba(78,222,163,0.15);color:#4edea3;border:1px solid rgba(78,222,163,0.3);"
+              : "background:rgba(255,179,0,0.15);color:#fbbf24;border:1px solid rgba(255,179,0,0.3);"}">${sent ? "sent" : "not sent"}</span>
+          </div>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-footer">
+          <div class="card-address">${details}</div>
+          <button class="btn btn-gray" style="padding:6px 14px;font-size:12px;flex-shrink:0;"
+            onclick="qtReshare('${esc(q.id)}')">📤 Send PDF</button>
+        </div>
+      </div>`;
+    }).join("");
+    staggerCards(box);
+  } catch (e) {
+    box.innerHTML = `<div class="empty-state"><p>Couldn't load quotations</p></div>`;
+  }
+}
+
+/* Rebuild the payload from the stored doc and share it again. */
+function qtReshare(id) {
+  const q = qtHistory.find(x => String(x.id) === String(id));
+  if (!q) return;
+  const items = Array.isArray(q.items) ? q.items : [];
+  qtLastPayload = {
+    id:       q.id,
+    number:   q.number,
+    customer: q.customer || {},
+    items,
+    totals:   q.totals || qtTotals(items),
+    date:     q.createdAt?.seconds
+      ? new Date(q.createdAt.seconds * 1000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+      : qtTodayStr()
+  };
+  qtSharePdf(qtLastPayload);
+}
+
+function qtTodayStr() {
+  return new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function qtShowSheet(html) {
+  document.getElementById("quoteSheet").innerHTML = html;
+  const node = document.getElementById("quotePrint");
+  node.classList.add("quote-open");
+  document.body.classList.add("quote-printing");
+  node.scrollTop = 0;
+}
+
+function closeQuotePreview() {
+  document.getElementById("quotePrint").classList.remove("quote-open");
+  document.body.classList.remove("quote-printing");
+}
+
+function qtPreview() {
+  const items = qtCollect();
+  if (!items.some(it => it.qty > 0 && it.rate > 0)) { showToast("⚠ Add a line with both quantity and rate"); return; }
+  const customer = {
+    name:    document.getElementById("qtName").value.trim(),
+    phone:   document.getElementById("qtPhone").value.trim(),
+    address: document.getElementById("qtAddress").value.trim()
+  };
+  const existing = document.getElementById("qtNumber").value;
+  qtLastPayload = {
+    number: (existing && existing !== "—") ? existing : "DRAFT (not saved)",
+    customer, items, totals: qtTotals(items), date: qtTodayStr()
+  };
+  qtShowSheet(qtBuildSheet(qtLastPayload));
+}
+
+async function qtCreate() {
+  const msg = document.getElementById("qtMsg");
+  const btn = document.getElementById("qtCreateBtn");
+  const say = (t, c) => { if (msg) { msg.style.color = c; msg.textContent = t; } };
+
+  const items = qtCollect();
+  if (!items.some(it => it.qty > 0 && it.rate > 0)) { say("⚠ Add a line with both quantity and rate", "var(--error)"); return; }
+
+  const customer = {
+    name:    document.getElementById("qtName").value.trim(),
+    phone:   document.getElementById("qtPhone").value.trim(),
+    address: document.getElementById("qtAddress").value.trim()
+  };
+  if (!customer.name) { say("⚠ Customer name is required", "var(--error)"); return; }
+
+  // Opened now, while still inside the click: after the await below the browser
+  // treats window.open as an unrequested popup and blocks it. Only needed when
+  // the device cannot share files — the preview's Share button is the fallback.
+  const waWin = qtCanShareFiles() ? null : window.open("", "_blank");
+
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  say("Creating quotation…", "var(--muted)");
+  try {
+    const res = await authFetch(`${BASE_URL}/quotations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customer, items })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (waWin) waWin.close();
+      say("⚠ " + (data.error || "Failed"), "var(--error)");
+      return;
+    }
+
+    document.getElementById("qtNumber").value = data.number;
+    qtLastPayload = {
+      id: data.id,
+      number: data.number,
+      customer,
+      items,
+      totals: data.totals || qtTotals(items),
+      date: qtTodayStr()
+    };
+    qtShowSheet(qtBuildSheet(qtLastPayload));
+    showToast("✅ Quotation " + data.number);
+    qtLoadHistory();
+
+    // Builds the PDF, then shares it (or downloads it and opens the chat).
+    await qtSharePdf(qtLastPayload, waWin);
+  } catch (e) {
+    if (waWin) waWin.close();
+    say("⚠ Network error. Retry.", "var(--error)");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "💾 Create & Share"; }
   }
 }
 </script>

@@ -261,6 +261,11 @@
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
           Tag Builder
         </button>
+        <button onclick="switchTab('requests')" id="tab-btn-requests" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+          Requests
+          <span id="reqCountBadge" class="hidden ml-0.5 px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black"></span>
+        </button>
         <button onclick="switchTab('catalog-memory')" id="tab-btn-catalog-memory" class="tab-trigger px-3 py-2 rounded-t-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
           <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H6a2 2 0 00-2 2z"/></svg>
           Catalog
@@ -700,6 +705,21 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         </div>
       </div>
 
+      <!-- TAB 8: TAG REQUESTS — submitted from the staff panel -->
+      <div id="tab-requests" class="tab-content hidden flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+        <div class="bg-panelDark p-3 rounded-lg border border-borderDark">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-pink-400 text-xs uppercase">Tag Requests</h3>
+            <button onclick="loadTagRequests()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-[10px] font-bold transition">↻ Refresh</button>
+          </div>
+          <p class="text-slate-400 text-[11px] leading-relaxed mt-1">
+            Requests sent from the staff panel for this store. Loading one copies its tags into the
+            print queue, where this studio's brand colours, icons and price scales are applied.
+          </p>
+        </div>
+        <div id="requestsList"></div>
+      </div>
+
     </aside>
 
     <!-- RIGHT WORKSPACE: Live Preview Inspector & Paginated A4 Sheets -->
@@ -857,6 +877,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       populateCatalogBrandFilter();
       renderCatalogList();
       initFiles();
+      loadTagRequests();
     });
 
     // STORAGE ENGINE
@@ -2349,6 +2370,187 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       }
     }
 
+    /* ════════════════════════════════════════════════
+       TAG REQUESTS (submitted from staff.html)
+
+       Staff write these through the server; this studio reads and updates the
+       collection directly, exactly as it does for tag_studio_files.
+       A request carries product data only — colours, custom brand name, feature
+       ICONS and price scales stay a studio decision, applied on load.
+       ════════════════════════════════════════════════ */
+    const REQUESTS_COLLECTION = 'tag_requests';
+    let tagRequests = [];
+
+    async function loadTagRequests() {
+      const list = document.getElementById('requestsList');
+      if (list) list.innerHTML = '<div class="text-slate-400 text-[11px] p-2">Loading…</div>';
+
+      const db = cloudDb();
+      if (!db) {
+        if (list) list.innerHTML = '<div class="text-amber-300 text-[11px] p-2">Cloud unavailable — cannot load requests.</div>';
+        return;
+      }
+      try {
+        // Deliberately NOT filtered by the selected store. A request is stamped with
+        // the branch it was raised for, and filtering by the current store is exactly
+        // how the other branch's requests appeared to never arrive.
+        const snap = await db.collection(REQUESTS_COLLECTION).get();
+        tagRequests = [];
+        snap.forEach(d => tagRequests.push(Object.assign({ id: d.id }, d.data())));
+        tagRequests.sort((a, b) => {
+          // This branch's requests first, then newest first.
+          const aMine = (a.store || '') === getStoreKey() ? 0 : 1;
+          const bMine = (b.store || '') === getStoreKey() ? 0 : 1;
+          if (aMine !== bMine) return aMine - bMine;
+          return ((b.requestedAt && b.requestedAt.seconds) || 0) - ((a.requestedAt && a.requestedAt.seconds) || 0);
+        });
+        renderTagRequests();
+      } catch (err) {
+        console.warn('Tag requests load failed:', err);
+        if (list) list.innerHTML = '<div class="text-red-400 text-[11px] p-2">Could not load requests.</div>';
+      }
+    }
+
+    function reqWhen(ts) {
+      const ms = (ts && ts.seconds) ? ts.seconds * 1000 : (ts || Date.now());
+      try {
+        return new Date(ms).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+      } catch (e) { return ''; }
+    }
+
+    function pendingTagRequests() {
+      return tagRequests.filter(r => r.status !== 'done');
+    }
+
+    function renderTagRequests() {
+      const list  = document.getElementById('requestsList');
+      const badge = document.getElementById('reqCountBadge');
+      const pending = pendingTagRequests();
+
+      if (badge) {
+        badge.textContent = pending.length ? String(pending.length) : '';
+        badge.classList.toggle('hidden', pending.length === 0);
+      }
+      if (!list) return;
+
+      if (!tagRequests.length) {
+        list.innerHTML = '<div class="text-slate-400 text-[11px] p-2">No tag requests for this store yet.</div>';
+        return;
+      }
+
+      list.innerHTML = tagRequests.map(r => {
+        const tags   = Array.isArray(r.tags) ? r.tags : [];
+        const done   = r.status === 'done';
+        const mine   = (r.store || '') === getStoreKey();
+        const branch = String(r.store || '').replace(/^./, c => c.toUpperCase()) || '—';
+        return `
+        <div class="bg-panelDark p-3 rounded-lg border ${done ? 'border-borderDark opacity-60' : 'border-blue-500/40'} space-y-2">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="font-bold text-slate-200 truncate">${escapeHtml(r.requestedByName || 'Staff')}</div>
+              <div class="text-[10px] text-slate-400">${escapeHtml(reqWhen(r.requestedAt))} · ${tags.length} tag${tags.length === 1 ? '' : 's'} · <span class="${mine ? 'text-emerald-400' : 'text-amber-300'}">🏪 ${escapeHtml(branch)}${mine ? '' : ' (other branch)'}</span></div>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${done ? 'bg-slate-700 text-slate-300' : 'bg-blue-600 text-white'}">${done ? 'DONE' : 'PENDING'}</span>
+          </div>
+          ${r.note ? `<div class="text-[11px] text-slate-400">📝 ${escapeHtml(r.note)}</div>` : ''}
+          <div class="space-y-1">
+            ${tags.map((t, i) => `
+              <div class="flex items-center justify-between gap-2 bg-slate-900/60 rounded px-2 py-1.5">
+                <div class="min-w-0">
+                  <div class="text-[11px] text-slate-200 truncate">${escapeHtml([t.brand, t.modelNo || t.title].filter(Boolean).join(' · '))}</div>
+                  <div class="text-[10px] text-slate-500 truncate">${escapeHtml(t.category || '')} · ₹${escapeHtml(String(t.specialPrice || 0))} · MRP ₹${escapeHtml(String(t.mrp || 0))}</div>
+                </div>
+                <button onclick="loadRequestTag('${r.id}', ${i})" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-100 rounded text-[10px] font-bold transition shrink-0">+ Queue</button>
+              </div>`).join('')}
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button onclick="loadRequestTags('${r.id}')" class="flex-1 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Load all ${tags.length}</button>
+            ${done ? '' : `<button onclick="markRequestDone('${r.id}')" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded transition">Mark done</button>`}
+          </div>
+          ${mine || done ? '' : `<div class="text-[10px] text-amber-300/80">Raised for another branch — switch the store above to load it with that branch's colours and icons.</div>`}
+        </div>`;
+      }).join('');
+    }
+
+    /* Map a requested tag onto a printable one. Only the product data comes from
+       the request; everything else is filled from the studio's own configuration.
+       Feature TEXT is requested, so match each label to a known feature to borrow
+       its icon, and fill any leftover slots from this category's icon library —
+       otherwise every requested tag would print the same fallback glyph. */
+    function requestToTag(t) {
+      const category = String(t.category || 'TV').toUpperCase();
+      const pool = featureMemory.filter(f => f.cat === category || f.cat === 'ALL');
+      const used = {};
+      const labels = (t.featureLabels || []).filter(Boolean).slice(0, 4);
+      const ids    = (t.featureIds || []).filter(Boolean).slice(0, 4);
+
+      const features = labels.map((label, i) => {
+        // An exact id from the request beats guessing from the text.
+        const byId = ids[i] ? featureMemory.find(f => f.id === ids[i]) : null;
+        if (byId) { used[byId.id] = true; return { id: byId.id, svgKey: byId.svgKey, label: byId.label }; }
+
+        const needle = String(label).trim().toLowerCase();
+        const hit = featureMemory.find(f => String(f.label || '').trim().toLowerCase() === needle);
+        if (hit) { used[hit.id] = true; return { id: hit.id, svgKey: hit.svgKey, label: hit.label }; }
+        return { label };
+      });
+      features.forEach(f => {
+        if (f.id) return;
+        const spare = pool.find(p => !used[p.id]);
+        if (spare) { used[spare.id] = true; f.id = spare.id; f.svgKey = spare.svgKey; }
+      });
+
+      return createTagDataInstance({
+        category,
+        brand:    t.brand,
+        series:   t.series,
+        badge:    t.badge,
+        mainSpec: t.mainSpec,
+        subSpec:  t.subSpec,
+        title:    t.title,
+        specialPrice: parseMoney(t.specialPrice),
+        mrp:          parseMoney(t.mrp),
+        modelNo:  t.modelNo,
+        beeStars: t.beeStars,
+        warranty: t.warranty,
+        emi:      t.emi,
+        features
+      });
+    }
+
+    function loadRequestTag(requestId, tagIndex) {
+      const r = tagRequests.find(x => x.id === requestId);
+      const t = r && Array.isArray(r.tags) ? r.tags[tagIndex] : null;
+      if (t) commitRequestTags([t]);
+    }
+
+    function loadRequestTags(requestId) {
+      const r = tagRequests.find(x => x.id === requestId);
+      if (r && Array.isArray(r.tags) && r.tags.length) commitRequestTags(r.tags);
+    }
+
+    function commitRequestTags(tags) {
+      tags.forEach(t => tagQueue.unshift(requestToTag(t)));
+      saveSystemToStorage();     // also schedules the cloud autosave
+      renderAllSheets();
+      switchTab('tag-builder');
+    }
+
+    async function markRequestDone(requestId) {
+      const db = cloudDb();
+      if (!db) return;
+      try {
+        await db.collection(REQUESTS_COLLECTION).doc(requestId).update({
+          status: 'done', doneAt: Date.now(), doneBy: cloudDeviceId()
+        });
+        const r = tagRequests.find(x => x.id === requestId);
+        if (r) r.status = 'done';
+        renderTagRequests();
+      } catch (err) {
+        console.warn('Mark request done failed:', err);
+      }
+    }
+
     // Open the last-open file for this store, else the most recent, else migrate/create one.
     async function ensureOpenFile() {
       const store = getStoreKey();
@@ -2726,9 +2928,10 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       _cloudStop = false; _cloudBaseRevision = 0; openFileId = null; openFileName = 'Untitled';
       setOpenFileUI(); renderFilesList();
       const db = cloudDb();
-      if (!db) { setCloudStatus('off', 'Cloud off'); await ensureOpenFile(); return; }
+      if (!db) { setCloudStatus('off', 'Cloud off'); await ensureOpenFile(); loadTagRequests(); return; }
       setCloudStatus('busy', 'Loading…');
       await pullFiles();
+      loadTagRequests();
     }
 
     // Best-effort flush when the tab is hidden/closed (debounce would otherwise drop it).

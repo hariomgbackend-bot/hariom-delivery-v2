@@ -30,7 +30,7 @@ messaging.onBackgroundMessage(function(payload) {
    Cache version — bump when the asset list / behavior
    changes so `activate` clears the stale cache.
 ════════════════════════════════════════════════════ */
-const CACHE_NAME = "hariom-shell-v5";
+const CACHE_NAME = "hariom-shell-v6";
 const SHELL_ASSETS = [
   "/driver_interface.html",
   "/design-system.css?v=2",
@@ -41,6 +41,9 @@ const SHELL_ASSETS = [
   // can end up controlling the driver page (purchase-ingestion.html registers
   // service-worker.js at the default scope "/").
   "/vendor/qrcode.min.js",
+  // Quotation PDFs are written on the device, so the writer must be available
+  // with no network either.
+  "/vendor/jspdf.umd.min.js",
   "/driver-manifest.json",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png"

@@ -12,7 +12,7 @@ import multer from "multer";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import {  collection, addDoc, getDocs, Timestamp,
   doc, getDoc, updateDoc, deleteDoc,
-  query, where, orderBy, setDoc, getCountFromServer, limit
+  query, where, orderBy, setDoc, getCountFromServer, limit, runTransaction, increment
 } from "firebase/firestore";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -9219,6 +9219,329 @@ app.post("/price-guide", authenticate, authorize(["admin", "accountant"]), async
     });
     invalidateRefCache("price-guide");
     res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   TAG REQUESTS  (staff → Tag Studio)
+
+   Staff submit the product data for one or more shelf tags. tag_studio.html
+   reads this collection straight from the browser — the same pattern it already
+   uses for tag_studio_files — and flips the status to "done" once the tags are
+   in its print queue.
+═══════════════════════════════════════════════ */
+
+/* A staff token carries storeId ("store_a"/"store_b"); Tag Studio keys its
+   workspaces by the stores doc `key` ("alandi"/"dhanore"). Resolving it here
+   keeps that vocabulary out of the client. */
+const TAG_STORE_FALLBACK = { store_a: "alandi", store_b: "dhanore" };
+
+async function storeKeyForUser(user) {
+  const storeId = user?.storeId;
+  if (!storeId) return null;
+  try {
+    const snap = await getDoc(doc(db, "stores", storeId));
+    const key = snap.exists() ? String(snap.data().key || "").trim().toLowerCase() : "";
+    if (key) return key;
+  } catch { /* fall through to the static map */ }
+  return TAG_STORE_FALLBACK[storeId] || null;
+}
+
+const TAG_CATEGORIES = ["TV", "REF", "WM"];
+
+app.post("/tag-requests", authenticate, authorize(["staff", "admin", "accountant"]), async (req, res) => {
+  try {
+    const tags = Array.isArray(req.body?.tags) ? req.body.tags : [];
+    if (!tags.length) return res.status(400).json({ error: "At least one tag is required" });
+    if (tags.length > 50) return res.status(400).json({ error: "Up to 50 tags per request" });
+
+    const clean = [];
+    for (let i = 0; i < tags.length; i++) {
+      const t = tags[i] || {};
+      const category = String(t.category || "").toUpperCase();
+      if (!TAG_CATEGORIES.includes(category))
+        return res.status(400).json({ error: `Tag ${i + 1}: category must be TV, REF or WM` });
+
+      const title = String(t.title || "").trim();
+      if (!title) return res.status(400).json({ error: `Tag ${i + 1}: product title is required` });
+
+      const specialPrice = Number(t.specialPrice);
+      const mrp          = Number(t.mrp);
+      if (!Number.isFinite(specialPrice) || !Number.isFinite(mrp))
+        return res.status(400).json({ error: `Tag ${i + 1}: prices must be numbers` });
+
+      clean.push({
+        category,
+        brand:    String(t.brand || "").trim(),
+        series:   String(t.series || "").trim(),
+        badge:    String(t.badge || "").trim(),
+        mainSpec: String(t.mainSpec || "").trim(),
+        subSpec:  String(t.subSpec || "").trim(),
+        title,
+        specialPrice,
+        mrp,
+        modelNo:  String(t.modelNo || "").trim(),
+        beeStars: String(t.beeStars || "none"),
+        warranty: String(t.warranty || "").trim(),
+        emi:      String(t.emi || "").trim(),
+        // Feature TEXT only — Tag Studio picks the icons. featureIds lets the studio
+        // match a known feature exactly instead of guessing from the label.
+        featureLabels: (Array.isArray(t.featureLabels) ? t.featureLabels : [])
+          .map(f => String(f || "").trim()).filter(Boolean).slice(0, 4),
+        featureIds: (Array.isArray(t.featureIds) ? t.featureIds : [])
+          .map(f => String(f || "").trim()).filter(Boolean).slice(0, 4)
+      });
+    }
+
+    const store = await storeKeyForUser(req.user);
+    if (!store) return res.status(400).json({ error: "This account has no store" });
+
+    const docRef = await addDoc(collection(db, "tag_requests"), {
+      store,
+      requestedById:   req.user.staff_id || req.user.id || null,
+      requestedByName: req.user.name || req.user.email || "Staff",
+      requestedAt:     Timestamp.now(),
+      status:          "pending",
+      note:            String(req.body?.note || "").trim(),
+      tags:            clean
+    });
+
+    res.json({ success: true, id: docRef.id, count: clean.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/tag-requests", authenticate, authorize(["staff", "admin", "accountant"]), async (req, res) => {
+  try {
+    // Deliberately no orderBy: a (store + requestedAt) composite index would have
+    // to be deployed before this route could run. The set is small, so sort here.
+    const store = await storeKeyForUser(req.user);
+    const col   = collection(db, "tag_requests");
+    const snap  = await getDocs(store ? query(col, where("store", "==", store), limit(200))
+                                      : query(col, limit(200)));
+    const items = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.requestedAt?.seconds || 0) - (a.requestedAt?.seconds || 0))
+      .slice(0, 50);
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   QUOTATIONS  (staff → printable letterhead document)
+
+   Line prices are GST-inclusive, so the client shows the split and the server's
+   real job is the sequence number plus keeping a record.
+═══════════════════════════════════════════════ */
+function financialYearIST(d = new Date()) {
+  const ist = new Date(d.getTime() + 5.5 * 3600 * 1000);   // UTC → IST
+  const y   = ist.getUTCFullYear();
+  const start = ist.getUTCMonth() >= 3 ? y : y - 1;        // month 3 = April
+  return `${String(start).slice(-2)}-${String(start + 1).slice(-2)}`;
+}
+
+app.post("/quotations", authenticate, authorize(["staff", "admin", "accountant"]), async (req, res) => {
+  try {
+    const { customer = {}, items = [], note = "" } = req.body || {};
+    if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: "At least one line item is required" });
+    if (items.length > 40) return res.status(400).json({ error: "Up to 40 line items" });
+
+    const cleanItems = [];
+    for (let i = 0; i < items.length; i++) {
+      const it   = items[i] || {};
+      const qty  = Number(it.qty);
+      const rate = Number(it.rate);
+      if (!Number.isFinite(qty) || qty <= 0)  return res.status(400).json({ error: `Line ${i + 1}: quantity must be greater than zero` });
+      if (!Number.isFinite(rate) || rate < 0) return res.status(400).json({ error: `Line ${i + 1}: rate must be a number` });
+      cleanItems.push({
+        productName: String(it.productName || "").trim(),
+        qty,
+        rate,
+        amount: Math.round(qty * rate)
+      });
+    }
+
+    const total = cleanItems.reduce((s, it) => s + it.amount, 0);
+    if (!(total > 0)) return res.status(400).json({ error: "Total must be greater than zero" });
+
+    // House rate 18% = CGST 9 + SGST 9 (see bridge.js). The rounding remainder goes
+    // to SGST so taxable + CGST + SGST lands exactly on the inclusive total.
+    const taxable = Math.round(total / 1.18);
+    const tax     = total - taxable;
+    const cgst    = Math.round(tax / 2);
+    const sgst    = tax - cgst;
+
+    const counterRef = doc(db, "settings", "quote-counter");
+    const seq = await runTransaction(db, async tx => {
+      const snap = await tx.get(counterRef);
+      const next = (snap.exists() ? Number(snap.data().seq) || 0 : 0) + 1;
+      tx.set(counterRef, { seq: next, updatedAt: Timestamp.now() }, { merge: true });
+      return next;
+    });
+    const number = `HOE/QTN/${financialYearIST()}/${String(seq).padStart(4, "0")}`;
+
+    const docRef = await addDoc(collection(db, "quotations"), {
+      number,
+      store: await storeKeyForUser(req.user),
+      customer: {
+        name:    String(customer.name || "").trim(),
+        phone:   String(customer.phone || "").trim(),
+        address: String(customer.address || "").trim()
+      },
+      items:  cleanItems,
+      totals: { total, taxable, cgst, sgst },
+      note:   String(note || "").trim(),
+      createdById:   req.user.staff_id || req.user.id || null,
+      createdByName: req.user.name || req.user.email || "Staff",
+      createdAt:     Timestamp.now()
+    });
+
+    res.json({ success: true, id: docRef.id, number, totals: { total, taxable, cgst, sgst } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/quotations", authenticate, authorize(["staff", "admin", "accountant"]), async (req, res) => {
+  try {
+    // No orderBy: (store + createdAt) would need a composite index that isn't
+    // deployed. The set is small, so sort here — same as /tag-requests.
+    const store = await storeKeyForUser(req.user);
+    const col   = collection(db, "quotations");
+    const snap  = await getDocs(store ? query(col, where("store", "==", store), limit(200))
+                                      : query(col, limit(200)));
+    const items = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+      .slice(0, 100);
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/quotations/:id/sent", authenticate, authorize(["staff", "admin", "accountant"]), async (req, res) => {
+  try {
+    const refDoc = doc(db, "quotations", req.params.id);
+    const snap   = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Quotation not found" });
+
+    await updateDoc(refDoc, {
+      sentAt:     Timestamp.now(),
+      sentTo:     String(req.body?.to || "").trim(),
+      sentVia:    String(req.body?.channel || "whatsapp").trim(),
+      lastSentBy: req.user.name || req.user.email || "Staff",
+      sentCount:  increment(1)
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   TAG OPTIONS  (the studio's own dropdown lists, for the staff request form)
+
+   Tag Studio writes its live brand map and feature list into every
+   tag_studio_files doc, so the server can hand staff exactly what the studio has
+   configured. The constants below are only a SEED for a store whose studio has
+   never saved a file — tag_studio.html stays the source of truth.
+═══════════════════════════════════════════════ */
+const TAG_DEFAULT_BRANDS = {
+  Samsung:   { color: "#002F6C", series: "LED TV",           badge: "4K ULTRA HD" },
+  LG:        { color: "#68001D", series: "UHD AI ThinQ",     badge: "4K ULTRA HD" },
+  Sony:      { color: "#111111", series: "BRAVIA",           badge: "4K HDR" },
+  Hisense:   { color: "#008B9B", series: "Smart QLED TV",    badge: "4K ULTRA HD" },
+  Haier:     { color: "#005BAC", series: "Google TV",        badge: "4K ULTRA HD" },
+  TCL:       { color: "#D91B24", series: "QLED Google TV",   badge: "4K HDR" },
+  Whirlpool: { color: "#003366", series: "INTELLIFRESH",     badge: "6TH SENSE" },
+  Godrej:    { color: "#7A1753", series: "EDGE DUO",         badge: "5 STAR INVERTER" },
+  IFB:       { color: "#C8102E", series: "SENATOR SMART",    badge: "AI POWERED" },
+  Bosch:     { color: "#1C2833", series: "SERIES 6",         badge: "GERMAN TECH" },
+  BPL:       { color: "#004B87", series: "VIVID 4K",         badge: "SMART TV" },
+  Foxsky:    { color: "#1E293B", series: "ANDROID 11",       badge: "4K SMART LED" },
+  Bush:      { color: "#22313F", series: "FRAMELESS",        badge: "HD READY" },
+  NVY:       { color: "#1E1B4B", series: "PRO SERIES",       badge: "FRAMELESS" },
+  Zebronics: { color: "#111111", series: "CINEMA SERIES",    badge: "DOLBY AUDIO" },
+  Akiva:     { color: "#0F766E", series: "TROPICAL",         badge: "SMART TV" },
+  Other:     { color: "#1E293B", series: "SMART APPLIANCE",  badge: "SPECIAL" }
+};
+
+const TAG_DEFAULT_FEATURES = [
+  { id: "resolution_4k",     cat: "TV",  label: "4K\nResolution" },
+  { id: "crystal_processor", cat: "TV",  label: "AI Crystal\nProcessor" },
+  { id: "smart_tv_box",      cat: "TV",  label: "Smart TV\n(Tizen)" },
+  { id: "wifi",              cat: "ALL", label: "Wi-Fi\nBuilt-in" },
+  { id: "google_tv",         cat: "TV",  label: "Google\nAssistant" },
+  { id: "dolby_atmos",       cat: "TV",  label: "Dolby\nVision • Atmos" },
+  { id: "sound_ai",          cat: "TV",  label: "AI Sound\nPro" },
+  { id: "game_mode",         cat: "TV",  label: "Game\nMode" },
+  { id: "qled",              cat: "TV",  label: "QLED\nDisplay" },
+  { id: "ai_chip",           cat: "TV",  label: "α5 AI\nProcessor" },
+  { id: "star_5",            cat: "ALL", label: "3 Star\nRating" },
+  { id: "inverter_motor",    cat: "ALL", label: "Digital\nInverter" },
+  { id: "frost_free",        cat: "REF", label: "Frost\nFree" },
+  { id: "warranty_shield",   cat: "ALL", label: "10 Year\nWarranty" },
+  { id: "convertible",       cat: "REF", label: "Convertible\nZone" },
+  { id: "wash_drum",         cat: "WM",  label: "Front\nLoad" },
+  { id: "heater",            cat: "WM",  label: "In-built\nHeater" }
+];
+
+const TAG_CATEGORY_OPTIONS = [
+  { value: "TV",  label: "Television (LED / QLED / OLED)" },
+  { value: "REF", label: "Refrigerator (Fridge)" },
+  { value: "WM",  label: "Washing Machine" }
+];
+
+const TAG_STAR_OPTIONS = [
+  { value: "none", label: "None / Not Applicable" },
+  { value: "5", label: "5 Star BEE India" },
+  { value: "4", label: "4 Star BEE India" },
+  { value: "3", label: "3 Star BEE India" },
+  { value: "2", label: "2 Star BEE India" },
+  { value: "1", label: "1 Star BEE India" }
+];
+
+app.get("/tag-options", authenticate, authorize(["staff", "admin", "accountant"]), async (req, res) => {
+  try {
+    const store = await storeKeyForUser(req.user);
+    let brands = null, brandProfiles = null, features = null;
+
+    if (store) {
+      // Newest studio file for this store (sorted in JS, so no composite index).
+      const snap = await getDocs(query(
+        collection(db, "tag_studio_files"), where("store", "==", store), limit(20)
+      ));
+      const file = snap.docs
+        .map(d => d.data())
+        .sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0))[0];
+
+      if (file) {
+        if (file.brandProfiles && Object.keys(file.brandProfiles).length) {
+          brandProfiles = file.brandProfiles;
+          brands = Object.keys(file.brandProfiles);
+        }
+        if (Array.isArray(file.featureMemory) && file.featureMemory.length) {
+          features = file.featureMemory
+            .filter(f => f && f.id)
+            .map(f => ({ id: f.id, cat: f.cat || "ALL", label: f.label || f.id }));
+        }
+      }
+    }
+
+    res.json({
+      source:        brandProfiles ? "studio" : "defaults",
+      brands:        brands || Object.keys(TAG_DEFAULT_BRANDS),
+      brandProfiles: brandProfiles || TAG_DEFAULT_BRANDS,
+      features:      features || TAG_DEFAULT_FEATURES,
+      categories:    TAG_CATEGORY_OPTIONS,
+      beeStars:      TAG_STAR_OPTIONS
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

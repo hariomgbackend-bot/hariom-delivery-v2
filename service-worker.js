@@ -7,7 +7,7 @@
    Bump CACHE_NAME on any change to force a clean install.
 ══════════════════════════════════════════════════ */
 
-const CACHE_NAME = "hariom-dms-v6";
+const CACHE_NAME = "hariom-dms-v7";
 const OFFLINE_URL = "/offline.html";
 
 // Only these static asset types get cached (stale-while-revalidate).
@@ -27,6 +27,9 @@ const PRECACHE_URLS = [
   // requests are never cached by this worker (see the fetch handler below), so
   // the QR encoder has to be served locally and precached here.
   "/vendor/qrcode.min.js",
+  // Quotation PDFs are written on the device, so the writer must be available
+  // with no network either.
+  "/vendor/jspdf.umd.min.js",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png"
 ];
