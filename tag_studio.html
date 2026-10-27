@@ -67,8 +67,8 @@
       /* Margins: (210mm - 203.2mm) = 6.8mm -> 3.4mm left/right; (297mm - 254mm) = 43mm -> 21.5mm top/bottom */
       padding: 21.5mm 3.4mm;
       display: grid;
-      grid-template-columns: repeat(2, 4in);
-      grid-template-rows: repeat(4, 2.5in);
+      grid-template-columns: repeat(2, var(--tag-w));
+      grid-template-rows: repeat(4, var(--tag-h));
       justify-content: center;
       align-content: center;
       position: relative;
@@ -76,6 +76,23 @@
       page-break-after: always;
       break-after: page;
     }
+
+    /* Every sheet slot is 4in x 2.5in. A tall (fridge) card is 2.5in x 4in, so it is
+       turned 90° inside its slot: the A4 grid stays uniform, both layouts mix freely
+       at 8 per sheet, and the piece is rotated back upright after cutting. */
+    .tag-slot {
+      width: var(--tag-w);
+      height: var(--tag-h);
+      position: relative;
+      overflow: hidden;
+    }
+    .tag-slot > .shelf-tag {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+    }
+    .tag-slot.slot-std  > .shelf-tag { transform: translate(-50%, -50%); }
+    .tag-slot.slot-tall > .shelf-tag { transform: translate(-50%, -50%) rotate(90deg); }
 
     /* CARD STRUCTURE (4" WIDE x 2.5" TALL) */
     .shelf-tag {
@@ -89,6 +106,12 @@
       position: relative;
       overflow: hidden;
       user-select: none;
+    }
+
+    /* TALL CARD (2.5" WIDE x 4" TALL) — same pieces, stacked. Mostly refrigerators. */
+    .shelf-tag.layout-tall {
+      width: 2.5in;
+      height: 4in;
     }
 
     /* Hairline Cutting Crop Guides */
@@ -331,6 +354,15 @@
             </div>
           </div>
 
+          <!-- Card layout: standard shelf label, or the taller fridge card -->
+          <div class="mt-2.5">
+            <label class="block font-bold text-slate-300 text-[10px] uppercase tracking-wider mb-1">Card Layout</label>
+            <select id="fieldLayout" onchange="syncLivePreview()" class="w-full bg-panelDark border border-borderDark rounded-md px-2.5 py-1.5 font-bold text-slate-100 focus:outline-none focus:border-blue-500">
+              <option value="std">Standard — 4in × 2.5in</option>
+              <option value="tall">Tall — 2.5in × 4in (fridge)</option>
+            </select>
+          </div>
+
           <!-- Brand Customization & Color -->
           <div class="grid grid-cols-3 gap-2 bg-panelDark p-2.5 rounded-lg border border-borderDark mt-2.5 items-center">
             <div class="col-span-1">
@@ -452,7 +484,7 @@
               </div>
               <div>
                 <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Finance / EMI Pill</label>
-                <input type="text" id="fieldEmi" oninput="syncLivePreview()" value="Zero Down Payment" placeholder="e.g. EMI from ₹1,999/-" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200 text-[11px]">
+                <input type="text" id="fieldEmi" oninput="syncLivePreview()" value="0 Down Payment" placeholder="e.g. EMI from ₹1,999/-" class="w-full bg-slateDark border border-borderDark rounded px-2 py-1 text-slate-200 text-[11px]">
               </div>
             </div>
           </div>
@@ -755,7 +787,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         <!-- SINGLE LIVE TAG INSPECTOR CARD -->
         <div class="no-print flex flex-col items-center">
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <span>Physical 4.0&quot; &times; 2.5&quot; Scale Preview</span>
+            <span>Physical Scale Preview — 4&quot; &times; 2.5&quot; or 2.5&quot; &times; 4&quot; (tall)</span>
           </div>
           <div id="liveInspectorContainer" class="shadow-2xl rounded-sm overflow-hidden border border-slate-700">
             <!-- Rendered in JS -->
@@ -967,6 +999,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         brandColor: overrides.brandColor || brandConf.color,
         customBrandName: overrides.customBrandName || brandConf.customName || '',
         category: cat,
+        layout: overrides.layout || 'std',
         series: overrides.series || brandConf.series,
         badge: overrides.badge || brandConf.badge,
         mainSpec: overrides.mainSpec || '55',
@@ -1061,6 +1094,70 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         `;
       }
 
+      const queueActions = !isPreview ? `
+        <!-- Queue Card Action Tools on Hover -->
+        <div class="tag-actions no-print absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 rounded p-0.5 shadow-md border border-slate-300 z-10">
+          <button onclick="editQueuedTag('${tag.id}')" title="Edit Tag" class="p-1 hover:bg-blue-100 text-blue-700 rounded font-bold text-[10px]">✎</button>
+          <button onclick="duplicateTagById('${tag.id}')" title="Duplicate Tag" class="p-1 hover:bg-slate-100 text-slate-700 rounded font-bold text-[10px]">⧉</button>
+          <button onclick="deleteQueuedTag('${tag.id}')" title="Delete Tag" class="p-1 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px]">&times;</button>
+        </div>` : '';
+
+      // TALL CARD (2.5" x 4") — the same pieces stacked, for refrigerators.
+      if (String(tag.layout || 'std') === 'tall') {
+        return `
+        <div class="shelf-tag layout-tall group" id="${tag.id}" style="--p-scale:${pScale};--m-scale:${mScale}">
+
+          <!-- TIER 1: BRAND HEADER -->
+          <div class="h-[0.52in] text-white flex items-center justify-between px-2 shrink-0 relative overflow-hidden" style="background-color: ${color};">
+            <div class="flex items-center shrink-0 pr-1">${brandMarkup}</div>
+            <div class="text-[0.62rem] font-black uppercase tracking-wide px-1 text-center truncate flex-1 font-montserrat">${tag.series}</div>
+            <div class="shrink-0 border-[1.5px] border-amber-300 text-amber-300 px-1 py-0.5 rounded-[2px] font-space text-[0.5rem] font-black tracking-tight text-center leading-none">${tag.badge}</div>
+          </div>
+
+          <!-- TIER 2: SPECIFICATION -->
+          <div class="h-[0.85in] flex flex-col items-center justify-center shrink-0 bg-white">
+            <span class="text-[2.6rem] font-black leading-none tracking-tighter text-slate-950 font-condensed">${tag.mainSpec}</span>
+            <span class="text-[0.72rem] font-black text-slate-700 leading-tight tracking-tight text-center">${tag.subSpec}</span>
+          </div>
+
+          <!-- TIER 3: TITLE + RETAIL STAMPS (grows to fill the card) -->
+          <div class="flex-1 min-h-0 px-2 flex flex-col justify-center overflow-hidden bg-white border-t border-slate-200">
+            <div class="text-[0.82rem] font-black leading-[1.18] text-slate-950 tracking-tight font-sans line-clamp-3 text-center">${tag.title}</div>
+            ${retailStampsMarkup}
+          </div>
+
+          <!-- TIER 4: SPECIAL PRICE PILL -->
+          <div class="h-[1.0in] flex flex-col items-center justify-center px-2 shrink-0 bg-white border-t border-slate-200">
+            <div class="bg-[#d90429] text-white w-full text-center shadow-sm flex flex-col items-center justify-center overflow-hidden" style="border-radius: calc(14px * var(--p-scale,1)); padding: calc(0.25rem * var(--p-scale,1)) calc(0.5rem * var(--p-scale,1));">
+              <div class="text-[0.5rem] font-extrabold tracking-wider uppercase text-rose-100 leading-none">
+                Special Price ${beeBadgeMarkup}
+              </div>
+              <div class="font-black text-yellow-300 tracking-tight leading-none mt-0.5 font-montserrat whitespace-nowrap overflow-hidden" style="font-size: calc(1.35rem * var(--p-scale,1));">
+                &#8377; ${tag.specialPrice}/-
+              </div>
+            </div>
+            <div class="font-bold text-slate-700 mt-1 whitespace-nowrap leading-none" style="font-size: calc(0.7rem * var(--m-scale,1));">
+              MRP : <span class="line-through font-black text-slate-950">&#8377; ${tag.mrp}/-</span>
+            </div>
+          </div>
+
+          <!-- TIER 5: 4 FEATURE SLOTS (2 x 2) -->
+          <div class="h-[0.72in] grid grid-cols-2 items-center border-t border-slate-200 bg-slate-50/70 px-1 shrink-0">
+            ${featuresHTML}
+          </div>
+
+          <!-- TIER 6: STORE IDENTITY FOOTER (two lines so the full name fits 2.5in) -->
+          <div class="h-[0.34in] text-white flex flex-col items-center justify-center px-1 shrink-0 leading-none" style="background-color: ${color};">
+            <span class="uppercase font-black tracking-wider font-montserrat text-[0.5rem] whitespace-nowrap">${tag.storeName}</span>
+            <span class="opacity-90 text-[0.4rem] mt-[1.5px] whitespace-nowrap">${tag.branches}${tag.emi ? ' · ' + tag.emi : ''}</span>
+          </div>
+
+          ${queueActions}
+
+        </div>
+      `;
+      }
+
       return `
         <div class="shelf-tag group" id="${tag.id}" style="--p-scale:${pScale};--m-scale:${mScale}">
           
@@ -1137,14 +1234,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
             </div>
           </div>
 
-          ${!isPreview ? `
-            <!-- Queue Card Action Tools on Hover -->
-            <div class="tag-actions no-print absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 rounded p-0.5 shadow-md border border-slate-300 z-10">
-              <button onclick="editQueuedTag('${tag.id}')" title="Edit Tag" class="p-1 hover:bg-blue-100 text-blue-700 rounded font-bold text-[10px]">✎</button>
-              <button onclick="duplicateTagById('${tag.id}')" title="Duplicate Tag" class="p-1 hover:bg-slate-100 text-slate-700 rounded font-bold text-[10px]">⧉</button>
-              <button onclick="deleteQueuedTag('${tag.id}')" title="Delete Tag" class="p-1 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px]">&times;</button>
-            </div>
-          ` : ''}
+          ${queueActions}
 
         </div>
       `;
@@ -1176,6 +1266,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         brandColor: document.getElementById('fieldBrandColor').value,
         customBrandName: document.getElementById('fieldCustomBrandName').value.trim(),
         category: document.getElementById('fieldCategory').value,
+        layout: document.getElementById('fieldLayout') ? document.getElementById('fieldLayout').value : 'std',
         series: document.getElementById('fieldSeries').value,
         badge: document.getElementById('fieldGoldBadge').value,
         mainSpec: document.getElementById('fieldMainSpec').value,
@@ -1254,6 +1345,10 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         mainInp.value = '7.5 kg';
         subInp.value = 'Front Load';
       }
+
+      // Fridge tags are usually the tall card. The dropdown is right there to override.
+      const layoutSel = document.getElementById('fieldLayout');
+      if (layoutSel) layoutSel.value = (cat === 'REF') ? 'tall' : 'std';
 
       renderFeatureSlotSelectors(cat);
       syncLivePreview();
@@ -1385,6 +1480,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
 
       document.getElementById('fieldCategory').value = tag.category;
       handleCategorySelection();
+      // Set AFTER handleCategorySelection(), which applies the category's default layout.
+      document.getElementById('fieldLayout').value = tag.layout || 'std';
 
       document.getElementById('fieldBrand').value = tag.brand;
       document.getElementById('fieldBrandColor').value = tag.brandColor;
@@ -1463,13 +1560,34 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       renderAllSheets();
     }
 
+    /* Every slot on the A4 is 4in x 2.5in — a tall card is rotated inside its slot —
+       so packing is layout-agnostic: plain chunks of 8. Pure (no DOM), so it can be
+       tested directly. */
+    const SHEET_CAPACITY = 8;
+
+    function tagSheets(tags) {
+      const list = tags || [];
+      const sheets = [];
+      for (let i = 0; i < list.length; i += SHEET_CAPACITY) {
+        sheets.push(list.slice(i, i + SHEET_CAPACITY));
+      }
+      return sheets;
+    }
+
+    /* One sheet slot: the card, plus the rotation the tall layout needs. */
+    function tagSlot(tag) {
+      const tall = String(tag && tag.layout) === 'tall';
+      return `<div class="tag-slot ${tall ? 'slot-tall' : 'slot-std'}">${buildTagCardMarkup(tag, false)}</div>`;
+    }
+
     function renderAllSheets() {
       const container = document.getElementById('sheetsRenderContainer');
       container.innerHTML = '';
 
       const total = tagQueue.length;
       document.getElementById('barQueueCount').textContent = total;
-      const numSheets = Math.ceil(total / 8) || 0;
+      const sheets = tagSheets(tagQueue);
+      const numSheets = sheets.length;
       document.getElementById('barSheetCount').textContent = numSheets;
       document.getElementById('topSheetCount').textContent = numSheets;
 
@@ -1484,28 +1602,27 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         return;
       }
 
-      for (let p = 0; p < numSheets; p++) {
+      sheets.forEach(cards => {
         const pageDiv = document.createElement('div');
         pageDiv.className = 'a4-print-sheet';
 
-        const sliceTags = tagQueue.slice(p * 8, (p + 1) * 8);
-
-        sliceTags.forEach(tag => {
-          pageDiv.innerHTML += buildTagCardMarkup(tag, false);
+        cards.forEach(tag => {
+          pageDiv.innerHTML += tagSlot(tag);
         });
 
-        // Fill remaining blanks to preserve 8-tag grid geometry
-        const emptySlots = 8 - sliceTags.length;
-        for (let e = 0; e < emptySlots; e++) {
+        // Fill remaining slots so the last sheet keeps its grid geometry
+        for (let e = cards.length; e < SHEET_CAPACITY; e++) {
           pageDiv.innerHTML += `
-            <div class="shelf-tag border border-dashed border-slate-200 flex items-center justify-center bg-slate-50/50">
-              <span class="text-[10px] text-slate-300 font-bold uppercase tracking-widest no-print">Empty Slot</span>
+            <div class="tag-slot">
+              <div class="w-full h-full border border-dashed border-slate-200 flex items-center justify-center bg-slate-50/50">
+                <span class="text-[10px] text-slate-300 font-bold uppercase tracking-widest no-print">Empty Slot</span>
+              </div>
             </div>
           `;
         }
 
         container.appendChild(pageDiv);
-      }
+      });
     }
 
     function toggleCropMarks() {
@@ -1785,6 +1902,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
 
       document.getElementById('fieldCategory').value = cfg.cat;
       handleCategorySelection();
+      document.getElementById('fieldLayout').value = cfg.cat === 'REF' ? 'tall' : 'std';
       document.getElementById('fieldBrand').value = cfg.brand;
       handleBrandSelection();
       document.getElementById('fieldMainSpec').value = cfg.size;
@@ -1853,6 +1971,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
       return {
         id: catalogIdFor(tag.modelNo, tag.id),
         category: tag.category,
+        layout: tag.layout || 'std',
         brand: tag.brand,
         modelNo: (tag.modelNo || '').trim(),
         size: tag.mainSpec || '',
@@ -1972,6 +2091,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
 
       document.getElementById('fieldCategory').value = entry.category || 'TV';
       handleCategorySelection();
+      // After handleCategorySelection(), which applies the category's default layout.
+      document.getElementById('fieldLayout').value = entry.layout || 'std';
 
       const brandSel = document.getElementById('fieldBrand');
       if (entry.brand && !Array.from(brandSel.options).some(o => o.value === entry.brand)) {
@@ -2032,6 +2153,7 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         brandColor: entry.color || '#002F6C',
         customBrandName: entry.customBrandName || '',
         category: entry.category || 'TV',
+        layout: entry.layout || 'std',
         series: entry.series || '',
         badge: entry.headerBadge || '',
         mainSpec: entry.size || '',
@@ -2502,6 +2624,8 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
 
       return createTagDataInstance({
         category,
+        // Fridge tags default to the tall card; staff can still change it after loading.
+        layout: category === 'REF' ? 'tall' : 'std',
         brand:    t.brand,
         series:   t.series,
         badge:    t.badge,
