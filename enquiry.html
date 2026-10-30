@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b1326">
+<meta name="robots" content="noindex">
+<title>Enquire — Hariom Electronics</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/design-system.css?v=4">
+<script src="/shared.js?v=4"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--on-surface);
+    font-family: var(--font-body, Inter, system-ui, sans-serif);
+    min-height: 100vh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* iOS: keep inputs at 16px so Safari never auto-zooms on focus */
+  input, select, textarea { -webkit-text-size-adjust: 100%; font-size: 16px !important; font-family: inherit; }
+
+  .enq-head {
+    padding: calc(18px + env(safe-area-inset-top)) 16px 16px;
+    background: linear-gradient(135deg, #101a33, #0b1326);
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+  }
+  .enq-brand { font-size: 20px; font-weight: 900; letter-spacing: -0.4px; }
+  .enq-brand span { color: var(--primary); }
+  .enq-store { margin-top: 4px; font-size: 13px; color: var(--on-surface-variant); }
+  .enq-store select { margin-top: 8px; width: 100%; max-width: 320px; }
+
+  .container { max-width: 560px; margin: 0 auto; padding: 18px 16px 40px; }
+
+  .form-card {
+    background: var(--surface-container-low);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px 18px;
+  }
+  .form-card h1 { font-size: 22px; font-weight: 900; letter-spacing: -0.4px; margin: 0 0 6px; }
+  .enq-sub { margin: 0 0 18px; font-size: 13.5px; color: var(--on-surface-variant); line-height: 1.5; }
+
+  .step { margin-bottom: 22px; }
+  .step[hidden] { display: none; }
+  .step-title { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; margin-bottom: 12px; }
+  .step-num {
+    width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%;
+    background: var(--primary-container); color: var(--on-primary);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 900;
+  }
+
+  .chip-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chiptoggle {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 10px 14px; border-radius: 999px;
+    background: var(--surface-container-high); color: var(--on-surface);
+    border: 1.5px solid transparent; font-size: 14px; font-weight: 600; cursor: pointer;
+    user-select: none; transition: border-color .12s, background .12s, color .12s;
+  }
+  .chiptoggle .material-symbols-outlined { font-size: 18px; }
+  .chiptoggle:hover { border-color: var(--outline-variant); }
+  .chiptoggle.on { background: var(--primary-container); color: var(--on-primary); border-color: var(--primary-container); }
+
+  .detail-block { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px dashed var(--border); }
+  .detail-block:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+  .detail-cat { font-size: 13px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase; color: var(--primary); margin-bottom: 8px; }
+  .detail-label { font-size: 12px; font-weight: 700; color: var(--on-surface-variant); margin: 10px 0 6px; }
+  .chip-sm { padding: 8px 12px; font-size: 13px; }
+
+  .form-label { display: block; font-size: 13px; font-weight: 700; color: var(--on-surface-variant); margin: 0 0 6px; }
+  .form-input, .form-select {
+    width: 100%; background: var(--surface-container-highest); color: var(--on-surface);
+    border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 13px 16px; margin-bottom: 14px; outline: none;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(77,142,255,0.35); }
+
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+  .btn-full {
+    width: 100%; border: 0; border-radius: 14px; padding: 16px;
+    font-size: 16px; font-weight: 800; cursor: pointer; font-family: inherit;
+  }
+  .btn-full-primary { background: linear-gradient(135deg, #4d8eff, #2f6fe0); color: #fff; }
+  .btn-full-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-ghost-full { background: var(--surface-container-high); color: var(--on-surface); margin-top: 10px; }
+
+  #photoPreview { display: block; margin-top: 10px; max-width: 100%; max-height: 180px; border-radius: 12px; }
+  #photoPreview[hidden] { display: none; }
+
+  /* Success */
+  #doneArea { display: none; text-align: center; padding: 46px 8px; }
+  #doneArea .tick {
+    width: 74px; height: 74px; margin: 0 auto 18px; border-radius: 50%;
+    background: var(--tertiary-container); color: #04231a;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #doneArea .tick .material-symbols-outlined { font-size: 42px; }
+  #doneArea h2 { font-size: 22px; font-weight: 900; margin: 0 0 8px; }
+  #doneArea p { color: var(--on-surface-variant); font-size: 14px; line-height: 1.6; margin: 0 auto 20px; max-width: 340px; }
+
+  .btn-wa {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: #25d366; color: #06240f; border: 0; border-radius: 14px;
+    padding: 14px 22px; font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit;
+  }
+  .enq-foot { text-align: center; font-size: 11px; color: var(--outline); margin-top: 18px; }
+</style>
+</head>
+<body>
+
+<header class="enq-head">
+  <div class="enq-brand">Hariom <span>Electronics</span></div>
+  <div class="enq-store" id="storeLine">&nbsp;</div>
+</header>
+
+<main class="container">
+  <div class="form-card" id="formArea">
+    <h1>Tell us what you need</h1>
+    <p class="enq-sub">Pick what you are looking for and we will call you back with the best price.</p>
+
+    <!-- 1 · Category -->
+    <div class="step">
+      <div class="step-title"><span class="step-num">1</span> What are you looking for?</div>
+      <div class="chip-grid" id="catGrid"></div>
+    </div>
+
+    <!-- 2 · Brand + size -->
+    <div class="step" id="detailStep" hidden>
+      <div class="step-title"><span class="step-num">2</span> Brand &amp; size</div>
+      <div id="detailBlocks"></div>
+    </div>
+
+    <!-- 3 · Notes -->
+    <div class="step" id="noteStep" hidden>
+      <div class="step-title"><span class="step-num">3</span> Anything else?</div>
+      <input class="form-input" id="fNote" placeholder="e.g. need installation, delivery by Diwali" maxlength="300" style="margin-bottom:0;">
+    </div>
+
+    <!-- 4 · Details -->
+    <div class="step" id="custStep" hidden>
+      <div class="step-title"><span class="step-num">4</span> Your details</div>
+      <label class="form-label" for="fName">Name *</label>
+      <input class="form-input" id="fName" placeholder="Your name" autocomplete="name" maxlength="80">
+      <label class="form-label" for="fPhone">Phone number *</label>
+      <input class="form-input" id="fPhone" placeholder="10-digit mobile" maxlength="10" inputmode="numeric" autocomplete="tel">
+      <label class="form-label" for="fAddress">Address (optional)</label>
+      <input class="form-input" id="fAddress" placeholder="House, street, area…" autocomplete="street-address" maxlength="200">
+      <label class="form-label" for="fWhen">Best time to call</label>
+      <select class="form-select" id="fWhen" style="margin-bottom:0;">
+        <option value="">Anytime</option>
+        <option value="Morning">Morning</option>
+        <option value="Afternoon">Afternoon</option>
+        <option value="Evening">Evening</option>
+      </select>
+    </div>
+
+    <!-- 5 · Exchange -->
+    <div class="step" id="exchStep" hidden>
+      <div class="step-title"><span class="step-num">5</span> Do you have an old product to exchange?</div>
+      <div class="chip-grid" id="exchGrid">
+        <div class="chiptoggle" data-exch="no" onclick="setExchange(false)">No</div>
+        <div class="chiptoggle on" data-exch="yes" onclick="setExchange(true)">Yes, exchange offer</div>
+      </div>
+      <div id="exchExtra" style="margin-top:14px;">
+        <div class="detail-label">Condition of the old product</div>
+        <div class="chip-grid" id="condGrid">
+          <div class="chiptoggle chip-sm on" data-cond="working" onclick="setCondition('working')">Working</div>
+          <div class="chiptoggle chip-sm" data-cond="not_working" onclick="setCondition('not_working')">Not working</div>
+        </div>
+        <div class="detail-label">Photo of the old product (optional)</div>
+        <input type="file" id="fPhoto" accept="image/*" capture="environment" onchange="onPhoto(this)">
+        <img id="photoPreview" hidden alt="preview">
+      </div>
+    </div>
+
+    <div class="hp"><label>Company</label><input id="fCompany" tabindex="-1" autocomplete="off"></div>
+
+    <button class="btn-full btn-full-primary" id="submitBtn" onclick="submitEnquiry()" disabled>Submit enquiry</button>
+  </div>
+
+  <div id="doneArea">
+    <div class="tick"><span class="material-symbols-outlined">check</span></div>
+    <h2>Thank you!</h2>
+    <p id="doneMsg">We have your enquiry. Our team will call you shortly with the best offer.</p>
+    <button class="btn-wa" id="waBtn" onclick="whatsappStore()" hidden>
+      <span class="material-symbols-outlined">chat</span> Message the store
+    </button>
+    <div class="enq-foot">Hariom Electronics · Thank you for your enquiry</div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+/* ════════════════════════════════════════════════
+   PUBLIC ENQUIRY FORM — creates a lead (source: "web")
+   Shared per store: /enquiry?store=<storeId|key>
+═══════════════════════════════════════════════ */
+
+const STARTED_AT = Date.now();
+const params     = new URLSearchParams(location.search);
+const STORE_PARAM = params.get("store") || "";
+
+let STORES = [];
+let store  = null;
+let TALLY_NAMES = null;          /* product names, for deriving real brands per category */
+let photoBlob = null;
+
+/* Category → size/variant options. Categories without variants skip step 2 for that line. */
+const CATEGORIES = [
+  { key: "LED",      label: "TV / LED",        icon: "tv",                       variants: [["24",'24"'],["32",'32"'],["40",'40"'],["43",'43"'],["50",'50"'],["55",'55"'],["65",'65"'],["65plus",'65" or bigger']] },
+  { key: "WM",       label: "Washing Machine", icon: "local_laundry_service",    variants: [["TL","Top Load (TL)"],["FL","Front Load (FL)"],["SA","Semi-Automatic (SA)"]] },
+  { key: "REF",      label: "Refrigerator",    icon: "kitchen",                  variants: [["DC","Direct Cool (DC)"],["FF","Frost Free (FF)"],["SBS","Side-by-Side"]] },
+  { key: "AC",       label: "Air Conditioner", icon: "ac_unit",                  variants: [["1.0T","1.0 Ton"],["1.5T","1.5 Ton"],["2.0T","2.0 Ton"],["3.0T","3.0 Ton"],["INV","Inverter"]] },
+  { key: "COOLER",   label: "Air Cooler",      icon: "air",                      variants: [] },
+  { key: "FAN",      label: "Fan",             icon: "mode_fan",                 variants: [] },
+  { key: "MIXER",    label: "Mixer / Grinder", icon: "blender",                  variants: [] },
+  { key: "COOKTOP",  label: "Cooktop",         icon: "local_fire_department",    variants: [] },
+  { key: "E-GEYSER", label: "Geyser",          icon: "water_heater",             variants: [] },
+  { key: "CHIMNEY",  label: "Chimney",         icon: "air_purifier",             variants: [] },
+  { key: "LAPTOP",   label: "Laptop",          icon: "laptop_mac",               variants: [] },
+];
+const CAT_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
+
+/* Used only if /tally/products is unavailable */
+const FALLBACK_BRANDS = {
+  LED: ["SAMSUNG","LG","SONY","HAIER","TCL","PANASONIC","LLOYD","VIDEOCON","ONIDA"],
+  WM:  ["SAMSUNG","LG","WHIRLPOOL","HAIER","IFB","BOSCH","GODREJ","VOLTAS"],
+  REF: ["SAMSUNG","LG","WHIRLPOOL","HAIER","GODREJ","HISENSE","PANASONIC"],
+  AC:  ["SAMSUNG","LG","VOLTAS","DAIKIN","BLUE STAR","HITACHI","LLOYD","PANASONIC","CROMPTON"],
+  others: [],
+};
+
+const active   = new Set();   /* selected category keys */
+const selBrand = {};          /* catKey -> Set(brand) */
+const selVar   = {};          /* catKey -> Set(variant key) */
+let exchange = true;
+let condition = "working";
+
+/* ── Store ── */
+async function loadStores() {
+  try {
+    const r = await fetch("/api/stores");
+    STORES = r.ok ? await r.json() : [];
+    if (!Array.isArray(STORES)) STORES = [];
+  } catch { STORES = []; }
+  store = STORES.find(s => s.id === STORE_PARAM || s.key === STORE_PARAM) || null;
+  if (!store && STORES.length === 1) store = STORES[0];
+  renderStoreLine();
+}
+
+function renderStoreLine() {
+  const el = document.getElementById("storeLine");
+  if (!el) return;
+  if (store) { el.textContent = store.name || "Hariom Electronics"; return; }
+  if (STORES.length > 1) {
+    el.innerHTML = 'Choose your store: <select id="storePick" class="form-select" style="margin-top:8px;">'
+      + STORES.map(s => `<option value="${s.id}">${s.name || s.id}</option>`).join("") + "</select>";
+  } else {
+    el.textContent = "Hariom Electronics";
+  }
+}
+
+function currentStoreId() {
+  if (store) return store.id;
+  const pick = document.getElementById("storePick");
+  return pick ? pick.value : "";
+}
+
+/* ── Brands (derived from the public product list) ── */
+async function loadTally() {
+  try {
+    const r = await fetch("/tally/products");
+    const d = r.ok ? await r.json() : null;
+    TALLY_NAMES = d && Array.isArray(d.names) ? d.names : [];
+  } catch { TALLY_NAMES = []; }
+}
+
+function brandsFor(catKey) {
+  if (!TALLY_NAMES || !TALLY_NAMES.length) return FALLBACK_BRANDS[catKey] || FALLBACK_BRANDS.others;
+  const prefix = catKey + " ";
+  const set = new Set();
+  for (const n of TALLY_NAMES) {
+    if (typeof n === "string" && n.startsWith(prefix)) {
+      const b = (typeof getBrand === "function" ? getBrand(n) : "") || "";
+      if (b && b !== "Other") set.add(b);
+    }
+  }
+  const list = [...set].sort();
+  return list.length ? list : (FALLBACK_BRANDS[catKey] || FALLBACK_BRANDS.others);
+}
+
+/* ── Render category chips ── */
+function renderCategories() {
+  const grid = document.getElementById("catGrid");
+  grid.innerHTML = CATEGORIES.map(c => `
+    <div class="chiptoggle" data-cat="${c.key}" onclick="toggleCategory('${c.key}')">
+      <span class="material-symbols-outlined">${c.icon}</span>${c.label}
+    </div>`).join("");
+}
+
+function toggleCategory(key) {
+  if (active.has(key)) {
+    active.delete(key);
+    delete selBrand[key];
+    delete selVar[key];
+  } else {
+    active.add(key);
+    selBrand[key] = selBrand[key] || new Set();
+    selVar[key]   = selVar[key]   || new Set();
+  }
+  document.querySelector(`[data-cat="${key}"]`)?.classList.toggle("on", active.has(key));
+  rebuildDetails();
+  revealAfterCategory();
+  validate();
+}
+
+function revealAfterCategory() {
+  const any = active.size > 0;
+  ["detailStep", "noteStep", "custStep", "exchStep"].forEach(id => {
+    document.getElementById(id).hidden = !any;
+  });
+}
+
+/* ── Brand + size blocks ── */
+function rebuildDetails() {
+  const wrap = document.getElementById("detailBlocks");
+  if (!active.size) { wrap.innerHTML = ""; return; }
+  const keys = CATEGORIES.map(c => c.key).filter(k => active.has(k)); /* keep config order */
+
+  wrap.innerHTML = keys.map(key => {
+    const cat = CAT_BY_KEY[key];
+    const brands = brandsFor(key);
+    const brandChips = [`<div class="chiptoggle chip-sm" data-b="${key}|__any" onclick="toggleBrand('${key}','__any')">Any brand</div>`]
+      .concat(brands.map(b => `<div class="chiptoggle chip-sm" data-b="${key}|${esc(b)}" onclick="toggleBrand('${key}','${esc(b)}')">${esc(b)}</div>`))
+      .join("");
+    const varChips = (cat.variants || []).map(v =>
+      `<div class="chiptoggle chip-sm" data-v="${key}|${esc(v[0])}" onclick="toggleVariant('${key}','${esc(v[0])}')">${esc(v[1])}</div>`).join("");
+    return `
+      <div class="detail-block">
+        <div class="detail-cat">${esc(cat.label)}</div>
+        <div class="detail-label">Brand interested</div>
+        <div class="chip-grid">${brandChips}</div>
+        ${cat.variants.length ? `<div class="detail-label">Size / type</div><div class="chip-grid">${varChips}</div>` : ""}
+      </div>`;
+  }).join("");
+}
+
+function toggleBrand(key, brand) {
+  const s = selBrand[key] = selBrand[key] || new Set();
+  if (brand === "__any") { s.clear(); s.add("__any"); }
+  else { s.delete("__any"); s.has(brand) ? s.delete(brand) : s.add(brand); }
+  document.querySelectorAll(`[data-b^="${key}|"]`).forEach(el => {
+    const b = el.getAttribute("data-b").split("|")[1];
+    el.classList.toggle("on", s.has("__any") ? b === "__any" : s.has(b));
+  });
+}
+
+function toggleVariant(key, vKey) {
+  const s = selVar[key] = selVar[key] || new Set();
+  s.has(vKey) ? s.delete(vKey) : s.add(vKey);
+  document.querySelector(`[data-v="${key}|${vKey}"]`)?.classList.toggle("on", s.has(vKey));
+}
+
+/* ── Exchange ── */
+function setExchange(on) {
+  exchange = on;
+  document.querySelectorAll("[data-exch]").forEach(el =>
+    el.classList.toggle("on", (el.getAttribute("data-exch") === "yes") === on));
+  document.getElementById("exchExtra").style.display = on ? "" : "none";
+}
+function setCondition(c) {
+  condition = c;
+  document.querySelectorAll("[data-cond]").forEach(el =>
+    el.classList.toggle("on", el.getAttribute("data-cond") === c));
+}
+function onPhoto(input) {
+  const file = input.files && input.files[0];
+  const img = document.getElementById("photoPreview");
+  if (!file) { photoBlob = null; img.hidden = true; return; }
+  photoBlob = file;
+  const url = URL.createObjectURL(file);
+  img.src = url;
+  img.hidden = false;
+}
+
+/* ── Build selections + summary ── */
+function buildSelections() {
+  const out = [];
+  for (const key of CATEGORIES.map(c => c.key).filter(k => active.has(k))) {
+    const brands = selBrand[key] && selBrand[key].size ? [...selBrand[key]] : ["__any"];
+    const vars   = selVar[key]   && selVar[key].size   ? [...selVar[key]]   : [""];
+    const brandList = brands.includes("__any") ? [""] : brands;
+    for (const b of brandList) {
+      for (const v of vars) {
+        out.push({ category: key, brand: b === "__any" ? "" : b, variant: v });
+        if (out.length >= 12) return out;
+      }
+    }
+  }
+  return out;
+}
+
+function requirementSummary() {
+  return CATEGORIES.map(c => c.key).filter(k => active.has(k)).map(key => {
+    const cat = CAT_BY_KEY[key];
+    const brands = selBrand[key] && selBrand[key].size && !selBrand[key].has("__any")
+      ? [...selBrand[key]].join("/") : "";
+    const vars = selVar[key] && selVar[key].size ? [...selVar[key]].join("/") : "";
+    return [cat.label, brands, vars].filter(Boolean).join(" · ");
+  }).join(" ; ");
+}
+
+/* ── Validation ── */
+function validate() {
+  const name  = (document.getElementById("fName")?.value || "").trim();
+  const phone = (document.getElementById("fPhone")?.value || "").replace(/\D/g, "");
+  const ok = active.size > 0 && name && /^\d{10}$/.test(phone);
+  document.getElementById("submitBtn").disabled = !ok;
+  return ok;
+}
+["fName", "fPhone"].forEach(id => document.addEventListener("input", e => { if (e.target.id === id) validate(); }));
+
+/* ── Submit ── */
+async function submitEnquiry() {
+  if (!validate()) { showToast("Add your name and 10-digit phone number.", "error"); return; }
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true; btn.textContent = "Sending…";
+  try {
+    const blob = photoBlob ? await compressImage(photoBlob) : null;   /* shared.js */
+    const fd = new FormData();
+    fd.append("store", currentStoreId());
+    fd.append("customer_name", document.getElementById("fName").value.trim());
+    fd.append("phone", document.getElementById("fPhone").value.replace(/\D/g, ""));
+    fd.append("address", document.getElementById("fAddress").value.trim());
+    fd.append("preferred_contact", document.getElementById("fWhen").value);
+    fd.append("note", document.getElementById("fNote").value.trim());
+    fd.append("requirement_summary", requirementSummary());
+    fd.append("selections", JSON.stringify(buildSelections()));
+    fd.append("exchange_offer", exchange ? "true" : "false");
+    if (exchange) fd.append("exchange_condition", condition);
+    if (blob) fd.append("photo", blob, "exchange.jpg");
+    fd.append("t0", String(STARTED_AT));
+    fd.append("company", document.getElementById("fCompany").value);
+
+    const res = await fetch(location.origin + "/api/public/enquiry", { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Could not send your enquiry.");
+
+    document.getElementById("formArea").style.display = "none";
+    const done = document.getElementById("doneArea");
+    done.style.display = "block";
+    if (store && store.phone) {
+      document.getElementById("waBtn").hidden = false;
+      document.getElementById("doneMsg").textContent =
+        `We have your enquiry. Our team at ${store.name || "the store"} will call you shortly.`;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) {
+    showToast(e.message || "Could not send your enquiry.", "error");
+    btn.disabled = false; btn.textContent = "Submit enquiry";
+  }
+}
+
+function whatsappStore() {
+  const num = store && store.phone ? String(store.phone).replace(/\D/g, "") : "";
+  const to  = num.length === 10 ? "91" + num : num;
+  const msg = `Hello ${store?.name || "Hariom Electronics"}, I just submitted an enquiry on your website.`;
+  window.open(`https://wa.me/${to}?text=${encodeURIComponent(msg)}`, "_blank");
+}
+
+/* ── Small helpers (esc for attribute/text safety) ── */
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ── Init ── */
+(async function init() {
+  renderCategories();
+  setExchange(true);
+  setCondition("working");
+  await Promise.all([loadStores(), loadTally()]);
+  rebuildDetails();          /* in case categories were pre-selected (none by default) */
+  validate();
+})();
+</script>
+</body>
+</html>

@@ -295,6 +295,7 @@ const LEAD_SOURCES = [
   { key: "whatsapp", label: "WhatsApp" },
   { key: "referral", label: "Referral" },
   { key: "repeat",   label: "Repeat"   },
+  { key: "web",      label: "Online / Website" },
   { key: "other",    label: "Other"    },
 ];
 

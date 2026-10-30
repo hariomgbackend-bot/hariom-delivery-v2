@@ -1515,6 +1515,31 @@ const adminLoginLimiter = rateLimit({
   message: { error: "Too many login attempts. Please wait 15 minutes." }
 });
 
+// Public customer-enquiry form — unauthenticated, so keep it tight
+const publicEnquiryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  message: { error: "Too many submissions. Please try again later." }
+});
+
+// Public enquiry photo upload — the shared `upload` has no size cap; this one does
+const enquiryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 }
+});
+const enquiryPhoto = (req, res, next) => {
+  enquiryUpload.single("photo")(req, res, (err) => {
+    if (err) {
+      const tooBig = err.code === "LIMIT_FILE_SIZE";
+      return res.status(400).json({ error: tooBig ? "Photo is too large (max 5 MB)." : "Could not read the photo." });
+    }
+    next();
+  });
+};
+
 // Apply global limiter to all routes
 app.use(globalLimiter);
 
@@ -5544,6 +5569,120 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
     res.json({ success: true, id: docRef.id, existingLeads });
   } catch (err) {
     console.error("/leads POST error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   PUBLIC LEAD ENQUIRY — customer-facing share link (no login)
+   GET  /enquiry            — the enquiry form
+   POST /api/public/enquiry — creates a lead, source:"web"
+   Shared per store as /enquiry?store=<storeId|key>
+════════════════════════════════════════════════ */
+
+app.get("/enquiry", (req, res) => {
+  res.sendFile(path.join(process.cwd(), "enquiry.html"));
+});
+
+app.post("/api/public/enquiry", publicEnquiryLimiter, enquiryPhoto, async (req, res) => {
+  try {
+    const b = req.body || {};
+
+    /* ── Spam guards: honeypot + minimum fill time ── */
+    if (String(b.company || "").trim()) return res.status(400).json({ error: "Rejected" });
+    const startedAt = Number(b.t0);
+    if (!Number.isFinite(startedAt) || Date.now() - startedAt < 2500) {
+      return res.status(400).json({ error: "Form submitted too quickly. Please try again." });
+    }
+
+    /* ── Validate ── */
+    const phone = String(b.phone || "").replace(/\D/g, "").slice(-10);
+    const customer_name = String(b.customer_name || "").trim().slice(0, 120);
+    if (!/^\d{10}$/.test(phone)) return res.status(400).json({ error: "A valid 10-digit phone number is required" });
+    if (!customer_name) return res.status(400).json({ error: "Please enter your name" });
+
+    const address           = String(b.address || "").trim().slice(0, 300);
+    const preferred_contact = String(b.preferred_contact || "").trim().slice(0, 40);
+    const note              = String(b.note || "").trim().slice(0, 800);
+    const summary           = String(b.requirement_summary || "").trim().slice(0, 300);
+
+    let selections = [];
+    try {
+      const parsed = JSON.parse(b.selections || "[]");
+      if (Array.isArray(parsed)) {
+        selections = parsed.slice(0, 12).map(s => ({
+          category: String(s?.category || "").trim().slice(0, 30),
+          brand:    String(s?.brand    || "").trim().slice(0, 40),
+          variant:  String(s?.variant  || "").trim().slice(0, 40),
+        })).filter(s => s.category);
+      }
+    } catch { /* malformed → fall back to the free-text summary */ }
+
+    if (!selections.length && !summary && !note) {
+      return res.status(400).json({ error: "Tell us what you are looking for" });
+    }
+
+    const productLine = s => [s.category, s.brand, s.variant].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    let products = selections.map(s => ({ product_name: productLine(s), quoted_price: 0 })).filter(p => p.product_name);
+    if (!products.length) products = [{ product_name: (summary || note).slice(0, 120), quoted_price: 0 }];
+
+    /* ── Resolve the store: by doc id first, then by key ── */
+    let storeId = "";
+    const storeInput = String(b.store || "").trim();
+    if (storeInput) {
+      try {
+        const byId = await getDoc(doc(db, "stores", storeInput));
+        if (byId.exists()) {
+          storeId = byId.id;
+        } else {
+          const byKey = await getDocs(query(collection(db, "stores"), where("key", "==", storeInput)));
+          if (!byKey.empty) storeId = byKey.docs[0].id;
+        }
+      } catch (e) { console.warn("[public enquiry store]", e.message); }
+      if (!storeId) return res.status(400).json({ error: "This enquiry link is not valid. Please ask the store for a fresh link." });
+    }
+
+    /* ── Optional exchange photo → Firebase Storage (same flow as /markFailed) ── */
+    let exchange_photo_url = null;
+    if (req.file) {
+      const storageRef = ref(storage, "enquiry_photos/" + Date.now() + "_" + phone);
+      await uploadBytes(storageRef, req.file.buffer, { contentType: req.file.mimetype });
+      exchange_photo_url = await getDownloadURL(storageRef);
+    }
+
+    const exchange_offer     = String(b.exchange_offer) === "true";
+    const exchange_condition = exchange_offer ? (b.exchange_condition === "not_working" ? "not_working" : "working") : "";
+
+    const now = Timestamp.now();
+    const docRef = await addDoc(collection(db, "leads"), {
+      storeId,
+      customer_name, phone, alternate_phone: "", address,
+      product_interest: summary || products[0].product_name,
+      quoted_price: 0,
+      products,
+      remarks: note || "",
+      status: "new",
+      source: "web",
+      created_by: "web_enquiry",
+      created_by_name: "Online Enquiry",
+      created_by_role: "customer",
+      assigned_to: "", assigned_to_name: "",
+      followup_note: "", admin_quoted_price: null, converted_delivery_id: null,
+      quote_given: false, sale_type: "", loss_reason: "",
+      deposit_amount: 0, deal_value: 0, cash_collected: 0, refund_amount: 0, commission_pct: 0,
+      enquiry_categories: [...new Set(selections.map(s => s.category))],
+      enquiry_brands:     [...new Set(selections.map(s => s.brand).filter(Boolean))],
+      enquiry_variants:   [...new Set(selections.map(s => s.variant).filter(Boolean))],
+      exchange_offer, exchange_condition, preferred_contact,
+      first_contact_at: null,
+      created_at: now,
+      updated_at: now,
+      ...(exchange_photo_url && { exchange_photo_url }),
+    });
+
+    res.json({ success: true, id: docRef.id });
+  } catch (err) {
+    console.error("/api/public/enquiry error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

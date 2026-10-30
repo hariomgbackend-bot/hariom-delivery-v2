@@ -375,6 +375,9 @@
     <button class="sidebar-item" onclick="quickFilter('unassigned')">
       <span class="material-symbols-outlined">person_off</span> Unassigned
     </button>
+    <button class="sidebar-item" onclick="quickFilter('online')">
+      <span class="material-symbols-outlined">language</span> Online Enquiries
+    </button>
     <div class="sidebar-divider"></div>
     <div class="sidebar-section-label">Navigate</div>
     <a class="sidebar-item" href="staff.html">
@@ -399,6 +402,9 @@
       </div>
     </div>
     <div class="topbar-right">
+      <button class="icon-btn" id="shareEnqBtn" onclick="openShareLink()" title="Share enquiry link">
+        <span class="material-symbols-outlined">qr_code_2</span>
+      </button>
       <button class="icon-btn" id="refreshBtn" onclick="loadAll()" title="Refresh">
         <span class="material-symbols-outlined">refresh</span>
       </button>
@@ -480,6 +486,28 @@
     <div class="modal-title" id="modalTitle">Move lead</div>
     <div id="modalOptions"></div>
     <button class="modal-opt modal-cancel" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- ════ SHARE ENQUIRY LINK MODAL ════ -->
+<div class="modal-wrap" id="shareWrap" onclick="if(event.target===this)closeShareModal()">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-title">Share enquiry link</div>
+    <p style="font-size:12.5px;color:var(--on-surface-variant);margin:-6px 0 14px;line-height:1.5;">
+      Send this link to customers. Their answers arrive here as an <b>Online</b> lead.
+    </p>
+    <div style="font-size:12px;font-weight:700;color:var(--on-surface-variant);margin-bottom:6px;">Store</div>
+    <select id="shareStore" onchange="renderShareLink()"
+      style="width:100%;background:var(--surface-container-high);color:var(--on-surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:15px;"></select>
+    <div style="text-align:center;margin-bottom:14px;">
+      <img id="shareQr" alt="Enquiry link QR" style="width:180px;height:180px;border-radius:12px;background:#fff;padding:8px;">
+    </div>
+    <div id="shareUrl" style="font-size:12px;word-break:break-all;background:var(--surface-container-high);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-family:var(--font-mono);"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="copyShareLink()">Copy link</button>
+      <button class="btn btn-teal" style="flex:1;" onclick="shareLinkWhatsApp()">WhatsApp</button>
+    </div>
+    <button class="modal-opt modal-cancel" onclick="closeShareModal()" style="margin-top:10px;">Close</button>
   </div>
 </div>
 
@@ -646,6 +674,13 @@ function sourceLabel(key) {
   return LEAD_SOURCES.find(s => s.key === key)?.label || "";
 }
 
+/* A lead that came in through the public enquiry link, not the shop floor */
+function onlineChip(l) {
+  return l.source === "web"
+    ? '<span class="badge badge-new" title="From the online enquiry form">🌐 Online</span>'
+    : "";
+}
+
 /* ── Who owns a lead ──
    The salesman who captured it owns it, and admin can reassign it later.
    `assigned_to` is the reassignment override; `created_by` is the capturer. */
@@ -723,6 +758,7 @@ function matchesFilters(l, ignoreStatus) {
     if (listStatus === "aging")      { if (!isAging(l)) return false; }
     else if (listStatus === "stuck") { if (!isDepositStuck(l)) return false; }
     else if (listStatus === "stale") { if (!isStaleNew(l)) return false; }
+    else if (listStatus === "online") { if (l.source !== "web") return false; }
     else if (l.status !== listStatus) return false;
   }
 
@@ -814,6 +850,7 @@ function renderKpis() {
   const depositStuck = visible.filter(isDepositStuck).length;
   const staleNew     = visible.filter(isStaleNew).length;
   const needsAttention = aging + depositStuck + staleNew;
+  const onlineCount  = visible.filter(l => l.source === "web").length;
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
@@ -826,6 +863,7 @@ function renderKpis() {
     kpiCard("In Pipeline", open, "not won or lost", "var(--primary)"),
     kpiCard("Won", won, "closed sales", "var(--tertiary)"),
     kpiCard("Conversion", conv.toFixed(1) + "%", "won ÷ total"),
+    kpiCard("Online Enquiries", onlineCount, "from the web form", "var(--primary)"),
     kpiCard("Needs Attention", needsAttention, `${aging} aging · ${depositStuck} deposit · ${staleNew} new`, needsAttention ? "var(--error)" : "var(--on-surface)"),
     kpiCard("Untouched New", staleNew, `no touch ${NEW_STALE_DAYS}+ days`, staleNew ? "var(--amber)" : "var(--on-surface)"),
     kpiCard("Won This Month", fmtMoney(monthValue), "deal value", "var(--tertiary)"),
@@ -870,7 +908,7 @@ function renderCard(l) {
 
   return `
     <div class="kb-card" draggable="true" data-id="${escHtml(l.id)}" onclick="openDrawer('${escHtml(l.id)}')">
-      <div class="kb-card-name">${escHtml(l.customer_name || "—")} ${mkStoreBadge(l.storeId, 18)}</div>
+      <div class="kb-card-name">${escHtml(l.customer_name || "—")} ${onlineChip(l)} ${mkStoreBadge(l.storeId, 18)}</div>
       <div class="kb-card-meta">
         ${escHtml(l.phone || "—")} · ${productSummary(l)}
       </div>
@@ -898,6 +936,7 @@ function renderListChips() {
     { key: "stale", label: "🕓 New 2+ days" },
     { key: "aging", label: "⏰ Aging" },
     { key: "stuck", label: "💸 Deposit 14+" },
+    { key: "online", label: "🌐 Online" },
   ];
   row.innerHTML = opts.map(o =>
     `<button class="filter-btn${listStatus === o.key ? " active" : ""}" onclick="setListStatus('${o.key}')">${o.label}</button>`
@@ -924,7 +963,7 @@ function renderList() {
     if (isStaleNew(l))     flags.push(`<span class="kb-flag kb-flag-stale">🕓 ${age}d untouched</span>`);
 
     return `<tr class="clickable" onclick="openDrawer('${escHtml(l.id)}')">
-      <td style="font-weight:700;">${escHtml(l.customer_name || "—")}</td>
+      <td style="font-weight:700;">${escHtml(l.customer_name || "—")} ${onlineChip(l)}</td>
       <td style="text-align:center;">${mkStoreBadge(l.storeId, 22)}</td>
       <td style="font-size:12px;">${escHtml(l.phone || "—")}</td>
       <td style="font-size:12px;">${productSummary(l)}</td>
@@ -1559,6 +1598,65 @@ async function deleteLead(id) {
   }
 }
 
+/* ════ SHARE ENQUIRY LINK ════
+   The public form at /enquiry?store=<id> creates an "Online" lead for that store. */
+function shareUrlFor(storeId) {
+  return window.location.origin + "/enquiry?store=" + encodeURIComponent(storeId || "");
+}
+
+function openShareLink() {
+  /* A store-scoped user only shares their own store's link; a super admin picks any. */
+  const list  = ME.storeId ? STORES.filter(s => s.id === ME.storeId) : STORES;
+  const opts  = list.length ? list : STORES;
+  const sel   = document.getElementById("shareStore");
+  sel.innerHTML = opts.length
+    ? opts.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name || s.id)}</option>`).join("")
+    : `<option value="">(no store configured)</option>`;
+  if (filterStore !== "all" && opts.some(s => s.id === filterStore)) sel.value = filterStore;
+  renderShareLink();
+  document.getElementById("shareWrap").classList.add("open");
+}
+
+function renderShareLink() {
+  const url = shareUrlFor(document.getElementById("shareStore").value);
+  document.getElementById("shareUrl").textContent = url;
+  document.getElementById("shareQr").src =
+    window.location.origin + "/api/gbp/public/qr?width=512&url=" + encodeURIComponent(url);
+}
+
+function copyShareLink() {
+  const url = shareUrlFor(document.getElementById("shareStore").value);
+  const done = () => showToast("Link copied", "success");
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done, () => { copyFallbackText(url); done(); });
+  } else {
+    copyFallbackText(url); done();
+  }
+}
+
+function copyFallbackText(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); } catch (e) { /* ignore */ }
+  document.body.removeChild(ta);
+}
+
+function shareLinkWhatsApp() {
+  const sid = document.getElementById("shareStore").value;
+  const st  = STORES.find(s => s.id === sid);
+  const url = shareUrlFor(sid);
+  const msg = `${st?.name || "Hariom Electronics"} — product enquiry\nTell us what you're looking for and we'll call you back with the best price:\n${url}`;
+  window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
+}
+
+function closeShareModal() {
+  document.getElementById("shareWrap").classList.remove("open");
+}
+
 /* ════ THEME / SIDEBAR ════ */
 function toggleDarkMode() {
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
@@ -1580,7 +1678,7 @@ document.getElementById("hamburgerBtn").addEventListener("click", openSidebar);
 document.getElementById("sidebarClose").addEventListener("click", closeSidebar);
 document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { closeModal(); closeDrawer(); closeSidebar(); }
+  if (e.key === "Escape") { closeModal(); closeShareModal(); closeDrawer(); closeSidebar(); }
 });
 
 /* ════ INIT ════ */

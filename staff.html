@@ -1211,6 +1211,16 @@
         <span id="addLeadChevron" style="font-size:20px;color:var(--primary);transition:transform 0.25s;font-weight:300;">＋</span>
       </button>
 
+      <!-- Share the public enquiry link for this store -->
+      <button onclick="shareEnquiryLink()"
+        style="width:100%;display:flex;align-items:center;justify-content:space-between;
+          padding:14px 18px;background:var(--surface-container-low);border:none;
+          border-radius:16px;cursor:pointer;margin-bottom:12px;
+          font-family:'Inter',sans-serif;-webkit-tap-highlight-color:transparent;">
+        <span style="font-size:15px;font-weight:800;color:var(--on-surface);letter-spacing:-0.3px;">🔗 Share Enquiry Link</span>
+        <span style="font-size:12px;color:var(--on-surface-variant);">Send to customers</span>
+      </button>
+
       <!-- Collapsible form body -->
       <div id="leadFormBody" style="display:none;">
         <div class="form-card" style="border-radius:0 0 16px 16px;padding-top:14px;margin-top:-12px;">
@@ -2238,6 +2248,20 @@ function trCopyLink() {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url); done(); });
   } else { fallbackCopy(url); done(); }
+}
+
+/* Public enquiry link for this store — customers who open it become "Online" leads */
+function shareEnquiryLink() {
+  const base = (window.location.origin && window.location.origin !== "null") ? window.location.origin : BASE_URL;
+  const url  = base + "/enquiry?store=" + encodeURIComponent(staffStoreId || "");
+  const text = `Hariom Electronics — product enquiry\nTell us what you're looking for and we'll call you back:\n${url}`;
+  if (navigator.share) { navigator.share({ title: "Hariom Electronics enquiry", text, url }).catch(function () {}); return; }
+  if (confirm("Share enquiry link\n\n" + url + "\n\nOK = WhatsApp, Cancel = copy link")) {
+    window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+  } else if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function () { showToast("Link copied"); },
+      function () { fallbackCopy(url); showToast("Link copied"); });
+  } else { fallbackCopy(url); showToast("Link copied"); }
 }
 function fallbackCopy(text) {
   const ta = document.createElement("textarea");
