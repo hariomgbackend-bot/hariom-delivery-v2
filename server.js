@@ -5580,7 +5580,7 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
    Shared per store as /enquiry?store=<storeId|key>
 ════════════════════════════════════════════════ */
 
-app.get("/enquiry", (req, res) => {
+app.get(["/enquiry", "/enquiry/:store"], (req, res) => {
   res.sendFile(path.join(process.cwd(), "enquiry.html"));
 });
 

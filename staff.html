@@ -2253,7 +2253,7 @@ function trCopyLink() {
 /* Public enquiry link for this store — customers who open it become "Online" leads */
 function shareEnquiryLink() {
   const base = (window.location.origin && window.location.origin !== "null") ? window.location.origin : BASE_URL;
-  const url  = base + "/enquiry?store=" + encodeURIComponent(staffStoreId || "");
+  const url  = base + "/enquiry" + (staffStoreId ? "/" + encodeURIComponent(staffStoreId) : "");
   const text = `Hariom Electronics — product enquiry\nTell us what you're looking for and we'll call you back:\n${url}`;
   if (navigator.share) { navigator.share({ title: "Hariom Electronics enquiry", text, url }).catch(function () {}); return; }
   if (confirm("Share enquiry link\n\n" + url + "\n\nOK = WhatsApp, Cancel = copy link")) {

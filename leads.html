@@ -1629,9 +1629,13 @@ async function deleteLead(id) {
 }
 
 /* ════ SHARE ENQUIRY LINK ════
-   The public form at /enquiry?store=<id> creates an "Online" lead for that store. */
+   The public form at /enquiry/<store> creates an "Online" lead for that store. */
 function shareUrlFor(storeId) {
-  return window.location.origin + "/enquiry?store=" + encodeURIComponent(storeId || "");
+  const s = STORES.find(x => x.id === storeId);
+  const slug = s ? String(s.name || s.id).toLowerCase() : "";
+  return slug
+    ? window.location.origin + "/enquiry/" + encodeURIComponent(slug)
+    : window.location.origin + "/enquiry";
 }
 
 function openShareLink() {

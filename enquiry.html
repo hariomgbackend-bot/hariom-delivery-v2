@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0b1326">
 <meta name="robots" content="noindex">
-<title>Enquire — Hariom Electronics</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hariom Enquiry">
+<link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+<link rel="manifest" href="/enquiry-manifest.json">
+<title>Hariom Electronics — Enquiry</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
@@ -215,7 +221,11 @@
 
 const STARTED_AT  = Date.now();
 const params      = new URLSearchParams(location.search);
-const STORE_PARAM = params.get("store") || "";
+/* Store can come from a pretty path (/enquiry/dhanore) or a query (?store=…) */
+const pathStore   = (location.pathname.match(/^\/enquiry\/([^/?#]+)/i) || [])[1] || "";
+let   decodedPath = pathStore;
+try { decodedPath = decodeURIComponent(pathStore); } catch { /* keep raw */ }
+const STORE_PARAM = (params.get("store") || decodedPath).trim();
 const DEFAULT_STORE_KEY = "dhanore";
 
 let LANG = "mr";
@@ -623,6 +633,11 @@ function whatsappStore() {
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* Installable + standalone on mobile (scope-limited to /enquiry) */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/enquiry-sw.js", { scope: "/enquiry" }).catch(() => {});
 }
 
 /* ── Init ── */
