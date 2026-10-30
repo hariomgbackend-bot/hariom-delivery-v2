@@ -63,9 +63,11 @@ app.use(cors({
       'https://hariom-delivery-v2.onrender.com',
       'https://hariom-delivery.web.app'
     ];
-    // Allow requests with no origin (same-origin, curl, Postman)
-    // and any localhost / 127.0.0.1 port for local development
-    if (!origin || allowed.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    // Allow requests with no origin (same-origin, curl, Postman), any localhost
+    // port for local development, and the custom domain — hariomelectronics.shop
+    // plus any subdomain of it (e.g. enquiry.hariomelectronics.shop).
+    const ownDomain = /^https:\/\/([a-z0-9-]+\.)*hariomelectronics\.shop$/i;
+    if (!origin || allowed.includes(origin) || ownDomain.test(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       callback(null, true);
     } else {
       callback(new Error(`CORS: origin ${origin} not allowed`));
@@ -166,7 +168,19 @@ app.use("/gbp", express.static("gbp-server/public", {
   }
 }));
 
+/* The bare root serves the driver app — except on the public enquiry host,
+   where it serves the enquiry form (so https://enquiry.<domain>/ works too).
+   Set ENQUIRY_HOST="a.com,b.com" to pin extra hostnames; any "enquiry.*" host
+   is recognised automatically. */
+const ENQUIRY_HOSTS = (process.env.ENQUIRY_HOST || "")
+  .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+function isEnquiryHost(hostname) {
+  const h = String(hostname || "").toLowerCase();
+  return ENQUIRY_HOSTS.includes(h) || /^enquiry\./i.test(h);
+}
+
 app.get("/", (req, res) => {
+  if (isEnquiryHost(req.hostname)) return res.sendFile(path.join(process.cwd(), "enquiry.html"));
   res.sendFile(process.cwd() + "/driver_interface.html");
 });
 
