@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex">
 <title>Enquire — Hariom Electronics</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/design-system.css?v=4">
 <script src="/shared.js?v=4"></script>
@@ -16,14 +16,14 @@
   html, body { margin: 0; padding: 0; }
   body {
     background: var(--bg); color: var(--on-surface);
-    font-family: var(--font-body, Inter, system-ui, sans-serif);
+    font-family: var(--font-body, Inter), "Noto Sans Devanagari", system-ui, sans-serif;
     min-height: 100vh; padding-bottom: env(safe-area-inset-bottom);
   }
   /* iOS: keep inputs at 16px so Safari never auto-zooms on focus */
-  input, select, textarea { -webkit-text-size-adjust: 100%; font-size: 16px !important; font-family: inherit; }
+  input, select, textarea, button { -webkit-text-size-adjust: 100%; font-size: 16px; font-family: inherit; }
 
   .enq-head {
-    padding: calc(18px + env(safe-area-inset-top)) 16px 16px;
+    padding: calc(16px + env(safe-area-inset-top)) 16px 14px;
     background: linear-gradient(135deg, #101a33, #0b1326);
     border-bottom: 1px solid var(--border);
     text-align: center;
@@ -33,6 +33,13 @@
   .enq-store { margin-top: 4px; font-size: 13px; color: var(--on-surface-variant); }
   .enq-store select { margin-top: 8px; width: 100%; max-width: 320px; }
 
+  .lang-switch { display: inline-flex; margin-top: 12px; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+  .lang-switch button {
+    border: 0; background: transparent; color: var(--on-surface-variant);
+    padding: 7px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .lang-switch button.on { background: var(--primary-container); color: var(--on-primary); }
+
   .container { max-width: 560px; margin: 0 auto; padding: 18px 16px 40px; }
 
   .form-card {
@@ -41,12 +48,12 @@
     border-radius: 18px;
     padding: 20px 18px;
   }
-  .form-card h1 { font-size: 22px; font-weight: 900; letter-spacing: -0.4px; margin: 0 0 6px; }
-  .enq-sub { margin: 0 0 18px; font-size: 13.5px; color: var(--on-surface-variant); line-height: 1.5; }
+  .form-card h1 { font-size: 22px; font-weight: 900; letter-spacing: -0.3px; margin: 0 0 6px; line-height: 1.25; }
+  .enq-sub { margin: 0 0 18px; font-size: 13.5px; color: var(--on-surface-variant); line-height: 1.55; }
 
   .step { margin-bottom: 22px; }
   .step[hidden] { display: none; }
-  .step-title { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; margin-bottom: 12px; }
+  .step-title { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; margin-bottom: 12px; line-height: 1.35; }
   .step-num {
     width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%;
     background: var(--primary-container); color: var(--on-primary);
@@ -88,12 +95,10 @@
   }
   .btn-full-primary { background: linear-gradient(135deg, #4d8eff, #2f6fe0); color: #fff; }
   .btn-full-primary:disabled { opacity: .5; cursor: not-allowed; }
-  .btn-ghost-full { background: var(--surface-container-high); color: var(--on-surface); margin-top: 10px; }
 
   #photoPreview { display: block; margin-top: 10px; max-width: 100%; max-height: 180px; border-radius: 12px; }
   #photoPreview[hidden] { display: none; }
 
-  /* Success */
   #doneArea { display: none; text-align: center; padding: 46px 8px; }
   #doneArea .tick {
     width: 74px; height: 74px; margin: 0 auto 18px; border-radius: 50%;
@@ -117,63 +122,67 @@
 <header class="enq-head">
   <div class="enq-brand">Hariom <span>Electronics</span></div>
   <div class="enq-store" id="storeLine">&nbsp;</div>
+  <div class="lang-switch" id="langSwitch">
+    <button type="button" data-lang="en" onclick="setLang('en')">English</button>
+    <button type="button" data-lang="mr" onclick="setLang('mr')">मराठी</button>
+  </div>
 </header>
 
 <main class="container">
   <div class="form-card" id="formArea">
-    <h1>Tell us what you need</h1>
-    <p class="enq-sub">Pick what you are looking for and we will call you back with the best price.</p>
+    <h1 data-i18n="h1">Tell us what you need</h1>
+    <p class="enq-sub" data-i18n="sub">Pick what you are looking for and we will call you back with the best price.</p>
 
     <!-- 1 · Category -->
     <div class="step">
-      <div class="step-title"><span class="step-num">1</span> What are you looking for?</div>
+      <div class="step-title"><span class="step-num">1</span> <span data-i18n="step1">What are you looking for?</span></div>
       <div class="chip-grid" id="catGrid"></div>
     </div>
 
     <!-- 2 · Brand + size -->
     <div class="step" id="detailStep" hidden>
-      <div class="step-title"><span class="step-num">2</span> Brand &amp; size</div>
+      <div class="step-title"><span class="step-num">2</span> <span data-i18n="step2">Brand &amp; size</span></div>
       <div id="detailBlocks"></div>
     </div>
 
     <!-- 3 · Notes -->
     <div class="step" id="noteStep" hidden>
-      <div class="step-title"><span class="step-num">3</span> Anything else?</div>
-      <input class="form-input" id="fNote" placeholder="e.g. need installation, delivery by Diwali" maxlength="300" style="margin-bottom:0;">
+      <div class="step-title"><span class="step-num">3</span> <span data-i18n="step3">Anything else?</span></div>
+      <input class="form-input" id="fNote" data-i18n-ph="note_ph" placeholder="e.g. need installation, delivery by Diwali" maxlength="300" style="margin-bottom:0;">
     </div>
 
     <!-- 4 · Details -->
     <div class="step" id="custStep" hidden>
-      <div class="step-title"><span class="step-num">4</span> Your details</div>
-      <label class="form-label" for="fName">Name *</label>
-      <input class="form-input" id="fName" placeholder="Your name" autocomplete="name" maxlength="80">
-      <label class="form-label" for="fPhone">Phone number *</label>
-      <input class="form-input" id="fPhone" placeholder="10-digit mobile" maxlength="10" inputmode="numeric" autocomplete="tel">
-      <label class="form-label" for="fAddress">Address (optional)</label>
-      <input class="form-input" id="fAddress" placeholder="House, street, area…" autocomplete="street-address" maxlength="200">
-      <label class="form-label" for="fWhen">Best time to call</label>
+      <div class="step-title"><span class="step-num">4</span> <span data-i18n="step4">Your details</span></div>
+      <label class="form-label" for="fName" data-i18n="name">Name *</label>
+      <input class="form-input" id="fName" data-i18n-ph="name_ph" placeholder="Your name" autocomplete="name" maxlength="80">
+      <label class="form-label" for="fPhone" data-i18n="phone">Phone number *</label>
+      <input class="form-input" id="fPhone" data-i18n-ph="phone_ph" placeholder="10-digit mobile" maxlength="10" inputmode="numeric" autocomplete="tel">
+      <label class="form-label" for="fAddress" data-i18n="address">Address (optional)</label>
+      <input class="form-input" id="fAddress" data-i18n-ph="address_ph" placeholder="House, street, area…" autocomplete="street-address" maxlength="200">
+      <label class="form-label" for="fWhen" data-i18n="when">Best time to call</label>
       <select class="form-select" id="fWhen" style="margin-bottom:0;">
-        <option value="">Anytime</option>
-        <option value="Morning">Morning</option>
-        <option value="Afternoon">Afternoon</option>
-        <option value="Evening">Evening</option>
+        <option value="" data-i18n="when_any">Anytime</option>
+        <option value="Morning" data-i18n="when_m">Morning</option>
+        <option value="Afternoon" data-i18n="when_a">Afternoon</option>
+        <option value="Evening" data-i18n="when_e">Evening</option>
       </select>
     </div>
 
     <!-- 5 · Exchange -->
     <div class="step" id="exchStep" hidden>
-      <div class="step-title"><span class="step-num">5</span> Do you have an old product to exchange?</div>
+      <div class="step-title"><span class="step-num">5</span> <span data-i18n="step5">Do you have an old product to exchange?</span></div>
       <div class="chip-grid" id="exchGrid">
-        <div class="chiptoggle" data-exch="no" onclick="setExchange(false)">No</div>
-        <div class="chiptoggle on" data-exch="yes" onclick="setExchange(true)">Yes, exchange offer</div>
+        <div class="chiptoggle" data-exch="no" onclick="setExchange(false)" data-i18n="exch_no">No</div>
+        <div class="chiptoggle on" data-exch="yes" onclick="setExchange(true)" data-i18n="exch_yes">Yes, exchange offer</div>
       </div>
       <div id="exchExtra" style="margin-top:14px;">
-        <div class="detail-label">Condition of the old product</div>
+        <div class="detail-label" data-i18n="cond_label">Condition of the old product</div>
         <div class="chip-grid" id="condGrid">
-          <div class="chiptoggle chip-sm on" data-cond="working" onclick="setCondition('working')">Working</div>
-          <div class="chiptoggle chip-sm" data-cond="not_working" onclick="setCondition('not_working')">Not working</div>
+          <div class="chiptoggle chip-sm on" data-cond="working" onclick="setCondition('working')" data-i18n="cond_work">Working</div>
+          <div class="chiptoggle chip-sm" data-cond="not_working" onclick="setCondition('not_working')" data-i18n="cond_nowork">Not working</div>
         </div>
-        <div class="detail-label">Photo of the old product (optional)</div>
+        <div class="detail-label" data-i18n="photo_label">Photo of the old product (optional)</div>
         <input type="file" id="fPhoto" accept="image/*" capture="environment" onchange="onPhoto(this)">
         <img id="photoPreview" hidden alt="preview">
       </div>
@@ -181,17 +190,17 @@
 
     <div class="hp"><label>Company</label><input id="fCompany" tabindex="-1" autocomplete="off"></div>
 
-    <button class="btn-full btn-full-primary" id="submitBtn" onclick="submitEnquiry()" disabled>Submit enquiry</button>
+    <button class="btn-full btn-full-primary" id="submitBtn" onclick="submitEnquiry()" disabled data-i18n="submit">Submit enquiry</button>
   </div>
 
   <div id="doneArea">
     <div class="tick"><span class="material-symbols-outlined">check</span></div>
-    <h2>Thank you!</h2>
-    <p id="doneMsg">We have your enquiry. Our team will call you shortly with the best offer.</p>
+    <h2 data-i18n="done_h2">Thank you!</h2>
+    <p id="doneMsg" data-i18n="done_default">We have your enquiry. Our team will call you shortly with the best offer.</p>
     <button class="btn-wa" id="waBtn" onclick="whatsappStore()" hidden>
-      <span class="material-symbols-outlined">chat</span> Message the store
+      <span class="material-symbols-outlined">chat</span> <span data-i18n="wa">Message the store</span>
     </button>
-    <div class="enq-foot">Hariom Electronics · Thank you for your enquiry</div>
+    <div class="enq-foot" data-i18n="foot">Hariom Electronics · Thank you for your enquiry</div>
   </div>
 </main>
 
@@ -200,35 +209,123 @@
 <script>
 /* ════════════════════════════════════════════════
    PUBLIC ENQUIRY FORM — creates a lead (source: "web")
-   Shared per store: /enquiry?store=<storeId|key>
+   Shared per store: /enquiry?store=<storeId|key>  (default store: Dhanore)
+   Bilingual — English + Marathi
 ═══════════════════════════════════════════════ */
 
-const STARTED_AT = Date.now();
-const params     = new URLSearchParams(location.search);
+const STARTED_AT  = Date.now();
+const params      = new URLSearchParams(location.search);
 const STORE_PARAM = params.get("store") || "";
+const DEFAULT_STORE_KEY = "dhanore";
 
+let LANG = "en";
 let STORES = [];
 let store  = null;
-let TALLY_NAMES = null;          /* product names, for deriving real brands per category */
+let TALLY_NAMES = null;
 let photoBlob = null;
 
-/* Category → size/variant options. Categories without variants skip step 2 for that line. */
+/* ── Translations ── */
+const I18N = {
+  en: {
+    h1: "Tell us what you need",
+    sub: "Pick what you are looking for and we will call you back with the best price.",
+    step1: "What are you looking for?",
+    step2: "Brand & size",
+    step3: "Anything else?",
+    note_ph: "e.g. need installation, delivery by Diwali",
+    step4: "Your details",
+    name: "Name *", name_ph: "Your name",
+    phone: "Phone number *", phone_ph: "10-digit mobile",
+    address: "Address (optional)", address_ph: "House, street, area…",
+    when: "Best time to call",
+    when_any: "Anytime", when_m: "Morning", when_a: "Afternoon", when_e: "Evening",
+    step5: "Do you have an old product to exchange?",
+    exch_no: "No", exch_yes: "Yes, exchange offer",
+    cond_label: "Condition of the old product",
+    cond_work: "Working", cond_nowork: "Not working",
+    photo_label: "Photo of the old product (optional)",
+    submit: "Submit enquiry", sending: "Sending…",
+    done_h2: "Thank you!",
+    done_default: "We have your enquiry. Our team will call you shortly with the best offer.",
+    done_store_pre: "We have your enquiry. Our team at ", done_store_post: " will call you shortly.",
+    wa: "Message the store",
+    foot: "Hariom Electronics · Thank you for your enquiry",
+    choose_store: "Choose your store:",
+    brand_label: "Brand interested", variant_label: "Size / type", any_brand: "Any brand",
+    err_required: "Add your name and 10-digit phone number.",
+    err_send: "Could not send your enquiry.",
+    wa_msg_pre: "Hello ", wa_msg_post: ", I just submitted an enquiry on your website.",
+    cat_LED: "TV / LED", cat_WM: "Washing Machine", cat_REF: "Refrigerator", cat_AC: "Air Conditioner",
+    cat_COOLER: "Air Cooler", cat_FAN: "Fan", cat_MIXER: "Mixer / Grinder", cat_COOKTOP: "Cooktop",
+    cat_EGEYSER: "Geyser", cat_CHIMNEY: "Chimney", cat_LAPTOP: "Laptop",
+    var_tl: "Top Load (TL)", var_fl: "Front Load (FL)", var_sa: "Semi-Automatic (SA)",
+    var_dc: "Direct Cool (DC)", var_ff: "Frost Free (FF)", var_sbs: "Side-by-Side",
+    var_1t: "1.0 Ton", var_15t: "1.5 Ton", var_2t: "2.0 Ton", var_3t: "3.0 Ton", var_inv: "Inverter",
+    var_tv_big: '65" or bigger',
+  },
+  mr: {
+    h1: "तुम्हाला काय हवे ते सांगा",
+    sub: "तुम्हाला हवी असलेली वस्तू निवडा, आम्ही सर्वोत्तम किंमतीसह तुम्हाला कॉल करू.",
+    step1: "तुम्हाला काय हवे आहे?",
+    step2: "ब्रँड आणि आकार",
+    step3: "अजून काही?",
+    note_ph: "उदा. इन्स्टॉलेशन हवे, दिवाळीपूर्वी डिलिव्हरी",
+    step4: "तुमची माहिती",
+    name: "नाव *", name_ph: "तुमचे नाव",
+    phone: "मोबाइल नंबर *", phone_ph: "१० अंकी मोबाइल",
+    address: "पत्ता (ऐच्छिक)", address_ph: "घर, रस्ता, परिसर…",
+    when: "कॉल करण्यासाठी योग्य वेळ",
+    when_any: "कधीही", when_m: "सकाळ", when_a: "दुपार", when_e: "संध्याकाळ",
+    step5: "जुना माल एक्सचेंज करायचा आहे का?",
+    exch_no: "नाही", exch_yes: "हो, एक्सचेंज ऑफर",
+    cond_label: "जुन्या मालाची स्थिती",
+    cond_work: "चालू आहे", cond_nowork: "चालत नाही",
+    photo_label: "जुन्या मालाचा फोटो (ऐच्छिक)",
+    submit: "चौकशी पाठवा", sending: "पाठवत आहे…",
+    done_h2: "धन्यवाद!",
+    done_default: "तुमची चौकशी आम्हाला मिळाली आहे. आमची टीम लवकरच सर्वोत्तम ऑफरसह कॉल करेल.",
+    done_store_pre: "तुमची चौकशी मिळाली. ", done_store_post: " ची टीम लवकरच तुम्हाला कॉल करेल.",
+    wa: "स्टोअरला मेसेज करा",
+    foot: "हरिओम इलेक्ट्रॉनिक्स · तुमच्या चौकशीबद्दल धन्यवाद",
+    choose_store: "तुमचे स्टोअर निवडा:",
+    brand_label: "आवडता ब्रँड", variant_label: "आकार / प्रकार", any_brand: "कोणताही ब्रँड",
+    err_required: "कृपया नाव आणि १० अंकी मोबाइल नंबर भरा.",
+    err_send: "तुमची चौकशी पाठवता आली नाही.",
+    wa_msg_pre: "नमस्कार ", wa_msg_post: ", मी नुकतीच वेबसाइटवर चौकशी केली आहे.",
+    cat_LED: "टीव्ही / एलईडी", cat_WM: "वॉशिंग मशीन", cat_REF: "रेफ्रिजरेटर", cat_AC: "एअर कंडिशनर",
+    cat_COOLER: "एअर कूलर", cat_FAN: "फॅन", cat_MIXER: "मिक्सर / ग्राइंडर", cat_COOKTOP: "कुकटॉप",
+    cat_EGEYSER: "गिझर", cat_CHIMNEY: "चिमणी", cat_LAPTOP: "लॅपटॉप",
+    var_tl: "टॉप लोड (TL)", var_fl: "फ्रंट लोड (FL)", var_sa: "सेमी ऑटोमॅटिक (SA)",
+    var_dc: "डायरेक्ट कूल (DC)", var_ff: "फ्रॉस्ट फ्री (FF)", var_sbs: "साइड-बाय-साइड",
+    var_1t: "१ टन", var_15t: "१.५ टन", var_2t: "२ टन", var_3t: "३ टन", var_inv: "इनव्हर्टर",
+    var_tv_big: '६५" किंवा मोठा',
+  },
+};
+
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key; }
+
+/* Category → size/variant options.
+   `label` is the English name kept for the stored summary; `i18n` is the display key.
+   Variant entries: [value, labelKey|null] — null means it is a screen size in inches. */
 const CATEGORIES = [
-  { key: "LED",      label: "TV / LED",        icon: "tv",                       variants: [["24",'24"'],["32",'32"'],["40",'40"'],["43",'43"'],["50",'50"'],["55",'55"'],["65",'65"'],["65plus",'65" or bigger']] },
-  { key: "WM",       label: "Washing Machine", icon: "local_laundry_service",    variants: [["TL","Top Load (TL)"],["FL","Front Load (FL)"],["SA","Semi-Automatic (SA)"]] },
-  { key: "REF",      label: "Refrigerator",    icon: "kitchen",                  variants: [["DC","Direct Cool (DC)"],["FF","Frost Free (FF)"],["SBS","Side-by-Side"]] },
-  { key: "AC",       label: "Air Conditioner", icon: "ac_unit",                  variants: [["1.0T","1.0 Ton"],["1.5T","1.5 Ton"],["2.0T","2.0 Ton"],["3.0T","3.0 Ton"],["INV","Inverter"]] },
-  { key: "COOLER",   label: "Air Cooler",      icon: "air",                      variants: [] },
-  { key: "FAN",      label: "Fan",             icon: "mode_fan",                 variants: [] },
-  { key: "MIXER",    label: "Mixer / Grinder", icon: "blender",                  variants: [] },
-  { key: "COOKTOP",  label: "Cooktop",         icon: "local_fire_department",    variants: [] },
-  { key: "E-GEYSER", label: "Geyser",          icon: "water_heater",             variants: [] },
-  { key: "CHIMNEY",  label: "Chimney",         icon: "air_purifier",             variants: [] },
-  { key: "LAPTOP",   label: "Laptop",          icon: "laptop_mac",               variants: [] },
+  { key: "LED", label: "TV / LED", i18n: "cat_LED", icon: "tv",
+    variants: [["24",null],["32",null],["40",null],["43",null],["50",null],["55",null],["65",null],["65plus","var_tv_big"]] },
+  { key: "WM", label: "Washing Machine", i18n: "cat_WM", icon: "local_laundry_service",
+    variants: [["TL","var_tl"],["FL","var_fl"],["SA","var_sa"]] },
+  { key: "REF", label: "Refrigerator", i18n: "cat_REF", icon: "kitchen",
+    variants: [["DC","var_dc"],["FF","var_ff"],["SBS","var_sbs"]] },
+  { key: "AC", label: "Air Conditioner", i18n: "cat_AC", icon: "ac_unit",
+    variants: [["1.0T","var_1t"],["1.5T","var_15t"],["2.0T","var_2t"],["3.0T","var_3t"],["INV","var_inv"]] },
+  { key: "COOLER", label: "Air Cooler", i18n: "cat_COOLER", icon: "air", variants: [] },
+  { key: "FAN", label: "Fan", i18n: "cat_FAN", icon: "mode_fan", variants: [] },
+  { key: "MIXER", label: "Mixer / Grinder", i18n: "cat_MIXER", icon: "blender", variants: [] },
+  { key: "COOKTOP", label: "Cooktop", i18n: "cat_COOKTOP", icon: "local_fire_department", variants: [] },
+  { key: "E-GEYSER", label: "Geyser", i18n: "cat_EGEYSER", icon: "water_heater", variants: [] },
+  { key: "CHIMNEY", label: "Chimney", i18n: "cat_CHIMNEY", icon: "air_purifier", variants: [] },
+  { key: "LAPTOP", label: "Laptop", i18n: "cat_LAPTOP", icon: "laptop_mac", variants: [] },
 ];
 const CAT_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
 
-/* Used only if /tally/products is unavailable */
 const FALLBACK_BRANDS = {
   LED: ["SAMSUNG","LG","SONY","HAIER","TCL","PANASONIC","LLOYD","VIDEOCON","ONIDA"],
   WM:  ["SAMSUNG","LG","WHIRLPOOL","HAIER","IFB","BOSCH","GODREJ","VOLTAS"],
@@ -237,11 +334,41 @@ const FALLBACK_BRANDS = {
   others: [],
 };
 
-const active   = new Set();   /* selected category keys */
-const selBrand = {};          /* catKey -> Set(brand) */
-const selVar   = {};          /* catKey -> Set(variant key) */
-let exchange = true;
+const active   = new Set();
+const selBrand = {};
+const selVar   = {};
+let exchange  = true;
 let condition = "working";
+let sending   = false;
+
+function variantLabel(v) {
+  if (v[1]) return t(v[1]);
+  return v[0] + '"';
+}
+
+/* ── Language ── */
+function setLang(lang) {
+  LANG = lang === "mr" ? "mr" : "en";
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("#langSwitch button").forEach(b =>
+    b.classList.toggle("on", b.getAttribute("data-lang") === LANG));
+  applyLang();
+}
+
+function applyLang() {
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.getAttribute("data-i18n")); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.setAttribute("placeholder", t(el.getAttribute("data-i18n-ph"))); });
+  renderCategories();
+  rebuildDetails();
+  renderStoreLine();
+  paintSubmit();
+}
+
+/* Re-label the submit button without losing the "Sending…" state */
+function paintSubmit() {
+  const btn = document.getElementById("submitBtn");
+  if (btn) btn.textContent = sending ? t("sending") : t("submit");
+}
 
 /* ── Store ── */
 async function loadStores() {
@@ -250,8 +377,18 @@ async function loadStores() {
     STORES = r.ok ? await r.json() : [];
     if (!Array.isArray(STORES)) STORES = [];
   } catch { STORES = []; }
-  store = STORES.find(s => s.id === STORE_PARAM || s.key === STORE_PARAM) || null;
-  if (!store && STORES.length === 1) store = STORES[0];
+  /* Match the ?store= value against id, key or name; fall back to Dhanore */
+  const want  = STORE_PARAM.trim().toLowerCase();
+  const match = want
+    ? STORES.find(s =>
+        s.id.toLowerCase() === want ||
+        String(s.key  || "").toLowerCase() === want ||
+        String(s.name || "").toLowerCase() === want)
+    : null;
+  store = match
+       || STORES.find(s => String(s.key  || "").toLowerCase() === DEFAULT_STORE_KEY
+                        || String(s.name || "").toLowerCase() === DEFAULT_STORE_KEY)
+       || (STORES.length === 1 ? STORES[0] : null);
   renderStoreLine();
 }
 
@@ -260,7 +397,7 @@ function renderStoreLine() {
   if (!el) return;
   if (store) { el.textContent = store.name || "Hariom Electronics"; return; }
   if (STORES.length > 1) {
-    el.innerHTML = 'Choose your store: <select id="storePick" class="form-select" style="margin-top:8px;">'
+    el.innerHTML = t("choose_store") + ' <select id="storePick" class="form-select" style="margin-top:8px;">'
       + STORES.map(s => `<option value="${s.id}">${s.name || s.id}</option>`).join("") + "</select>";
   } else {
     el.textContent = "Hariom Electronics";
@@ -296,12 +433,13 @@ function brandsFor(catKey) {
   return list.length ? list : (FALLBACK_BRANDS[catKey] || FALLBACK_BRANDS.others);
 }
 
-/* ── Render category chips ── */
+/* ── Category chips ── */
 function renderCategories() {
   const grid = document.getElementById("catGrid");
+  if (!grid) return;
   grid.innerHTML = CATEGORIES.map(c => `
-    <div class="chiptoggle" data-cat="${c.key}" onclick="toggleCategory('${c.key}')">
-      <span class="material-symbols-outlined">${c.icon}</span>${c.label}
+    <div class="chiptoggle${active.has(c.key) ? " on" : ""}" data-cat="${c.key}" onclick="toggleCategory('${c.key}')">
+      <span class="material-symbols-outlined">${c.icon}</span>${esc(t(c.i18n))}
     </div>`).join("");
 }
 
@@ -328,26 +466,32 @@ function revealAfterCategory() {
   });
 }
 
-/* ── Brand + size blocks ── */
+/* ── Brand + size blocks (re-rendered on every change so language + state hold) ── */
 function rebuildDetails() {
   const wrap = document.getElementById("detailBlocks");
+  if (!wrap) return;
   if (!active.size) { wrap.innerHTML = ""; return; }
-  const keys = CATEGORIES.map(c => c.key).filter(k => active.has(k)); /* keep config order */
+  const keys = CATEGORIES.map(c => c.key).filter(k => active.has(k));
 
   wrap.innerHTML = keys.map(key => {
     const cat = CAT_BY_KEY[key];
-    const brands = brandsFor(key);
-    const brandChips = [`<div class="chiptoggle chip-sm" data-b="${key}|__any" onclick="toggleBrand('${key}','__any')">Any brand</div>`]
-      .concat(brands.map(b => `<div class="chiptoggle chip-sm" data-b="${key}|${esc(b)}" onclick="toggleBrand('${key}','${esc(b)}')">${esc(b)}</div>`))
+    const bs  = selBrand[key] || new Set();
+    const vs  = selVar[key]   || new Set();
+    const anyOn = bs.size === 0 || bs.has("__any");
+
+    const brandChips = [`<div class="chiptoggle chip-sm${anyOn ? " on" : ""}" data-b="${key}|__any" onclick="toggleBrand('${key}','__any')">${esc(t("any_brand"))}</div>`]
+      .concat(brandsFor(key).map(b =>
+        `<div class="chiptoggle chip-sm${bs.has(b) ? " on" : ""}" data-b="${key}|${esc(b)}" onclick="toggleBrand('${key}','${esc(b)}')">${esc(b)}</div>`))
       .join("");
     const varChips = (cat.variants || []).map(v =>
-      `<div class="chiptoggle chip-sm" data-v="${key}|${esc(v[0])}" onclick="toggleVariant('${key}','${esc(v[0])}')">${esc(v[1])}</div>`).join("");
+      `<div class="chiptoggle chip-sm${vs.has(v[0]) ? " on" : ""}" data-v="${key}|${esc(v[0])}" onclick="toggleVariant('${key}','${esc(v[0])}')">${esc(variantLabel(v))}</div>`).join("");
+
     return `
       <div class="detail-block">
-        <div class="detail-cat">${esc(cat.label)}</div>
-        <div class="detail-label">Brand interested</div>
+        <div class="detail-cat">${esc(t(cat.i18n))}</div>
+        <div class="detail-label">${esc(t("brand_label"))}</div>
         <div class="chip-grid">${brandChips}</div>
-        ${cat.variants.length ? `<div class="detail-label">Size / type</div><div class="chip-grid">${varChips}</div>` : ""}
+        ${cat.variants.length ? `<div class="detail-label">${esc(t("variant_label"))}</div><div class="chip-grid">${varChips}</div>` : ""}
       </div>`;
   }).join("");
 }
@@ -356,16 +500,14 @@ function toggleBrand(key, brand) {
   const s = selBrand[key] = selBrand[key] || new Set();
   if (brand === "__any") { s.clear(); s.add("__any"); }
   else { s.delete("__any"); s.has(brand) ? s.delete(brand) : s.add(brand); }
-  document.querySelectorAll(`[data-b^="${key}|"]`).forEach(el => {
-    const b = el.getAttribute("data-b").split("|")[1];
-    el.classList.toggle("on", s.has("__any") ? b === "__any" : s.has(b));
-  });
+  if (s.size === 0) s.add("__any");   /* never leave a category with no brand picked */
+  rebuildDetails();
 }
 
 function toggleVariant(key, vKey) {
   const s = selVar[key] = selVar[key] || new Set();
   s.has(vKey) ? s.delete(vKey) : s.add(vKey);
-  document.querySelector(`[data-v="${key}|${vKey}"]`)?.classList.toggle("on", s.has(vKey));
+  rebuildDetails();
 }
 
 /* ── Exchange ── */
@@ -385,21 +527,21 @@ function onPhoto(input) {
   const img = document.getElementById("photoPreview");
   if (!file) { photoBlob = null; img.hidden = true; return; }
   photoBlob = file;
-  const url = URL.createObjectURL(file);
-  img.src = url;
+  img.src = URL.createObjectURL(file);
   img.hidden = false;
 }
 
-/* ── Build selections + summary ── */
+/* ── Selections + summary (always in English, so the stored lead is consistent) ── */
 function buildSelections() {
   const out = [];
   for (const key of CATEGORIES.map(c => c.key).filter(k => active.has(k))) {
-    const brands = selBrand[key] && selBrand[key].size ? [...selBrand[key]] : ["__any"];
-    const vars   = selVar[key]   && selVar[key].size   ? [...selVar[key]]   : [""];
-    const brandList = brands.includes("__any") ? [""] : brands;
-    for (const b of brandList) {
+    const bs = selBrand[key];
+    const brands = bs && bs.size && !bs.has("__any") ? [...bs] : [""];
+    const vs = selVar[key];
+    const vars = vs && vs.size ? [...vs] : [""];
+    for (const b of brands) {
       for (const v of vars) {
-        out.push({ category: key, brand: b === "__any" ? "" : b, variant: v });
+        out.push({ category: key, brand: b, variant: v });
         if (out.length >= 12) return out;
       }
     }
@@ -410,9 +552,10 @@ function buildSelections() {
 function requirementSummary() {
   return CATEGORIES.map(c => c.key).filter(k => active.has(k)).map(key => {
     const cat = CAT_BY_KEY[key];
-    const brands = selBrand[key] && selBrand[key].size && !selBrand[key].has("__any")
-      ? [...selBrand[key]].join("/") : "";
-    const vars = selVar[key] && selVar[key].size ? [...selVar[key]].join("/") : "";
+    const bs  = selBrand[key];
+    const brands = bs && bs.size && !bs.has("__any") ? [...bs].join("/") : "";
+    const vs  = selVar[key];
+    const vars = vs && vs.size ? [...vs].join("/") : "";
     return [cat.label, brands, vars].filter(Boolean).join(" · ");
   }).join(" ; ");
 }
@@ -425,15 +568,15 @@ function validate() {
   document.getElementById("submitBtn").disabled = !ok;
   return ok;
 }
-["fName", "fPhone"].forEach(id => document.addEventListener("input", e => { if (e.target.id === id) validate(); }));
+document.addEventListener("input", e => { if (e.target.id === "fName" || e.target.id === "fPhone") validate(); });
 
 /* ── Submit ── */
 async function submitEnquiry() {
-  if (!validate()) { showToast("Add your name and 10-digit phone number.", "error"); return; }
+  if (!validate()) { showToast(t("err_required"), "error"); return; }
   const btn = document.getElementById("submitBtn");
-  btn.disabled = true; btn.textContent = "Sending…";
+  sending = true; btn.disabled = true; paintSubmit();
   try {
-    const blob = photoBlob ? await compressImage(photoBlob) : null;   /* shared.js */
+    const blob = photoBlob ? await compressImage(photoBlob) : null;
     const fd = new FormData();
     fd.append("store", currentStoreId());
     fd.append("customer_name", document.getElementById("fName").value.trim());
@@ -451,31 +594,32 @@ async function submitEnquiry() {
 
     const res = await fetch(location.origin + "/api/public/enquiry", { method: "POST", body: fd });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Could not send your enquiry.");
+    if (!res.ok) throw new Error(data.error || t("err_send"));
 
     document.getElementById("formArea").style.display = "none";
-    const done = document.getElementById("doneArea");
-    done.style.display = "block";
+    document.getElementById("doneArea").style.display = "block";
     if (store && store.phone) {
       document.getElementById("waBtn").hidden = false;
       document.getElementById("doneMsg").textContent =
-        `We have your enquiry. Our team at ${store.name || "the store"} will call you shortly.`;
+        t("done_store_pre") + (store.name || "") + t("done_store_post");
+    } else {
+      document.getElementById("doneMsg").textContent = t("done_default");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (e) {
-    showToast(e.message || "Could not send your enquiry.", "error");
-    btn.disabled = false; btn.textContent = "Submit enquiry";
+    showToast(e.message || t("err_send"), "error");
+    sending = false; btn.disabled = false; paintSubmit();
   }
 }
 
 function whatsappStore() {
   const num = store && store.phone ? String(store.phone).replace(/\D/g, "") : "";
   const to  = num.length === 10 ? "91" + num : num;
-  const msg = `Hello ${store?.name || "Hariom Electronics"}, I just submitted an enquiry on your website.`;
+  const msg = t("wa_msg_pre") + (store?.name || "Hariom Electronics") + t("wa_msg_post");
   window.open(`https://wa.me/${to}?text=${encodeURIComponent(msg)}`, "_blank");
 }
 
-/* ── Small helpers (esc for attribute/text safety) ── */
+/* ── helpers ── */
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -483,11 +627,11 @@ function esc(s) {
 
 /* ── Init ── */
 (async function init() {
-  renderCategories();
+  setLang("en");
   setExchange(true);
   setCondition("working");
   await Promise.all([loadStores(), loadTally()]);
-  rebuildDetails();          /* in case categories were pre-selected (none by default) */
+  rebuildDetails();
   validate();
 })();
 </script>

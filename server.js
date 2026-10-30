@@ -5626,17 +5626,32 @@ app.post("/api/public/enquiry", publicEnquiryLimiter, enquiryPhoto, async (req, 
     let products = selections.map(s => ({ product_name: productLine(s), quoted_price: 0 })).filter(p => p.product_name);
     if (!products.length) products = [{ product_name: (summary || note).slice(0, 120), quoted_price: 0 }];
 
-    /* ── Resolve the store: by doc id first, then by key ── */
+    /* ── Resolve the store: by doc id, then key, then name (case-insensitive) ── */
     let storeId = "";
     const storeInput = String(b.store || "").trim();
     if (storeInput) {
       try {
         const byId = await getDoc(doc(db, "stores", storeInput));
-        if (byId.exists()) {
-          storeId = byId.id;
-        } else {
+        if (byId.exists()) storeId = byId.id;
+        if (!storeId) {
           const byKey = await getDocs(query(collection(db, "stores"), where("key", "==", storeInput)));
           if (!byKey.empty) storeId = byKey.docs[0].id;
+        }
+        if (!storeId) {
+          const byName = await getDocs(query(collection(db, "stores"), where("name", "==", storeInput)));
+          if (!byName.empty) storeId = byName.docs[0].id;
+        }
+        if (!storeId) {
+          /* last resort: case-insensitive match on id / key / name */
+          const all  = await getDocs(collection(db, "stores"));
+          const want = storeInput.toLowerCase();
+          const hit  = all.docs.find(d => {
+            const s = d.data() || {};
+            return d.id.toLowerCase() === want
+              || String(s.key  || "").toLowerCase() === want
+              || String(s.name || "").toLowerCase() === want;
+          });
+          if (hit) storeId = hit.id;
         }
       } catch (e) { console.warn("[public enquiry store]", e.message); }
       if (!storeId) return res.status(400).json({ error: "This enquiry link is not valid. Please ask the store for a fresh link." });
@@ -5702,7 +5717,7 @@ app.put("/leads/:id", authenticate, authorize(["admin", "accountant", "staff"]),
       "customer_name", "phone", "alternate_phone", "address",
       "product_interest", "quoted_price", "products", "remarks", "status",
       "followup_note", "admin_quoted_price", "converted_delivery_id",
-      "assigned_to", "assigned_to_name",
+      "assigned_to", "assigned_to_name", "storeId",
       // ── CRM card fields (leads.html) ──
       "source", "quote_given", "sale_type", "loss_reason",
       "deposit_amount", "deal_value", "cash_collected", "refund_amount", "commission_pct",
@@ -5737,6 +5752,7 @@ app.put("/leads/:id", authenticate, authorize(["admin", "accountant", "staff"]),
       delete updates.followup_note;
       delete updates.assigned_to;
       delete updates.assigned_to_name;
+      delete updates.storeId;
       delete updates.deposit_amount;
       delete updates.deal_value;
       delete updates.cash_collected;

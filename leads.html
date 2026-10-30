@@ -1354,6 +1354,15 @@ function openDrawer(id) {
       : [])
     .join("");
 
+  /* Store options — lets the lead be moved between branches */
+  const storeNow = l.storeId || "";
+  const storeOpts = [`<option value="">— No store —</option>`]
+    .concat(STORES.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name || s.id)}</option>`))
+    .concat(storeNow && !STORES.some(s => s.id === storeNow)
+      ? [`<option value="${escHtml(storeNow)}">${escHtml(storeNow)}</option>`]
+      : [])
+    .join("");
+
   const lostOpts = [`<option value="">— Select a reason —</option>`]
     .concat(LOSS_REASONS.map(r => `<option value="${r.key}" ${l.loss_reason === r.key ? "selected" : ""}>${r.label}</option>`)).join("");
 
@@ -1377,7 +1386,11 @@ function openDrawer(id) {
       <select id="dwLossReason">${lostOpts}</select>
     </div>
     <div class="field">
-      <label>Owner <span style="text-transform:none;letter-spacing:0;color:var(--outline);">— reassigning overrides the capturer</span></label>
+      <label>Store <span style="text-transform:none;letter-spacing:0;color:var(--outline);">— move the lead to another store</span></label>
+      <select id="dwStore">${storeOpts}</select>
+    </div>
+    <div class="field">
+      <label>Owner <span style="text-transform:none;letter-spacing:0;color:var(--outline);">— salesman the lead is assigned to</span></label>
       <select id="dwOwner" onchange="onDrawerOwnerChange()">${ownerOpts}</select>
     </div>
     <div class="field">
@@ -1469,6 +1482,7 @@ function openDrawer(id) {
   `;
 
   document.getElementById("dwOwner").value = ownerNow;
+  document.getElementById("dwStore").value = storeNow;
 
   /* Show the rep's commission rate rather than a blank box that would save as 0 */
   if (!l.commission_pct) {
@@ -1546,6 +1560,7 @@ async function saveDrawer() {
     followup_note: val("dwNote"),
     assigned_to: ownerSel.value || "",
     assigned_to_name: ownerSel.value ? ownerText : "",
+    storeId: val("dwStore"),
     deal_value: numOrNull("dwDealValue"),
     admin_quoted_price: val("dwRevPrice") === "" ? null : numOrNull("dwRevPrice"),
     deposit_amount: numOrNull("dwDeposit"),
