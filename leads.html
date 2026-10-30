@@ -521,6 +521,9 @@
 ════════════════════════════════════════════════ */
 
 const BASE_URL = window.location.origin;
+/* Public base for the customer enquiry link — the branded domain, so shared
+   links stay branded no matter which host the CRM itself is opened on. */
+const ENQUIRY_BASE = "https://enquiry.hariomelectronics.shop";
 
 /* ── Pipeline vocabulary is shared with the staff panel — see shared.js ──
    LEAD_STAGES / LEAD_LOSS_REASONS / LEAD_SOURCES / leadStageLabel() come from there
@@ -1634,8 +1637,8 @@ function shareUrlFor(storeId) {
   const s = STORES.find(x => x.id === storeId);
   const slug = s ? String(s.name || s.id).toLowerCase() : "";
   return slug
-    ? window.location.origin + "/enquiry/" + encodeURIComponent(slug)
-    : window.location.origin + "/enquiry";
+    ? ENQUIRY_BASE + "/enquiry/" + encodeURIComponent(slug)
+    : ENQUIRY_BASE + "/enquiry";
 }
 
 function openShareLink() {

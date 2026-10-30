@@ -1833,6 +1833,9 @@ const BASE_URL = window.location.origin && window.location.origin !== 'null'
   ? window.location.origin
   : 'http://localhost:5000';
 
+/* Public base for the customer enquiry link — the branded domain. */
+const ENQUIRY_BASE = "https://enquiry.hariomelectronics.shop";
+
 /* ── Lead pipeline vocabulary comes from shared.js ──
    LEAD_STAGES / LEAD_LOSS_REASONS / LEAD_SOURCES / leadStageLabel() are shared
    with the CRM panel so the two can never disagree about statuses or reasons. */
@@ -2252,8 +2255,7 @@ function trCopyLink() {
 
 /* Public enquiry link for this store — customers who open it become "Online" leads */
 function shareEnquiryLink() {
-  const base = (window.location.origin && window.location.origin !== "null") ? window.location.origin : BASE_URL;
-  const url  = base + "/enquiry" + (staffStoreId ? "/" + encodeURIComponent(staffStoreId) : "");
+  const url  = ENQUIRY_BASE + "/enquiry" + (staffStoreId ? "/" + encodeURIComponent(staffStoreId) : "");
   const text = `Hariom Electronics — product enquiry\nTell us what you're looking for and we'll call you back:\n${url}`;
   if (navigator.share) { navigator.share({ title: "Hariom Electronics enquiry", text, url }).catch(function () {}); return; }
   if (confirm("Share enquiry link\n\n" + url + "\n\nOK = WhatsApp, Cancel = copy link")) {
