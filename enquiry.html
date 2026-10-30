@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="mr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -218,7 +218,7 @@ const params      = new URLSearchParams(location.search);
 const STORE_PARAM = params.get("store") || "";
 const DEFAULT_STORE_KEY = "dhanore";
 
-let LANG = "en";
+let LANG = "mr";
 let STORES = [];
 let store  = null;
 let TALLY_NAMES = null;
@@ -627,7 +627,7 @@ function esc(s) {
 
 /* ── Init ── */
 (async function init() {
-  setLang("en");
+  setLang("mr");   /* Marathi first — the toggle switches to English */
   setExchange(true);
   setCondition("working");
   await Promise.all([loadStores(), loadTally()]);

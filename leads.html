@@ -910,7 +910,7 @@ function renderCard(l) {
     <div class="kb-card" draggable="true" data-id="${escHtml(l.id)}" onclick="openDrawer('${escHtml(l.id)}')">
       <div class="kb-card-name">${escHtml(l.customer_name || "—")} ${onlineChip(l)} ${mkStoreBadge(l.storeId, 18)}</div>
       <div class="kb-card-meta">
-        ${escHtml(l.phone || "—")} · ${productSummary(l)}
+        ${escHtml(l.phone || "—")} · ${productSummary(l)}${l.exchange_photo_url ? " · 📷" : ""}
       </div>
       ${flags.length ? `<div class="kb-card-meta" style="margin-top:6px;">${flags.join(" ")}</div>` : ""}
       <div class="kb-card-row">
@@ -1371,8 +1371,23 @@ function openDrawer(id) {
     ${dr("Phone", `<a href="tel:${escHtml(l.phone || "")}" style="color:var(--primary);font-weight:700;text-decoration:none;">${escHtml(l.phone || "—")}</a>${l.alternate_phone ? " / " + escHtml(l.alternate_phone) : ""}`)}
     ${dr("Products", `<div>${prodHtml}</div>`)}
     ${l.address ? dr("Address", escHtml(l.address)) : ""}
+    ${l.preferred_contact ? dr("Preferred time", escHtml(l.preferred_contact)) : ""}
     ${l.remarks ? dr("Remarks", escHtml(l.remarks)) : ""}
     ${dr("Added by", `${escHtml(l.created_by_name || "—")} · ${fmtDate(l.created_at)}`)}
+    ${l.source === "web" ? dr("Source", "🌐 Online enquiry") : ""}
+
+    ${(l.exchange_offer || l.exchange_photo_url) ? `
+      <div class="drawer-section">Exchange offer</div>
+      ${dr("Condition", l.exchange_condition === "not_working" ? "Not working" : "Working")}
+      ${l.exchange_photo_url
+        ? `<a href="${escHtml(l.exchange_photo_url)}" target="_blank" rel="noopener" style="display:block;margin-top:8px;">
+             <img src="${escHtml(l.exchange_photo_url)}" alt="Old product the customer wants to exchange"
+                  loading="lazy"
+                  style="width:100%;max-height:320px;object-fit:contain;border-radius:12px;border:1px solid var(--border);background:var(--surface-container-high);">
+             <div style="font-size:11px;color:var(--on-surface-variant);text-align:center;margin-top:6px;">Tap to open full size</div>
+           </a>`
+        : `<div style="font-size:12px;color:var(--on-surface-variant);margin-top:6px;">No photo provided</div>`}
+    ` : ""}
 
     <div class="drawer-section">Pipeline</div>
     <div class="field">
