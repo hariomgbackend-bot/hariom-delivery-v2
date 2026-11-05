@@ -1580,10 +1580,13 @@ async function loadBrandActions(ticket) {
     const container = document.getElementById("brandActionContainer");
     if (!container) return;
 
+    // Stash the matched brand so the (safely-quoted) button can open its form
+    _brandActionMap[ticket.id] = matched;
+
     let actionHtml = "";
     if (matched.installation_method === "form") {
-      actionHtml = `<button class="btn btn-teal btn-sm" onclick="window.open('${matched.form_url}','_blank')">
-        <span class="material-symbols-outlined" style="font-size:14px;">open_in_new</span> Open ${matched.name} Form
+      actionHtml = `<button class="btn btn-teal btn-sm" onclick="openVendorForm('${ticket.id}')">
+        <span class="material-symbols-outlined" style="font-size:14px;">open_in_new</span> ⚡ Open ${esc(matched.name)} Form (autofill)
       </button>`;
     } else if (matched.installation_method === "whatsapp" && matched.whatsapp_number) {
       const msg = encodeURIComponent(
@@ -1608,8 +1611,60 @@ async function loadBrandActions(ticket) {
       <div class="brand-action-panel">
         <div class="brand-action-title">🏭 ${matched.name} — ${matched.installation_method} request</div>
         <div class="brand-action-btns">${actionHtml}</div>
+        ${matched.installation_method === "form" ? `
+        <div style="font-size:11px;color:var(--on-surface-variant);margin-top:8px;line-height:1.5;">
+          Opens the form with this ticket's details in the link, then tap the
+          <b>Hariom Autofill</b> bookmarklet on that page to fill it.
+          <a href="/vendor-autofill.html" target="_blank" style="color:var(--tertiary);font-weight:700;">Enable it once ↗</a>
+        </div>` : ""}
       </div>`;
   } catch (e) { /* no brands configured, silently skip */ }
+}
+
+/* ── VENDOR FORM AUTOFILL ──
+   Brand form buttons carry the ticket data in the URL fragment (#hariom=…).
+   The one-time-installed "Hariom Autofill" bookmarklet (vendor-autofill.html)
+   reads that fragment inside the vendor page and fills the form.
+   Cross-origin rules mean we can't fill the vendor tab from here — hence the link. */
+const _brandActionMap = {};   // ticketId → matched brand record (for form buttons)
+const _b64url = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+
+// Compact, PII-light payload the bookmarklet consumes. Older tickets may only
+// have a combined `address` string — fall back to that + a pincode regex.
+function buildVendorAutofillUrl(formUrl, t) {
+  const base = String(formUrl || "").split("#")[0];
+  const purchase = t.purchase_date
+    ? (t.purchase_date.seconds ? new Date(t.purchase_date.seconds * 1000) : new Date(t.purchase_date))
+    : null;
+  const payload = {
+    v: 1,
+    ref: t.id,
+    type: t.type,                        // "installation" | "complaint"
+    name: t.customer_name || "",
+    phone: t.phone || "",
+    alt: t.alternate_phone || "",
+    addr1: t.addr1 || t.address || "",
+    addr2: t.addr2 || "",
+    addr: t.address || "",
+    pin: t.pincode || (String(t.address || "").match(/\b(\d{6})\b/) || [])[1] || "",
+    state: t.state || "", city: t.city || "", area: t.area || "",
+    product: t.product_name || "",
+    serial: t.serial_number || "",
+    desc: t.description || "",
+    brand: ticketBrandName(t) || "",
+    inStock: t.in_stock === true,
+    purchase: purchase && !isNaN(purchase.getTime()) ? purchase.toISOString().slice(0, 10) : "",
+    store: (typeof storeDisplayName === "function" ? storeDisplayName(t.storeId) : "") || ""
+  };
+  return `${base}#hariom=${_b64url(JSON.stringify(payload))}`;
+}
+
+// Open a brand's form with the ticket preloaded into the link.
+function openVendorForm(ticketId) {
+  const t = allTickets.find(x => x.id === ticketId);
+  const b = _brandActionMap[ticketId];
+  if (!t || !b || !b.form_url) { showToast("⚠ No form URL configured for this brand"); return; }
+  window.open(buildVendorAutofillUrl(b.form_url, t), "_blank");
 }
 
 
