@@ -139,7 +139,25 @@
         "box-shadow:0 14px 44px rgba(0,0,0,.5)";
       d.innerHTML = rows;
       document.body.appendChild(d);
-      setTimeout(function(){ d.style.transition = "opacity .5s"; d.style.opacity = "0"; setTimeout(function(){ d.remove(); }, 600); }, 13000);
+      setTimeout(function(){ d.style.transition = "opacity .5s"; d.style.opacity = "0"; setTimeout(function(){ d.remove(); }, 13000); }, 13000);
+    }
+
+    // Big, unmissable banner — used when the bookmarklet can't fill, so a click
+    // is never silently "nothing happened".
+    function notice(title, detail){
+      var old = document.getElementById("hariom-autofill-notice"); if (old) old.remove();
+      var d = document.createElement("div");
+      d.id = "hariom-autofill-notice";
+      d.style.cssText = "position:fixed;z-index:2147483647;left:50%;top:20px;transform:translateX(-50%);"+
+        "max-width:80vw;background:#93000a;color:#ffd7d2;border:1px solid #ffb4ab;border-radius:12px;"+
+        "padding:14px 18px;font:600 14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;"+
+        "box-shadow:0 14px 44px rgba(0,0,0,.55);cursor:pointer";
+      d.innerHTML = '<div style="font-weight:800;margin-bottom:4px;">⚡ Hariom Autofill</div>' +
+        '<div>' + title + '</div>' +
+        (detail ? '<div style="margin-top:6px;font-size:12px;opacity:.85;word-break:break-all;">' + detail + '</div>' : "") +
+        '<div style="margin-top:8px;font-size:11px;opacity:.7;">(click to dismiss)</div>';
+      d.addEventListener("click", function(){ d.remove(); });
+      document.body.appendChild(d);
     }
 
     // Set an input/textarea value the "React-proof" way: native setter + events.
@@ -169,17 +187,27 @@
       while (s.length % 4) s += "=";
       return decodeURIComponent(escape(atob(s)));
     }
-    var hash = location.hash || "";
-    var mm = hash.match(/[#&]hariom=([^&]+)/);
-    if (!mm) { toast("Open this page from a Service Ticket first (no data in link)."); return; }
+    // Feedback FIRST — so a click is never a silent "nothing happened".
+    // If you see nothing at all after clicking, the bookmarklet itself did not run.
+    toast("⚡ Hariom Autofill: reading ticket data…");
+
+    // Read the payload from the fragment, or the query string if the vendor
+    // site rewrote the link on the way in.
+    var hash = location.hash || "", qs = location.search || "";
+    var mm = hash.match(/[#&]hariom=([^&]+)/) || qs.match(/[?&]hariom=([^&]+)/);
+    if (!mm) {
+      notice("No ticket data found in this link. Re-open the form from the Service Ticket — the details ride in the URL.",
+             "Current URL: " + location.href);
+      return;
+    }
     var data;
     try { data = JSON.parse(b64urlDecode(mm[1])); }
-    catch(e){ toast("Autofill data in the link is unreadable."); return; }
+    catch(e){ notice("The ticket data in the link is unreadable.", String(e)); return; }
 
     var host = location.hostname;
     if (/haier\.com/i.test(host)) { fillHaier(data); return; }
     if (/bajajelectricals\.com/i.test(host)) { fillBajaj(data); return; }
-    toast("No autofill profile for this site (" + host + ").");
+    notice("No autofill profile for this site (" + host + "). This tool only fills Haier and Bajaj forms.");
 
     // ═══════════════════════════════════════════════════════════════
     //  HAIER — selectors validated against the live appointment page
