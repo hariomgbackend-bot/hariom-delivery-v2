@@ -1427,6 +1427,9 @@ function openTicketDetail(id) {
   // Two statuses: new → logged (requires tracking/ticket number)
   const isLogged = t.status === "logged";
 
+  // Built-in Haier/Bajaj form button (opens the form pre-filled with this ticket)
+  const vendorBtn = vendorFormButtonHtml(t);
+
   // Build tracking history display
   const trackingHistory = Array.isArray(t.tracking_history) && t.tracking_history.length > 0
     ? `<div style="margin-top:8px;">
@@ -1538,6 +1541,18 @@ function openTicketDetail(id) {
 
     <!-- Brand request actions -->
     <div id="brandActionContainer"></div>
+
+    <!-- Vendor form autofill (built-in Haier/Bajaj) -->
+    ${vendorBtn ? `
+    <div style="margin-top:14px;">
+      <div class="section-title">Brand Service Form</div>
+      ${vendorBtn}
+      <div style="font-size:11px;color:var(--on-surface-variant);margin-top:6px;line-height:1.5;">
+        Opens the form with this ticket's details, then tap the
+        <b>Hariom Autofill</b> bookmarklet on that page to fill it.
+        <a href="/vendor-autofill.html" target="_blank" style="color:var(--tertiary);font-weight:700;">Enable it once ↗</a>
+      </div>
+    </div>` : ""}
 
     <!-- WhatsApp share -->
     <div style="margin-top:14px;">
@@ -1659,12 +1674,36 @@ function buildVendorAutofillUrl(formUrl, t) {
   return `${base}#hariom=${_b64url(JSON.stringify(payload))}`;
 }
 
-// Open a brand's form with the ticket preloaded into the link.
-function openVendorForm(ticketId) {
+// Built-in vendor forms — so Haier/Bajaj product tickets ALWAYS get the autofill
+// button, even when the brand isn't configured in admin → Brands.
+const VENDOR_FORMS = [
+  { key: "HAIER", label: "Haier", url: "https://www.haier.com/in/service-support/service-appointment/", match: /HAIER/i },
+  { key: "BAJAJ", label: "Bajaj", url: "https://www.bajajelectricals.com/pages/service-request-form", match: /BAJAJ|MORPHY|NEX\s*LIFE/i }
+];
+// Detect the vendor from the ticket's brand or product name.
+function detectVendor(t) {
+  const hay = ((t.brand || "") + " " + (t.product_name || "")).toUpperCase();
+  return VENDOR_FORMS.find(v => v.match.test(hay)) || null;
+}
+function vendorFormButtonHtml(t) {
+  const v = detectVendor(t);
+  if (!v) return "";
+  return `<button class="btn btn-teal btn-sm" style="width:100%;" onclick="openVendorForm('${t.id}','${v.key}')">
+    <span class="material-symbols-outlined" style="font-size:14px;">open_in_new</span> ⚡ Open ${esc(v.label)} Form (autofill)
+  </button>`;
+}
+
+// Open a vendor form with the ticket preloaded into the link.
+// vendorKey → built-in Haier/Bajaj form; otherwise the admin-configured brand URL.
+function openVendorForm(ticketId, vendorKey) {
   const t = allTickets.find(x => x.id === ticketId);
-  const b = _brandActionMap[ticketId];
-  if (!t || !b || !b.form_url) { showToast("⚠ No form URL configured for this brand"); return; }
-  window.open(buildVendorAutofillUrl(b.form_url, t), "_blank");
+  if (!t) return;
+  let url = "";
+  if (vendorKey) { const v = VENDOR_FORMS.find(x => x.key === vendorKey); if (v) url = v.url; }
+  if (!url) { const b = _brandActionMap[ticketId]; if (b && b.form_url) url = b.form_url; }
+  if (!url) { const v = detectVendor(t); if (v) url = v.url; }
+  if (!url) { showToast("⚠ No form URL configured for this brand"); return; }
+  window.open(buildVendorAutofillUrl(url, t), "_blank");
 }
 
 
