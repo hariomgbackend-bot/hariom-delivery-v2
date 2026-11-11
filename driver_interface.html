@@ -1897,7 +1897,7 @@ function toggleLang() { setLang(LANG === "mr" ? "en" : "mr"); }
    translated by meaning) and cache the result in localStorage, so once a DO has
    been viewed at the store its Marathi text is available offline at the door.
 ═══════════════════════════════════════ */
-const XLIT_KEY = "hariom_xlit_cache_v2";
+const XLIT_KEY = "hariom_xlit_cache_v3";
 let XLIT = (function () {
   try { return JSON.parse(localStorage.getItem(XLIT_KEY)) || {}; }
   catch (_) { return {}; }

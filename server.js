@@ -1591,10 +1591,11 @@ app.post("/transliterate", async (req, res) => {
 
 const XLIT_PHRASE_CACHE = new Map();
 const XLIT_PHRASE_CACHE_MAX = 5000;
+const XLIT_HAS_DEVANAGARI = /[\u0900-\u097F]/;
+const xlitSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 /* Translate one English phrase to Marathi via Google Translate (gtx).
-   Unlike word-by-word transliteration, this understands meaning — so
-   "near temple" → "मंदिराजवळ" and "Megha" → "मेघा". */
+   Returns "" on failure so the caller can retry / use the second engine. */
 async function translatePhrase(text) {
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=mr&dt=t&q=${encodeURIComponent(text)}`;
   const r = await fetch(url, { headers: { Accept: "application/json" } });
@@ -1606,74 +1607,103 @@ async function translatePhrase(text) {
   return out.trim();
 }
 
-/* Fallback: word-by-word phonetic transliteration (Input Tools). Used only if
-   the translate call fails or returns no Devanagari. */
-async function transliterateWordsFallback(text) {
-  const out = [];
-  for (const word of String(text || "").split(/\s+/)) {
-    if (!word || !/[A-Za-z]/.test(word)) { out.push(word); continue; }
-    try {
-      const url = `https://inputtools.google.com/request?text=${encodeURIComponent(word)}&itc=mr-t-i0-und&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=test`;
-      const r = await fetch(url, { headers: { Accept: "application/json" } });
-      const data = await r.json();
-      out.push(data?.[1]?.[0]?.[1]?.[0] || word);
-    } catch (_) {
-      out.push(word);
-    }
+/* Second engine (Groq) for phrases Google Translate failed on. One batched call;
+   returns an array aligned to `sources` ("" = no usable result). */
+async function translateWithGroq(sources) {
+  const out = new Array(sources.length).fill("");
+  if (!sources.length || !process.env.GROQ_API_KEY) return out;
+  try {
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You convert Indian delivery data from English to Marathi. " +
+            "Rules: (1) Personal names, society/building names, brands and place names must be written phonetically in Devanagari — transliterate them, never translate their meaning. " +
+            "(2) Translate location/relationship words (near, opposite, behind, road, lane, street, temple, mandir, bank, bus stand, water tank, etc.) into natural Marathi with correct Marathi word order/postpositions, e.g. 'near temple' -> 'मंदिराजवळ', 'behind SBI bank' -> 'SBI बँकेच्या मागे'. " +
+            "(3) Keep numbers and flat/plot numbers unchanged. " +
+            'Return ONLY JSON of the form {"translations": ["...", ...]} with exactly one item per input, in the same order.'
+        },
+        { role: "user", content: JSON.stringify({ inputs: sources }) }
+      ]
+    });
+    const raw = completion?.choices?.[0]?.message?.content || "";
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed?.translations) ? parsed.translations : [];
+    list.forEach((v, i) => {
+      if (i < out.length && typeof v === "string" && XLIT_HAS_DEVANAGARI.test(v)) out[i] = v.trim();
+    });
+  } catch (err) {
+    console.warn("[transliterate-batch] Groq fallback failed:", err.message);
   }
-  return out.join(" ");
+  return out;
 }
 
-async function translateOne(text) {
-  const src = String(text == null ? "" : text);
-  if (!src.trim() || !/[A-Za-z]/.test(src)) return src;      // nothing to translate
+/* Translate one phrase with retries. Returns "" if every attempt fails. */
+async function translateOne(src) {
+  if (!src.trim() || !/[A-Za-z]/.test(src)) return src;   // already Marathi / nothing to do
   if (XLIT_PHRASE_CACHE.has(src)) return XLIT_PHRASE_CACHE.get(src);
 
-  let result = "";
-  for (let attempt = 0; attempt < 2 && !result; attempt++) {
+  const backoff = [200, 700, 1500];
+  for (let attempt = 0; attempt < backoff.length; attempt++) {
+    let result = "";
     try { result = await translatePhrase(src); } catch (_) { result = ""; }
-    if (!result || !/[\u0900-\u097F]/.test(result)) {
-      result = "";
-      await new Promise(resolve => setTimeout(resolve, 120));
+    if (result && XLIT_HAS_DEVANAGARI.test(result) && result !== src) {
+      if (XLIT_PHRASE_CACHE.size >= XLIT_PHRASE_CACHE_MAX) XLIT_PHRASE_CACHE.clear();
+      XLIT_PHRASE_CACHE.set(src, result);
+      return result;
     }
+    await xlitSleep(backoff[attempt]);
   }
-  if (!result) {
-    try { result = await transliterateWordsFallback(src); } catch (_) { result = ""; }
-  }
-  if (!result) result = src;
-
-  if (XLIT_PHRASE_CACHE.size >= XLIT_PHRASE_CACHE_MAX) XLIT_PHRASE_CACHE.clear();
-  XLIT_PHRASE_CACHE.set(src, result);
-  return result;
+  return "";
 }
 
 /* Batch translation for display-time Marathi DO data (names / addresses).
    POST /transliterate-batch { texts: [] } → { results: [] }
-   Kept under the same URL/shape the client already uses. Dedupes identical
-   strings, caches results, and translates with bounded concurrency. */
+   Throttled + retried, with a Groq second pass. Deliberately does NOT fall back
+   to phonetic transliteration (that is what produced wrong output). Anything
+   still unresolved is returned as the original and retried by the client. */
 app.post("/transliterate-batch", async (req, res) => {
   const texts = Array.isArray(req.body?.texts) ? req.body.texts : [];
   if (!texts.length) return res.json({ results: [] });
 
   const unique = [...new Set(texts.map(tx => String(tx == null ? "" : tx)))];
   const mapping = new Map();
+  const failed = [];
   let cursor = 0;
 
   async function worker() {
     while (cursor < unique.length) {
       const src = unique[cursor++];
-      mapping.set(src, await translateOne(src));
+      const out = await translateOne(src);
+      if (out) mapping.set(src, out);
+      else failed.push(src);
+      await xlitSleep(120);          // gentle spacing to avoid throttling
     }
   }
 
-  const CONCURRENCY = 4;
+  // concurrency 2 — enough for a manifest, gentle enough not to get throttled
   await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCY, unique.length) }, () => worker())
+    Array.from({ length: Math.min(2, unique.length) }, () => worker())
   );
+
+  if (failed.length) {
+    const groqOut = await translateWithGroq(failed);
+    groqOut.forEach((v, i) => {
+      if (!v) return;
+      const src = failed[i];
+      mapping.set(src, v);
+      if (XLIT_PHRASE_CACHE.size >= XLIT_PHRASE_CACHE_MAX) XLIT_PHRASE_CACHE.clear();
+      XLIT_PHRASE_CACHE.set(src, v);
+    });
+  }
 
   const results = texts.map(tx => {
     const src = String(tx == null ? "" : tx);
-    return mapping.get(src) || src;
+    return mapping.get(src) || src;   // unresolved → original English; client retries later
   });
 
   res.json({ results });
