@@ -1591,11 +1591,13 @@ app.post("/transliterate", async (req, res) => {
 
 const XLIT_PHRASE_CACHE = new Map();
 const XLIT_PHRASE_CACHE_MAX = 5000;
+const XLIT_WORD_CACHE = new Map();
+const XLIT_WORD_CACHE_MAX = 5000;
 const XLIT_HAS_DEVANAGARI = /[\u0900-\u097F]/;
 const xlitSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 /* Translate one English phrase to Marathi via Google Translate (gtx).
-   Returns "" on failure so the caller can retry / use the second engine. */
+   Returns "" on failure so the caller can retry / use the next engine. */
 async function translatePhrase(text) {
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=mr&dt=t&q=${encodeURIComponent(text)}`;
   const r = await fetch(url, { headers: { Accept: "application/json" } });
@@ -1625,6 +1627,7 @@ async function translateWithGroq(sources) {
             "Rules: (1) Personal names, society/building names, brands and place names must be written phonetically in Devanagari — transliterate them, never translate their meaning. " +
             "(2) Translate location/relationship words (near, opposite, behind, road, lane, street, temple, mandir, bank, bus stand, water tank, etc.) into natural Marathi with correct Marathi word order/postpositions, e.g. 'near temple' -> 'मंदिराजवळ', 'behind SBI bank' -> 'SBI बँकेच्या मागे'. " +
             "(3) Keep numbers and flat/plot numbers unchanged. " +
+            "(4) Every English word must appear in Devanagari script in the output — no Latin letters may remain. " +
             'Return ONLY JSON of the form {"translations": ["...", ...]} with exactly one item per input, in the same order.'
         },
         { role: "user", content: JSON.stringify({ inputs: sources }) }
@@ -1642,7 +1645,66 @@ async function translateWithGroq(sources) {
   return out;
 }
 
-/* Translate one phrase with retries. Returns "" if every attempt fails. */
+/* Phonetic transliteration of one Latin token via Google Input Tools.
+   This is the guaranteed-conversion path from the original system. */
+async function transliterateWord(word) {
+  const core = String(word == null ? "" : word);
+  if (!core || !/[A-Za-z]/.test(core)) return core;
+  if (XLIT_WORD_CACHE.has(core)) return XLIT_WORD_CACHE.get(core);
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const url = `https://inputtools.google.com/request?text=${encodeURIComponent(core)}&itc=mr-t-i0-und&num=3&cp=0&cs=1&ie=utf-8&oe=utf-8&app=test`;
+      const r = await fetch(url, { headers: { Accept: "application/json" } });
+      const data = await r.json();
+      const candidates = data?.[1]?.[0]?.[1] || [];
+      if (candidates.length) {
+        let best = candidates[0];
+        // Preserve a trailing 'a' sound: Megha -> मेघा, not मेघ.
+        if (/a$/i.test(core) && !/[ाआ]$/.test(best)) {
+          const withAa = candidates.find(c => /[ाआ]$/.test(c));
+          if (withAa) best = withAa;
+        }
+        if (XLIT_WORD_CACHE.size >= XLIT_WORD_CACHE_MAX) XLIT_WORD_CACHE.clear();
+        XLIT_WORD_CACHE.set(core, best);
+        return best;
+      }
+    } catch (_) { /* retry */ }
+    await xlitSleep(100);
+  }
+  return core;
+}
+
+/* Transliterate a whole English string word-by-word (never leaves Latin). */
+async function transliterateWhole(text) {
+  const parts = String(text == null ? "" : text).split(/(\s+)/);
+  const out = [];
+  for (const part of parts) {
+    if (!part) continue;
+    if (!/[A-Za-z]/.test(part)) { out.push(part); continue; }
+    const m = part.match(/^([^A-Za-z]*)([A-Za-z][A-Za-z&.'-]*)([^A-Za-z]*)$/);
+    if (!m) { out.push(await transliterateWord(part)); continue; }
+    out.push(m[1] + (await transliterateWord(m[2])) + m[3]);
+  }
+  return out.join("");
+}
+
+/* Replace any Latin tokens left inside an already-translated string. */
+async function devanagarify(text) {
+  const src = String(text == null ? "" : text);
+  const tokens = [...new Set(src.match(/[A-Za-z][A-Za-z&.'-]*/g) || [])];
+  if (!tokens.length) return src;
+  const map = new Map();
+  for (const tok of tokens) map.set(tok, await transliterateWord(tok));
+  return src.replace(/[A-Za-z][A-Za-z&.'-]*/g, tok => map.get(tok) || tok);
+}
+
+function cachePhrase(src, out) {
+  if (XLIT_PHRASE_CACHE.size >= XLIT_PHRASE_CACHE_MAX) XLIT_PHRASE_CACHE.clear();
+  XLIT_PHRASE_CACHE.set(src, out);
+}
+
+/* Google Translate with retries. Returns "" if every attempt fails. */
 async function translateOne(src) {
   if (!src.trim() || !/[A-Za-z]/.test(src)) return src;   // already Marathi / nothing to do
   if (XLIT_PHRASE_CACHE.has(src)) return XLIT_PHRASE_CACHE.get(src);
@@ -1651,27 +1713,25 @@ async function translateOne(src) {
   for (let attempt = 0; attempt < backoff.length; attempt++) {
     let result = "";
     try { result = await translatePhrase(src); } catch (_) { result = ""; }
-    if (result && XLIT_HAS_DEVANAGARI.test(result) && result !== src) {
-      if (XLIT_PHRASE_CACHE.size >= XLIT_PHRASE_CACHE_MAX) XLIT_PHRASE_CACHE.clear();
-      XLIT_PHRASE_CACHE.set(src, result);
-      return result;
-    }
+    if (result && XLIT_HAS_DEVANAGARI.test(result)) return result;
     await xlitSleep(backoff[attempt]);
   }
   return "";
 }
 
-/* Batch translation for display-time Marathi DO data (names / addresses).
+/* Batch conversion for display-time Marathi DO data (names / addresses).
    POST /transliterate-batch { texts: [] } → { results: [] }
-   Throttled + retried, with a Groq second pass. Deliberately does NOT fall back
-   to phonetic transliteration (that is what produced wrong output). Anything
-   still unresolved is returned as the original and retried by the client. */
+
+   Pipeline: Google Translate → Groq → word-by-word transliteration.
+   Any Latin fragments left inside a translated result are also transliterated.
+   The end result is ALWAYS Devanagari (even if a phonetic spelling is imperfect),
+   because a converted-but-imperfect label is more useful than English text. */
 app.post("/transliterate-batch", async (req, res) => {
   const texts = Array.isArray(req.body?.texts) ? req.body.texts : [];
   if (!texts.length) return res.json({ results: [] });
 
   const unique = [...new Set(texts.map(tx => String(tx == null ? "" : tx)))];
-  const mapping = new Map();
+  const resolved = new Map();
   const failed = [];
   let cursor = 0;
 
@@ -1679,31 +1739,42 @@ app.post("/transliterate-batch", async (req, res) => {
     while (cursor < unique.length) {
       const src = unique[cursor++];
       const out = await translateOne(src);
-      if (out) mapping.set(src, out);
+      if (out) resolved.set(src, out);
       else failed.push(src);
       await xlitSleep(120);          // gentle spacing to avoid throttling
     }
   }
 
-  // concurrency 2 — enough for a manifest, gentle enough not to get throttled
+  // Pass 1: Google Translate (concurrency 2, spaced)
   await Promise.all(
     Array.from({ length: Math.min(2, unique.length) }, () => worker())
   );
 
+  // Pass 2: Groq for whatever Translate missed
   if (failed.length) {
     const groqOut = await translateWithGroq(failed);
-    groqOut.forEach((v, i) => {
-      if (!v) return;
-      const src = failed[i];
-      mapping.set(src, v);
-      if (XLIT_PHRASE_CACHE.size >= XLIT_PHRASE_CACHE_MAX) XLIT_PHRASE_CACHE.clear();
-      XLIT_PHRASE_CACHE.set(src, v);
-    });
+    groqOut.forEach((v, i) => { if (v) resolved.set(failed[i], v); });
   }
+
+  // Pass 3: guarantee conversion — transliterate anything still missing
+  for (const src of unique) {
+    if (resolved.has(src)) continue;
+    let out = "";
+    try { out = await transliterateWhole(src); } catch (_) { out = ""; }
+    if (out) resolved.set(src, out);
+  }
+
+  // Pass 4: fill any Latin fragments left inside translated results
+  for (const [src, out] of [...resolved.entries()]) {
+    if (!/[A-Za-z]/.test(out)) continue;
+    try { resolved.set(src, await devanagarify(out)); } catch (_) {}
+  }
+
+  for (const [src, out] of resolved.entries()) cachePhrase(src, out);
 
   const results = texts.map(tx => {
     const src = String(tx == null ? "" : tx);
-    return mapping.get(src) || src;   // unresolved → original English; client retries later
+    return resolved.get(src) || src;
   });
 
   res.json({ results });
