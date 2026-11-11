@@ -1589,66 +1589,92 @@ app.post("/transliterate", async (req, res) => {
   }
 });
 
-const XLIT_WORD_CACHE = new Map();
-const XLIT_WORD_CACHE_MAX = 5000;
+const XLIT_PHRASE_CACHE = new Map();
+const XLIT_PHRASE_CACHE_MAX = 5000;
 
-/* Batch transliteration for display-time Marathi DO data (names / addresses).
+/* Translate one English phrase to Marathi via Google Translate (gtx).
+   Unlike word-by-word transliteration, this understands meaning — so
+   "near temple" → "मंदिराजवळ" and "Megha" → "मेघा". */
+async function translatePhrase(text) {
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=mr&dt=t&q=${encodeURIComponent(text)}`;
+  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!r.ok) return "";
+  const data = await r.json();
+  const out = Array.isArray(data?.[0])
+    ? data[0].map(seg => (Array.isArray(seg) && seg[0]) || "").join("")
+    : "";
+  return out.trim();
+}
+
+/* Fallback: word-by-word phonetic transliteration (Input Tools). Used only if
+   the translate call fails or returns no Devanagari. */
+async function transliterateWordsFallback(text) {
+  const out = [];
+  for (const word of String(text || "").split(/\s+/)) {
+    if (!word || !/[A-Za-z]/.test(word)) { out.push(word); continue; }
+    try {
+      const url = `https://inputtools.google.com/request?text=${encodeURIComponent(word)}&itc=mr-t-i0-und&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=test`;
+      const r = await fetch(url, { headers: { Accept: "application/json" } });
+      const data = await r.json();
+      out.push(data?.[1]?.[0]?.[1]?.[0] || word);
+    } catch (_) {
+      out.push(word);
+    }
+  }
+  return out.join(" ");
+}
+
+async function translateOne(text) {
+  const src = String(text == null ? "" : text);
+  if (!src.trim() || !/[A-Za-z]/.test(src)) return src;      // nothing to translate
+  if (XLIT_PHRASE_CACHE.has(src)) return XLIT_PHRASE_CACHE.get(src);
+
+  let result = "";
+  for (let attempt = 0; attempt < 2 && !result; attempt++) {
+    try { result = await translatePhrase(src); } catch (_) { result = ""; }
+    if (!result || !/[\u0900-\u097F]/.test(result)) {
+      result = "";
+      await new Promise(resolve => setTimeout(resolve, 120));
+    }
+  }
+  if (!result) {
+    try { result = await transliterateWordsFallback(src); } catch (_) { result = ""; }
+  }
+  if (!result) result = src;
+
+  if (XLIT_PHRASE_CACHE.size >= XLIT_PHRASE_CACHE_MAX) XLIT_PHRASE_CACHE.clear();
+  XLIT_PHRASE_CACHE.set(src, result);
+  return result;
+}
+
+/* Batch translation for display-time Marathi DO data (names / addresses).
    POST /transliterate-batch { texts: [] } → { results: [] }
-   Dedupes words across every string so a whole manifest is one round trip and
-   each unique word is looked up only once. Falls back to the original word. */
+   Kept under the same URL/shape the client already uses. Dedupes identical
+   strings, caches results, and translates with bounded concurrency. */
 app.post("/transliterate-batch", async (req, res) => {
   const texts = Array.isArray(req.body?.texts) ? req.body.texts : [];
   if (!texts.length) return res.json({ results: [] });
 
-  const unique = new Set();
-  for (const tx of texts) {
-    for (const word of String(tx || "").split(/\s+/)) {
-      if (word && /[A-Za-z]/.test(word)) unique.add(word);
-    }
-  }
-
-  const words = [...unique];
+  const unique = [...new Set(texts.map(tx => String(tx == null ? "" : tx)))];
   const mapping = new Map();
   let cursor = 0;
 
-  async function transliterateWord(word) {
-    if (XLIT_WORD_CACHE.has(word)) return XLIT_WORD_CACHE.get(word);
-    // Google occasionally returns no suggestion under bursty load — retry once.
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const url = `https://inputtools.google.com/request?text=${encodeURIComponent(word)}&itc=mr-t-i0-und&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=test`;
-        const r = await fetch(url, { headers: { Accept: "application/json" } });
-        const data = await r.json();
-        const suggestion = data?.[1]?.[0]?.[1]?.[0];
-        if (suggestion) {
-          if (XLIT_WORD_CACHE.size >= XLIT_WORD_CACHE_MAX) XLIT_WORD_CACHE.clear();
-          XLIT_WORD_CACHE.set(word, suggestion);
-          return suggestion;
-        }
-      } catch (_) { /* fall through to retry */ }
-      await new Promise(resolve => setTimeout(resolve, 120));
-    }
-    return word;
-  }
-
   async function worker() {
-    while (cursor < words.length) {
-      const word = words[cursor++];
-      mapping.set(word, await transliterateWord(word));
+    while (cursor < unique.length) {
+      const src = unique[cursor++];
+      mapping.set(src, await translateOne(src));
     }
   }
 
   const CONCURRENCY = 4;
   await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCY, words.length) }, () => worker())
+    Array.from({ length: Math.min(CONCURRENCY, unique.length) }, () => worker())
   );
 
-  const results = texts.map(tx =>
-    String(tx || "")
-      .split(/\s+/)
-      .map(w => mapping.get(w) || w)
-      .join(" ")
-  );
+  const results = texts.map(tx => {
+    const src = String(tx == null ? "" : tx);
+    return mapping.get(src) || src;
+  });
 
   res.json({ results });
 });

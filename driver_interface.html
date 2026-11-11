@@ -1890,14 +1890,14 @@ function setLang(lang) {
 function toggleLang() { setLang(LANG === "mr" ? "en" : "mr"); }
 
 /* ═══════════════════════════════════════
-   MARATHI DO DATA — transliterate names / addresses
+   MARATHI DO DATA — translate names / addresses
 
-   Customer name and address come from Tally in Latin script. In Marathi mode we
-   transliterate them via the server's /transliterate-batch endpoint and cache the
-   result in localStorage, so once a DO has been viewed (at the store, on network)
-   its Marathi text is available offline at the customer's door.
+   Customer name and address come from Tally in English. In Marathi mode we have
+   the server translate each string (names are transliterated, address terms are
+   translated by meaning) and cache the result in localStorage, so once a DO has
+   been viewed at the store its Marathi text is available offline at the door.
 ═══════════════════════════════════════ */
-const XLIT_KEY = "hariom_xlit_cache";
+const XLIT_KEY = "hariom_xlit_cache_v2";
 let XLIT = (function () {
   try { return JSON.parse(localStorage.getItem(XLIT_KEY)) || {}; }
   catch (_) { return {}; }
