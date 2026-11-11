@@ -7,7 +7,7 @@
    Bump CACHE_NAME on any change to force a clean install.
 ══════════════════════════════════════════════════ */
 
-const CACHE_NAME = "hariom-dms-v7";
+const CACHE_NAME = "hariom-dms-v8";
 const OFFLINE_URL = "/offline.html";
 
 // Only these static asset types get cached (stale-while-revalidate).

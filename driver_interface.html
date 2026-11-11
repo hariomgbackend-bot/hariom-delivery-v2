@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="mr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -153,6 +153,7 @@
       flex-shrink: 0;
     }
     .dark-toggle:hover { background: rgba(173,198,255,0.14); color: var(--primary); }
+    .lang-toggle { font-size: 12px; font-weight: 800; letter-spacing: 0.3px; padding: 6px 11px; min-width: 44px; }
 
     /* ─── CONTAINER ─── */
     .container { max-width: 560px; margin: 0 auto; padding: 20px 16px; }
@@ -223,7 +224,7 @@
 
     /* "System Access" heading injected by the login label */
     .login-card::before {
-      content: "System Access";
+      content: attr(data-label);
       display: block;
       font-size: 28px;
       font-weight: 800;
@@ -1279,19 +1280,20 @@
     <img src="/icons/icon-72x72.png" class="header-logo" alt="Logo" onerror="this.style.display='none'">
     <div>
       <div class="header-title">Hariom</div>
-      <div class="header-subtitle">Driver Panel</div>
+      <div class="header-subtitle" data-i18n="driver_panel">Driver Panel</div>
     </div>
   </div>
 <div style="display:flex;align-items:center;gap:10px;">
   <div id="pushDot" class="push-dot" title="Push notification status"></div>
+  <button class="dark-toggle lang-toggle" id="langToggleBtn" onclick="toggleLang()" title="Switch language / भाषा बदला">EN</button>
   <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">☀️</button>
 </div>
 </div>
 
 <!-- OFFLINE MODE INDICATOR -->
 <div id="offlineIndicator" class="offline-indicator">
-  <span>📡 Offline Mode</span>
-  <span id="syncBadge" class="sync-badge" style="display:none;">Syncing...</span>
+  <span data-i18n="offline_mode">📡 Offline Mode</span>
+  <span id="syncBadge" class="sync-badge" style="display:none;" data-i18n="syncing">Syncing...</span>
 </div>
 
 <div class="container">
@@ -1299,10 +1301,10 @@
   <!-- PWA INSTALL BANNER -->
   <div id="installBanner">
     <div class="install-text">
-      <strong>📲 Install App</strong>
-      Add to home screen for quick access
+      <strong data-i18n="install_title">📲 Install App</strong>
+      <span data-i18n="install_sub">Add to home screen for quick access</span>
     </div>
-    <button class="btn-install" onclick="triggerInstall()">Install</button>
+    <button class="btn-install" onclick="triggerInstall()" data-i18n="install_btn">Install</button>
     <button class="btn-install-dismiss" onclick="dismissInstall()">✕</button>
   </div>
 
@@ -1310,23 +1312,23 @@
   <div id="ptrIndicator">↻ Release to refresh</div>
 
   <!-- ══ LOGIN CARD ══ -->
-  <div class="login-card">
-    <div class="login-label">Command Center</div>
+  <div class="login-card" data-label="System Access">
+    <div class="login-label" data-i18n="login_label">Command Center</div>
     <div class="login-row">
       <select id="driverSelect"></select>
-      <input type="password" id="driverPin" placeholder="Security PIN" maxlength="6" inputmode="numeric" autocomplete="current-password">
-      <button class="btn btn-unlock" id="unlockBtn" onclick="unlockDriver()">Authenticate</button>
+      <input type="password" id="driverPin" data-i18n-ph="pin_ph" placeholder="Security PIN" maxlength="6" inputmode="numeric" autocomplete="current-password">
+      <button class="btn btn-unlock" id="unlockBtn" onclick="unlockDriver()" data-i18n="authenticate">Authenticate</button>
     </div>
     <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-      <button class="btn btn-danger" id="changeDriverBtn" style="display:none;" onclick="confirmLogout()">⇄ Change Driver</button>
-      <div id="rememberedTag" class="login-remembered-tag" style="display:none;">⚡ Last session restored</div>
+      <button class="btn btn-danger" id="changeDriverBtn" style="display:none;" onclick="confirmLogout()" data-i18n="change_driver">⇄ Change Driver</button>
+      <div id="rememberedTag" class="login-remembered-tag" style="display:none;" data-i18n="last_session">⚡ Last session restored</div>
     </div>
   </div>
 
   <!-- ══ DELIVERIES ══ -->
   <div>
     <div class="section-header">
-      <span class="section-title-text">Current Manifest</span>
+      <span class="section-title-text" data-i18n="current_manifest">Current Manifest</span>
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="count-badge" id="deliveryCount" style="display:none;"></span>
         <button type="button" id="quickCapBtn" onclick="openQuickCapture()" title="Quick capture — take the photo first"
@@ -1340,6 +1342,7 @@
         id="deliverySearch"
         type="text"
         placeholder="Search by name, phone, or address…"
+        data-i18n-ph="search_ph"
         autocomplete="search"
         oninput="filterDeliveryCards()"
         style="width:100%;height:50px;padding:0 16px 0 44px;background:var(--surface-container-low);border:none;border-radius:16px;font-family:'Inter',sans-serif;font-size:14px;color:var(--on-surface);outline:none;transition:box-shadow 0.2s;-webkit-appearance:none;"
@@ -1388,7 +1391,7 @@
 <!-- DELIVERY HISTORY -->
 <div class="history-section" id="historySection" style="display:none;max-width:560px;margin:0 auto;padding:0 16px;">
   <div class="history-toggle" id="historyToggle" onclick="toggleHistory()">
-    <span>✅ Today's Completed <span id="historyCountBadge" style="background:rgba(78,222,163,0.15);color:var(--tertiary);border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px;font-weight:700;"></span></span>
+    <span data-i18n="todays_completed">✅ Today's Completed</span> <span id="historyCountBadge" style="background:rgba(78,222,163,0.15);color:var(--tertiary);border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px;font-weight:700;"></span>
     <span class="history-chevron" id="historyChevron">›</span>
   </div>
   <div id="historyCards"></div>
@@ -1399,12 +1402,12 @@
   <!-- Header -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
     <div>
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:4px;">Operations</div>
-      <div style="font-size:24px;font-weight:900;letter-spacing:-0.5px;color:var(--on-surface);">Command Center</div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-variant);margin-bottom:4px;" data-i18n="operations">Operations</div>
+      <div style="font-size:24px;font-weight:900;letter-spacing:-0.5px;color:var(--on-surface);" data-i18n="command_center">Command Center</div>
     </div>
     <button onclick="loadDispatcherDeliveries()"
       style="height:42px;padding:0 16px;background:var(--surface-container-highest);border:1px solid var(--border);border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--on-surface);cursor:pointer;display:flex;align-items:center;gap:6px;-webkit-tap-highlight-color:transparent;letter-spacing:0.3px;">
-      🔄 Refresh
+      <span data-i18n="refresh">🔄 Refresh</span>
     </button>
   </div>
 
@@ -1418,11 +1421,11 @@
   <div style="display:flex;gap:4px;margin-bottom:16px;background:var(--surface-container-lowest);border-radius:16px;padding:4px;">
     <button type="button" id="dispTab_pending" onclick="setDispTab('pending')"
       style="flex:1;height:42px;border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);transition:all 0.15s;letter-spacing:0.3px;">
-      Pending
+      <span data-i18n="pending">Pending</span>
     </button>
     <button type="button" id="dispTab_all" onclick="setDispTab('all')"
       style="flex:1;height:42px;border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:var(--on-surface-variant);transition:all 0.15s;letter-spacing:0.3px;">
-      All Active
+      <span data-i18n="all_active">All Active</span>
     </button>
   </div>
 
@@ -1435,13 +1438,13 @@
   <div id="dispBulkFooter" style="display:none;position:fixed;bottom:20px;left:16px;right:16px;background:var(--surface-container-high);border:1px solid var(--border);border-radius:16px;padding:12px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.2);z-index:1000;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div>
-        <div style="font-size:14px;font-weight:700;color:var(--text);"><span id="dispSelectedCount">0</span> selected</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:1px;">Pick a driver on any card to assign all</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);"><span id="dispSelectedCount">0</span> <span data-i18n="selected">selected</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px;" data-i18n="pick_driver_hint">Pick a driver on any card to assign all</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button type="button" onclick="selectAllDispatchCards()"
           style="padding:8px 12px;background:transparent;border:1px solid var(--border);border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--accent);cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;">
-          All
+          <span data-i18n="all">All</span>
         </button>
         <select id="dispBulkDriverSelect"
           onchange="mirrorBulkDriverToCards()"
@@ -1450,7 +1453,7 @@
         </select>
         <button type="button" onclick="bulkAssignDispatch()"
           style="padding:10px 18px;background:var(--accent);color:white;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;">
-          Assign All
+          <span data-i18n="assign_all">Assign All</span>
         </button>
       </div>
     </div>
@@ -1475,18 +1478,18 @@
   </div>
   <div class="ios-scanner-header">
     <div>
-      <div style="font-size:15px;font-weight:700;">Scan Barcode</div>
-      <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;">Align barcode within the frame</div>
+      <div style="font-size:15px;font-weight:700;" data-i18n="scan_barcode_title">Scan Barcode</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;" data-i18n="align_barcode">Align barcode within the frame</div>
     </div>
     <button class="ios-close-btn" id="iosCloseBtn">✕</button>
   </div>
-  <div id="iosStatusBar">Starting camera…</div>
+  <div id="iosStatusBar" data-i18n="starting_camera">Starting camera…</div>
   <div class="ios-scanner-hint">Code 128 · EAN · UPC · QR</div>
   <div class="ios-scanner-footer">
-    <button class="ios-torch-btn" id="iosTorchBtn" onclick="toggleIosTorch()" title="Toggle flash">🔦</button>
+    <button class="ios-torch-btn" id="iosTorchBtn" onclick="toggleIosTorch()" title="Toggle flash" data-i18n-title="toggle_flash">🔦</button>
   </div>
   <div class="ios-scan-result" id="iosScanResult">
-    <div style="font-size:12px;opacity:0.7;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">✅ Scanned Successfully</div>
+    <div style="font-size:12px;opacity:0.7;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;" data-i18n="scanned_ok">✅ Scanned Successfully</div>
     <div id="iosScanResultValue" style="font-size:19px;font-weight:800;margin-top:4px;word-break:break-all;"></div>
   </div>
 </div>
@@ -1495,8 +1498,8 @@
 <div id="scannerOverlay">
   <div class="scanner-header">
     <div>
-      <div class="scanner-title">📷 Scan Barcode / QR Code</div>
-      <div class="scanner-sub">Point camera at the code on the product</div>
+      <div class="scanner-title" data-i18n="scan_barcode_qr">📷 Scan Barcode / QR Code</div>
+      <div class="scanner-sub" data-i18n="point_camera">Point camera at the code on the product</div>
     </div>
     <button class="btn-scanner-close" onclick="closeScanner()">✕</button>
   </div>
@@ -1512,13 +1515,13 @@
     </div>
     <div class="scanner-flash" id="scannerFlash"></div>
     <div class="scanner-result" id="scannerResult">
-      <div class="scanner-result-label">✅ Scanned Successfully</div>
+      <div class="scanner-result-label" data-i18n="scanned_ok">✅ Scanned Successfully</div>
       <div class="scanner-result-value" id="scannerResultValue"></div>
     </div>
   </div>
   <div class="scanner-footer">
     <div class="scanner-hint">QR · Code128 · EAN · UPC</div>
-    <button class="torch-btn" id="androidTorchBtn" onclick="toggleAndroidTorch()" title="Toggle flashlight">🔦</button>
+    <button class="torch-btn" id="androidTorchBtn" onclick="toggleAndroidTorch()" title="Toggle flashlight" data-i18n-title="toggle_flashlight">🔦</button>
   </div>
 </div>
 
@@ -1526,20 +1529,20 @@
 <nav class="kinetic-bottom-nav">
   <div class="kinetic-bottom-nav-inner">
     <!-- Deliveries — scroll to top -->
-    <button class="kinetic-nav-btn active" title="Deliveries" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+    <button class="kinetic-nav-btn active" title="Deliveries" data-i18n-title="nav_deliveries" onclick="window.scrollTo({top:0,behavior:'smooth'})">
       <span style="font-size:22px;">🚚</span>
     </button>
     <!-- History — show history section then scroll to it -->
-    <button class="kinetic-nav-btn" title="History" onclick="showHistorySection()">
+    <button class="kinetic-nav-btn" title="History" data-i18n-title="nav_history" onclick="showHistorySection()">
       <span style="font-size:22px;">📋</span>
     </button>
     <!-- Push status — toggle push dot info -->
-    <button class="kinetic-nav-btn" title="Notifications" style="position:relative;" onclick="(function(){const d=document.getElementById('pushDot');const on=d&&d.classList.contains('on');showToast(on?'🔔 Push notifications active':'🔕 Push not enabled — reopen app to retry');})()">
+    <button class="kinetic-nav-btn" title="Notifications" data-i18n-title="nav_notifications" style="position:relative;" onclick="(function(){const d=document.getElementById('pushDot');const on=d&&d.classList.contains('on');showToast(on?t('push_on'):t('push_off'));})()">
       <span style="font-size:22px;">🔔</span>
       <span id="navPushDot" style="position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--tertiary);display:none;"></span>
     </button>
     <!-- Change Driver / Logout -->
-    <button class="kinetic-nav-btn" title="Change Driver" onclick="confirmLogout()">
+    <button class="kinetic-nav-btn" title="Change Driver" data-i18n-title="nav_change_driver" onclick="confirmLogout()">
       <span style="font-size:22px;">👤</span>
     </button>
   </div>
@@ -1569,9 +1572,425 @@ function toggleDarkMode() {
 document.addEventListener("DOMContentLoaded", function() {
   const btn = document.getElementById("darkToggleBtn");
   if (btn) btn.textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
-  
+  applyLang();
 });
 /* ── END DARK MODE ───────────────────────────────────── */
+
+/* ═══════════════════════════════════════
+   LANGUAGE — English / मराठी (one at a time)
+
+   Everything is rendered in a single language. Switching updates the static
+   chrome ([data-i18n] / [data-i18n-ph] / [data-i18n-title]), the login heading
+   (attr(data-label)), then re-renders the dynamic surfaces. No bilingual text.
+═══════════════════════════════════════ */
+const LANG_KEY = "hariom_lang_v2";   // v2: Marathi-first default for drivers
+let LANG = (function () {
+  try { return localStorage.getItem(LANG_KEY) === "en" ? "en" : "mr"; }
+  catch (_) { return "mr"; }
+})();
+
+const I18N = {
+  en: {
+    driver_panel: "Driver Panel",
+    install_title: "📲 Install App", install_sub: "Add to home screen for quick access", install_btn: "Install",
+    offline_mode: "📡 Offline Mode", syncing: "Syncing...",
+    login_label: "Command Center", login_heading: "System Access",
+    pin_ph: "Security PIN", authenticate: "Authenticate",
+    change_driver: "⇄ Change Driver", last_session: "⚡ Last session restored",
+    current_manifest: "Current Manifest", search_ph: "Search by name, phone, or address…",
+    todays_completed: "✅ Today's Completed",
+    operations: "Operations", command_center: "Command Center", refresh: "🔄 Refresh",
+    select_word: "☐ Select", select_cancel: "✕ Cancel",
+    pending: "Pending", all_active: "All Active", selected: "selected",
+    pick_driver_hint: "Pick a driver on any card to assign all", all: "All", assign_all: "Assign All",
+    driver_opt: "— Driver —",
+    nav_deliveries: "Deliveries", nav_history: "History", nav_notifications: "Notifications", nav_change_driver: "Change Driver",
+    push_on: "🔔 Push notifications active", push_off: "🔕 Push not enabled — reopen app to retry",
+    status_pending: "Pending", status_loaded: "Loaded", status_delivered: "Delivered", status_failed: "Failed", status_booked: "Booked",
+    urgent: "🔥 Urgent", eta_overdue: "⚠ Overdue", active: "Active", pending_sync: "pending sync",
+    all_clear: "All clear!", no_active: "No active deliveries assigned",
+    load: "📦 Load", deliver: "✅ Deliver", porter_handover: "📦 Porter Handover",
+    batch: "🔗 Batch", deliveries_word: "deliveries", delivery_word: "delivery",
+    phone: "Phone", address: "Address", product: "Product", store: "Store", pickup_from: "Pickup From",
+    eta: "ETA", not_set: "Not set", open_maps: "📍 Open Maps",
+    delivery_instructions: "📝 Delivery Instructions",
+    confirm_read: "✓ I confirm I have read and understood the delivery instructions",
+    instructions: "📝 Instructions:", no_special: "No special instructions",
+    freight: "💰 Freight:", already_set: "already set",
+    freight_batch: "🔗 Freight for entire batch (₹) *", freight_charge: "Freight Charge (₹) *",
+    freight_ph: "Enter ₹0 if no freight", freight_required: "⚠ Required — enter ₹0 if no freight",
+    freight_covers_batch: " (this covers all items in the batch)", freight_at_delivery: "Will be set at delivery",
+    batch_freight_set: "✅ ₹{amt} — Batch freight already set",
+    batch_freight_note: "Freight for this batch was entered on another item. No action needed.",
+    serial: "Serial", serial_number: "Serial Number *", serial_ph: "Enter or scan serial number", scan: "Scan",
+    porter_proof: "Porter Handover Proof Photo *", porter_details: "Porter Details *",
+    porter_invoice_ph: "Porter Invoice / Order No *", porter_vehicle_ph: "Vehicle Reg No *",
+    porter_courier_ph: "Courier Name *", porter_phone_ph: "Courier Phone *",
+    indoor_loaded: "Indoor Unit Loaded Photo *", outdoor_loaded: "Outdoor Unit Loaded Photo *", loaded_photo: "Loaded Photo *",
+    indoor_delivered: "Indoor Unit Delivered Photo *", outdoor_delivered: "Outdoor Unit Delivered Photo *", delivered_photo: "Delivered Photo *",
+    swipe_porter: "Swipe to Confirm Porter Handover →", swipe_loaded: "Swipe to Mark Loaded →", swipe_delivered: "Swipe to Mark Delivered →",
+    report_failed: "❌ Report Failed Delivery", reason: "Reason *", select_reason: "— Select reason —",
+    reason_not_available: "Customer Not Available", reason_not_responding: "Customer Not Responding",
+    reason_reschedule: "Customer Asked to Reschedule", reason_cancelled: "Customer Cancelled / Not Accepting Product",
+    reason_damaged: "Product Damaged / Not Working",
+    damage_photo: "Damage Photo * (required)", photo_optional: "Photo (optional)",
+    confirm_failure: "Confirm Failure", cancel: "Cancel", mark_failed: "❌ Mark as Failed", close: "Close",
+    no_completed: "No completed deliveries today", delivered_word: "Delivered",
+    no_pending_disp: "No pending deliveries or self-pickups",
+    self_pickups: "Self Pickups", self_pickup_one: "Self Pickup", awaiting_collection: "Awaiting Collection",
+    to_assign: "to Assign",
+    view_details: "▼ View Details", hide_details: "▲ Hide Details", invoice: "Invoice", alt_phone: "Alt Phone", freight_short: "Freight", none: "None", prev_fail: "Prev. Fail",
+    porter_app_handover: "📦 Porter App — Handover to Porter Courier",
+    porter_invoice_label: "Invoice/Order", porter_vehicle_label: "Vehicle Reg", courier_label: "Courier",
+    self_pickup_shop: "🏪 Self Pickup — Customer Collects at Shop",
+    proof_photo: "Proof Photo *", indoor_photo: "Indoor Unit Photo *", outdoor_photo: "Outdoor Unit Photo *",
+    confirm_porter: "📦 Confirm Porter Handover", mark_collected: "✅ Mark as Collected",
+    assign_to_driver: "Assign to Driver", select_driver: "— Select Driver —", assign_arrow: "Assign →",
+    selected_group: "✓ Selected — will assign with group", tap_to_select: "Tap to select",
+    freight_pays: "(customer pays)", prev_failed: "⚠ {n}x failed", instructions_short: "📋 Instructions",
+    err_offline_delivery: "⚠ Delivery not available offline",
+    err_select_driver: "Select driver and enter PIN", err_photo_first: "📷 Please upload a photo first",
+    err_serial_required: "⚠ Serial number is required", saved_offline: "💾 Saved offline. Will sync later",
+    err_network: "⚠ Network error. Please retry.", incorrect_pin: "❌ Incorrect PIN",
+    too_many: "🔒 Too many attempts. Contact admin.",
+    offline_cached: "📡 Offline — showing last cached deliveries", offline_no_cache: "⚠ Offline and no cached deliveries available",
+    session_expired: "🔒 Session expired. Please log in again.",
+    couldnt_load: "Couldn't load deliveries", retry: "↻ Retry",
+    refreshing: "🔄 Refreshing...", updated: "✅ Updated", app_installed: "✅ App installed successfully!",
+    opt_photo: "⏳ Optimising photo…", photo_ready: "✅ Photo ready", submitting: "Submitting…", saving: "Saving…", saving_offline: "Saving offline…",
+    night_scan_title: "Night scan — take a photo with flash",
+    eta_remaining_m: "⏱ {m}m remaining", eta_remaining_hm: "⏱ {h}h {m}m remaining", min_short: "m", hr_short: "h",
+    only_images: "Only image files allowed", both_photos: "📷 Please upload both indoor and outdoor unit photos",
+    outdoor_images: "Only image files allowed for outdoor photo",
+    confirm_instructions_first: "⚠ Please read and confirm the delivery instructions first",
+    confirm_instructions: "⚠ Please confirm you read the delivery instructions",
+    enter_freight: "⚠ Please enter freight amount (₹0 if none)", invalid_freight: "⚠ Invalid freight amount",
+    update_failed: "⚠ Update failed. Try again.", select_reason_first: "⚠ Please select a reason",
+    damage_photo_required: "📷 Photo required for damaged product", delivery_failed: "❌ Delivery marked as failed",
+    no_network_saved: "💾 No network — saved offline. Will sync later",
+    could_not_save: "⚠ Could not save offline. Try again.", could_not_save_retry: "⚠ Could not save offline. Retry.",
+    pending_update: "⚠ This delivery already has a pending status update. Please wait for it to sync.",
+    no_gps: "📍 No GPS fix — recording without location", loaded_from_cache: "📡 Loaded from cache (offline)",
+    couldnt_load_deliveries: "Couldn't load deliveries",
+    sp_no_indoor: "⚠ Please take the indoor unit photo first", sp_no_proof: "⚠ Please take a proof photo first",
+    sp_no_outdoor: "⚠ Please take the outdoor unit photo too", sp_enter: "⚠ Please enter {x}",
+    qc_which: "📸 Which delivery is this?", qc_loaded_count: "{n} loaded deliveries — tap the one this photo is for",
+    qc_loaded_count_one: "{n} loaded delivery — tap the one this photo is for",
+    qc_nothing_loaded: "Nothing loaded", qc_load_first: "Load a delivery from its card first",
+    qc_not_found: "⚠ Delivery not found", qc_retake: "↻ Retake photo",
+    qc_ac_outdoor: "AC — outdoor unit photo required", qc_outdoor_added: "✅ Outdoor photo added",
+    qc_not_taken: "Not taken yet", qc_retake_outdoor: "Retake outdoor photo", qc_add_outdoor: "Add outdoor photo",
+    qc_confirm_delivered: "✅ Confirm Delivered", qc_outdoor_required: "⚠ Outdoor unit photo required for an AC",
+    reading_barcode: "🌙 Reading barcode...", serial_scanned: "✅ Serial scanned: ",
+    not_found_retake: "⚠ Not found — taking another photo...", night_scan_failed: "⚠ Night scan failed — try again",
+    already_recorded: "✅ Already recorded", marked_delivered: "🎉 Marked as Delivered!",
+    network_retry: "⚠ Network error. Retry.", update_failed_short: "Update failed",
+    serial_scanned_ok: "✅ Serial number scanned!",
+    selfpickup_saved: "💾 Self-pickup saved offline. Will sync when online.",
+    select_driver_first: "⚠ Please select a driver first", no_deliveries_selected: "⚠ No deliveries selected",
+    authenticate_first: "⚠ Authenticate first",
+    camera_not_ready: "⚠ Camera not ready", torch_unsupported: "⚠ Torch not supported on this device",
+    torch_unavailable: "⚠ Torch not available on this device", scanner_lib_failed: "⚠ Scanner library failed to load",
+    camera_error: "📷 Camera error: ",
+    load_drivers_failed: "⚠ Could not load drivers", no_saved_session: "⚠ No saved session — connect to internet first",
+    session_pin_rejected: "🔒 Session expired / PIN rejected. Please log in again.", app_installed_short: "🎉 App installed!",
+    scan_barcode_title: "Scan Barcode", align_barcode: "Align barcode within the frame", starting_camera: "Starting camera…",
+    scanned_ok: "✅ Scanned Successfully", scan_barcode_qr: "📷 Scan Barcode / QR Code",
+    point_camera: "Point camera at the code on the product",
+    toggle_flash: "Toggle flash", toggle_flashlight: "Toggle flashlight",
+    camera_denied: "📷 Camera permission denied", camera_denied_period: "📷 Camera permission denied.",
+    confirm_logout: "Switch driver / log out?", bulk_assign_confirm: "Assign {n} deliveries to {name}?",
+    scanning: "● Scanning…", scanning_n: "● Scanning… ({n})", assigning: "Assigning…",
+    uploading: "Uploading…", uploading_photo: "Uploading photo…", assigned_to: "✅ Assigned to",
+    failed: "Failed", failed_submit: "Failed to submit. Try again.",
+    bulk_assigned: "✅ {n} deliveries assigned to {name}", bulk_partial: "⚠ {ok} assigned, {fail} failed",
+  },
+  mr: {
+    driver_panel: "ड्रायव्हर पॅनेल",
+    install_title: "📲 ॲप इन्स्टॉल करा", install_sub: "झटपट वापरण्यासाठी होम स्क्रीनवर जोडा", install_btn: "इन्स्टॉल",
+    offline_mode: "📡 ऑफलाइन मोड", syncing: "सिंक होत आहे...",
+    login_label: "कमांड सेंटर", login_heading: "सिस्टम प्रवेश",
+    pin_ph: "सुरक्षा पिन", authenticate: "प्रमाणित करा",
+    change_driver: "⇄ ड्रायव्हर बदला", last_session: "⚡ मागील सेशन पुन्हा सुरू",
+    current_manifest: "सध्याची यादी", search_ph: "नाव, फोन किंवा पत्त्याने शोधा…",
+    todays_completed: "✅ आज पूर्ण झालेले",
+    operations: "ऑपरेशन्स", command_center: "कमांड सेंटर", refresh: "🔄 रिफ्रेश",
+    select_word: "☐ निवडा", select_cancel: "✕ रद्द",
+    pending: "प्रलंबित", all_active: "सर्व सक्रिय", selected: "निवडले",
+    pick_driver_hint: "सर्व नियुक्त करण्यासाठी कोणत्याही कार्डवर ड्रायव्हर निवडा", all: "सर्व", assign_all: "सर्व नियुक्त करा",
+    driver_opt: "— ड्रायव्हर —",
+    nav_deliveries: "डिलिव्हरी", nav_history: "इतिहास", nav_notifications: "सूचना", nav_change_driver: "ड्रायव्हर बदला",
+    push_on: "🔔 पुश सूचना सक्रिय", push_off: "🔕 पुश सक्षम नाही — पुन्हा प्रयत्न करण्यासाठी ॲप उघडा",
+    status_pending: "प्रलंबित", status_loaded: "लोड झाले", status_delivered: "पोचवले", status_failed: "अयशस्वी", status_booked: "बुक झाले",
+    urgent: "🔥 तातडीचे", eta_overdue: "⚠ उशीर झाला", active: "सक्रिय", pending_sync: "सिंक प्रलंबित",
+    all_clear: "सर्व निवांत!", no_active: "कोणतीही सक्रिय डिलिव्हरी नियुक्त नाही",
+    load: "📦 लोड करा", deliver: "✅ पोचवा", porter_handover: "📦 पोर्टर हस्तांतरण",
+    batch: "🔗 बॅच", deliveries_word: "डिलिव्हरी", delivery_word: "डिलिव्हरी",
+    phone: "फोन", address: "पत्ता", product: "उत्पादन", store: "स्टोअर", pickup_from: "येथून पिकअप",
+    eta: "अंदाजित वेळ", not_set: "सेट नाही", open_maps: "📍 नकाशा उघडा",
+    delivery_instructions: "📝 डिलिव्हरी सूचना",
+    confirm_read: "✓ मी डिलिव्हरी सूचना वाचल्या व समजल्या आहेत याची पुष्टी करतो",
+    instructions: "📝 सूचना:", no_special: "विशेष सूचना नाही",
+    freight: "💰 भाडे:", already_set: "आधीच सेट",
+    freight_batch: "🔗 संपूर्ण बॅचचे भाडे (₹) *", freight_charge: "भाडे शुल्क (₹) *",
+    freight_ph: "भाडे नसल्यास ₹0 टाका", freight_required: "⚠ आवश्यक — भाडे नसल्यास ₹0 टाका",
+    freight_covers_batch: " (हे बॅचमधील सर्व वस्तूंसाठी आहे)", freight_at_delivery: "डिलिव्हरीच्या वेळी सेट होईल",
+    batch_freight_set: "✅ ₹{amt} — बॅच भाडे आधीच सेट",
+    batch_freight_note: "या बॅचचे भाडे दुसऱ्या वस्तूवर टाकले आहे. काही करण्याची गरज नाही.",
+    serial: "सिरियल", serial_number: "सिरियल क्रमांक *", serial_ph: "सिरियल क्रमांक टाका किंवा स्कॅन करा", scan: "स्कॅन",
+    porter_proof: "पोर्टर हस्तांतरण पुरावा फोटो *", porter_details: "पोर्टर तपशील *",
+    porter_invoice_ph: "पोर्टर इनव्हॉइस / ऑर्डर क्र. *", porter_vehicle_ph: "वाहन क्र. *",
+    porter_courier_ph: "कुरिअर नाव *", porter_phone_ph: "कुरिअर फोन *",
+    indoor_loaded: "इनडोअर युनिट लोड फोटो *", outdoor_loaded: "आउटडोअर युनिट लोड फोटो *", loaded_photo: "लोड फोटो *",
+    indoor_delivered: "इनडोअर युनिट डिलिव्हरी फोटो *", outdoor_delivered: "आउटडोअर युनिट डिलिव्हरी फोटो *", delivered_photo: "डिलिव्हरी फोटो *",
+    swipe_porter: "पोर्टर हस्तांतरण पुष्टी करण्यासाठी स्वाइप करा →", swipe_loaded: "लोड म्हणून चिन्हांकित करण्यासाठी स्वाइप करा →", swipe_delivered: "पोचवले म्हणून चिन्हांकित करण्यासाठी स्वाइप करा →",
+    report_failed: "❌ अयशस्वी डिलिव्हरी नोंदवा", reason: "कारण *", select_reason: "— कारण निवडा —",
+    reason_not_available: "ग्राहक उपलब्ध नाही", reason_not_responding: "ग्राहक प्रतिसाद देत नाही",
+    reason_reschedule: "ग्राहकाने पुन्हा वेळ मागितली", reason_cancelled: "ग्राहकाने रद्द केले / उत्पादन स्वीकारले नाही",
+    reason_damaged: "उत्पादन खराब / चालत नाही",
+    damage_photo: "खराबीचा फोटो * (आवश्यक)", photo_optional: "फोटो (ऐच्छिक)",
+    confirm_failure: "अयशस्वी पुष्टी करा", cancel: "रद्द करा", mark_failed: "❌ अयशस्वी म्हणून चिन्हांकित करा", close: "बंद करा",
+    no_completed: "आज कोणतीही पूर्ण डिलिव्हरी नाही", delivered_word: "पोचवले",
+    no_pending_disp: "कोणतीही प्रलंबित डिलिव्हरी किंवा सेल्फ पिकअप नाही",
+    self_pickups: "सेल्फ पिकअप", self_pickup_one: "सेल्फ पिकअप", awaiting_collection: "संकलनाची प्रतीक्षा",
+    to_assign: "नियुक्त करण्यासाठी",
+    view_details: "▼ तपशील पहा", hide_details: "▲ तपशील लपवा", invoice: "इनव्हॉइस", alt_phone: "पर्यायी फोन", freight_short: "भाडे", none: "नाही", prev_fail: "मागील अपयश",
+    porter_app_handover: "📦 पोर्टर ॲप — पोर्टर कुरिअरला हस्तांतरण",
+    porter_invoice_label: "इनव्हॉइस/ऑर्डर", porter_vehicle_label: "वाहन क्र.", courier_label: "कुरिअर",
+    self_pickup_shop: "🏪 सेल्फ पिकअप — ग्राहक दुकानातून घेतो",
+    proof_photo: "पुरावा फोटो *", indoor_photo: "इनडोअर युनिट फोटो *", outdoor_photo: "आउटडोअर युनिट फोटो *",
+    confirm_porter: "📦 पोर्टर हस्तांतरण पुष्टी करा", mark_collected: "✅ संकलित म्हणून चिन्हांकित करा",
+    assign_to_driver: "ड्रायव्हरला नियुक्त करा", select_driver: "— ड्रायव्हर निवडा —", assign_arrow: "नियुक्त करा →",
+    selected_group: "✓ निवडले — गटासह नियुक्त होईल", tap_to_select: "निवडण्यासाठी टॅप करा",
+    freight_pays: "(ग्राहक भरतो)", prev_failed: "⚠ {n} वेळा अपयशी", instructions_short: "📋 सूचना",
+    err_offline_delivery: "⚠ डिलिव्हरी ऑफलाइन उपलब्ध नाही",
+    err_select_driver: "ड्रायव्हर निवडा आणि पिन टाका", err_photo_first: "📷 आधी फोटो अपलोड करा",
+    err_serial_required: "⚠ सिरियल क्रमांक आवश्यक", saved_offline: "💾 ऑफलाइन जतन केले. नंतर सिंक होईल",
+    err_network: "⚠ नेटवर्क त्रुटी. पुन्हा प्रयत्न करा.", incorrect_pin: "❌ चुकीचा पिन",
+    too_many: "🔒 खूप प्रयत्न. अ‍ॅडमिनशी संपर्क करा.",
+    offline_cached: "📡 ऑफलाइन — शेवटच्या कॅशे केलेल्या डिलिव्हरी दाखवत आहे", offline_no_cache: "⚠ ऑफलाइन आणि कॅशे केलेल्या डिलिव्हरी नाहीत",
+    session_expired: "🔒 सेशन संपले. पुन्हा लॉग इन करा.",
+    couldnt_load: "डिलिव्हरी लोड होऊ शकल्या नाहीत", retry: "↻ पुन्हा प्रयत्न",
+    refreshing: "🔄 रिफ्रेश होत आहे...", updated: "✅ अपडेट झाले", app_installed: "✅ ॲप यशस्वीरित्या इन्स्टॉल झाले!",
+    opt_photo: "⏳ फोटो ऑप्टिमाइझ होत आहे…", photo_ready: "✅ फोटो तयार", submitting: "सबमिट होत आहे…", saving: "जतन होत आहे…", saving_offline: "ऑफलाइन जतन होत आहे…",
+    night_scan_title: "नाइट स्कॅन — फ्लॅशसह फोटो घ्या",
+    eta_remaining_m: "⏱ {m} मि बाकी", eta_remaining_hm: "⏱ {h} ता {m} मि बाकी", min_short: "मि", hr_short: "ता",
+    only_images: "फक्त इमेज फाइल्स चालतील", both_photos: "📷 कृपया इनडोअर आणि आउटडोअर युनिट दोन्हीचे फोटो अपलोड करा",
+    outdoor_images: "आउटडोअर फोटोसाठी फक्त इमेज फाइल्स चालतील",
+    confirm_instructions_first: "⚠ कृपया आधी डिलिव्हरी सूचना वाचून पुष्टी करा",
+    confirm_instructions: "⚠ कृपया डिलिव्हरी सूचना वाचल्याची पुष्टी करा",
+    enter_freight: "⚠ कृपया भाडे रक्कम टाका (नसल्यास ₹0)", invalid_freight: "⚠ अवैध भाडे रक्कम",
+    update_failed: "⚠ अपडेट अयशस्वी. पुन्हा प्रयत्न करा.", select_reason_first: "⚠ कृपया कारण निवडा",
+    damage_photo_required: "📷 खराब उत्पादनासाठी फोटो आवश्यक", delivery_failed: "❌ डिलिव्हरी अयशस्वी म्हणून चिन्हांकित",
+    no_network_saved: "💾 नेटवर्क नाही — ऑफलाइन जतन केले. नंतर सिंक होईल",
+    could_not_save: "⚠ ऑफलाइन जतन होऊ शकले नाही. पुन्हा प्रयत्न करा.", could_not_save_retry: "⚠ ऑफलाइन जतन होऊ शकले नाही. पुन्हा प्रयत्न करा.",
+    pending_update: "⚠ या डिलिव्हरीचे स्टेटस अपडेट आधीच प्रलंबित आहे. सिंक होण्याची प्रतीक्षा करा.",
+    no_gps: "📍 GPS नाही — स्थानाशिवाय नोंदवत आहे", loaded_from_cache: "📡 कॅशेमधून लोड केले (ऑफलाइन)",
+    couldnt_load_deliveries: "डिलिव्हरी लोड होऊ शकल्या नाहीत",
+    sp_no_indoor: "⚠ कृपया आधी इनडोअर युनिटचा फोटो घ्या", sp_no_proof: "⚠ कृपया आधी पुरावा फोटो घ्या",
+    sp_no_outdoor: "⚠ कृपया आउटडोअर युनिटचा फोटोही घ्या", sp_enter: "⚠ कृपया {x} टाका",
+    qc_which: "📸 ही कोणती डिलिव्हरी आहे?", qc_loaded_count: "{n} लोड झालेल्या डिलिव्हरी — हा फोटो ज्याचा आहे ती निवडा",
+    qc_loaded_count_one: "{n} लोड झालेली डिलिव्हरी — हा फोटो ज्याचा आहे ती निवडा",
+    qc_nothing_loaded: "काहीही लोड नाही", qc_load_first: "आधी कार्डवरून डिलिव्हरी लोड करा",
+    qc_not_found: "⚠ डिलिव्हरी सापडली नाही", qc_retake: "↻ फोटो पुन्हा घ्या",
+    qc_ac_outdoor: "AC — आउटडोअर युनिट फोटो आवश्यक", qc_outdoor_added: "✅ आउटडोअर फोटो जोडला",
+    qc_not_taken: "अजून घेतलेला नाही", qc_retake_outdoor: "आउटडोअर फोटो पुन्हा घ्या", qc_add_outdoor: "आउटडोअर फोटो जोडा",
+    qc_confirm_delivered: "✅ पोचवले निश्चित करा", qc_outdoor_required: "⚠ AC साठी आउटडोअर युनिट फोटो आवश्यक",
+    reading_barcode: "🌙 बारकोड वाचत आहे...", serial_scanned: "✅ सिरियल स्कॅन झाले: ",
+    not_found_retake: "⚠ सापडले नाही — अजून फोटो घेत आहे...", night_scan_failed: "⚠ नाइट स्कॅन अयशस्वी — पुन्हा प्रयत्न करा",
+    already_recorded: "✅ आधीच नोंदवले", marked_delivered: "🎉 पोचवले म्हणून चिन्हांकित!",
+    network_retry: "⚠ नेटवर्क त्रुटी. पुन्हा प्रयत्न करा.", update_failed_short: "अपडेट अयशस्वी",
+    serial_scanned_ok: "✅ सिरियल क्रमांक स्कॅन झाला!",
+    selfpickup_saved: "💾 सेल्फ पिकअप ऑफलाइन जतन केले. ऑनलाइन झाल्यावर सिंक होईल.",
+    select_driver_first: "⚠ कृपया आधी ड्रायव्हर निवडा", no_deliveries_selected: "⚠ कोणतीही डिलिव्हरी निवडलेली नाही",
+    authenticate_first: "⚠ आधी प्रमाणित करा",
+    camera_not_ready: "⚠ कॅमेरा तयार नाही", torch_unsupported: "⚠ या डिव्हाइसवर टॉर्च समर्थित नाही",
+    torch_unavailable: "⚠ या डिव्हाइसवर टॉर्च उपलब्ध नाही", scanner_lib_failed: "⚠ स्कॅनर लायब्ररी लोड झाली नाही",
+    camera_error: "📷 कॅमेरा त्रुटी: ",
+    load_drivers_failed: "⚠ ड्रायव्हर लोड होऊ शकले नाहीत", no_saved_session: "⚠ जतन केलेले सेशन नाही — आधी इंटरनेटशी कनेक्ट व्हा",
+    session_pin_rejected: "🔒 सेशन संपले / पिन नाकारला. पुन्हा लॉग इन करा.", app_installed_short: "🎉 ॲप इन्स्टॉल झाले!",
+    scan_barcode_title: "बारकोड स्कॅन करा", align_barcode: "फ्रेममध्ये बारकोड संरेखित करा", starting_camera: "कॅमेरा सुरू होत आहे…",
+    scanned_ok: "✅ यशस्वीरित्या स्कॅन झाले", scan_barcode_qr: "📷 बारकोड / QR कोड स्कॅन करा",
+    point_camera: "कॅमेरा उत्पादनावरील कोडकडे रोखा",
+    toggle_flash: "फ्लॅश टॉगल करा", toggle_flashlight: "फ्लॅशलाइट टॉगल करा",
+    camera_denied: "📷 कॅमेरा परवानगी नाकारली", camera_denied_period: "📷 कॅमेरा परवानगी नाकारली.",
+    confirm_logout: "ड्रायव्हर बदलायचा / लॉग आउट करायचे?", bulk_assign_confirm: "{n} डिलिव्हरी {name} ला नियुक्त करायच्या?",
+    scanning: "● स्कॅन करत आहे…", scanning_n: "● स्कॅन करत आहे… ({n})", assigning: "नियुक्त करत आहे…",
+    uploading: "अपलोड होत आहे…", uploading_photo: "फोटो अपलोड होत आहे…", assigned_to: "✅ नियुक्त केले",
+    failed: "अयशस्वी", failed_submit: "सबमिट अयशस्वी. पुन्हा प्रयत्न करा.",
+    bulk_assigned: "✅ {n} डिलिव्हरी {name} ला नियुक्त केल्या", bulk_partial: "⚠ {ok} नियुक्त, {fail} अयशस्वी",
+  }
+};
+
+function t(key) {
+  return (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key;
+}
+function tf(key, vars) {
+  return t(key).replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] != null ? vars[k] : ""));
+}
+function statusLabel(status) {
+  const s = String(status || "").toLowerCase();
+  return I18N[LANG] && I18N[LANG]["status_" + s] ? t("status_" + s) : status;
+}
+function loc() { return LANG === "mr" ? "mr-IN" : "en-IN"; }
+/* Map the canonical (English) failure reason stored on the record to its
+   display label, so historical DOs read correctly in Marathi too. */
+function reasonLabel(reason) {
+  const map = {
+    "Customer Not Available": "reason_not_available",
+    "Customer Not Responding": "reason_not_responding",
+    "Customer Asked to Reschedule": "reason_reschedule",
+    "Customer Cancelled / Not Accepting Product": "reason_cancelled",
+    "Product Damaged / Not Working": "reason_damaged",
+  };
+  return map[reason] ? t(map[reason]) : reason;
+}
+
+/* Re-label every static + dynamic surface after a language change. */
+function applyLang() {
+  document.documentElement.lang = LANG === "mr" ? "mr" : "en";
+
+  const lt = document.getElementById("langToggleBtn");
+  if (lt) lt.textContent = LANG === "mr" ? "EN" : "मराठी";
+
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.getAttribute("data-i18n")); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.setAttribute("placeholder", t(el.getAttribute("data-i18n-ph"))); });
+  document.querySelectorAll("[data-i18n-title]").forEach(el => { el.setAttribute("title", t(el.getAttribute("data-i18n-title"))); });
+
+  const lc = document.querySelector(".login-card");
+  if (lc) lc.setAttribute("data-label", t("login_heading"));
+
+  // Select-mode button text depends on current mode — preserve it.
+  const selBtn = document.getElementById("dispSelectBtn");
+  if (selBtn) selBtn.textContent = selectionMode ? t("select_cancel") : t("select_word");
+
+  // Re-render dynamic surfaces in the new language.
+  _driverRenderSig = null;
+  try {
+    if (typeof allDeliveriesData !== "undefined" && Array.isArray(allDeliveriesData) && allDeliveriesData.length) {
+      renderDeliveries(allDeliveriesData);
+    }
+  } catch (_) {}
+  try { renderHistory(); } catch (_) {}
+  try {
+    const disp = document.getElementById("dispatcherPanel");
+    if (disp && disp.style.display !== "none") { dispatcherDataHash = null; loadDispatcherDeliveries(); }
+  } catch (_) {}
+  try {
+    const popup = document.getElementById("popup");
+    if (currentDeliveryId && popup && popup.style.display === "block") openDelivery(currentDeliveryId);
+  } catch (_) {}
+}
+
+function setLang(lang) {
+  LANG = lang === "mr" ? "mr" : "en";
+  try { localStorage.setItem(LANG_KEY, LANG); } catch (_) {}
+  applyLang();
+}
+function toggleLang() { setLang(LANG === "mr" ? "en" : "mr"); }
+
+/* ═══════════════════════════════════════
+   MARATHI DO DATA — transliterate names / addresses
+
+   Customer name and address come from Tally in Latin script. In Marathi mode we
+   transliterate them via the server's /transliterate-batch endpoint and cache the
+   result in localStorage, so once a DO has been viewed (at the store, on network)
+   its Marathi text is available offline at the customer's door.
+═══════════════════════════════════════ */
+const XLIT_KEY = "hariom_xlit_cache";
+let XLIT = (function () {
+  try { return JSON.parse(localStorage.getItem(XLIT_KEY)) || {}; }
+  catch (_) { return {}; }
+})();
+let xlitRunning = false;
+/* texts that failed recently — retry after a short backoff instead of hammering */
+const XLIT_FAIL = new Map();   // text -> timestamp
+function xlitFailedRecently(text) {
+  const at = XLIT_FAIL.get(text);
+  return at && (Date.now() - at < 60000);
+}
+function xlitMarkFailed(texts) {
+  const now = Date.now();
+  (texts || []).forEach(tx => XLIT_FAIL.set(tx, now));
+}
+
+function saveXlit() {
+  try { localStorage.setItem(XLIT_KEY, JSON.stringify(XLIT)); } catch (_) {}
+}
+
+/* Display helper — Marathi text when cached, otherwise the stored value. */
+function xlitDisplay(text) {
+  const s = text == null ? "" : String(text);
+  if (LANG !== "mr") return s;
+  return XLIT[s] || s;
+}
+
+function collectXlitTexts(list) {
+  const out = [];
+  (list || []).forEach(d => {
+    if (!d) return;
+    if (d.customer_name) out.push(String(d.customer_name));
+    if (d.address) out.push(String(d.address));
+  });
+  return out;
+}
+
+async function hydrateMarathiTexts(texts) {
+  if (LANG !== "mr" || xlitRunning || !isOnline()) return;
+  const need = [...new Set((texts || []).filter(t => t && /[A-Za-z]/.test(t) && !XLIT[t] && !xlitFailedRecently(t)))];
+  if (!need.length) return;
+
+  xlitRunning = true;
+  try {
+    for (let i = 0; i < need.length; i += 40) {
+      const chunk = need.slice(i, i + 40);
+      const res = await fetch(`${BASE_URL}/transliterate-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texts: chunk })
+      });
+      if (!res.ok) { xlitMarkFailed(chunk); break; }
+      const data = await res.json();
+      if (Array.isArray(data.results)) {
+        data.results.forEach((r, j) => {
+          // Only cache a genuine Marathi result; otherwise leave the original.
+          if (typeof r === "string" && /[\u0900-\u097F]/.test(r) && r !== chunk[j]) XLIT[chunk[j]] = r;
+          else XLIT_FAIL.set(chunk[j], Date.now());
+        });
+      }
+    }
+    saveXlit();
+    xlitRefreshUI();
+  } catch (_) {
+    /* offline / endpoint down — keep showing the original text */
+    xlitMarkFailed(need);
+  } finally {
+    xlitRunning = false;
+  }
+}
+
+function xlitRefreshUI() {
+  _driverRenderSig = null;
+  try {
+    if (Array.isArray(allDeliveriesData) && allDeliveriesData.length) renderDeliveries(allDeliveriesData);
+  } catch (_) {}
+  try { renderHistory(); } catch (_) {}
+  try {
+    const popup = document.getElementById("popup");
+    if (currentDeliveryId && popup && popup.style.display === "block") openDelivery(currentDeliveryId);
+  } catch (_) {}
+  try {
+    const disp = document.getElementById("dispatcherPanel");
+    if (disp && disp.style.display !== "none") { dispatcherDataHash = null; loadDispatcherDeliveries(); }
+  } catch (_) {}
+}
+
+/* When the connection comes back, retry any names/addresses that failed. */
+window.addEventListener("online", () => {
+  if (LANG !== "mr" || !Array.isArray(allDeliveriesData) || !allDeliveriesData.length) return;
+  XLIT_FAIL.clear();
+  hydrateMarathiTexts(collectXlitTexts(allDeliveriesData));
+});
 
 /* ═══════════════════════════════════════
    OFFLINE-FIRST FUNCTIONALITY (HARDENED)
@@ -1816,7 +2235,7 @@ async function syncPendingActions() {
   const syncBadge = document.getElementById("syncBadge");
   if (syncBadge) {
     syncBadge.style.display = "inline";
-    syncBadge.textContent = `Syncing ${actionsSnapshot.length}…`;
+    syncBadge.textContent = `${t('syncing')} ${actionsSnapshot.length}`;
   }
 
   try {
@@ -1970,7 +2389,7 @@ async function syncPendingActions() {
         if (stillPending === 0) {
           syncBadge.style.display = "none";
         } else {
-          syncBadge.textContent = `${stillPending} pending`;
+          syncBadge.textContent = `${stillPending} ${t('pending')}`;
         }
       }
 
@@ -1982,7 +2401,7 @@ async function syncPendingActions() {
 
       if (authFailure) {
         driverSessionToken = null;
-        showToast("🔒 Session expired / PIN rejected. Please log in again.");
+        showToast(t('session_pin_rejected'));
         logoutDriver();
       } else if (currentDriverId) {
         silentRefresh();
@@ -1990,10 +2409,10 @@ async function syncPendingActions() {
 
     } else {
       // Nothing succeeded — keep badge visible with count
-      if (syncBadge) syncBadge.textContent = `${actionsSnapshot.length} pending`;
+      if (syncBadge) syncBadge.textContent = `${actionsSnapshot.length} ${t('pending')}`;
       if (authFailure) {
         driverSessionToken = null;
-        showToast("🔒 Session expired / PIN rejected. Please log in again.");
+        showToast(t('session_pin_rejected'));
         logoutDriver();
       }
     }
@@ -2324,7 +2743,7 @@ async function loadDrivers() {
 
     // Only show the error toast when actually online — if offline the form
     // populates from cache and the offline banner already tells the driver.
-    if (isOnline()) showToast("⚠ Could not load drivers");
+    if (isOnline()) showToast(t('load_drivers_failed'));
   }
 }
 
@@ -2336,7 +2755,7 @@ async function unlockDriver() {
   const pinInput     = document.getElementById("driverPin");
   const pin          = pinInput.value;
 
-  if (!driverSelect.value || !pin) { showToast("Select driver and enter PIN"); return; }
+  if (!driverSelect.value || !pin) { showToast(t('err_select_driver')); return; }
 
   const driverId = driverSelect.options[driverSelect.selectedIndex].dataset.id;
 
@@ -2347,7 +2766,7 @@ async function unlockDriver() {
     const session = restoreDriverSession();
 
     if (!session) {
-      showToast("⚠ No saved session — connect to internet first");
+      showToast(t('no_saved_session'));
       return;
     }
 
@@ -2355,11 +2774,11 @@ async function unlockDriver() {
       vibrate([100, 50, 100]);
       pinAttempts++;
       if (pinAttempts >= 7) {
-        showToast("🔒 Too many attempts. Contact admin.");
+        showToast(t('too_many'));
         pinInput.disabled = true; driverSelect.disabled = true;
         return;
       }
-      showToast("❌ Incorrect PIN (" + (7 - pinAttempts) + " attempts left)");
+      showToast(t('incorrect_pin') + " (" + (7 - pinAttempts) + ")");
       return;
     }
 
@@ -2381,9 +2800,9 @@ async function unlockDriver() {
       applyOfflineActionsToDeliveries();
       renderDeliveries(allDeliveriesData);
       loadDeliveryHistory(currentDriverId);
-      showToast("📡 Offline — showing last cached deliveries", 3500);
+      showToast(t('offline_cached'), 3500);
     } else {
-      showToast("⚠ Offline and no cached deliveries available", 3500);
+      showToast(t('offline_no_cache'), 3500);
     }
 
     startDriverAutoRefresh();
@@ -2418,7 +2837,7 @@ async function unlockDriver() {
       }
       pinAttempts++;
       if (pinAttempts >= 7) {
-        showToast("🔒 Too many attempts. Contact admin.");
+        showToast(t('too_many'));
         pinInput.disabled = true; driverSelect.disabled = true;
         return;
       }
@@ -2466,7 +2885,7 @@ async function unlockDriver() {
     vibrate([50]);
   } catch (e) {
     btn.innerText = origText; btn.disabled = false;
-    showToast("⚠ Network error. Please retry.");
+    showToast(t('err_network'));
   }
 }
 
@@ -2490,12 +2909,20 @@ function filterDeliveryCards() {
     renderDeliveries(allDeliveriesData);
     return;
   }
-  const filtered = allDeliveriesData.filter(d =>
-    (d.customer_name && d.customer_name.toLowerCase().includes(q)) ||
-    (d.phone && d.phone.includes(q)) ||
-    (d.address && d.address.toLowerCase().includes(q)) ||
-    (d.product_name && d.product_name.toLowerCase().includes(q))
-  );
+  const filtered = allDeliveriesData.filter(d => {
+    const name   = d.customer_name ? d.customer_name.toLowerCase() : "";
+    const addr   = d.address ? d.address.toLowerCase() : "";
+    const nameMr = xlitDisplay(d.customer_name || "").toLowerCase();
+    const addrMr = xlitDisplay(d.address || "").toLowerCase();
+    return (
+      (name && name.includes(q)) ||
+      (nameMr && nameMr.includes(q)) ||
+      (d.phone && d.phone.includes(q)) ||
+      (addr && addr.includes(q)) ||
+      (addrMr && addrMr.includes(q)) ||
+      (d.product_name && d.product_name.toLowerCase().includes(q))
+    );
+  });
   renderDeliveries(filtered);
 }
 
@@ -2545,16 +2972,16 @@ function renderDeliveries(data) {
     container.innerHTML = `
       <div class="empty-state">
         <div style="margin-bottom:14px;">${emptyStateSVG('check')}</div>
-        <p>All clear!</p>
-        <small>No active deliveries assigned</small>
+        <p>${t('all_clear')}</p>
+        <small>${t('no_active')}</small>
       </div>`;
     window.scrollTo(0, _sy);
     return;
   }
 
   countBadge.innerText  = pendingSyncIds.length > 0
-    ? `${data.length} Active · ${pendingSyncIds.length} pending sync`
-    : `${data.length} Active`;
+    ? `${data.length} ${t('active')} · ${pendingSyncIds.length} ${t('pending_sync')}`
+    : `${data.length} ${t('active')}`;
   countBadge.style.display = "inline-block";
   container.innerHTML   = "";
 
@@ -2588,38 +3015,38 @@ function renderDeliveries(data) {
     let etaLabel = "";
     if (d.estimated_delivery_time) {
       const diff = new Date(d.estimated_delivery_time) - new Date();
-      if (diff < 0) etaLabel = "⚠ Overdue";
+      if (diff < 0) etaLabel = t('eta_overdue');
       else {
         const m = Math.floor(diff / 60000);
-        etaLabel = m < 60 ? `${m}m` : `${Math.floor(m/60)}h ${m%60}m`;
+        etaLabel = m < 60 ? `${m}${t('min_short')}` : `${Math.floor(m/60)}${t('hr_short')} ${m%60}${t('min_short')}`;
       }
     }
 
     const statusText = isPendingSync 
-      ? `<span class="badge badge-${d.status}" style="position:relative;">${d.status} <span style="display:inline-block;width:6px;height:6px;background:var(--amber);border-radius:50%;margin-left:4px;animation:pulse 1s infinite;"></span></span>`
-      : `<span class="badge badge-${d.status}">${d.status}</span>`;
+      ? `<span class="badge badge-${d.status}" style="position:relative;">${statusLabel(d.status)} <span style="display:inline-block;width:6px;height:6px;background:var(--amber);border-radius:50%;margin-left:4px;animation:pulse 1s infinite;"></span></span>`
+      : `<span class="badge badge-${d.status}">${statusLabel(d.status)}</span>`;
 
     card.innerHTML = `
       <div class="card-top">
         <div>
-          <div class="card-name">${d.customer_name}</div>
+          <div class="card-name">${xlitDisplay(d.customer_name)}</div>
           <div class="card-product">${d.product_name}${d.driver_instructions && d.driver_instructions !== "none" ? `<span class="instr-badge">📋</span>` : ""}</div>
         </div>
         <div class="card-badges">
           ${statusText}
-          ${d.priority === "urgent" ? `<span class="badge badge-urgent">🔥 Urgent</span>` : ""}
+          ${d.priority === "urgent" ? `<span class="badge badge-urgent">${t('urgent')}</span>` : ""}
         </div>
       </div>
       <div class="card-divider"></div>
       <div class="card-footer">
-        <div class="card-address">${d.address}</div>
+        <div class="card-address">${xlitDisplay(d.address)}</div>
         ${etaLabel ? `<div class="card-eta">⏱ ${etaLabel}</div>` : ""}
         ${isPorterDel(d)
-          ? `<button class="card-cta" style="background:#4d8eff;" onclick="event.stopPropagation();openDelivery('${d.id}')">📦 Porter Handover</button>`
+          ? `<button class="card-cta" style="background:#4d8eff;" onclick="event.stopPropagation();openDelivery('${d.id}')">${t('porter_handover')}</button>`
           : d.status === "loaded"
-          ? `<button class="card-cta" onclick="event.stopPropagation();openDelivery('${d.id}')">✅ Deliver</button>`
+          ? `<button class="card-cta" onclick="event.stopPropagation();openDelivery('${d.id}')">${t('deliver')}</button>`
           : d.status === "pending"
-          ? `<button class="card-cta card-cta-load" onclick="event.stopPropagation();openDelivery('${d.id}')">📦 Load</button>`
+          ? `<button class="card-cta card-cta-load" onclick="event.stopPropagation();openDelivery('${d.id}')">${t('load')}</button>`
           : ""}
         <div class="card-chevron">›</div>
       </div>`;
@@ -2641,7 +3068,7 @@ function renderDeliveries(data) {
 
       const header = document.createElement("div");
       header.className = "batch-group-header";
-      header.innerHTML = `🔗 Batch ${bNum} — ${d.customer_name} · ${batchItems.length} deliveries`;
+      header.innerHTML = `${t('batch')} ${bNum} — ${xlitDisplay(d.customer_name)} · ${batchItems.length} ${t('deliveries_word')}`;
       group.appendChild(header);
 
       batchItems.forEach(item => {
@@ -2657,6 +3084,13 @@ function renderDeliveries(data) {
   });
 
   window.scrollTo(0, _sy);
+
+  // Transliterate customer names / addresses once, in the background.
+  if (LANG === "mr") {
+    hydrateMarathiTexts(collectXlitTexts(
+      Array.isArray(allDeliveriesData) && allDeliveriesData.length ? allDeliveriesData : data
+    ));
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -2684,7 +3118,7 @@ async function openDelivery(id) {
     }
   }
   if (!d) {
-    showToast("⚠ Delivery not available offline");
+    showToast(t('err_offline_delivery'));
     return;
   }
   currentDeliveryData = d;
@@ -2697,58 +3131,58 @@ async function openDelivery(id) {
   if (isPorterDelivery && (currentStatus === "pending" || currentStatus === "booked")) {
     // Porter handover — single-step confirm (serial + proof photo), like self-pickup
     const serialField = d.product_serial_number
-      ? `<div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value">${d.product_serial_number}</span></div>`
-      : `<label class="upload-label">Serial Number *</label>
+      ? `<div class="detail-row"><span class="detail-label">${t('serial')}</span><span class="detail-value">${d.product_serial_number}</span></div>`
+      : `<label class="upload-label">${t('serial_number')}</label>
          <div class="serial-input-row">
-           <input class="serial-input" id="serialInput" placeholder="Enter or scan serial number" inputmode="text" autocomplete="off">
+           <input class="serial-input" id="serialInput" placeholder="${t('serial_ph')}" inputmode="text" autocomplete="off">
            <button class="btn-scan" onclick="triggerBarcodePhoto()" type="button">
-             <span style="font-size:18px;">&#x1F4F7;</span> Scan
+             <span style="font-size:18px;">&#x1F4F7;</span> ${t('scan')}
            </button>
-           <button class="btn-scan btn-night-scan" onclick="openNightScan()" type="button" title="Night scan — take a photo with flash">🌙</button>
+           <button class="btn-scan btn-night-scan" onclick="openNightScan()" type="button" title="${t('night_scan_title')}">🌙</button>
          </div>
          <input type="file" id="nightScanInput" accept="image/*" capture="environment" style="display:none;">`;
 
     uploadSection = `
       <div class="upload-section">
         ${serialField}
-        <label class="upload-label">Porter Handover Proof Photo *</label>
+        <label class="upload-label">${t('porter_proof')}</label>
         <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
-        <label class="upload-label" style="margin-top:10px;">Porter Details *</label>
-        <input class="serial-input" id="porterInvoiceInput" placeholder="Porter Invoice / Order No *" style="margin-bottom:6px;">
-        <input class="serial-input" id="porterVehicleInput" placeholder="Vehicle Reg No *" style="margin-bottom:6px;">
-        <input class="serial-input" id="porterCourierInput" placeholder="Courier Name *" style="margin-bottom:6px;">
-        <input class="serial-input" id="porterPhoneInput" placeholder="Courier Phone *">
+        <label class="upload-label" style="margin-top:10px;">${t('porter_details')}</label>
+        <input class="serial-input" id="porterInvoiceInput" placeholder="${t('porter_invoice_ph')}" style="margin-bottom:6px;">
+        <input class="serial-input" id="porterVehicleInput" placeholder="${t('porter_vehicle_ph')}" style="margin-bottom:6px;">
+        <input class="serial-input" id="porterCourierInput" placeholder="${t('porter_courier_ph')}" style="margin-bottom:6px;">
+        <input class="serial-input" id="porterPhoneInput" placeholder="${t('porter_phone_ph')}">
       </div>`;
   } else if (currentStatus === "pending") {
     const serialField = d.product_serial_number
-      ? `<div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value">${d.product_serial_number}</span></div>`
-      : `<label class="upload-label">Serial Number *</label>
+      ? `<div class="detail-row"><span class="detail-label">${t('serial')}</span><span class="detail-value">${d.product_serial_number}</span></div>`
+      : `<label class="upload-label">${t('serial_number')}</label>
          <div class="serial-input-row">
-           <input class="serial-input" id="serialInput" placeholder="Enter or scan serial number" inputmode="text" autocomplete="off">
+           <input class="serial-input" id="serialInput" placeholder="${t('serial_ph')}" inputmode="text" autocomplete="off">
            <button class="btn-scan" onclick="triggerBarcodePhoto()" type="button">
-             <span style="font-size:18px;">&#x1F4F7;</span> Scan
+             <span style="font-size:18px;">&#x1F4F7;</span> ${t('scan')}
            </button>
-           <button class="btn-scan btn-night-scan" onclick="openNightScan()" type="button" title="Night scan — take a photo with flash">🌙</button>
+           <button class="btn-scan btn-night-scan" onclick="openNightScan()" type="button" title="${t('night_scan_title')}">🌙</button>
          </div>
          <input type="file" id="nightScanInput" accept="image/*" capture="environment" style="display:none;">`;
 
     uploadSection = `
       <div class="upload-section">
         ${serialField}
-        <label class="upload-label">${isAC ? "Indoor Unit Loaded Photo *" : "Loaded Photo *"}</label>
+        <label class="upload-label">${isAC ? t('indoor_loaded') : t('loaded_photo')}</label>
         <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
         ${isAC ? `
-          <label class="upload-label" style="margin-top:10px;">Outdoor Unit Loaded Photo *</label>
+          <label class="upload-label" style="margin-top:10px;">${t('outdoor_loaded')}</label>
           <input class="file-input" type="file" id="photo_outdoor" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
         ` : ""}
       </div>`;
   } else if (currentStatus === "loaded") {
     uploadSection = `
       <div class="upload-section">
-        <label class="upload-label">${isAC ? "Indoor Unit Delivered Photo *" : "Delivered Photo *"}</label>
+        <label class="upload-label">${isAC ? t('indoor_delivered') : t('delivered_photo')}</label>
         <input class="file-input" type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
         ${isAC ? `
-          <label class="upload-label" style="margin-top:10px;">Outdoor Unit Delivered Photo *</label>
+          <label class="upload-label" style="margin-top:10px;">${t('outdoor_delivered')}</label>
           <input class="file-input" type="file" id="photo_outdoor" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment">
         ` : ""}
       </div>`;
@@ -2763,67 +3197,67 @@ async function openDelivery(id) {
       <div class="swipe-container" id="swipeWidget" data-action="porter_handover">
         <div class="swipe-fill swipe-delivered-fill" id="swipeFill" style="width:60px;"></div>
         <div class="swipe-thumb swipe-delivered-thumb" id="swipeThumb">📦</div>
-        <div class="swipe-track" id="swipeTrack">Swipe to Confirm Porter Handover →</div>
+        <div class="swipe-track" id="swipeTrack">${t('swipe_porter')}</div>
       </div>`;
   } else if (currentStatus === "pending") {
     actionBtn = `
       <div class="swipe-container" id="swipeWidget" data-action="loaded">
         <div class="swipe-fill swipe-loaded-fill" id="swipeFill" style="width:60px;"></div>
         <div class="swipe-thumb swipe-loaded-thumb" id="swipeThumb">📦</div>
-        <div class="swipe-track" id="swipeTrack">Swipe to Mark Loaded →</div>
+        <div class="swipe-track" id="swipeTrack">${t('swipe_loaded')}</div>
       </div>`;
   } else if (currentStatus === "loaded") {
     actionBtn = `
       <div class="swipe-container" id="swipeWidget" data-action="delivered">
         <div class="swipe-fill swipe-delivered-fill" id="swipeFill" style="width:60px;"></div>
         <div class="swipe-thumb swipe-delivered-thumb" id="swipeThumb">✅</div>
-        <div class="swipe-track" id="swipeTrack">Swipe to Mark Delivered →</div>
+        <div class="swipe-track" id="swipeTrack">${t('swipe_delivered')}</div>
       </div>`;
   }
 
   document.getElementById("popupContent").innerHTML = `
     <div class="${bandClass}">
       <div class="popup-status-row">
-        <span class="badge badge-${d.status}">${d.status}</span>
-        ${d.priority === "urgent" ? `<span class="badge badge-urgent">🔥 Urgent</span>` : ""}
+        <span class="badge badge-${d.status}">${statusLabel(d.status)}</span>
+        ${d.priority === "urgent" ? `<span class="badge badge-urgent">${t('urgent')}</span>` : ""}
       </div>
-      <div class="popup-name">${d.customer_name}</div>
+      <div class="popup-name">${xlitDisplay(d.customer_name)}</div>
     </div>
 
     <div class="popup-body">
       <div class="detail-row">
-        <span class="detail-label">Phone</span>
+        <span class="detail-label">${t('phone')}</span>
         <span class="detail-value">
           <a class="phone-link" href="tel:${d.phone}">${d.phone}</a>
           ${d.alternate_phone ? `<br><a class="phone-link" href="tel:${d.alternate_phone}">${d.alternate_phone}</a>` : ""}
         </span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Address</span>
+        <span class="detail-label">${t('address')}</span>
         <span class="detail-value">
-          ${d.address}
+          ${xlitDisplay(d.address)}
           <br>
-          <button class="navigate-btn" onclick="navigateTo('${encodeURIComponent(d.address)}')">📍 Open Maps</button>
+          <button class="navigate-btn" onclick="navigateTo('${encodeURIComponent(d.address)}')">${t('open_maps')}</button>
         </span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Product</span>
+        <span class="detail-label">${t('product')}</span>
         <span class="detail-value">${d.product_name}</span>
       </div>
       ${d.storeId ? `
       <div class="detail-row">
-        <span class="detail-label">Store</span>
+        <span class="detail-label">${t('store')}</span>
         <span class="detail-value">${escHtml(storeDisplayName(d.storeId))}</span>
       </div>` : ""}
       ${d.pickup_from ? `
       <div class="detail-row">
-        <span class="detail-label">Pickup From</span>
+        <span class="detail-label">${t('pickup_from')}</span>
         <span class="detail-value">${escHtml(d.pickup_from)}</span>
       </div>` : ""}
       <div class="detail-row">
-        <span class="detail-label">ETA</span>
+        <span class="detail-label">${t('eta')}</span>
         <span class="detail-value">
-          ${d.estimated_delivery_time ? new Date(d.estimated_delivery_time).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"}) : "Not set"}
+          ${d.estimated_delivery_time ? new Date(d.estimated_delivery_time).toLocaleString(loc(),{dateStyle:"medium",timeStyle:"short"}) : t('not_set')}
           <br><span class="eta-countdown" id="etaCountdown"></span>
         </span>
       </div>
@@ -2831,25 +3265,25 @@ async function openDelivery(id) {
 
     ${d.driver_instructions && d.driver_instructions !== "none" ? `
     <div class="info-box-instructions">
-      <strong>📝 Delivery Instructions</strong>
+      <strong>${t('delivery_instructions')}</strong>
       <div class="instr-text">${escHtml(d.driver_instructions)}</div>
     </div>
     ${currentStatus === "loaded" ? `
     <div class="instructions-confirm">
       <label>
         <input type="checkbox" id="instructionsConfirm">
-        ✓ I confirm I have read and understood the delivery instructions
+        ${t('confirm_read')}
       </label>
     </div>` : ""}` : `
     <div class="info-box info-box-yellow">
-      📝 <strong>Instructions:</strong><br>
-      No special instructions
+      <strong>${t('instructions')}</strong><br>
+      ${t('no_special')}
     </div>`}
 
     <div class="info-box info-box-gray">
-      💰 <strong>Freight:</strong>
+      <strong>${t('freight')}</strong>
       ${d.freight_charged
-        ? `<span style="font-weight:700;color:#166534;">₹${d.freight_amount || "—"} (already set)</span>`
+        ? `<span style="font-weight:700;color:#166534;">₹${d.freight_amount || "—"} (${t('already_set')})</span>`
         : d.status === "loaded"
           ? (() => {
               // Batch: check if sibling deliveries already have driver freight set
@@ -2861,25 +3295,25 @@ async function openDelivery(id) {
               // Batch secondary — freight already counted on another item, no input needed
               if (batchPrimary) {
                 return `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 12px;">
-                  <div style="font-weight:700;color:#166534;font-size:14px;">✅ ₹${batchPrimary.freight_amount} — Batch freight already set</div>
-                  <div style="font-size:12px;color:#4b7c5e;margin-top:4px;">Freight for this batch was entered on another item. No action needed.</div>
+                  <div style="font-weight:700;color:#166534;font-size:14px;">${tf('batch_freight_set', { amt: batchPrimary.freight_amount })}</div>
+                  <div style="font-size:12px;color:#4b7c5e;margin-top:4px;">${t('batch_freight_note')}</div>
                 </div>`;
               }
 
               // First item in batch OR single delivery — show mandatory input
               return `<div style="margin-top:8px;">
                 <label style="font-size:12px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">
-                  ${d.batch_id ? "🔗 Freight for entire batch (₹) *" : "Freight Charge (₹) *"}
+                  ${d.batch_id ? t('freight_batch') : t('freight_charge')}
                 </label>
-                <input id="freightInput" type="number" min="0" step="1" placeholder="Enter ₹0 if no freight"
+                <input id="freightInput" type="number" min="0" step="1" placeholder="${t('freight_ph')}"
                   style="width:100%;padding:11px 14px;border:2px solid #dc2626;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;background:#fff;color:var(--text);"
                   onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='#dc2626'">
                 <div style="font-size:11px;color:#dc2626;margin-top:5px;font-weight:600;">
-                  ⚠ Required — enter ₹0 if no freight${d.batch_id ? " (this covers all items in the batch)" : ""}
+                  ${t('freight_required')}${d.batch_id ? t('freight_covers_batch') : ""}
                 </div>
               </div>`;
             })()
-          : "Will be set at delivery"
+          : t('freight_at_delivery')
       }
     </div>
 
@@ -2887,27 +3321,27 @@ async function openDelivery(id) {
 
     ${currentStatus === "loaded" ? `
     <div id="failureSection" style="display:none;background:#fff1f2;border:1.5px solid #fca5a5;border-radius:12px;padding:16px;margin-top:10px;">
-      <div style="font-weight:700;color:#b91c1c;margin-bottom:12px;">❌ Report Failed Delivery</div>
+      <div style="font-weight:700;color:#b91c1c;margin-bottom:12px;">${t('report_failed')}</div>
 
-      <label style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Reason *</label>
+      <label style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">${t('reason')}</label>
       <select id="failureReason" onchange="onFailureReasonChange()"
         style="width:100%;padding:10px 12px;border:1.5px solid #fca5a5;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:white;color:#1e293b;margin-bottom:12px;">
-        <option value="">— Select reason —</option>
-        <option>Customer Not Available</option>
-        <option>Customer Not Responding</option>
-        <option>Customer Asked to Reschedule</option>
-        <option>Customer Cancelled / Not Accepting Product</option>
-        <option>Product Damaged / Not Working</option>
+        <option value="">${t('select_reason')}</option>
+        <option value="Customer Not Available">${t('reason_not_available')}</option>
+        <option value="Customer Not Responding">${t('reason_not_responding')}</option>
+        <option value="Customer Asked to Reschedule">${t('reason_reschedule')}</option>
+        <option value="Customer Cancelled / Not Accepting Product">${t('reason_cancelled')}</option>
+        <option value="Product Damaged / Not Working">${t('reason_damaged')}</option>
       </select>
 
       <div id="failurePhotoWrap" style="display:none;margin-bottom:12px;">
-        <label style="font-size:12px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Damage Photo * (required)</label>
+        <label style="font-size:12px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">${t('damage_photo')}</label>
         <input type="file" id="failurePhoto" accept="image/*" capture="environment"
           style="width:100%;padding:8px;border:2px solid #dc2626;border-radius:9px;font-size:13px;background:white;">
       </div>
 
       <div id="failurePhotoOptWrap" style="display:none;margin-bottom:12px;">
-        <label style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Photo (optional)</label>
+        <label style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">${t('photo_optional')}</label>
         <input type="file" id="failurePhotoOpt" accept="image/*" capture="environment"
           style="width:100%;padding:8px;border:1.5px solid #fca5a5;border-radius:9px;font-size:13px;background:white;">
       </div>
@@ -2915,25 +3349,29 @@ async function openDelivery(id) {
       <div style="display:flex;gap:8px;">
         <button onclick="submitFailure()"
           style="flex:1;padding:12px;background:#dc2626;color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;">
-          Confirm Failure
+          ${t('confirm_failure')}
         </button>
         <button onclick="document.getElementById('failureSection').style.display='none';document.getElementById('showFailureBtn').style.display='block';"
           style="padding:12px 16px;background:#64748b;color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">
-          Cancel
+          ${t('cancel')}
         </button>
       </div>
     </div>` : ""}
 
     <div class="popup-actions">
       ${actionBtn}
-      ${currentStatus === "loaded" ? `<button id="showFailureBtn" class="btn-failed" onclick="document.getElementById('failureSection').style.display='block';this.style.display='none';">❌ Mark as Failed</button>` : ""}
-      <button class="btn-close-action" onclick="closePopup()">Close</button>
+      ${currentStatus === "loaded" ? `<button id="showFailureBtn" class="btn-failed" onclick="document.getElementById('failureSection').style.display='block';this.style.display='none';">${t('mark_failed')}</button>` : ""}
+      <button class="btn-close-action" onclick="closePopup()">${t('close')}</button>
     </div>
   `;
 
   startETACountdown(d.estimated_delivery_time);
   document.getElementById("popup").style.display = "block";
   document.getElementById("popup").scrollTop = 0;
+
+  if (LANG === "mr") {
+    hydrateMarathiTexts([String(d.customer_name || ""), String(d.address || "")]);
+  }
 
   // Pre-warm GPS immediately when popup opens so it's ready by the time driver swipes
   precompressedBlob = null;   // Reset — new delivery, new photo
@@ -2973,10 +3411,10 @@ async function openDelivery(id) {
         // Show subtle compression-in-progress feedback
         const label = this.closest(".upload-section")?.querySelector(".upload-label");
         const origLabel = label?.textContent;
-        if (label) label.textContent = "⏳ Optimising photo…";
+        if (label) label.textContent = t('opt_photo');
         try {
           precompressedBlob = await compressImage(file);
-          if (label) label.textContent = "✅ Photo ready";
+          if (label) label.textContent = t('photo_ready');
         } catch(e) {
           precompressedBlob = null;
           if (label && origLabel) label.textContent = origLabel;
@@ -2995,9 +3433,9 @@ function startETACountdown(etaTime) {
   if (!el) return;
   function update() {
     const diff = new Date(etaTime) - new Date();
-    if (diff <= 0) { el.innerText = "⚠ Overdue"; return; }
+    if (diff <= 0) { el.innerText = t('eta_overdue'); return; }
     const m = Math.floor(diff / 60000);
-    el.innerText = m < 60 ? `⏱ ${m}m remaining` : `⏱ ${Math.floor(m/60)}h ${m%60}m remaining`;
+    el.innerText = m < 60 ? tf('eta_remaining_m', { m }) : tf('eta_remaining_hm', { h: Math.floor(m/60), m: m%60 });
   }
   update();
   if (etaInterval) clearInterval(etaInterval);
@@ -3256,20 +3694,20 @@ async function updateDelivery() {
   const isAC = isACProductName(currentDeliveryData?.product_name);
 
   const fileInput = document.getElementById("photo");
-  if (!fileInput?.files?.length) { showToast("📷 Please upload a photo first"); return; }
+  if (!fileInput?.files?.length) { showToast(t('err_photo_first')); return; }
   const file = fileInput.files[0];
-  if (!file.type.startsWith("image/")) { showToast("Only image files allowed"); return; }
+  if (!file.type.startsWith("image/")) { showToast(t('only_images')); return; }
 
   // AC products require both indoor AND outdoor unit photos
   const outdoorInput = document.getElementById("photo_outdoor");
   const hasOutdoor = outdoorInput?.files?.length > 0;
   if (isAC && !hasOutdoor) {
-    showToast("📷 Please upload both indoor and outdoor unit photos");
+    showToast(t('both_photos'));
     return;
   }
   const outdoorFile = hasOutdoor ? outdoorInput.files[0] : null;
   if (outdoorFile && !outdoorFile.type.startsWith("image/")) {
-    showToast("Only image files allowed for outdoor photo");
+    showToast(t('outdoor_images'));
     return;
   }
 
@@ -3297,7 +3735,7 @@ async function updateDelivery() {
   // Block a conflicting offline action (e.g. trying to mark "failed" a delivery
   // that already has a queued "delivered") instead of silently overwriting it.
   if (hasConflictingQueuedAction(currentDeliveryId, actionType)) {
-    showToast("⚠ This delivery already has a pending status update. Please wait for it to sync.");
+    showToast(t('pending_update'));
     return;
   }
 
@@ -3305,7 +3743,7 @@ async function updateDelivery() {
   if (currentStatus === "loaded") {
     const instrConfirm = document.getElementById("instructionsConfirm");
     if (instrConfirm && !instrConfirm.checked) {
-      showToast("⚠ Please read and confirm the delivery instructions first");
+      showToast(t('confirm_instructions_first'));
       return;
     }
   }
@@ -3313,15 +3751,15 @@ async function updateDelivery() {
   // Porter handover — all Porter details are required
   if (isPorterDelivery) {
     const required = {
-      porterInvoiceInput:  "Porter Invoice / Order No",
-      porterVehicleInput:  "Vehicle Reg No",
-      porterCourierInput:  "Courier Name",
-      porterPhoneInput:    "Courier Phone"
+      porterInvoiceInput:  t('porter_invoice_label'),
+      porterVehicleInput:  t('porter_vehicle_label'),
+      porterCourierInput:  t('courier_label'),
+      porterPhoneInput:    t('phone')
     };
     for (const [id, label] of Object.entries(required)) {
       const el = document.getElementById(id);
       if (!el?.value?.trim()) {
-        showToast("⚠ Please enter " + label);
+        showToast(tf('sp_enter', { x: label }));
         if (el) el.focus();
         return;
       }
@@ -3395,7 +3833,7 @@ async function updateDelivery() {
       delivery.status = actionType;
     }
     vibrate([100, 50, 200]);
-    showToast("💾 Saved offline. Will sync later");
+    showToast(t('saved_offline'));
     closePopup();
     renderDeliveries(allDeliveriesData);
     isProcessingAction = false;
@@ -3473,7 +3911,7 @@ async function updateDelivery() {
 
     const serialInput = document.getElementById("serialInput");
     if ((currentStatus === "pending" || isPorterDelivery) && !currentDeliveryData.product_serial_number) {
-      if (!serialInput?.value?.trim()) { showToast("⚠ Serial number is required"); isProcessingAction = false; if(widget) widget.style.pointerEvents="auto"; return; }
+      if (!serialInput?.value?.trim()) { showToast(t('err_serial_required')); isProcessingAction = false; if(widget) widget.style.pointerEvents="auto"; return; }
       formData.append("serial", serialInput.value.trim());
     }
 
@@ -3506,7 +3944,7 @@ async function updateDelivery() {
         const freightVal = freightInput?.value?.trim();
 
         if (freightVal === "" || freightVal === null || freightVal === undefined) {
-          showToast("⚠ Please enter freight amount (₹0 if none)");
+          showToast(t('enter_freight'));
           isProcessingAction = false;
           if (widget) widget.style.pointerEvents = "auto";
           return;
@@ -3514,7 +3952,7 @@ async function updateDelivery() {
 
         const freightNum = parseFloat(freightVal);
         if (isNaN(freightNum) || freightNum < 0) {
-          showToast("⚠ Invalid freight amount");
+          showToast(t('invalid_freight'));
           isProcessingAction = false;
           if (widget) widget.style.pointerEvents = "auto";
           return;
@@ -3544,7 +3982,7 @@ async function updateDelivery() {
         // recorded delivery look broken and invited endless retries.
         const alreadyRecorded = res.status === 409;
         if (!res.ok && !alreadyRecorded) {
-          showToast("⚠ Update failed. Try again.");
+          showToast(t('update_failed'));
           if (widget) widget.style.pointerEvents = "auto";
           return;
         }
@@ -3559,7 +3997,7 @@ async function updateDelivery() {
       })
       .catch(() => {
         isProcessingAction = false;
-        showToast("⚠ Network error. Please retry.");
+        showToast(t('err_network'));
         if (widget) widget.style.pointerEvents = "auto";
       });
   }
@@ -3577,7 +4015,7 @@ async function updateDelivery() {
     let pos = null;
     try { pos = await gpsPromise; } catch (_) { pos = null; }
     if (!pos?.coords && !resolveStampPos()) {
-      showToast("📍 No GPS fix — recording without location");
+      showToast(t('no_gps'));
     }
     doSubmit(pos);
   }
@@ -3623,7 +4061,7 @@ async function submitFailure() {
   if (isProcessingAction) return;   // Prevent double-tap duplicate submissions (Bug 7 fix)
 
   const reason = document.getElementById("failureReason")?.value;
-  if (!reason) { showToast("⚠ Please select a reason"); return; }
+  if (!reason) { showToast(t('select_reason_first')); return; }
 
   const isDamage = reason === "Product Damaged / Not Working";
   const photoInput = isDamage
@@ -3631,14 +4069,14 @@ async function submitFailure() {
     : document.getElementById("failurePhotoOpt");
 
   if (isDamage && !photoInput?.files?.length) {
-    showToast("📷 Photo required for damaged product");
+    showToast(t('damage_photo_required'));
     return;
   }
 
   isProcessingAction = true;
   const confirmBtn = document.querySelector('[onclick="submitFailure()"]');
   const origBtnText = confirmBtn?.textContent;
-  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = "Submitting…"; }
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = t('submitting'); }
 
   // Stamp the failure photo once, up front, and reuse it for the live submit and
   // the offline fallback below — so it is stamped and saved to the device once.
@@ -3658,9 +4096,9 @@ async function submitFailure() {
   // network returns — mirrors the loaded/delivered offline flow.
   if (!isOnline()) {
     if (hasConflictingQueuedAction(currentDeliveryId, "failed")) {
-      showToast("⚠ This delivery already has a pending status update. Please wait for it to sync.");
+      showToast(t('pending_update'));
       isProcessingAction = false;
-      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || "Confirm Failure"; }
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || t('confirm_failure'); }
       return;
     }
     try {
@@ -3675,15 +4113,15 @@ async function submitFailure() {
       if (delivery) delivery.status = "failed";
 
       vibrate([100, 50, 100, 50, 200]);
-      showToast("💾 Saved offline. Will sync later");
+      showToast(t('saved_offline'));
       closePopup();
       renderDeliveries(allDeliveriesData);
     } catch (e) {
       console.warn("[Offline] Failure queue error:", e);
-      showToast("⚠ Could not save offline. Try again.");
+      showToast(t('could_not_save'));
     } finally {
       isProcessingAction = false;
-      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || "Confirm Failure"; }
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || t('confirm_failure'); }
     }
     return;
   }
@@ -3715,11 +4153,11 @@ async function submitFailure() {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      showToast("⚠ " + (err.error || "Failed to submit. Try again."));
+      showToast("⚠ " + (err.error || t('failed_submit')));
       return;
     }
     vibrate([100, 50, 100, 50, 200]);
-    showToast("❌ Delivery marked as failed");
+    showToast(t('delivery_failed'));
     closePopup();
     silentRefresh();
   } catch (e) {
@@ -3734,15 +4172,15 @@ async function submitFailure() {
       const delivery = allDeliveriesData.find(d => d.id === currentDeliveryId);
       if (delivery) delivery.status = "failed";
       vibrate([100, 50, 100, 50, 200]);
-      showToast("💾 No network — saved offline. Will sync later");
+      showToast(t('no_network_saved'));
       closePopup();
       renderDeliveries(allDeliveriesData);
     } catch (e2) {
-      showToast("⚠ Network error. Please retry.");
+      showToast(t('err_network'));
     }
   } finally {
     isProcessingAction = false;
-    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || "Confirm Failure"; }
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = origBtnText || t('confirm_failure'); }
   }
 }
 
@@ -3793,7 +4231,7 @@ async function silentRefresh() {
       allDeliveriesData = cached;
       applyOfflineActionsToDeliveries();
       renderDeliveries(allDeliveriesData);
-      showToast("📡 Loaded from cache (offline)");
+      showToast(t('loaded_from_cache'));
     }
     return;
   }
@@ -3832,7 +4270,7 @@ async function silentRefresh() {
         // PIN rejected — session fully expired, force re-login
         closePopup();
         logoutDriver();
-        showToast("🔒 Session expired. Please log in again.", 4000);
+        showToast(t('session_expired'), 4000);
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
@@ -3853,7 +4291,7 @@ async function silentRefresh() {
       renderDeliveries(allDeliveriesData);
     } else {
       const c = document.getElementById("deliveryCards");
-      if (c) c.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Couldn't load deliveries</p><small><button onclick="silentRefresh()" style="margin-top:8px;padding:8px 18px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">↻ Retry</button></small></div>`;
+      if (c) c.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>${t('couldnt_load_deliveries')}</p><small><button onclick="silentRefresh()" style="margin-top:8px;padding:8px 18px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">${t('retry')}</button></small></div>`;
     }
   }
 }
@@ -3872,7 +4310,7 @@ function applyOfflineActionsToDeliveries() {
    LOGOUT
 ═══════════════════════════════════════ */
 function confirmLogout() {
-  if (confirm("Switch driver / log out?")) logoutDriver();
+  if (confirm(t('confirm_logout'))) logoutDriver();
 }
 
 function logoutDriver() {
@@ -3948,8 +4386,8 @@ document.addEventListener("touchend", e => {
 
   // Only silentRefresh — never unlockDriver (avoids re-login flash)
   if (delta > PTR_THRESHOLD && currentDriverId) {
-    showToast("🔄 Refreshing...");
-    silentRefresh().then(() => showToast("✅ Updated"));
+    showToast(t('refreshing'));
+    silentRefresh().then(() => showToast(t('updated')));
   }
 });
 
@@ -3971,7 +4409,7 @@ async function triggerInstall() {
   if (!deferredInstallPrompt) return;
   deferredInstallPrompt.prompt();
   const { outcome } = await deferredInstallPrompt.userChoice;
-  if (outcome === "accepted") { showToast("🎉 App installed!"); }
+  if (outcome === "accepted") { showToast(t('app_installed_short')); }
   deferredInstallPrompt = null;
   document.getElementById("installBanner").classList.remove("visible");
 }
@@ -3983,7 +4421,7 @@ function dismissInstall() {
 
 window.addEventListener("appinstalled", () => {
   document.getElementById("installBanner").classList.remove("visible");
-  showToast("✅ App installed successfully!");
+  showToast(t('app_installed'));
 });
 
 /* ═══════════════════════════════════════
@@ -4000,7 +4438,7 @@ function resetInactivityTimer() {
     if (currentDriverId && isOnline()) {
       closePopup();
       logoutDriver();
-      showToast("🔒 Session expired. Please log in again.", 4000);
+      showToast(t('session_expired'), 4000);
       // Scroll to top so PIN screen is visible
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -4131,20 +4569,20 @@ async function loadDeliveryHistory(driverId) {
 function renderHistory() {
   const container = document.getElementById("historyCards");
   if (!historyData.length) {
-    container.innerHTML = `<div class="history-empty">No completed deliveries today</div>`;
+    container.innerHTML = `<div class="history-empty">${t('no_completed')}</div>`;
     return;
   }
 
   container.innerHTML = historyData.map(d => {
     const delivTime = d.delivered_timestamp
-      ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+      ? new Date(d.delivered_timestamp.seconds * 1000).toLocaleTimeString(loc(), { hour: "2-digit", minute: "2-digit" })
       : "";
     return `
       <div class="history-card">
         <div class="history-card-icon">✅</div>
         <div class="history-card-info">
-          <div class="history-card-name">${d.customer_name}</div>
-          <div class="history-card-meta">${d.product_name} · Delivered ${delivTime}</div>
+          <div class="history-card-name">${xlitDisplay(d.customer_name)}</div>
+          <div class="history-card-meta">${d.product_name} · ${t('delivered_word')} ${delivTime}</div>
         </div>
         <a href="tel:${d.phone}" style="color:var(--accent);text-decoration:none;font-size:18px;flex-shrink:0;">📞</a>
       </div>`;
@@ -4241,7 +4679,7 @@ async function openIosScanner() {
   const statusEl = document.getElementById("iosStatusBar");
 
   overlay.classList.add("active");
-  statusEl.textContent = "Starting camera…";
+  statusEl.textContent = t('starting_camera');
   document.getElementById("iosScanResult").classList.remove("show");
   // Reset torch button fully each open
   const _tb = document.getElementById("iosTorchBtn");
@@ -4266,7 +4704,7 @@ async function openIosScanner() {
     video.srcObject = iosStream;
     await video.play();
   } catch (err) {
-    showToast(err.name === "NotAllowedError" ? "📷 Camera permission denied" : "📷 Camera error: " + err.message);
+    showToast(err.name === "NotAllowedError" ? t('camera_denied') : t('camera_error') + err.message);
     closeIosScanner();
     return;
   }
@@ -4286,7 +4724,7 @@ async function openIosScanner() {
   iosDecodeCount = 0;
   iosSending     = false;
 
-  statusEl.textContent = "● Scanning…";
+  statusEl.textContent = t('scanning');
 
   function renderLoop() {
     if (!iosScanning) return;
@@ -4305,7 +4743,7 @@ async function openIosScanner() {
         iosSending = true;
         iosDecodeCount++;
         const attempt = iosDecodeCount;
-        statusEl.textContent = "● Scanning… (" + attempt + ")";
+        statusEl.textContent = tf('scanning_n', { n: attempt });
 
         // Crop the barcode zone before sending. This was a narrow centre strip
         // (42% of the height, starting at 29%) — a barcode held above or below it
@@ -4378,14 +4816,14 @@ function handleIosScanResult(value) {
       input.style.boxShadow   = "0 0 0 3px rgba(22,163,74,0.2)";
       setTimeout(() => { input.style.borderColor = ""; input.style.boxShadow = ""; }, 1800);
     }
-    showToast("✅ Serial scanned: " + value);
+    showToast(t('serial_scanned') + value);
   }, 900);
 }
 
 async function toggleIosTorch() {
   const btn   = document.getElementById("iosTorchBtn");
   const track = iosStream?.getVideoTracks?.()[0];
-  if (!track) { showToast("⚠ Camera not ready"); return; }
+  if (!track) { showToast(t('camera_not_ready')); return; }
 
   const newState = !iosTorchOn;
   const caps = track.getCapabilities?.() || {};
@@ -4405,7 +4843,7 @@ async function toggleIosTorch() {
     iosTorchOn = false;
     btn?.classList.remove("torch-on");
     btn?.classList.add("torch-unavailable");
-    showToast("⚠ Torch not supported on this device");
+    showToast(t('torch_unsupported'));
   }
 }
 
@@ -4545,7 +4983,7 @@ async function toggleAndroidTorch() {
     androidTorchOn = false;
     btn?.classList.remove("torch-on");
     btn?.classList.add("torch-unavailable");
-    showToast("⚠ Torch not available on this device");
+    showToast(t('torch_unavailable'));
   }
 }
 
@@ -4562,7 +5000,7 @@ async function openScanner() {
       }
     });
   } catch (err) {
-    showToast(err.name === "NotAllowedError" ? "📷 Camera permission denied." : "📷 Camera error: " + err.message);
+    showToast(err.name === "NotAllowedError" ? t('camera_denied_period') : t('camera_error') + err.message);
     return;
   }
 
@@ -4629,7 +5067,7 @@ async function startHtml5QrDetector(video) {
     s.src = "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js";
     s.onload = res; s.onerror = rej;
     document.head.appendChild(s);
-  }).catch(() => { showToast("⚠ Scanner library failed to load"); closeScanner(); });
+  }).catch(() => { showToast(t('scanner_lib_failed')); closeScanner(); });
 
   if (typeof Html5Qrcode === "undefined") return;
   video.style.display = "none";
@@ -4660,7 +5098,7 @@ async function startHtml5QrDetector(video) {
     // html5-qrcode owns its own stream — reach it through its video element.
     await applyCameraFocus(document.querySelector("#html5qr-container video")?.srcObject);
   } catch (err) {
-    showToast("📷 Camera error: " + (err?.message || err));
+    showToast(t('camera_error') + (err?.message || err));
     closeScanner();
   }
 }
@@ -4695,7 +5133,7 @@ async function onNightScanPhoto(e) {
   const file = e.target.files?.[0];
   if (!file) return;
 
-  showToast("🌙 Reading barcode...");
+  showToast(t('reading_barcode'));
 
   try {
     // Draw photo to canvas
@@ -4755,14 +5193,14 @@ async function onNightScanPhoto(e) {
         setTimeout(() => { input.style.borderColor = ""; input.style.boxShadow = ""; }, 1800);
       }
       vibrate([50, 30, 80]);
-      showToast("✅ Serial number scanned!");
+      showToast(t('serial_scanned_ok'));
     } else {
-      showToast("⚠ Not found — taking another photo...");
+      showToast(t('not_found_retake'));
       setTimeout(() => openNightScan(), 800);
     }
 
   } catch(err) {
-    showToast("⚠ Night scan failed — try again");
+    showToast(t('night_scan_failed'));
   }
 }
 
@@ -4790,7 +5228,7 @@ function handleScanResult(value) {
       input.style.boxShadow   = "0 0 0 3px rgba(22,163,74,0.2)";
       setTimeout(() => { input.style.borderColor = ""; input.style.boxShadow = ""; }, 1800);
     }
-    showToast("✅ Serial scanned: " + value);
+    showToast(t('serial_scanned') + value);
   }, 950);
 }
 
@@ -4907,7 +5345,7 @@ async function loadDispatcherDeliveries() {
     // Populate bulk select dropdown
     const bulkDriverSel = document.getElementById("dispBulkDriverSelect");
     if (bulkDriverSel) {
-      let opts = '<option value="">— Driver —</option>';
+      let opts = '<option value="">' + t('driver_opt') + '</option>';
       dispatcherDriverList.forEach(function(dr) {
         opts += '<option value="' + dr.id + '">' + escHtml(dr.driver_name) + '</option>';
       });
@@ -4949,8 +5387,8 @@ async function loadDispatcherDeliveries() {
       container.innerHTML = `
         <div style="text-align:center;padding:40px 20px;background:var(--surface);border-radius:16px;border:1px solid var(--border);">
           <div style="font-size:36px;margin-bottom:10px;">📭</div>
-          <div style="font-weight:700;font-size:15px;color:var(--text);">All clear!</div>
-          <div style="font-size:13px;color:var(--muted);margin-top:4px;">No pending deliveries or self-pickups</div>
+          <div style="font-weight:700;font-size:15px;color:var(--text);">${t('all_clear')}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px;">${t('no_pending_disp')}</div>
         </div>`;
       return;
     }
@@ -4961,7 +5399,7 @@ async function loadDispatcherDeliveries() {
     if (selfPickups.length > 0) {
       const spHdr = document.createElement("div");
       spHdr.style.cssText = "font-size:12px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:4px;";
-      spHdr.textContent = `🏪 ${selfPickups.length} Self Pickup${selfPickups.length !== 1 ? "s" : ""} — Awaiting Collection`;
+      spHdr.textContent = `🏪 ${selfPickups.length} ${t('self_pickups')} — ${t('awaiting_collection')}`;
       container.appendChild(spHdr);
       selfPickups.forEach(d => container.appendChild(buildDispatcherCard(d)));
       if (toAssign.length > 0) {
@@ -4975,18 +5413,20 @@ async function loadDispatcherDeliveries() {
     if (toAssign.length > 0) {
       const hdr = document.createElement("div");
       hdr.style.cssText = "font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;";
-      hdr.textContent = `${toAssign.length} Deliver${toAssign.length === 1 ? "y" : "ies"} to Assign`;
+      hdr.textContent = `${toAssign.length} ${t('delivery_word')} ${t('to_assign')}`;
       container.appendChild(hdr);
       toAssign.forEach(d => container.appendChild(buildDispatcherCard(d)));
     }
 
     staggerCards(container);
 
+    if (LANG === "mr") hydrateMarathiTexts(collectXlitTexts(deliveries));
+
   } catch (e) {
     container.innerHTML = `
       <div style="text-align:center;padding:24px;background:var(--surface);border-radius:16px;border:1px solid #fca5a5;">
-        <div style="color:#dc2626;font-size:14px;font-weight:600;">⚠ Failed to load</div>
-        <button onclick="loadDispatcherDeliveries()" style="margin-top:10px;padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Retry</button>
+        <div style="color:#dc2626;font-size:14px;font-weight:600;">⚠ ${t('failed')}</div>
+        <button onclick="loadDispatcherDeliveries()" style="margin-top:10px;padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">${t('retry')}</button>
       </div>`;
     console.error("[Dispatcher]", e);
   }
@@ -5029,13 +5469,13 @@ function buildDispatcherCard(d) {
   ).join("");
 
   const etaStr = d.estimated_delivery_time
-    ? new Date(d.estimated_delivery_time).toLocaleDateString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:true})
+    ? new Date(d.estimated_delivery_time).toLocaleDateString(loc(),{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:true})
     : "—";
   const prevFail = d.previous_failures > 0
-    ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);margin-left:4px;">⚠ ${d.previous_failures}x failed</span>`
+    ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);margin-left:4px;">${tf('prev_failed', { n: d.previous_failures })}</span>`
     : "";
   const urgentBadge = d.priority === "urgent"
-    ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);margin-left:4px;">🔥 Urgent</span>`
+    ? `<span style="padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);margin-left:4px;">${t('urgent')}</span>`
     : "";
 
   // Selected state styling
@@ -5067,23 +5507,23 @@ function buildDispatcherCard(d) {
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;">
             <div style="flex:1;min-width:0;">
-              <div style="font-weight:700;font-size:15px;line-height:1.3;">${escHtml(d.customer_name)}${storeDisplayName(d.storeId)?`<span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${escHtml(storeDisplayName(d.storeId))}</span>`:""}${urgentBadge}${prevFail}</div>
+              <div style="font-weight:700;font-size:15px;line-height:1.3;">${escHtml(xlitDisplay(d.customer_name))}${storeDisplayName(d.storeId)?`<span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(77,142,255,0.12);color:#93c5fd;border:1px solid rgba(77,142,255,0.25);vertical-align:middle;">${escHtml(storeDisplayName(d.storeId))}</span>`:""}${urgentBadge}${prevFail}</div>
               <div style="font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(d.product_name)}</div>
             </div>
-            <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${sc.bg};color:${sc.text};white-space:nowrap;flex-shrink:0;">${d.status}</span>
+            <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${sc.bg};color:${sc.text};white-space:nowrap;flex-shrink:0;">${statusLabel(d.status)}</span>
           </div>
 
           <!-- Key info row -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:12px;color:var(--muted);margin-top:8px;margin-bottom:10px;">
             <div>📞 <a href="tel:${d.phone}" onclick="event.stopPropagation()" style="color:var(--accent);font-weight:600;">${d.phone}</a></div>
             <div>⏱ ${etaStr}</div>
-            <div style="grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍 ${escHtml(d.address || "—")}</div>
+            <div style="grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍 ${escHtml(xlitDisplay(d.address || "—"))}</div>
           </div>
 
           <!-- View details toggle — hidden in selection mode to avoid accidental expand -->
           <button type="button" id="ddetail_btn_${d.id}" onclick="event.stopPropagation();toggleDispatchDetail('${d.id}')"
             style="display:${selectionMode ? "none" : "block"};width:100%;padding:6px;background:var(--surface-container-high);border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--on-surface-variant);cursor:pointer;text-align:center;margin-bottom:10px;transition:background 0.15s;">
-            <span id="ddetail_toggle_${d.id}">▼ View Details</span>
+            <span id="ddetail_toggle_${d.id}">${t('view_details')}</span>
           </button>
         </div>
       </div>
@@ -5092,15 +5532,15 @@ function buildDispatcherCard(d) {
       <div id="${detailId}" style="display:none;margin:0 16px 10px;background:var(--surface-container-high);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;color:var(--on-surface);">
         ${d.driver_instructions && d.driver_instructions !== "none" ? `
           <div style="margin-bottom:8px;padding:8px 10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:8px;">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#fbbf24;margin-bottom:2px;">📋 Instructions</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#fbbf24;margin-bottom:2px;">${t('instructions_short')}</div>
             <div style="color:var(--on-surface);font-weight:500;">${escHtml(d.driver_instructions)}</div>
           </div>` : ""}
         <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;">
-          <span style="color:var(--on-surface-variant);font-size:12px;">Serial</span><span style="font-weight:500;">${escHtml(d.product_serial_number || "—")}</span>
-          <span style="color:var(--muted);font-size:12px;">Invoice</span><span style="font-weight:500;">${escHtml(d.invoice_number || "—")}</span>
-          <span style="color:var(--muted);font-size:12px;">Alt Phone</span><span>${d.alternate_phone ? `<a href="tel:${d.alternate_phone}" style="color:var(--accent);font-weight:600;">${d.alternate_phone}</a>` : "—"}</span>
-          <span style="color:var(--muted);font-size:12px;">Freight</span><span style="font-weight:500;">${d.freight_charged ? "₹" + (d.freight_amount || "?") + " (customer pays)" : "None"}</span>
-          ${d.previous_failures > 0 ? `<span style="color:var(--muted);font-size:12px;">Prev. Fail</span><span style="color:#dc2626;font-weight:500;">${escHtml(d.failure_reason || "—")}</span>` : ""}
+          <span style="color:var(--on-surface-variant);font-size:12px;">${t('serial')}</span><span style="font-weight:500;">${escHtml(d.product_serial_number || "—")}</span>
+          <span style="color:var(--muted);font-size:12px;">${t('invoice')}</span><span style="font-weight:500;">${escHtml(d.invoice_number || "—")}</span>
+          <span style="color:var(--muted);font-size:12px;">${t('alt_phone')}</span><span>${d.alternate_phone ? `<a href="tel:${d.alternate_phone}" style="color:var(--accent);font-weight:600;">${d.alternate_phone}</a>` : "—"}</span>
+          <span style="color:var(--muted);font-size:12px;">${t('freight_short')}</span><span style="font-weight:500;">${d.freight_charged ? "₹" + (d.freight_amount || "?") + " " + t('freight_pays') : t('none')}</span>
+          ${d.previous_failures > 0 ? `<span style="color:var(--muted);font-size:12px;">${t('prev_fail')}</span><span style="color:#dc2626;font-weight:500;">${escHtml(d.failure_reason ? reasonLabel(d.failure_reason) : "—")}</span>` : ""}
         </div>
       </div>
 
@@ -5108,26 +5548,26 @@ function buildDispatcherCard(d) {
       <div id="dcard_footer_${d.id}" style="padding:0 16px 14px;display:${selectionMode && canSelect ? "none" : "block"};">
         ${d.is_self_pickup ? `
           ${isPorterDel(d) ? `
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#4d8eff;margin-bottom:8px;">📦 Porter App — Handover to Porter Courier</div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#4d8eff;margin-bottom:8px;">${t('porter_app_handover')}</div>
           ${d.porter_invoice_number || d.porter_vehicle_number || d.porter_courier_name || d.porter_phone ? `
           <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px 10px;background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);border-radius:8px;">
-            ${d.porter_invoice_number ? `<span style="color:var(--on-surface-variant);">Invoice/Order</span><span style="font-weight:500;">${escHtml(d.porter_invoice_number)}</span>` : ""}
-            ${d.porter_vehicle_number ? `<span style="color:var(--on-surface-variant);">Vehicle Reg</span><span style="font-weight:500;">${escHtml(d.porter_vehicle_number)}</span>` : ""}
-            ${d.porter_courier_name ? `<span style="color:var(--on-surface-variant);">Courier</span><span style="font-weight:500;">${escHtml(d.porter_courier_name)}</span>` : ""}
-            ${d.porter_phone ? `<span style="color:var(--on-surface-variant);">Phone</span><span style="font-weight:500;">${escHtml(d.porter_phone)}</span>` : ""}
+            ${d.porter_invoice_number ? `<span style="color:var(--on-surface-variant);">${t('porter_invoice_label')}</span><span style="font-weight:500;">${escHtml(d.porter_invoice_number)}</span>` : ""}
+            ${d.porter_vehicle_number ? `<span style="color:var(--on-surface-variant);">${t('porter_vehicle_label')}</span><span style="font-weight:500;">${escHtml(d.porter_vehicle_number)}</span>` : ""}
+            ${d.porter_courier_name ? `<span style="color:var(--on-surface-variant);">${t('courier_label')}</span><span style="font-weight:500;">${escHtml(d.porter_courier_name)}</span>` : ""}
+            ${d.porter_phone ? `<span style="color:var(--on-surface-variant);">${t('phone')}</span><span style="font-weight:500;">${escHtml(d.porter_phone)}</span>` : ""}
           </div>` : ""}
           ` : `
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#16a34a;margin-bottom:8px;">🏪 Self Pickup — Customer Collects at Shop</div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#16a34a;margin-bottom:8px;">${t('self_pickup_shop')}</div>
           `}
           <div id="sp_form_${d.id}">
             ${!d.product_serial_number ? `
-              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Serial Number *</label>
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">${t('serial_number')}</label>
               <div style="display:flex;gap:8px;align-items:center;margin-top:4px;margin-bottom:8px;">
-                <input id="sp_serial_${d.id}" placeholder="Scan or enter serial number"
+                <input id="sp_serial_${d.id}" placeholder="${t('serial_ph')}"
                   style="flex:1;min-width:0;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--surface);color:var(--text);outline:none;">
                 <button type="button" onclick="triggerSelfPickupScan('${d.id}')"
                   style="display:flex;align-items:center;gap:5px;background:linear-gradient(135deg,var(--primary-container),var(--primary));color:var(--on-primary-container);border:none;border-radius:10px;padding:9px 14px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent;">
-                  <span style="font-size:16px;">&#x1F4F7;</span> Scan
+                  <span style="font-size:16px;">&#x1F4F7;</span> ${t('scan')}
                 </button>
                 <button type="button" onclick="triggerSelfPickupNightScan('${d.id}')"
                   style="display:flex;align-items:center;gap:3px;background:var(--surface-container-high);color:var(--on-surface);border:none;border-radius:10px;padding:9px 10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent;"
@@ -5136,44 +5576,44 @@ function buildDispatcherCard(d) {
                 </button>
               </div>
             ` : `
-              <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Serial: <strong style="color:var(--text);">${escHtml(d.product_serial_number)}</strong></div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">${t('serial')}: <strong style="color:var(--text);">${escHtml(d.product_serial_number)}</strong></div>
             `}
-            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">${isAC ? "Indoor Unit Photo *" : "Proof Photo *"}</label>
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">${isAC ? t('indoor_photo') : t('proof_photo')}</label>
             <input type="file" id="sp_photo_${d.id}" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
               style="display:block;width:100%;box-sizing:border-box;margin-top:4px;margin-bottom:10px;font-size:13px;">
             ${isAC ? `
-            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Outdoor Unit Photo *</label>
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">${t('outdoor_photo')}</label>
             <input type="file" id="sp_photo_outdoor_${d.id}" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
               style="display:block;width:100%;box-sizing:border-box;margin-top:4px;margin-bottom:10px;font-size:13px;">
             ` : ""}
             ${isPorterDel(d) ? `
-            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Porter Details *</label>
-            <input id="sp_porter_invoice_${d.id}" placeholder="Porter Invoice / Order No *" value="${escHtml(d.porter_invoice_number) || ""}"
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">${t('porter_details')}</label>
+            <input id="sp_porter_invoice_${d.id}" placeholder="${t('porter_invoice_ph')}" value="${escHtml(d.porter_invoice_number) || ""}"
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-top:4px;margin-bottom:6px;">
-            <input id="sp_porter_vehicle_${d.id}" placeholder="Vehicle Reg No *" value="${escHtml(d.porter_vehicle_number) || ""}"
+            <input id="sp_porter_vehicle_${d.id}" placeholder="${t('porter_vehicle_ph')}" value="${escHtml(d.porter_vehicle_number) || ""}"
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:6px;">
-            <input id="sp_porter_courier_${d.id}" placeholder="Courier Name *" value="${escHtml(d.porter_courier_name) || ""}"
+            <input id="sp_porter_courier_${d.id}" placeholder="${t('porter_courier_ph')}" value="${escHtml(d.porter_courier_name) || ""}"
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:6px;">
-            <input id="sp_porter_phone_${d.id}" placeholder="Courier Phone *" value="${escHtml(d.porter_phone) || ""}"
+            <input id="sp_porter_phone_${d.id}" placeholder="${t('porter_phone_ph')}" value="${escHtml(d.porter_phone) || ""}"
               style="display:block;width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;margin-bottom:10px;">
             ` : ""}
             <button type="button" onclick="confirmSelfPickup('${d.id}')"
               style="width:100%;padding:12px;background:${isPorterDel(d) ? "#4d8eff" : "#16a34a"};color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-              ${isPorterDel(d) ? "📦 Confirm Porter Handover" : "✅ Mark as Collected"}
+              ${isPorterDel(d) ? t('confirm_porter') : t('mark_collected')}
             </button>
           </div>
         ` : `
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:6px;">Assign to Driver</div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:6px;">${t('assign_to_driver')}</div>
           <div style="display:flex;gap:8px;align-items:center;">
             <select id="${selectId}"
               onchange="onDispatchSelectChange('${d.id}','${selectId}')"
               style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:var(--surface);color:var(--text);-webkit-appearance:none;">
-              <option value="">— Select Driver —</option>
+              <option value="">${t('select_driver')}</option>
               ${driverOptions}
             </select>
             <button type="button" onclick="confirmDispatchAssign('${d.id}','${selectId}')"
               style="padding:10px 18px;background:var(--accent);color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent;transition:opacity 0.15s;">
-              Assign →
+              ${t('assign_arrow')}
             </button>
           </div>
         `}
@@ -5183,7 +5623,7 @@ function buildDispatcherCard(d) {
       <!-- Selection mode hint (shown instead of footer when card is selectable & mode active) -->
       ${canSelect ? `
       <div id="dcard_selhint_${d.id}" style="display:${selectionMode ? "block" : "none"};padding:8px 16px 12px;font-size:12px;color:var(--on-surface-variant);font-weight:500;">
-        ${isSelected ? "✓ Selected — will assign with group" : "Tap to select"}
+        ${isSelected ? t('selected_group') : t('tap_to_select')}
       </div>` : ""}
 
     </div>
@@ -5239,7 +5679,7 @@ function toggleDispatchDetail(deliveryId) {
   if (!detail) return;
   const isOpen = detail.style.display !== "none";
   detail.style.display = isOpen ? "none" : "block";
-  if (toggle) toggle.textContent = isOpen ? "▼ View Details" : "▲ Hide Details";
+  if (toggle) toggle.textContent = isOpen ? t('view_details') : t('hide_details');
 }
 
 function enterSelectionMode() {
@@ -5250,7 +5690,7 @@ function enterSelectionMode() {
   const btn    = document.getElementById("dispSelectBtn");
   const footer = document.getElementById("dispBulkFooter");
   const count  = document.getElementById("dispSelectedCount");
-  if (btn)    { btn.textContent = "✕ Cancel"; btn.style.color = "var(--error)"; }
+  if (btn)    { btn.textContent = t('select_cancel'); btn.style.color = "var(--error)"; }
   if (footer) footer.style.display = "block";
   if (count)  count.textContent = "0";
 
@@ -5313,7 +5753,7 @@ function clearSelection() {
 
   const btn    = document.getElementById("dispSelectBtn");
   const footer = document.getElementById("dispBulkFooter");
-  if (btn)    { btn.textContent = "☐ Select"; btn.style.color = "var(--accent)"; }
+  if (btn)    { btn.textContent = t('select_word'); btn.style.color = "var(--accent)"; }
   if (footer) footer.style.display = "none";
 
   // Restore all cards
@@ -5356,7 +5796,7 @@ function selectAllDispatchCards() {
       const inner = document.getElementById("dcard_inner_" + id);
       if (inner) { inner.style.borderColor = "var(--accent)"; inner.style.outline = "2px solid var(--accent)"; inner.style.background = "rgba(173,198,255,0.07)"; }
       const hint = document.getElementById("dcard_selhint_" + id);
-      if (hint) hint.textContent = "✓ Selected — will assign with group";
+      if (hint) hint.textContent = t('selected_group');
     }
   });
   const countEl = document.getElementById("dispSelectedCount");
@@ -5366,17 +5806,17 @@ function selectAllDispatchCards() {
 async function bulkAssignDispatch() {
   const driverSelect = document.getElementById("dispBulkDriverSelect");
   if (!driverSelect || !driverSelect.value) {
-    showToast("⚠ Please select a driver first");
+    showToast(t('select_driver_first'));
     return;
   }
   const driverId   = driverSelect.value;
   const driverName = driverSelect.options[driverSelect.selectedIndex]?.textContent || "";
   const count = selectedDeliveries.size;
-  if (count === 0) { showToast("⚠ No deliveries selected"); return; }
-  if (!confirm(`Assign ${count} deliver${count !== 1 ? "ies" : "y"} to ${driverName}?`)) return;
+  if (count === 0) { showToast(t('no_deliveries_selected')); return; }
+  if (!confirm(tf('bulk_assign_confirm', { n: count, name: driverName }))) return;
 
   const btn = document.querySelector('#dispBulkFooter button[onclick="bulkAssignDispatch()"]');
-  if (btn) { btn.disabled = true; btn.textContent = "Assigning…"; }
+  if (btn) { btn.disabled = true; btn.textContent = t('assigning'); }
 
   let success = 0, fail = 0;
   for (const id of selectedDeliveries) {
@@ -5392,11 +5832,11 @@ async function bulkAssignDispatch() {
     } catch (e) { fail++; }
   }
 
-  if (btn) { btn.disabled = false; btn.textContent = "Assign All"; }
+  if (btn) { btn.disabled = false; btn.textContent = t('assign_all'); }
   vibrate && vibrate([50, 30, 80]);
   showToast(fail === 0
-    ? `✅ ${success} deliver${success !== 1 ? "ies" : "y"} assigned to ${driverName}`
-    : `⚠ ${success} assigned, ${fail} failed`);
+    ? tf('bulk_assigned', { n: success, name: driverName })
+    : tf('bulk_partial', { ok: success, fail: fail }));
   clearSelection();
   loadDispatcherDeliveries();
 }
@@ -5430,7 +5870,7 @@ async function confirmDispatchAssign(deliveryId, selectId) {
   const msg = document.getElementById("dcard_msg_" + deliveryId);
 
   if (!sel || !sel.value) {
-    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Please select a driver first"; }
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = t('select_driver_first'); }
     return;
   }
 
@@ -5444,8 +5884,8 @@ async function confirmDispatchAssign(deliveryId, selectId) {
     ids.add(String(deliveryId));
 
     const btn = sel.nextElementSibling;
-    if (btn) { btn.disabled = true; btn.textContent = `Assigning ${ids.size}…`; }
-    if (msg) { msg.style.color = var_muted(); msg.textContent = `Assigning ${ids.size} deliveries…`; }
+    if (btn) { btn.disabled = true; btn.textContent = `${t('assigning')} ${ids.size}…`; }
+    if (msg) { msg.style.color = var_muted(); msg.textContent = `${t('assigning')} ${ids.size} ${t('deliveries_word')}…`; }
 
     let success = 0, fail = 0;
     for (const id of ids) {
@@ -5461,15 +5901,15 @@ async function confirmDispatchAssign(deliveryId, selectId) {
       } catch (e) { fail++; }
     }
 
-    if (btn) { btn.disabled = false; btn.textContent = "Assign →"; }
+    if (btn) { btn.disabled = false; btn.textContent = t('assign_arrow'); }
     vibrate && vibrate([50, 30, 80]);
 
     if (fail === 0) {
-      showToast(`✅ ${success} deliver${success !== 1 ? "ies" : "y"} assigned to ${driverName}`);
+      showToast(tf('bulk_assigned', { n: success, name: driverName }));
       clearSelection();
       loadDispatcherDeliveries();
     } else {
-      showToast(`⚠ ${success} assigned, ${fail} failed`);
+      showToast(tf('bulk_partial', { ok: success, fail: fail }));
       clearSelection();
       loadDispatcherDeliveries();
     }
@@ -5480,7 +5920,7 @@ async function confirmDispatchAssign(deliveryId, selectId) {
   const btn = sel.nextElementSibling;
   const origText = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = "…"; }
-  if (msg) { msg.style.color = var_muted(); msg.textContent = "Assigning…"; }
+  if (msg) { msg.style.color = var_muted(); msg.textContent = t('assigning'); }
 
   try {
     const headers = { "Content-Type": "application/json" };
@@ -5493,12 +5933,12 @@ async function confirmDispatchAssign(deliveryId, selectId) {
     const data = await res.json();
 
     if (!res.ok) {
-      if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ " + (data.error || "Failed"); }
+      if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ " + (data.error || t('failed')); }
       if (btn) { btn.disabled = false; btn.textContent = origText; }
       return;
     }
 
-    if (msg) { msg.style.color = "#16a34a"; msg.textContent = `✅ Assigned to ${driverName}`; }
+    if (msg) { msg.style.color = "#16a34a"; msg.textContent = `${t('assigned_to')} ${driverName}`; }
     vibrate && vibrate([50, 30, 80]);
     setTimeout(() => {
       const card = document.getElementById("dcard_" + deliveryId);
@@ -5511,7 +5951,7 @@ async function confirmDispatchAssign(deliveryId, selectId) {
     }, 700);
 
   } catch (e) {
-    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Network error. Retry."; }
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = t('network_retry'); }
     if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
@@ -5527,30 +5967,30 @@ async function confirmSelfPickup(deliveryId) {
 
   // Validate
   if (!photoInput?.files?.length) {
-    if (msg) { msg.style.color = "#dc2626"; msg.textContent = isAC ? "⚠ Please take the indoor unit photo first" : "⚠ Please take a proof photo first"; }
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = isAC ? t('sp_no_indoor') : t('sp_no_proof'); }
     return;
   }
   if (isAC && !outdoorInput?.files?.length) {
-    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Please take the outdoor unit photo too"; }
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = t('sp_no_outdoor'); }
     return;
   }
   if (serialInput && !serialInput.value.trim()) {
-    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Serial number is required"; }
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = t('err_serial_required'); }
     serialInput.focus();
     return;
   }
   // Porter handover — all Porter details are required
   if (isPorter) {
     const required = {
-      sp_porter_invoice_:  "Porter Invoice / Order No",
-      sp_porter_vehicle_:  "Vehicle Reg No",
-      sp_porter_courier_:  "Courier Name",
-      sp_porter_phone_:    "Courier Phone"
+      sp_porter_invoice_:  t('porter_invoice_label'),
+      sp_porter_vehicle_:  t('porter_vehicle_label'),
+      sp_porter_courier_:  t('courier_label'),
+      sp_porter_phone_:    t('phone')
     };
     for (const [prefix, label] of Object.entries(required)) {
       const el = document.getElementById(prefix + deliveryId);
       if (!el?.value?.trim()) {
-        if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Please enter " + label; }
+        if (msg) { msg.style.color = "#dc2626"; msg.textContent = tf('sp_enter', { x: label }); }
         if (el) el.focus();
         return;
       }
@@ -5578,8 +6018,8 @@ async function confirmSelfPickup(deliveryId) {
 
   // ── OFFLINE PATH ────────────────────────────────────────────────────────────
   if (!isOnline()) {
-    if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
-    if (msg) { msg.style.color = var_muted(); msg.textContent = "Saving offline…"; }
+    if (btn) { btn.disabled = true; btn.textContent = t('saving'); }
+    if (msg) { msg.style.color = var_muted(); msg.textContent = t('saving_offline'); }
 
     try {
       const idbKey = photoIdbKey(deliveryId, "selfpickup");
@@ -5617,7 +6057,7 @@ async function confirmSelfPickup(deliveryId) {
     if (delivery) delivery.status = "delivered";
 
     vibrate([100, 50, 200]);
-    showToast("💾 Self-pickup saved offline. Will sync when online.");
+    showToast(t('selfpickup_saved'));
 
     const card = document.getElementById("dcard_" + deliveryId);
     if (card) {
@@ -5630,8 +6070,8 @@ async function confirmSelfPickup(deliveryId) {
   }
   // ── END OFFLINE PATH ────────────────────────────────────────────────────────
 
-  if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
-  if (msg) { msg.style.color = var_muted(); msg.textContent = "Uploading photo…"; }
+  if (btn) { btn.disabled = true; btn.textContent = t('uploading'); }
+  if (msg) { msg.style.color = var_muted(); msg.textContent = t('uploading_photo'); }
 
   try {
     const formData = new FormData();
@@ -5670,7 +6110,7 @@ async function confirmSelfPickup(deliveryId) {
     const data = await res.json();
 
     if (!res.ok) {
-      if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ " + (data.error || "Failed"); }
+      if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ " + (data.error || t('failed')); }
       if (btn) { btn.disabled = false; btn.textContent = origText; }
       return;
     }
@@ -5692,7 +6132,7 @@ async function confirmSelfPickup(deliveryId) {
     }, 600);
 
   } catch (e) {
-    if (msg) { msg.style.color = "#dc2626"; msg.textContent = "⚠ Network error. Retry."; }
+    if (msg) { msg.style.color = "#dc2626"; msg.textContent = t('network_retry'); }
     if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
@@ -5712,7 +6152,7 @@ let qcDelivery     = null;   // the delivery being confirmed
 let qcPreviewUrl   = null;   // object URL for the thumbnail
 
 function openQuickCapture() {
-  if (!currentDriverId) { showToast("⚠ Authenticate first"); return; }
+  if (!currentDriverId) { showToast(t('authenticate_first')); return; }
   qcPlainBlob = qcPlainOutdoor = qcDelivery = null;
   const input = document.getElementById("quickCapInput");
   if (!input) return;
@@ -5782,9 +6222,9 @@ function qcRenderPicker() {
   const list = qcLoaded();
   document.getElementById("qcSheet").innerHTML = `
     <div class="popup-band popup-band-loaded">
-      <div class="popup-name">📸 Which delivery is this?</div>
+      <div class="popup-name">${t('qc_which')}</div>
       <div style="font-size:13px;color:var(--on-surface-variant);margin-top:4px;">
-        ${list.length} loaded deliver${list.length === 1 ? "y" : "ies"} — tap the one this photo is for
+        ${tf(list.length === 1 ? 'qc_loaded_count_one' : 'qc_loaded_count', { n: list.length })}
       </div>
     </div>
     <div class="popup-body" style="padding-top:14px;">
@@ -5794,32 +6234,32 @@ function qcRenderPicker() {
         <div class="delivery-card" onclick="qcPickDelivery('${d.id}')">
           <div class="card-top">
             <div>
-              <div class="card-name">${escHtml(d.customer_name)}</div>
+              <div class="card-name">${escHtml(xlitDisplay(d.customer_name))}</div>
               <div class="card-product">${escHtml(d.product_name)}</div>
             </div>
-            <div class="card-badges"><span class="badge badge-loaded">loaded</span></div>
+            <div class="card-badges"><span class="badge badge-loaded">${statusLabel('loaded')}</span></div>
           </div>
           <div class="card-divider"></div>
           <div class="card-footer">
-            <div class="card-address">${escHtml(d.address || "")}</div>
+            <div class="card-address">${escHtml(xlitDisplay(d.address || ""))}</div>
             <div class="card-chevron">›</div>
           </div>
         </div>`).join("")
       : `<div class="empty-state">
            <div style="margin-bottom:14px;">${emptyStateSVG("box")}</div>
-           <p>Nothing loaded</p>
-           <small>Load a delivery from its card first</small>
+           <p>${t('qc_nothing_loaded')}</p>
+           <small>${t('qc_load_first')}</small>
          </div>`}
     </div>
     <div style="padding:0 22px 22px;">
       <button type="button" onclick="qcHide()"
-        style="width:100%;padding:14px;background:var(--surface-container-high);color:var(--on-surface);border:none;border-radius:14px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;cursor:pointer;">Cancel</button>
+        style="width:100%;padding:14px;background:var(--surface-container-high);color:var(--on-surface);border:none;border-radius:14px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;cursor:pointer;">${t('cancel')}</button>
     </div>`;
 }
 
 function qcPickDelivery(id) {
   qcDelivery = allDeliveriesData.find(d => String(d.id) === String(id));
-  if (!qcDelivery) { showToast("⚠ Delivery not found"); qcHide(); return; }
+  if (!qcDelivery) { showToast(t('qc_not_found')); qcHide(); return; }
   qcRenderConfirm();
 }
 
@@ -5831,7 +6271,7 @@ function qcRenderConfirm() {
 
   document.getElementById("qcSheet").innerHTML = `
     <div class="popup-band popup-band-loaded">
-      <div class="popup-name">${escHtml(d.customer_name)}</div>
+      <div class="popup-name">${escHtml(xlitDisplay(d.customer_name))}</div>
       <div style="font-size:14px;color:var(--on-surface-variant);margin-top:4px;">${escHtml(d.product_name)}</div>
     </div>
 
@@ -5839,51 +6279,51 @@ function qcRenderConfirm() {
       <img src="${qcPreviewUrl || ""}" alt="captured photo"
         style="width:100%;max-height:180px;object-fit:cover;border-radius:14px;margin-bottom:8px;">
       <button type="button" onclick="qcCaptureMore()"
-        style="width:100%;padding:10px;background:var(--surface-container-high);color:var(--on-surface);border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:14px;">↻ Retake photo</button>
+        style="width:100%;padding:10px;background:var(--surface-container-high);color:var(--on-surface);border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:14px;">${t('qc_retake')}</button>
 
       ${isAC ? `
       <div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);border-radius:12px;padding:12px;margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#adc6ff;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">AC — outdoor unit photo required</div>
+        <div style="font-size:12px;font-weight:700;color:#adc6ff;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">${t('qc_ac_outdoor')}</div>
         <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:${qcPlainOutdoor ? "var(--tertiary)" : "var(--on-surface-variant)"};">
-          ${qcPlainOutdoor ? "✅ Outdoor photo added" : "Not taken yet"}
+          ${qcPlainOutdoor ? t('qc_outdoor_added') : t('qc_not_taken')}
         </div>
         <button type="button" onclick="qcCaptureOutdoor()"
           style="width:100%;padding:11px;background:var(--primary);color:var(--on-primary-container);border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;">
-          📸 ${qcPlainOutdoor ? "Retake outdoor photo" : "Add outdoor photo"}
+          📸 ${qcPlainOutdoor ? t('qc_retake_outdoor') : t('qc_add_outdoor')}
         </button>
       </div>` : ""}
 
       ${hasInstr ? `
       <div class="info-box-instructions">
-        <strong>📝 Delivery Instructions</strong>
+        <strong>${t('delivery_instructions')}</strong>
         <div class="instr-text">${escHtml(d.driver_instructions)}</div>
       </div>
       <div class="instructions-confirm">
-        <label><input type="checkbox" id="qcInstrConfirm"> ✓ I confirm I have read and understood the delivery instructions</label>
+        <label><input type="checkbox" id="qcInstrConfirm"> ${t('confirm_read')}</label>
       </div>` : ""}
 
       <div class="info-box info-box-gray">
-        💰 <strong>Freight:</strong>
+        <strong>${t('freight')}</strong>
         ${d.freight_charged
-          ? `<span style="font-weight:700;color:#166534;">₹${d.freight_amount || "—"} (already set)</span>`
+          ? `<span style="font-weight:700;color:#166534;">₹${d.freight_amount || "—"} (${t('already_set')})</span>`
           : secondary
-            ? `<div style="font-size:13px;color:#166534;font-weight:700;margin-top:6px;">✅ ₹${secondary.freight_amount} — batch freight already set</div>`
+            ? `<div style="font-size:13px;color:#166534;font-weight:700;margin-top:6px;">${tf('batch_freight_set', { amt: secondary.freight_amount })}</div>`
             : `<div style="margin-top:8px;">
                  <label style="font-size:12px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">
-                   ${d.batch_id ? "🔗 Freight for entire batch (₹) *" : "Freight Charge (₹) *"}
+                   ${d.batch_id ? t('freight_batch') : t('freight_charge')}
                  </label>
-                 <input id="qcFreight" type="number" min="0" step="1" inputmode="numeric" placeholder="Enter ₹0 if no freight"
+                 <input id="qcFreight" type="number" min="0" step="1" inputmode="numeric" placeholder="${t('freight_ph')}"
                    style="width:100%;box-sizing:border-box;padding:11px 14px;border:2px solid #dc2626;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;background:#fff;color:var(--text);">
-                 <div style="font-size:11px;color:#dc2626;margin-top:5px;font-weight:600;">⚠ Required — enter ₹0 if no freight</div>
+                 <div style="font-size:11px;color:#dc2626;margin-top:5px;font-weight:600;">${t('freight_required')}</div>
                </div>`}
       </div>
     </div>
 
     <div style="padding:0 22px 22px;">
       <button type="button" id="qcSubmitBtn" onclick="qcSubmit()"
-        style="width:100%;padding:15px;background:#16a34a;color:#fff;border:none;border-radius:14px;font-family:'Inter',sans-serif;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;">✅ Confirm Delivered</button>
+        style="width:100%;padding:15px;background:#16a34a;color:#fff;border:none;border-radius:14px;font-family:'Inter',sans-serif;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;">${t('qc_confirm_delivered')}</button>
       <button type="button" onclick="qcHide()"
-        style="width:100%;padding:12px;background:transparent;color:var(--on-surface-variant);border:none;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>
+        style="width:100%;padding:12px;background:transparent;color:var(--on-surface-variant);border:none;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">${t('cancel')}</button>
     </div>`;
 }
 
@@ -5899,28 +6339,28 @@ async function qcSubmit() {
   // Same gates as the card flow (updateDelivery) — instructions, then freight.
   const instrBox = document.getElementById("qcInstrConfirm");
   if (instrBox && !instrBox.checked) {
-    showToast("⚠ Please confirm you read the delivery instructions");
+    showToast(t('confirm_instructions'));
     return;
   }
 
   let freightVal = null;
   if (needFreight) {
     freightVal = document.getElementById("qcFreight")?.value?.trim();
-    if (!freightVal) { showToast("⚠ Please enter freight amount (₹0 if none)"); return; }
+    if (!freightVal) { showToast(t('enter_freight')); return; }
     const n = parseFloat(freightVal);
-    if (isNaN(n) || n < 0) { showToast("⚠ Invalid freight amount"); return; }
+    if (isNaN(n) || n < 0) { showToast(t('invalid_freight')); return; }
   }
 
-  if (isAC && !qcPlainOutdoor) { showToast("⚠ Outdoor unit photo required for an AC"); return; }
+  if (isAC && !qcPlainOutdoor) { showToast(t('qc_outdoor_required')); return; }
 
   if (hasConflictingQueuedAction(d.id, "delivered")) {
-    showToast("⚠ This delivery already has a pending status update. Please wait for it to sync.");
+    showToast(t('pending_update'));
     return;
   }
 
   isProcessingAction = true;
   const btn = document.getElementById("qcSubmitBtn");
-  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  if (btn) { btn.disabled = true; btn.textContent = t('saving'); }
 
   const stampPos = resolveStampPos();
   const stampTs  = Date.now();
@@ -5954,13 +6394,13 @@ async function qcSubmit() {
       if (local) local.status = "delivered";
       isProcessingAction = false;
       vibrate([100, 50, 200]);
-      showToast("💾 Saved offline — will sync when online");
+      showToast(t('no_network_saved'));
       qcHide();
       renderDeliveries(allDeliveriesData);
     } catch (e) {
       isProcessingAction = false;
-      if (btn) { btn.disabled = false; btn.textContent = "✅ Confirm Delivered"; }
-      showToast("⚠ Could not save offline. Retry.");
+      if (btn) { btn.disabled = false; btn.textContent = t('qc_confirm_delivered'); }
+      showToast(t('could_not_save_retry'));
     }
     return;
   }
@@ -5999,8 +6439,8 @@ async function qcSubmit() {
     // 409 = already delivered. From the driver's side that is a success, not a failure.
     if (!res.ok && res.status !== 409) {
       isProcessingAction = false;
-      if (btn) { btn.disabled = false; btn.textContent = "✅ Confirm Delivered"; }
-      showToast("⚠ " + (data.error || "Update failed"));
+      if (btn) { btn.disabled = false; btn.textContent = t('qc_confirm_delivered'); }
+      showToast("⚠ " + (data.error || t('update_failed_short')));
       return;
     }
 
@@ -6008,14 +6448,14 @@ async function qcSubmit() {
     if (local) local.status = "delivered";
     isProcessingAction = false;
     vibrate([100, 50, 200]);
-    showToast(res.status === 409 ? "✅ Already recorded" : "🎉 Marked as Delivered!");
+    showToast(res.status === 409 ? t('already_recorded') : t('marked_delivered'));
     qcHide();
     renderDeliveries(allDeliveriesData);
     silentRefresh();
   } catch (e) {
     isProcessingAction = false;
-    if (btn) { btn.disabled = false; btn.textContent = "✅ Confirm Delivered"; }
-    showToast("⚠ Network error. Retry.");
+    if (btn) { btn.disabled = false; btn.textContent = t('qc_confirm_delivered'); }
+    showToast(t('network_retry'));
   }
 }
 

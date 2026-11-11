@@ -1589,6 +1589,70 @@ app.post("/transliterate", async (req, res) => {
   }
 });
 
+const XLIT_WORD_CACHE = new Map();
+const XLIT_WORD_CACHE_MAX = 5000;
+
+/* Batch transliteration for display-time Marathi DO data (names / addresses).
+   POST /transliterate-batch { texts: [] } → { results: [] }
+   Dedupes words across every string so a whole manifest is one round trip and
+   each unique word is looked up only once. Falls back to the original word. */
+app.post("/transliterate-batch", async (req, res) => {
+  const texts = Array.isArray(req.body?.texts) ? req.body.texts : [];
+  if (!texts.length) return res.json({ results: [] });
+
+  const unique = new Set();
+  for (const tx of texts) {
+    for (const word of String(tx || "").split(/\s+/)) {
+      if (word && /[A-Za-z]/.test(word)) unique.add(word);
+    }
+  }
+
+  const words = [...unique];
+  const mapping = new Map();
+  let cursor = 0;
+
+  async function transliterateWord(word) {
+    if (XLIT_WORD_CACHE.has(word)) return XLIT_WORD_CACHE.get(word);
+    // Google occasionally returns no suggestion under bursty load — retry once.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const url = `https://inputtools.google.com/request?text=${encodeURIComponent(word)}&itc=mr-t-i0-und&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=test`;
+        const r = await fetch(url, { headers: { Accept: "application/json" } });
+        const data = await r.json();
+        const suggestion = data?.[1]?.[0]?.[1]?.[0];
+        if (suggestion) {
+          if (XLIT_WORD_CACHE.size >= XLIT_WORD_CACHE_MAX) XLIT_WORD_CACHE.clear();
+          XLIT_WORD_CACHE.set(word, suggestion);
+          return suggestion;
+        }
+      } catch (_) { /* fall through to retry */ }
+      await new Promise(resolve => setTimeout(resolve, 120));
+    }
+    return word;
+  }
+
+  async function worker() {
+    while (cursor < words.length) {
+      const word = words[cursor++];
+      mapping.set(word, await transliterateWord(word));
+    }
+  }
+
+  const CONCURRENCY = 4;
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, words.length) }, () => worker())
+  );
+
+  const results = texts.map(tx =>
+    String(tx || "")
+      .split(/\s+/)
+      .map(w => mapping.get(w) || w)
+      .join(" ")
+  );
+
+  res.json({ results });
+});
+
 /* ════════════════════════════════════════════════
    ASSIGN DELIVERY (Unassigned dispatcher)
    POST /assignDelivery/:id

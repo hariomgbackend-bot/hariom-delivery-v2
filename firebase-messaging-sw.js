@@ -30,7 +30,7 @@ messaging.onBackgroundMessage(function(payload) {
    Cache version — bump when the asset list / behavior
    changes so `activate` clears the stale cache.
 ════════════════════════════════════════════════════ */
-const CACHE_NAME = "hariom-shell-v6";
+const CACHE_NAME = "hariom-shell-v7";
 const SHELL_ASSETS = [
   "/driver_interface.html",
   "/design-system.css?v=2",
