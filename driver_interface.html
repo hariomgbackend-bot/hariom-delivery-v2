@@ -1941,6 +1941,7 @@ async function hydrateMarathiTexts(texts) {
   if (!need.length) return;
 
   xlitRunning = true;
+  let didChange = false;
   try {
     for (let i = 0; i < need.length; i += 40) {
       const chunk = need.slice(i, i + 40);
@@ -1954,19 +1955,27 @@ async function hydrateMarathiTexts(texts) {
       if (Array.isArray(data.results)) {
         data.results.forEach((r, j) => {
           // Only cache a genuine Marathi result; otherwise leave the original.
-          if (typeof r === "string" && /[\u0900-\u097F]/.test(r) && r !== chunk[j]) XLIT[chunk[j]] = r;
-          else XLIT_FAIL.set(chunk[j], Date.now());
+          if (typeof r === "string" && /[\u0900-\u097F]/.test(r) && r !== chunk[j]) {
+            XLIT[chunk[j]] = r;
+            didChange = true;
+          } else {
+            XLIT_FAIL.set(chunk[j], Date.now());
+          }
         });
       }
     }
-    saveXlit();
-    xlitRefreshUI();
+    if (didChange) saveXlit();
   } catch (_) {
     /* offline / endpoint down — keep showing the original text */
     xlitMarkFailed(need);
   } finally {
     xlitRunning = false;
   }
+
+  // Refresh AFTER releasing the guard, so re-renders can start a follow-up
+  // hydration for surfaces that were queued while this run was in flight
+  // (e.g. the completed-history list).
+  if (didChange) xlitRefreshUI();
 }
 
 function xlitRefreshUI() {
@@ -4587,6 +4596,8 @@ function renderHistory() {
         <a href="tel:${d.phone}" style="color:var(--accent);text-decoration:none;font-size:18px;flex-shrink:0;">📞</a>
       </div>`;
   }).join("");
+
+  if (LANG === "mr") hydrateMarathiTexts(collectXlitTexts(historyData));
 }
 
 function toggleHistory() {
