@@ -490,6 +490,13 @@
     }
     .home-card-count.muted { color: var(--outline); }
 
+    /* ── APPLIANCE SIZING EMBED ── */
+    .sizing-frame {
+      display: block; width: 100%; height: calc(100vh - 230px); min-height: 540px;
+      border: 1px solid var(--border); border-radius: 18px; background: #f8fafc;
+    }
+    [data-theme="light"] .sizing-frame { background: #f8fafc; }
+
     /* ── LIGHT MODE ── */
     [data-theme="light"] {
       --bg:                       #f0f4f8;
@@ -1018,6 +1025,11 @@
           <div class="home-card-icon" style="background:rgba(78,222,163,0.12);">🧾</div>
           <div class="home-card-label">Quotation</div>
           <div class="home-card-count muted">letterhead</div>
+        </div>
+        <div class="home-card" onclick="switchTab('sizing')">
+          <div class="home-card-icon" style="background:rgba(29,78,216,0.12);">📐</div>
+          <div class="home-card-label">Appliance Sizing</div>
+          <div class="home-card-count muted">AC · TV · fridge</div>
         </div>
         <div class="home-card" onclick="switchTab('leads')">
           <div class="home-card-icon" style="background:rgba(78,222,163,0.12);">📋</div>
@@ -1730,6 +1742,22 @@
       <div id="qtHistory"></div>
     </div>
 
+    <!-- TAB: APPLIANCE SIZING -->
+    <div id="tabSizing" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">📐 Appliance Sizing</div>
+      <div style="font-size:13px;color:var(--on-surface-variant);margin-bottom:12px;">
+        Recommend AC tonnage, TV size, fridge and washing machine capacity from the customer's
+        room dimensions and family size.
+      </div>
+      <iframe id="sizingFrame" class="sizing-frame"
+        title="Appliance Sizing &amp; Recommendation Calculator"
+        data-src="/hari_om_electronics_appliance_sizing_recommendation_calculator.html"
+        loading="lazy"></iframe>
+    </div>
+
   </div><!-- /mainPanel -->
 </div><!-- /container -->
 
@@ -2162,7 +2190,7 @@ function doLogout() {
 /* ── TAB SWITCH ── */
 function switchTab(tab) {
   currentTab = tab;
-  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", attendance:"tabAttendance", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview", capture:"tabCapture", tagRequest:"tabTagRequest", quotation:"tabQuotation" };
+  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", attendance:"tabAttendance", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview", capture:"tabCapture", tagRequest:"tabTagRequest", quotation:"tabQuotation", sizing:"tabSizing" };
   Object.keys(idMap).forEach(k => {
     const el = document.getElementById(idMap[k]);
     if (el) el.style.display = k === tab ? "" : "none";
@@ -2178,6 +2206,12 @@ function switchTab(tab) {
   if (tab === "capture") capInit();
   if (tab === "tagRequest") trqInit();
   if (tab === "quotation") qtInit();
+  if (tab === "sizing") sizingInit();
+}
+
+function sizingInit() {
+  const f = document.getElementById("sizingFrame");
+  if (f && !f.getAttribute("src")) f.src = f.dataset.src;
 }
 
 /* ── TAB: TAKE REVIEW (Google review QR wizard) ── */

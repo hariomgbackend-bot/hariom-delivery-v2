@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hari Om Electronics | Appliance Sizing & Recommendation Calculator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#1d4ed8',
+                            700: '#1e40af',
+                            800: '#1e3a8a',
+                            900: '#172554',
+                        },
+                        accent: {
+                            500: '#f59e0b',
+                            600: '#d97706',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom smooth transitions and subtle scrollbar hiding */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            background: #e2e8f0;
+            height: 0.5rem;
+            border-radius: 9999px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            margin-top: -6px;
+            background-color: #1d4ed8;
+            height: 1.25rem;
+            width: 1.25rem;
+            border-radius: 9999px;
+            border: 3px solid #ffffff;
+            box-shadow: 0 2px 6px rgba(29, 78, 216, 0.35);
+            transition: transform 0.15s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.12);
+        }
+        .fade-in {
+            animation: fadeIn 0.28s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-brand-100 selection:text-brand-800">
+
+    <!-- Top Showroom Header -->
+    <header class="bg-gradient-to-r from-brand-900 via-brand-800 to-brand-700 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-inner">
+                    <i data-lucide="zap" class="w-6 h-6 text-amber-400 fill-amber-400"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-display font-bold text-lg sm:text-xl tracking-tight leading-none">Hari Om Electronics</h1>
+                        <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-400/20 text-amber-200 border border-amber-400/30">
+                            Smart Buyer Guide
+                        </span>
+                    </div>
+                    <p class="text-xs text-blue-200 mt-1 flex items-center gap-1.5">
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-amber-300 shrink-0"></i>
+                        <span>Alandi &amp; Dhanore Showrooms &bull; Expert Appliance Sizing</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Quick Reset / Showroom Staff Helper Badge -->
+            <div class="flex items-center gap-2">
+                <button onclick="resetCurrentTab()" class="text-xs font-medium bg-white/10 hover:bg-white/20 active:bg-white/25 text-white px-3 py-2 rounded-xl border border-white/15 transition flex items-center gap-1.5" title="Reset Inputs">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                    <span>Reset</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Appliance Category Navigation Tabs -->
+        <div class="bg-brand-950/40 border-t border-white/10">
+            <div class="max-w-6xl mx-auto px-3 sm:px-6">
+                <nav class="flex overflow-x-auto no-scrollbar py-2 gap-2" role="tablist" aria-label="Appliance Categories">
+                    <button onclick="switchTab('ac')" id="tab-ac" role="tab" aria-selected="true"
+                        class="tab-btn flex-1 min-w-[125px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all bg-white text-brand-800 shadow-sm">
+                        <i data-lucide="snowflake" class="w-4 h-4 shrink-0"></i>
+                        <span>Air Conditioner</span>
+                    </button>
+                    <button onclick="switchTab('tv')" id="tab-tv" role="tab" aria-selected="false"
+                        class="tab-btn flex-1 min-w-[115px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all text-blue-100 hover:bg-white/10">
+                        <i data-lucide="tv" class="w-4 h-4 shrink-0"></i>
+                        <span>Smart TV</span>
+                    </button>
+                    <button onclick="switchTab('fridge')" id="tab-fridge" role="tab" aria-selected="false"
+                        class="tab-btn flex-1 min-w-[125px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all text-blue-100 hover:bg-white/10">
+                        <i data-lucide="refrigerator" class="w-4 h-4 shrink-0"></i>
+                        <span>Refrigerator</span>
+                    </button>
+                    <button onclick="switchTab('washer')" id="tab-washer" role="tab" aria-selected="false"
+                        class="tab-btn flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all text-blue-100 hover:bg-white/10">
+                        <i data-lucide="washing-machine" class="w-4 h-4 shrink-0"></i>
+                        <span>Washing Machine</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+
+            <!-- Left Column: Interactive Customer Inputs (7 cols on lg) -->
+            <section class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 sm:p-7">
+
+                <!-- ==================== 1. AC INPUTS ==================== -->
+                <div id="panel-ac" class="appliance-panel space-y-6 fade-in">
+                    <div class="border-b border-slate-100 pb-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg">Step 1 of 1 &bull; Cooling Load</span>
+                            <span class="text-xs text-slate-500 font-medium" id="ac-area-badge">144 sq. ft.</span>
+                        </div>
+                        <h2 class="font-display font-bold text-xl sm:text-2xl text-slate-900 mt-2">Air Conditioner (AC) Finder</h2>
+                        <p class="text-sm text-slate-500 mt-0.5">Calculate ideal Tonnage &amp; BEE Star rating based on Pune/Maharashtra summer heat load.</p>
+                    </div>
+
+                    <!-- Room Size Presets + Custom L x W -->
+                    <div class="space-y-3">
+                        <label class="block text-sm font-semibold text-slate-800">1. Room Dimensions (in Feet)</label>
+                        <!-- Quick Presets -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <button type="button" onclick="setAcPreset(10, 10)" class="ac-preset-btn px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:border-brand-500 hover:bg-brand-50 transition text-center" data-preset="10x10">
+                                10 &times; 10 ft<br><span class="text-[11px] font-normal text-slate-500">Small / Study</span>
+                            </button>
+                            <button type="button" onclick="setAcPreset(12, 12)" class="ac-preset-btn px-3 py-2.5 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-xs font-semibold text-brand-800 transition text-center" data-preset="12x12">
+                                12 &times; 12 ft<br><span class="text-[11px] font-normal text-brand-600">Standard Bedroom</span>
+                            </button>
+                            <button type="button" onclick="setAcPreset(15, 12)" class="ac-preset-btn px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:border-brand-500 hover:bg-brand-50 transition text-center" data-preset="15x12">
+                                15 &times; 12 ft<br><span class="text-[11px] font-normal text-slate-500">Master Bedroom</span>
+                            </button>
+                            <button type="button" onclick="setAcPreset(18, 15)" class="ac-preset-btn px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:border-brand-500 hover:bg-brand-50 transition text-center" data-preset="18x15">
+                                18 &times; 15 ft<br><span class="text-[11px] font-normal text-slate-500">Living Hall</span>
+                            </button>
+                        </div>
+
+                        <!-- Length & Width Inputs -->
+                        <div class="grid grid-cols-2 gap-3 pt-1">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                                <div class="flex justify-between text-xs font-medium text-slate-600 mb-1">
+                                    <span>Length (ft)</span>
+                                    <span class="font-bold text-slate-900" id="ac-len-val">12 ft</span>
+                                </div>
+                                <input type="range" id="ac-length" min="8" max="25" value="12" oninput="calculateAC()" class="w-full">
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                                <div class="flex justify-between text-xs font-medium text-slate-600 mb-1">
+                                    <span>Width (ft)</span>
+                                    <span class="font-bold text-slate-900" id="ac-wid-val">12 ft</span>
+                                </div>
+                                <input type="range" id="ac-width" min="8" max="22" value="12" oninput="calculateAC()" class="w-full">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Number of People -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">2. People Normally in Room</label>
+                        <div class="grid grid-cols-3 gap-2.5" id="ac-people-group">
+                            <button type="button" onclick="selectOption('ac-people', '1-2', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-brand-800 font-semibold text-sm transition text-center">
+                                1 – 2 People
+                            </button>
+                            <button type="button" onclick="selectOption('ac-people', '3-4', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-slate-700 font-medium text-sm transition text-center">
+                                3 – 4 People
+                            </button>
+                            <button type="button" onclick="selectOption('ac-people', '5+', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-slate-700 font-medium text-sm transition text-center">
+                                5+ People
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Floor / Ceiling Heat Exposure -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">3. Floor / Sun &amp; Ceiling Exposure</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5" id="ac-ceiling-group">
+                            <button type="button" onclick="selectOption('ac-ceiling', 'middle', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-left transition">
+                                <div class="font-semibold text-sm text-brand-900">Middle / Ground Floor</div>
+                                <div class="text-xs text-brand-700/80 mt-0.5">Covered roof, normal shade</div>
+                            </button>
+                            <button type="button" onclick="selectOption('ac-ceiling', 'west', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">West-Facing / Large Glass</div>
+                                <div class="text-xs text-slate-500 mt-0.5">Direct afternoon sun wall</div>
+                            </button>
+                            <button type="button" onclick="selectOption('ac-ceiling', 'top', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">Top Floor / Terrace Roof</div>
+                                <div class="text-xs text-slate-500 mt-0.5">Direct slab heat all day</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Daily Usage Hours -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">4. Expected Daily Usage (Summer)</label>
+                        <div class="grid grid-cols-3 gap-2.5" id="ac-usage-group">
+                            <button type="button" onclick="selectOption('ac-usage', 'low', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">Under 4 hrs</div>
+                                <div class="text-[11px] text-slate-500">Occasional use</div>
+                            </button>
+                            <button type="button" onclick="selectOption('ac-usage', 'medium', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-center transition">
+                                <div class="font-semibold text-sm text-brand-900">4 – 8 hrs</div>
+                                <div class="text-[11px] text-brand-700">Night sleep use</div>
+                            </button>
+                            <button type="button" onclick="selectOption('ac-usage', 'high', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">8+ hrs / Day</div>
+                                <div class="text-[11px] text-slate-500">Heavy / WFH use</div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==================== 2. TV INPUTS ==================== -->
+                <div id="panel-tv" class="appliance-panel hidden space-y-6 fade-in">
+                    <div class="border-b border-slate-100 pb-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg">Cinema &amp; Living Room</span>
+                            <span class="text-xs text-slate-500 font-medium" id="tv-dist-badge">8 ft Distance</span>
+                        </div>
+                        <h2 class="font-display font-bold text-xl sm:text-2xl text-slate-900 mt-2">Smart TV Size &amp; Panel Finder</h2>
+                        <p class="text-sm text-slate-500 mt-0.5">Match your sofa viewing distance &amp; room lighting to the ideal screen size &amp; display tech.</p>
+                    </div>
+
+                    <!-- Viewing Distance Slider -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label for="tv-distance" class="text-sm font-semibold text-slate-800">1. Sofa-to-TV Viewing Distance</label>
+                            <span class="px-3 py-1 rounded-lg bg-brand-600 text-white font-bold text-sm" id="tv-dist-display">8.0 ft</span>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                            <input type="range" id="tv-distance" min="4" max="16" step="0.5" value="8" oninput="calculateTV()" class="w-full">
+                            <div class="flex justify-between text-[11px] font-medium text-slate-400 mt-2">
+                                <span>4 ft (Compact)</span>
+                                <span>8 ft (Bedroom/Hall)</span>
+                                <span>12 ft (Large Hall)</span>
+                                <span>16+ ft</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Room Lighting -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">2. Room Lighting Condition</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="tv-light-group">
+                            <button type="button" onclick="selectOption('tv-light', 'dark', this)" class="opt-btn p-3.5 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition flex items-start gap-3">
+                                <i data-lucide="moon" class="w-5 h-5 text-indigo-600 shrink-0 mt-0.5"></i>
+                                <div>
+                                    <div class="font-semibold text-sm text-slate-800">Dark / Dim Bedroom</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">Mostly evening watching, controlled curtains</div>
+                                </div>
+                            </button>
+                            <button type="button" onclick="selectOption('tv-light', 'bright', this)" class="opt-btn selected p-3.5 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-left transition flex items-start gap-3">
+                                <i data-lucide="sun" class="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></i>
+                                <div>
+                                    <div class="font-semibold text-sm text-brand-900">Bright Living Room</div>
+                                    <div class="text-xs text-brand-700/80 mt-0.5">Daylight windows, ceiling lights on</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Primary Content Usage -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">3. What Do You Watch Most?</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="tv-usage-group">
+                            <button type="button" onclick="selectOption('tv-usage', 'dth', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">DTH / Set-Top Box &amp; News</div>
+                                <div class="text-xs text-slate-500">Daily serials, standard TV channels</div>
+                            </button>
+                            <button type="button" onclick="selectOption('tv-usage', 'ott', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-left transition">
+                                <div class="font-semibold text-sm text-brand-900">OTT Movies &amp; 4K HDR</div>
+                                <div class="text-xs text-brand-700/80">Netflix, Prime, JioCinema, YouTube 4K</div>
+                            </button>
+                            <button type="button" onclick="selectOption('tv-usage', 'sports', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">Live Cricket &amp; Sports</div>
+                                <div class="text-xs text-slate-500">Fast motion clarity &amp; wide viewing angle</div>
+                            </button>
+                            <button type="button" onclick="selectOption('tv-usage', 'gaming', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">Console Gaming (PS5 / Xbox)</div>
+                                <div class="text-xs text-slate-500">120Hz VRR, HDMI 2.1, low input lag</div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==================== 3. REFRIGERATOR INPUTS ==================== -->
+                <div id="panel-fridge" class="appliance-panel hidden space-y-6 fade-in">
+                    <div class="border-b border-slate-100 pb-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg">Kitchen Storage</span>
+                            <span class="text-xs text-slate-500 font-medium" id="fridge-family-badge">3 – 4 Members</span>
+                        </div>
+                        <h2 class="font-display font-bold text-xl sm:text-2xl text-slate-900 mt-2">Refrigerator Capacity &amp; Door Finder</h2>
+                        <p class="text-sm text-slate-500 mt-0.5">Find the right Liters capacity &amp; convertible freezer configuration for your kitchen.</p>
+                    </div>
+
+                    <!-- Family Size -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">1. Family Size (Household Members)</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5" id="fridge-family-group">
+                            <button type="button" onclick="selectOption('fridge-family', '1-2', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">1 – 2</div>
+                                <div class="text-[11px] text-slate-500">Couple / Bachelor</div>
+                            </button>
+                            <button type="button" onclick="selectOption('fridge-family', '3-4', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-center transition">
+                                <div class="font-semibold text-sm text-brand-900">3 – 4</div>
+                                <div class="text-[11px] text-brand-700">Nuclear Family</div>
+                            </button>
+                            <button type="button" onclick="selectOption('fridge-family', '5-6', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">5 – 6</div>
+                                <div class="text-[11px] text-slate-500">Large Family</div>
+                            </button>
+                            <button type="button" onclick="selectOption('fridge-family', '7+', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">7+ Members</div>
+                                <div class="text-[11px] text-slate-500">Joint Family</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Cooking & Storage Habits -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">2. Cooking &amp; Grocery Storage Habit</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5" id="fridge-habit-group">
+                            <button type="button" onclick="selectOption('fridge-habit', 'daily', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">Daily Fresh Cooking</div>
+                                <div class="text-xs text-slate-500 mt-0.5">Milk, curd, daily veggies, minimal leftovers</div>
+                            </button>
+                            <button type="button" onclick="selectOption('fridge-habit', 'weekly', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-left transition">
+                                <div class="font-semibold text-sm text-brand-900">Weekly Bulk Groceries</div>
+                                <div class="text-xs text-brand-700/80 mt-0.5">Full week vegetables, fruits, dairy &amp; tiffins</div>
+                            </button>
+                            <button type="button" onclick="selectOption('fridge-habit', 'frozen', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">Heavy Freezer &amp; Hosting</div>
+                                <div class="text-xs text-slate-500 mt-0.5">Frozen snacks, ice cream, drinks, party prep</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Kitchen Space Constraint -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">3. Kitchen Width / Space Available</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5" id="fridge-space-group">
+                            <button type="button" onclick="selectOption('fridge-space', 'compact', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">Narrow / Compact</div>
+                                <div class="text-xs text-slate-500 mt-0.5">Under 24 inches width slot</div>
+                            </button>
+                            <button type="button" onclick="selectOption('fridge-space', 'standard', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-left transition">
+                                <div class="font-semibold text-sm text-brand-900">Standard Kitchen Slot</div>
+                                <div class="text-xs text-brand-700/80 mt-0.5">24 – 30 inches width</div>
+                            </button>
+                            <button type="button" onclick="selectOption('fridge-space', 'wide', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">Wide / Open Dining</div>
+                                <div class="text-xs text-slate-500 mt-0.5">36+ inches (Fits Side-by-Side)</div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==================== 4. WASHING MACHINE INPUTS ==================== -->
+                <div id="panel-washer" class="appliance-panel hidden space-y-6 fade-in">
+                    <div class="border-b border-slate-100 pb-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg">Laundry Care</span>
+                            <span class="text-xs text-slate-500 font-medium" id="washer-family-badge">3 – 4 Members</span>
+                        </div>
+                        <h2 class="font-display font-bold text-xl sm:text-2xl text-slate-900 mt-2">Washing Machine Load &amp; Type Finder</h2>
+                        <p class="text-sm text-slate-500 mt-0.5">Get the right Drum kg capacity &amp; Top vs Front Load recommendation for your home.</p>
+                    </div>
+
+                    <!-- Family Size -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">1. Family Size</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5" id="washer-family-group">
+                            <button type="button" onclick="selectOption('washer-family', '1-2', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">1 – 2</div>
+                                <div class="text-[11px] text-slate-500">Small Load</div>
+                            </button>
+                            <button type="button" onclick="selectOption('washer-family', '3-4', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-center transition">
+                                <div class="font-semibold text-sm text-brand-900">3 – 4</div>
+                                <div class="text-[11px] text-brand-700">Medium Load</div>
+                            </button>
+                            <button type="button" onclick="selectOption('washer-family', '5-6', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">5 – 6</div>
+                                <div class="text-[11px] text-slate-500">Large Load</div>
+                            </button>
+                            <button type="button" onclick="selectOption('washer-family', '7+', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">7+ Members</div>
+                                <div class="text-[11px] text-slate-500">Extra Large</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Wash Frequency -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">2. How Often Do You Wash Clothes?</label>
+                        <div class="grid grid-cols-3 gap-2.5" id="washer-freq-group">
+                            <button type="button" onclick="selectOption('washer-freq', 'daily', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">Daily</div>
+                                <div class="text-[11px] text-slate-500">Smaller daily loads</div>
+                            </button>
+                            <button type="button" onclick="selectOption('washer-freq', 'alternate', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-center transition">
+                                <div class="font-semibold text-sm text-brand-900">Alternate Days</div>
+                                <div class="text-[11px] text-brand-700">3–4 times/week</div>
+                            </button>
+                            <button type="button" onclick="selectOption('washer-freq', 'weekend', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-center transition">
+                                <div class="font-semibold text-sm text-slate-800">Twice a Week</div>
+                                <div class="text-[11px] text-slate-500">Big piled-up loads</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Heavy Laundry Needs -->
+                    <div class="space-y-2.5">
+                        <label class="block text-sm font-semibold text-slate-800">3. Heavy Items (Bedsheets, Curtains, Blankets)</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="washer-heavy-group">
+                            <button type="button" onclick="selectOption('washer-heavy', 'regular', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-left transition">
+                                <div class="font-semibold text-sm text-brand-900">Regular Daily Wear Only</div>
+                                <div class="text-xs text-brand-700/80 mt-0.5">Shirts, jeans, kids' clothes, light bedsheets</div>
+                            </button>
+                            <button type="button" onclick="selectOption('washer-heavy', 'heavy', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                <div class="font-semibold text-sm text-slate-800">Frequent Heavy Bedding &amp; Curtains</div>
+                                <div class="text-xs text-slate-500 mt-0.5">King bedsheets, heavy curtains, winter blankets</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Water Pressure & Space -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <label class="block text-sm font-semibold text-slate-800">4. Tap Water Pressure</label>
+                            <div class="grid grid-cols-1 gap-2" id="washer-water-group">
+                                <button type="button" onclick="selectOption('washer-water', 'good', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-left transition">
+                                    <div class="font-semibold text-sm text-brand-900">Good Tap / Pump Pressure</div>
+                                    <div class="text-[11px] text-brand-700/80">Continuous overhead tank supply</div>
+                                </button>
+                                <button type="button" onclick="selectOption('washer-water', 'low', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                    <div class="font-semibold text-sm text-slate-800">Low / Manual Water Fill</div>
+                                    <div class="text-[11px] text-slate-500">Low pressure or bucket filling needed</div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="block text-sm font-semibold text-slate-800">5. Placement Area</label>
+                            <div class="grid grid-cols-1 gap-2" id="washer-space-group">
+                                <button type="button" onclick="selectOption('washer-space', 'utility', this)" class="opt-btn selected p-3 rounded-xl border-2 border-brand-600 bg-brand-50/70 text-left transition">
+                                    <div class="font-semibold text-sm text-brand-900">Utility / Bathroom Area</div>
+                                    <div class="text-[11px] text-brand-700/80">Standard width &amp; front door space</div>
+                                </button>
+                                <button type="button" onclick="selectOption('washer-space', 'compact', this)" class="opt-btn p-3 rounded-xl border border-slate-200 hover:border-brand-400 text-left transition">
+                                    <div class="font-semibold text-sm text-slate-800">Compact Dry Balcony</div>
+                                    <div class="text-[11px] text-slate-500">Tight space, top-opening easier</div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Live Recommendation Output Card (5 cols on lg) -->
+            <aside class="lg:col-span-5 lg:sticky lg:top-32 space-y-4">
+                <div id="result-card" class="bg-white rounded-2xl shadow-lg shadow-slate-200/70 border border-slate-200 overflow-hidden transition-all">
+                    <!-- Top Accent Banner -->
+                    <div class="bg-gradient-to-r from-brand-700 to-brand-600 px-5 py-3.5 text-white flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span class="text-xs font-bold uppercase tracking-wider text-blue-100">Recommended Match</span>
+                        </div>
+                        <span id="res-category-tag" class="text-xs font-semibold bg-white/15 px-2.5 py-0.5 rounded-full">Air Conditioner</span>
+                    </div>
+
+                    <div class="p-5 sm:p-6 space-y-5">
+                        <!-- Primary Hero Metric -->
+                        <div>
+                            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide" id="res-subtitle">Ideal Cooling Capacity</div>
+                            <div class="flex items-baseline justify-between gap-2 mt-1">
+                                <h3 id="res-main-title" class="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">1.5 Ton AC</h3>
+                                <span id="res-badge-pill" class="shrink-0 inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    5-Star Inverter
+                                </span>
+                            </div>
+                            <p id="res-config-line" class="text-sm font-medium text-brand-700 mt-1.5">
+                                Convertible 5-in-1 Split Inverter &bull; 100% Copper
+                            </p>
+                        </div>
+
+                        <!-- Visual Sizing Meter Bar -->
+                        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                            <div class="flex justify-between text-xs font-semibold text-slate-600 mb-1.5">
+                                <span id="meter-label-left">Capacity Scale</span>
+                                <span id="meter-label-right" class="text-brand-700">18,000 BTU/hr</span>
+                            </div>
+                            <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                                <div id="res-meter-bar" class="h-full bg-gradient-to-r from-brand-500 to-brand-700 rounded-full transition-all duration-500" style="width: 68%;"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-400 mt-1.5 font-medium" id="meter-ticks">
+                                <span>0.8T</span>
+                                <span>1.0T</span>
+                                <span>1.5T</span>
+                                <span>2.0T+</span>
+                            </div>
+                        </div>
+
+                        <!-- Key Specs Grid -->
+                        <div class="grid grid-cols-2 gap-2.5" id="res-specs-grid">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+
+                        <!-- Why This Fits Bullet Points -->
+                        <div class="space-y-2">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-500"></i>
+                                <span>Why This Fits Your Home</span>
+                            </h4>
+                            <ul id="res-reasons-list" class="space-y-2 text-sm text-slate-700">
+                                <!-- Populated dynamically via JS -->
+                            </ul>
+                        </div>
+
+                        <!-- Estimated Showroom Price Range -->
+                        <div class="bg-emerald-50/80 border border-emerald-200/80 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">Est. Showroom Price Range</div>
+                                <div id="res-price-range" class="font-display font-extrabold text-lg sm:text-xl text-emerald-900 mt-0.5">₹36,000 – ₹44,500</div>
+                            </div>
+                            <div class="text-right">
+                                <span class="inline-block text-[11px] font-semibold bg-emerald-600 text-white px-2.5 py-1 rounded-lg">
+                                    EMI &amp; Exchange<br>Available
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Showroom Buying Tip -->
+                        <div class="bg-amber-50/70 border border-amber-200/70 rounded-xl p-3 flex items-start gap-2.5">
+                            <i data-lucide="lightbulb" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                            <p id="res-tip-text" class="text-xs text-amber-900 leading-relaxed">
+                                <strong>Showroom Tip:</strong> Look for Anti-Corrosive Blue/Gold Fin coating on copper coils for long-lasting cooling in Pune weather.
+                            </p>
+                        </div>
+
+                        <!-- Action Buttons: Copy WhatsApp Quote & Share -->
+                        <div class="pt-1 flex flex-col sm:flex-row gap-2.5">
+                            <button type="button" onclick="copyRecommendation()" id="copy-btn"
+                                class="flex-1 bg-brand-700 hover:bg-brand-800 active:bg-brand-900 text-white font-semibold text-sm py-3 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                                <i data-lucide="copy" class="w-4 h-4"></i>
+                                <span id="copy-btn-text">Copy WhatsApp Quote</span>
+                            </button>
+                            <button type="button" onclick="shareWhatsApp()"
+                                class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-sm py-3 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-2" title="Open in WhatsApp">
+                                <i data-lucide="share-2" class="w-4 h-4"></i>
+                                <span>WhatsApp</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subtle Showroom Footer Info -->
+                <div class="bg-white rounded-xl border border-slate-200/80 px-4 py-3 text-xs text-slate-500 flex items-center justify-between">
+                    <span>Visit <strong>Hari Om Electronics</strong> (Alandi / Dhanore) for live demo &amp; festive offers.</span>
+                    <i data-lucide="store" class="w-4 h-4 text-brand-600 shrink-0 ml-2"></i>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <!-- Custom Toast Notification (No alert() used) -->
+    <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 translate-y-3">
+        <div class="bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 border border-slate-700">
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+            <span id="toast-msg">Recommendation copied to clipboard!</span>
+        </div>
+    </div>
+
+    <script>
+        // Application State
+        const state = {
+            activeTab: 'ac',
+            ac: {
+                length: 12,
+                width: 12,
+                people: '1-2',
+                ceiling: 'middle',
+                usage: 'medium'
+            },
+            tv: {
+                distance: 8,
+                light: 'bright',
+                usage: 'ott'
+            },
+            fridge: {
+                family: '3-4',
+                habit: 'weekly',
+                space: 'standard'
+            },
+            washer: {
+                family: '3-4',
+                freq: 'alternate',
+                heavy: 'regular',
+                water: 'good',
+                space: 'utility'
+            }
+        };
+
+        let currentQuoteText = '';
+
+        // Initialize Lucide icons & initial calculation
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            calculateAC();
+        });
+
+        // Switch Appliance Tab
+        function switchTab(tab) {
+            state.activeTab = tab;
+
+            // Update tab button styles
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'text-brand-800', 'shadow-sm');
+                btn.classList.add('text-blue-100', 'hover:bg-white/10');
+                btn.setAttribute('aria-selected', 'false');
+            });
+            const activeBtn = document.getElementById(`tab-${tab}`);
+            activeBtn.classList.remove('text-blue-100', 'hover:bg-white/10');
+            activeBtn.classList.add('bg-white', 'text-brand-800', 'shadow-sm');
+            activeBtn.setAttribute('aria-selected', 'true');
+
+            // Show corresponding input panel
+            document.querySelectorAll('.appliance-panel').forEach(panel => {
+                panel.classList.add('hidden');
+            });
+            const activePanel = document.getElementById(`panel-${tab}`);
+            activePanel.classList.remove('hidden');
+
+            // Trigger calculation for the active tab
+            if (tab === 'ac') calculateAC();
+            else if (tab === 'tv') calculateTV();
+            else if (tab === 'fridge') calculateFridge();
+            else if (tab === 'washer') calculateWasher();
+        }
+
+        // Generic Option Button Selector
+        function selectOption(groupKey, value, btnElement) {
+            const [category, field] = groupKey.split('-');
+            state[category][field] = value;
+
+            // Update sibling button UI inside the same group
+            const parent = btnElement.parentElement;
+            parent.querySelectorAll('.opt-btn').forEach(btn => {
+                btn.classList.remove('selected', 'border-2', 'border-brand-600', 'bg-brand-50/70', 'text-brand-800');
+                btn.classList.add('border', 'border-slate-200', 'text-slate-700');
+                // Reset inner text colors if multi-line
+                const titleDiv = btn.querySelector('div:first-child');
+                if (titleDiv) {
+                    titleDiv.classList.remove('text-brand-900');
+                    titleDiv.classList.add('text-slate-800');
+                }
+            });
+
+            btnElement.classList.remove('border', 'border-slate-200', 'text-slate-700');
+            btnElement.classList.add('selected', 'border-2', 'border-brand-600', 'bg-brand-50/70', 'text-brand-800');
+            const selectedTitle = btnElement.querySelector('div:first-child');
+            if (selectedTitle) {
+                selectedTitle.classList.remove('text-slate-800');
+                selectedTitle.classList.add('text-brand-900');
+            }
+
+            // Recalculate
+            if (category === 'ac') calculateAC();
+            else if (category === 'tv') calculateTV();
+            else if (category === 'fridge') calculateFridge();
+            else if (category === 'washer') calculateWasher();
+        }
+
+        // ==================== 1. AC CALCULATOR LOGIC ====================
+        function setAcPreset(len, wid) {
+            document.getElementById('ac-length').value = len;
+            document.getElementById('ac-width').value = wid;
+
+            document.querySelectorAll('.ac-preset-btn').forEach(btn => {
+                btn.classList.remove('border-2', 'border-brand-600', 'bg-brand-50/70', 'text-brand-800');
+                btn.classList.add('border', 'border-slate-200', 'text-slate-700');
+            });
+            const activePreset = document.querySelector(`.ac-preset-btn[data-preset="${len}x${wid}"]`);
+            if (activePreset) {
+                activePreset.classList.remove('border', 'border-slate-200', 'text-slate-700');
+                activePreset.classList.add('border-2', 'border-brand-600', 'bg-brand-50/70', 'text-brand-800');
+            }
+            calculateAC();
+        }
+
+        function calculateAC() {
+            const len = parseInt(document.getElementById('ac-length').value, 10);
+            const wid = parseInt(document.getElementById('ac-width').value, 10);
+            state.ac.length = len;
+            state.ac.width = wid;
+
+            const area = len * wid;
+            document.getElementById('ac-len-val').textContent = `${len} ft`;
+            document.getElementById('ac-wid-val').textContent = `${wid} ft`;
+            document.getElementById('ac-area-badge').textContent = `${area} sq. ft.`;
+
+            // Base BTU Calculation (~65 BTU per sq.ft for Indian climate)
+            let btu = area * 65;
+
+            // People heat load adjustment
+            if (state.ac.people === '3-4') btu += 1200;
+            else if (state.ac.people === '5+') btu += 2800;
+
+            // Sun / Ceiling heat exposure adjustment
+            if (state.ac.ceiling === 'west') btu *= 1.12;
+            else if (state.ac.ceiling === 'top') btu *= 1.22;
+
+            // Determine Tonnage
+            let tonnage = '1.5 Ton';
+            let btuLabel = '18,000 BTU/hr';
+            let meterPct = 65;
+            let priceRange = '₹35,500 – ₹44,000';
+
+            if (btu <= 10500) {
+                tonnage = '0.8 Ton';
+                btuLabel = '~9,600 BTU/hr';
+                meterPct = 25;
+                priceRange = '₹26,500 – ₹31,000';
+            } else if (btu <= 13500) {
+                tonnage = '1.0 Ton';
+                btuLabel = '~12,000 BTU/hr';
+                meterPct = 45;
+                priceRange = '₹29,500 – ₹36,500';
+            } else if (btu <= 19800) {
+                tonnage = '1.5 Ton';
+                btuLabel = '~18,000 BTU/hr';
+                meterPct = 70;
+                priceRange = '₹35,500 – ₹45,000';
+            } else {
+                tonnage = '2.0 Ton';
+                btuLabel = '~24,000 BTU/hr';
+                meterPct = 95;
+                priceRange = '₹46,000 – ₹58,000';
+            }
+
+            // Star Rating recommendation based on usage hours
+            let starRating = '3-Star Inverter';
+            let starReason = '3-Star Inverter offers lowest upfront cost for moderate daily usage.';
+            if (state.ac.usage === 'high') {
+                starRating = '5-Star Inverter';
+                starReason = '5-Star Inverter saves ~20–25% on electricity bills for 8+ hrs daily running.';
+                // Slight upward price shift for 5-star
+                if (tonnage === '1.0 Ton') priceRange = '₹33,500 – ₹39,500';
+                if (tonnage === '1.5 Ton') priceRange = '₹41,000 – ₹49,500';
+                if (tonnage === '2.0 Ton') priceRange = '₹52,000 – ₹62,000';
+            } else if (state.ac.usage === 'medium') {
+                starRating = '3-Star / 5-Star Inverter';
+                starReason = 'For 4–8 hrs/day, 5-Star pays back extra cost in ~2 summers; 3-Star is budget-friendly.';
+            }
+
+            const reasons = [
+                `Calculated thermal load of <strong>${Math.round(btu).toLocaleString('en-IN')} BTU/hr</strong> for your ${len}&times;${wid} ft (${area} sq. ft.) room.`,
+                state.ac.ceiling === 'top'
+                    ? 'Added +22% extra cooling buffer for direct top-floor terrace slab heat.'
+                    : state.ac.ceiling === 'west'
+                    ? 'Added +12% extra cooling buffer for west-facing/glass sun heat.'
+                    : 'Balanced cooling capacity for standard middle/ground floor insulation.',
+                starReason
+            ];
+
+            renderResult({
+                category: 'Air Conditioner',
+                subtitle: 'Recommended AC Capacity',
+                mainTitle: `${tonnage} Split AC`,
+                badge: starRating,
+                configLine: 'Convertible 5-in-1 Inverter &bull; 100% Copper &bull; PM 2.5 Filter',
+                meterLeft: 'Cooling Load Index',
+                meterRight: btuLabel,
+                meterPct: meterPct,
+                ticks: ['0.8 Ton', '1.0 Ton', '1.5 Ton', '2.0 Ton'],
+                specs: [
+                    { label: 'Compressor', value: 'Variable Inverter' },
+                    { label: 'Condenser Coil', value: '100% Copper' },
+                    { label: 'Cooling Mode', value: 'Convertible 5-in-1' },
+                    { label: 'Stabilizer', value: 'In-built (130V–285V)' }
+                ],
+                reasons: reasons,
+                priceRange: priceRange,
+                tip: 'Always choose a Convertible Inverter AC so you can run a 1.5 Ton unit at 1.0 Ton capacity during mild nights to save power.'
+            });
+        }
+
+        // ==================== 2. TV CALCULATOR LOGIC ====================
+        function calculateTV() {
+            const dist = parseFloat(document.getElementById('tv-distance').value);
+            state.tv.distance = dist;
+            document.getElementById('tv-dist-display').textContent = `${dist.toFixed(1)} ft`;
+            document.getElementById('tv-dist-badge').textContent = `${dist.toFixed(1)} ft Distance`;
+
+            // Screen size logic based on viewing distance (4K optimal multiplier ~ 1.2x to 1.5x inches per foot)
+            let screenSize = '55" (139 cm)';
+            let meterPct = 55;
+            let priceRange = '₹38,000 – ₹62,000';
+
+            if (dist <= 5.5) {
+                screenSize = '32" – 43"';
+                meterPct = 22;
+                priceRange = '₹14,500 – ₹28,000';
+            } else if (dist <= 7.5) {
+                screenSize = '43" – 50"';
+                meterPct = 40;
+                priceRange = '₹25,000 – ₹42,000';
+            } else if (dist <= 9.5) {
+                screenSize = '55" (139 cm)';
+                meterPct = 60;
+                priceRange = '₹38,000 – ₹65,000';
+            } else if (dist <= 12.0) {
+                screenSize = '65" (164 cm)';
+                meterPct = 80;
+                priceRange = '₹58,000 – ₹98,000';
+            } else {
+                screenSize = '75"+ (189 cm+)';
+                meterPct = 96;
+                priceRange = '₹95,000 – ₹1,65,000+';
+            }
+
+            // Resolution & Panel Type
+            let resolution = dist <= 5.0 && state.tv.usage === 'dth' ? 'Full HD (1080p)' : '4K Ultra HD';
+            let panelType = '4K LED (VA/ADS)';
+            let refreshRate = '60Hz Standard';
+            let audioWatt = '20W – 24W Dolby';
+
+            if (state.tv.light === 'bright') {
+                panelType = dist >= 8 ? 'QLED / Mini-LED (High Brightness)' : 'Bright 4K QLED';
+            } else {
+                panelType = state.tv.usage === 'ott' && dist >= 8 ? 'OLED / Full-Array QLED' : '4K QLED / VA Contrast';
+            }
+
+            if (state.tv.usage === 'gaming') {
+                refreshRate = '120Hz Native + VRR';
+                panelType = state.tv.light === 'dark' ? 'OLED / 120Hz QLED' : '120Hz QLED / Mini-LED';
+                audioWatt = '30W – 40W Dolby Atmos';
+            } else if (state.tv.usage === 'sports') {
+                refreshRate = '120Hz MEMC Motion';
+                audioWatt = '30W+ Clear Voice';
+            } else if (state.tv.usage === 'ott') {
+                audioWatt = '30W – 40W Dolby Atmos';
+            }
+
+            const reasons = [
+                `At <strong>${dist.toFixed(1)} ft viewing distance</strong>, a <strong>${screenSize}</strong> screen fills your field of view comfortably without eye strain.`,
+                state.tv.light === 'bright'
+                    ? 'High-brightness QLED/Mini-LED cuts daytime window reflections in bright living rooms.'
+                    : 'High-contrast panel delivers deep blacks and cinema-grade colors in dim room lighting.',
+                state.tv.usage === 'gaming'
+                    ? '120Hz refresh rate with HDMI 2.1 ensures lag-free PS5/Xbox gameplay.'
+                    : state.tv.usage === 'sports'
+                    ? 'MEMC motion smoothing keeps fast-moving cricket balls sharp without blur.'
+                    : '4K HDR upscaling sharpens both OTT streaming and regular DTH channels.'
+            ];
+
+            renderResult({
+                category: 'Smart TV',
+                subtitle: 'Ideal Screen Size & Panel',
+                mainTitle: `${screenSize} ${resolution}`,
+                badge: panelType.split(' ')[0],
+                configLine: `${panelType} &bull; ${refreshRate} &bull; Google TV OS`,
+                meterLeft: 'Screen Immersion',
+                meterRight: `${dist.toFixed(1)} ft Viewing`,
+                meterPct: meterPct,
+                ticks: ['32"–43"', '50"', '55"', '65"–75"+'],
+                specs: [
+                    { label: 'Display Panel', value: panelType.split('(')[0].trim() },
+                    { label: 'Refresh Rate', value: refreshRate },
+                    { label: 'Audio Output', value: audioWatt },
+                    { label: 'Smart Platform', value: 'Google TV / WebOS' }
+                ],
+                reasons: reasons,
+                priceRange: priceRange,
+                tip: 'If your sofa is 8+ ft away, upgrading from 43" to 55" gives 63% more screen area for a true theater feel at home.'
+            });
+        }
+
+        // ==================== 3. REFRIGERATOR CALCULATOR LOGIC ====================
+        function calculateFridge() {
+            const famMap = { '1-2': '1 – 2 Members', '3-4': '3 – 4 Members', '5-6': '5 – 6 Members', '7+': '7+ Joint Family' };
+            document.getElementById('fridge-family-badge').textContent = famMap[state.fridge.family];
+
+            let capacity = '240L – 280L';
+            let doorType = 'Double Door Frost Free';
+            let badge = 'Convertible 5-in-1';
+            let meterPct = 48;
+            let priceRange = '₹24,500 – ₹32,000';
+            let compressor = 'Digital Inverter';
+
+            // Base capacity by family size
+            if (state.fridge.family === '1-2') {
+                if (state.fridge.habit === 'daily') {
+                    capacity = '185L – 215L';
+                    doorType = 'Single Door Direct Cool';
+                    badge = '5-Star Direct Cool';
+                    meterPct = 22;
+                    priceRange = '₹15,500 – ₹19,500';
+                } else {
+                    capacity = '220L – 250L';
+                    doorType = 'Compact Double Door';
+                    badge = 'Frost Free';
+                    meterPct = 34;
+                    priceRange = '₹21,500 – ₹26,500';
+                }
+            } else if (state.fridge.family === '3-4') {
+                if (state.fridge.habit === 'daily') {
+                    capacity = '235L – 265L';
+                    doorType = 'Double Door Frost Free';
+                    meterPct = 44;
+                    priceRange = '₹23,500 – ₹29,500';
+                } else if (state.fridge.habit === 'weekly') {
+                    capacity = '265L – 310L';
+                    doorType = 'Convertible Double Door';
+                    meterPct = 55;
+                    priceRange = '₹27,000 – ₹35,500';
+                } else {
+                    capacity = '300L – 350L';
+                    doorType = 'Bottom Mount / Convertible';
+                    badge = 'Max Freezer Space';
+                    meterPct = 65;
+                    priceRange = '₹33,000 – ₹43,000';
+                }
+            } else if (state.fridge.family === '5-6') {
+                if (state.fridge.habit === 'daily') {
+                    capacity = '300L – 340L';
+                    doorType = 'Double Door Frost Free';
+                    meterPct = 62;
+                    priceRange = '₹31,000 – ₹39,500';
+                } else {
+                    capacity = '350L – 420L';
+                    doorType = 'Large Convertible Double Door';
+                    badge = '10-in-1 Convertible';
+                    meterPct = 76;
+                    priceRange = '₹38,500 – ₹52,000';
+                }
+            } else {
+                // 7+ Joint family
+                if (state.fridge.space === 'wide') {
+                    capacity = '550L – 650L';
+                    doorType = 'Side-by-Side / French Door';
+                    badge = 'Premium Multi-Door';
+                    meterPct = 95;
+                    priceRange = '₹58,000 – ₹95,000';
+                } else {
+                    capacity = '415L – 500L';
+                    doorType = 'Jumbo Double Door (Slim Width)';
+                    badge = 'High Capacity';
+                    meterPct = 85;
+                    priceRange = '₹46,000 – ₹62,000';
+                }
+            }
+
+            // Space constraint override check
+            if (state.fridge.space === 'compact' && (capacity.includes('350L') || capacity.includes('415L') || capacity.includes('550L'))) {
+                doorType = 'Tall Slim-Fit Double Door';
+                badge = 'Space-Saver Fit';
+            }
+
+            const reasons = [
+                `Sized at <strong>${capacity}</strong> to comfortably fit groceries for <strong>${famMap[state.fridge.family]}</strong>.`,
+                state.fridge.habit === 'frozen'
+                    ? 'Convertible freezer lets you expand freezer or fridge space during festivals & family gatherings.'
+                    : state.fridge.habit === 'weekly'
+                    ? 'Dedicated moisture-control crisper keeps a full week of vegetables and fruits crisp.'
+                    : 'Quick-chill dairy & bottle racks tailored for fresh daily cooking routines.',
+                state.fridge.space === 'wide'
+                    ? 'Your wide kitchen/dining slot easily accommodates wide multi-door models with proper side ventilation.'
+                    : 'Fits standard Indian kitchen fridge niches while leaving 2 inches of side airflow clearance.'
+            ];
+
+            renderResult({
+                category: 'Refrigerator',
+                subtitle: 'Recommended Fridge Capacity',
+                mainTitle: capacity,
+                badge: badge,
+                configLine: `${doorType} &bull; ${compressor}`,
+                meterLeft: 'Storage Volume',
+                meterRight: capacity,
+                meterPct: meterPct,
+                ticks: ['190L', '260L', '350L', '550L+'],
+                specs: [
+                    { label: 'Configuration', value: doorType.split(' ').slice(0, 2).join(' ') },
+                    { label: 'Compressor', value: 'Digital Inverter' },
+                    { label: 'Defrost System', value: capacity.includes('185L') ? 'Direct Cool' : 'Auto Frost-Free' },
+                    { label: 'Stabilizer', value: 'Stabilizer-Free Ops' }
+                ],
+                reasons: reasons,
+                priceRange: priceRange,
+                tip: 'Convertible Double Door models let you turn the freezer into an extra fridge when guests visit, or turn it off when traveling.'
+            });
+        }
+
+        // ==================== 4. WASHING MACHINE CALCULATOR LOGIC ====================
+        function calculateWasher() {
+            const famMap = { '1-2': '1 – 2 Members', '3-4': '3 – 4 Members', '5-6': '5 – 6 Members', '7+': '7+ Joint Family' };
+            document.getElementById('washer-family-badge').textContent = famMap[state.washer.family];
+
+            // Calculate Drum Capacity (kg)
+            let kg = 7.0;
+            if (state.washer.family === '1-2') kg = 6.5;
+            else if (state.washer.family === '3-4') kg = 7.5;
+            else if (state.washer.family === '5-6') kg = 8.5;
+            else kg = 10.0;
+
+            if (state.washer.freq === 'weekend') kg += 1.0;
+            if (state.washer.heavy === 'heavy') kg += 1.0;
+
+            // Snap to standard Indian market capacities (6.5, 7, 7.5, 8, 9, 10, 11 kg)
+            let capLabel = '7.5 kg';
+            let meterPct = 50;
+            if (kg <= 6.5) { capLabel = '6.5 kg'; meterPct = 25; }
+            else if (kg <= 7.0) { capLabel = '7.0 kg'; meterPct = 38; }
+            else if (kg <= 7.5) { capLabel = '7.5 kg'; meterPct = 50; }
+            else if (kg <= 8.5) { capLabel = '8.0 – 8.5 kg'; meterPct = 68; }
+            else if (kg <= 9.5) { capLabel = '9.0 kg'; meterPct = 82; }
+            else { capLabel = '10.0 – 11.0 kg'; meterPct = 95; }
+
+            // Determine Machine Type based on Water Pressure & Space
+            let machineType = 'Fully Automatic Front Load';
+            let badge = 'In-Built Heater';
+            let priceRange = '₹28,500 – ₹38,000';
+            let motorType = 'Direct Drive / Inverter';
+
+            if (state.washer.water === 'low') {
+                machineType = 'Semi-Automatic / Zero-Pressure Top Load';
+                badge = 'Low Water Friendly';
+                priceRange = '₹12,500 – ₹21,000';
+                motorType = 'Heavy-Duty Pulsator';
+            } else if (state.washer.space === 'compact') {
+                machineType = 'Fully Automatic Top Load';
+                badge = 'Compact Footprint';
+                priceRange = '₹17,500 – ₹24,500';
+                motorType = 'Smart Inverter Motor';
+            } else {
+                // Good water + Utility space -> Front Load recommended for best wash & water saving
+                machineType = 'Fully Automatic Front Load';
+                badge = 'Steam + In-Built Heater';
+                if (kg <= 7.0) priceRange = '₹24,500 – ₹31,000';
+                else if (kg <= 8.5) priceRange = '₹29,500 – ₹39,500';
+                else priceRange = '₹38,000 – ₹49,000';
+            }
+
+            const reasons = [
+                `<strong>${capLabel} drum</strong> handles ${famMap[state.washer.family]} laundry (${state.washer.freq === 'weekend' ? 'larger twice-a-week loads' : 'regular wash cycles'}) without overloading the motor.`,
+                state.washer.heavy === 'heavy'
+                    ? 'Extra drum volume prevents tangling when washing king-size bedsheets, curtains, and winter blankets.'
+                    : 'Optimized drum size saves water and detergent on daily clothes.',
+                state.washer.water === 'low'
+                    ? 'Designed to work smoothly even with low overhead tank water pressure.'
+                    : state.washer.space === 'compact'
+                    ? 'Top-opening lid needs zero front clearance, ideal for narrow dry balconies.'
+                    : 'Front Load uses ~40% less water and includes an in-built heater for tough stain & germ removal.'
+            ];
+
+            renderResult({
+                category: 'Washing Machine',
+                subtitle: 'Recommended Drum & Type',
+                mainTitle: `${capLabel} Washer`,
+                badge: badge,
+                configLine: `${machineType} &bull; ${motorType}`,
+                meterLeft: 'Drum Load Capacity',
+                meterRight: capLabel,
+                meterPct: meterPct,
+                ticks: ['6.5 kg', '7.5 kg', '8.5 kg', '10+ kg'],
+                specs: [
+                    { label: 'Machine Type', value: machineType.includes('Front') ? 'Front Load Auto' : machineType.includes('Semi') ? 'Semi / Zero-Bar' : 'Top Load Auto' },
+                    { label: 'Motor Tech', value: motorType },
+                    { label: 'Hygiene Care', value: machineType.includes('Front') ? 'In-Built Heater + Steam' : 'Hard Water Wash' },
+                    { label: 'Energy Rating', value: '5-Star BEE Rated' }
+                ],
+                reasons: reasons,
+                priceRange: priceRange,
+                tip: 'Always check for Hard Water Wash technology if your area uses borewell water—it prevents mineral scaling on clothes and drum.'
+            });
+        }
+
+        // ==================== SHARED RESULT RENDERER ====================
+        function renderResult(data) {
+            document.getElementById('res-category-tag').textContent = data.category;
+            document.getElementById('res-subtitle').textContent = data.subtitle;
+            document.getElementById('res-main-title').textContent = data.mainTitle;
+            document.getElementById('res-badge-pill').textContent = data.badge;
+            document.getElementById('res-config-line').innerHTML = data.configLine;
+
+            document.getElementById('meter-label-left').textContent = data.meterLeft;
+            document.getElementById('meter-label-right').textContent = data.meterRight;
+            document.getElementById('res-meter-bar').style.width = `${data.meterPct}%`;
+
+            const ticksEl = document.getElementById('meter-ticks');
+            ticksEl.innerHTML = data.ticks.map(t => `<span>${t}</span>`).join('');
+
+            const specsGrid = document.getElementById('res-specs-grid');
+            specsGrid.innerHTML = data.specs.map(s => `
+                <div class="bg-slate-50/90 border border-slate-200/70 rounded-xl p-2.5">
+                    <div class="text-[11px] font-medium text-slate-500">${s.label}</div>
+                    <div class="text-xs sm:text-sm font-bold text-slate-800 mt-0.5">${s.value}</div>
+                </div>
+            `).join('');
+
+            const reasonsList = document.getElementById('res-reasons-list');
+            reasonsList.innerHTML = data.reasons.map(r => `
+                <li class="flex items-start gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+                    <span class="text-xs sm:text-sm leading-relaxed">${r}</span>
+                </li>
+            `).join('');
+
+            document.getElementById('res-price-range').textContent = data.priceRange;
+            document.getElementById('res-tip-text').innerHTML = `<strong>Showroom Tip:</strong> ${data.tip}`;
+
+            // Format clean WhatsApp quote text
+            const plainReasons = data.reasons.map(r => `• ${r.replace(/<[^>]*>?/gm, '')}`).join('\n');
+            const plainConfig = data.configLine.replace(/&bull;/g, '|').replace(/<[^>]*>?/gm, '');
+            currentQuoteText =
+`*Hari Om Electronics (Alandi & Dhanore)*
+*${data.category} Recommendation*
+
+✅ *Recommended:* ${data.mainTitle} (${data.badge})
+⚙️ *Specs:* ${plainConfig}
+💰 *Est. Budget:* ${data.priceRange} (EMI & Exchange Available)
+
+*Why this fits your home:*
+${plainReasons}
+
+Visit Hari Om Electronics for live demo & best showroom offer!`;
+
+            lucide.createIcons();
+        }
+
+        // ==================== RESET, COPY & WHATSAPP SHARE ====================
+        function resetCurrentTab() {
+            const tab = state.activeTab;
+            if (tab === 'ac') {
+                setAcPreset(12, 12);
+                selectOption('ac-people', '1-2', document.querySelector('#ac-people-group .opt-btn:nth-child(1)'));
+                selectOption('ac-ceiling', 'middle', document.querySelector('#ac-ceiling-group .opt-btn:nth-child(1)'));
+                selectOption('ac-usage', 'medium', document.querySelector('#ac-usage-group .opt-btn:nth-child(2)'));
+            } else if (tab === 'tv') {
+                document.getElementById('tv-distance').value = 8;
+                selectOption('tv-light', 'bright', document.querySelector('#tv-light-group .opt-btn:nth-child(2)'));
+                selectOption('tv-usage', 'ott', document.querySelector('#tv-usage-group .opt-btn:nth-child(2)'));
+                calculateTV();
+            } else if (tab === 'fridge') {
+                selectOption('fridge-family', '3-4', document.querySelector('#fridge-family-group .opt-btn:nth-child(2)'));
+                selectOption('fridge-habit', 'weekly', document.querySelector('#fridge-habit-group .opt-btn:nth-child(2)'));
+                selectOption('fridge-space', 'standard', document.querySelector('#fridge-space-group .opt-btn:nth-child(2)'));
+            } else if (tab === 'washer') {
+                selectOption('washer-family', '3-4', document.querySelector('#washer-family-group .opt-btn:nth-child(2)'));
+                selectOption('washer-freq', 'alternate', document.querySelector('#washer-freq-group .opt-btn:nth-child(2)'));
+                selectOption('washer-heavy', 'regular', document.querySelector('#washer-heavy-group .opt-btn:nth-child(1)'));
+                selectOption('washer-water', 'good', document.querySelector('#washer-water-group .opt-btn:nth-child(1)'));
+                selectOption('washer-space', 'utility', document.querySelector('#washer-space-group .opt-btn:nth-child(1)'));
+            }
+            showToast('Reset to default values');
+        }
+
+        function copyRecommendation() {
+            // Use execCommand fallback for reliable copying across iframes and mobile browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = currentQuoteText;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('WhatsApp quote copied to clipboard!');
+                const btnText = document.getElementById('copy-btn-text');
+                btnText.textContent = 'Copied!';
+                setTimeout(() => {
+                    btnText.textContent = 'Copy WhatsApp Quote';
+                }, 2000);
+            } catch (err) {
+                showToast('Unable to copy automatically.');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function shareWhatsApp() {
+            const encoded = encodeURIComponent(currentQuoteText);
+            window.open(`https://wa.me/?text=${encoded}`, '_blank', 'noopener,noreferrer');
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = message;
+            toast.classList.remove('opacity-0', 'translate-y-3');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-3');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
