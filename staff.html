@@ -490,12 +490,212 @@
     }
     .home-card-count.muted { color: var(--outline); }
 
-    /* ── APPLIANCE SIZING EMBED ── */
-    .sizing-frame {
-      display: block; width: 100%; height: calc(100vh - 230px); min-height: 540px;
-      border: 1px solid var(--border); border-radius: 18px; background: #f8fafc;
+    /* ── APPLIANCE SIZING ── */
+    /* Local accents: staff.html's :root re-declares the shared tokens after
+       design-system.css, so --primary/--tertiary/--amber stay dark-theme pale
+       in light mode. The screen therefore carries its own pair of values. */
+    #tabSizing {
+      --sz-accent: var(--primary);
+      --sz-accent-bg: rgba(173,198,255,0.1);
+      --sz-accent-sel: rgba(77,142,255,0.14);
+      --sz-green: var(--tertiary);
+      --sz-green-bg: rgba(78,222,163,0.1);
+      --sz-green-line: rgba(78,222,163,0.28);
+      --sz-amber: var(--amber);
+      --sz-amber-bg: rgba(255,179,0,0.08);
+      --sz-amber-line: rgba(255,179,0,0.22);
     }
-    [data-theme="light"] .sizing-frame { background: #f8fafc; }
+    [data-theme="light"] #tabSizing {
+      --sz-accent: #1d4ed8;
+      --sz-accent-bg: rgba(37,99,235,0.09);
+      --sz-accent-sel: rgba(37,99,235,0.1);
+      --sz-green: #047857;
+      --sz-green-bg: rgba(4,120,87,0.08);
+      --sz-green-line: rgba(4,120,87,0.25);
+      --sz-amber: #b45309;
+      --sz-amber-bg: rgba(180,83,9,0.07);
+      --sz-amber-line: rgba(180,83,9,0.22);
+    }
+    .sz-intro {
+      font-size: 12.5px; line-height: 1.5; color: var(--on-surface-variant);
+      margin: -8px 0 14px;
+    }
+    .sz-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+    .sz-cat {
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      padding: 11px 2px; border-radius: 16px; cursor: pointer;
+      background: var(--surface-container-low); border: 1px solid var(--border);
+      color: var(--on-surface-variant);
+      font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 700;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sz-cat .material-symbols-outlined { font-size: 22px; }
+    .sz-cat:active { transform: scale(0.96); }
+    .sz-cat.active {
+      background: var(--sz-accent-sel); border-color: var(--primary-container); color: var(--sz-accent);
+    }
+    .sz-panel { display: none; }
+    .sz-panel.active { display: block; }
+
+    .sz-card {
+      background: var(--surface-container-low); border: 1px solid var(--border);
+      border-radius: 20px; padding: 18px 16px; margin-bottom: 14px;
+    }
+    .sz-head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .sz-eyebrow {
+      display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.1px;
+      text-transform: uppercase; color: var(--sz-accent);
+      background: var(--sz-accent-bg); border-radius: 8px; padding: 4px 8px;
+    }
+    .sz-head-meta { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
+    .sz-h2 { font-size: 17px; font-weight: 800; letter-spacing: -0.35px; color: var(--on-surface); margin-top: 10px; }
+    .sz-sub { font-size: 12px; line-height: 1.5; color: var(--on-surface-variant); margin-top: 4px; }
+
+    .sz-group { margin-top: 18px; }
+    .sz-label { display: block; font-size: 12px; font-weight: 700; color: var(--on-surface); margin-bottom: 8px; }
+    .sz-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .sz-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .sz-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .sz-stack  { display: grid; gap: 8px; }
+    .sz-opt {
+      padding: 10px; border-radius: 14px; cursor: pointer; text-align: left;
+      background: var(--surface-container); border: 1.5px solid transparent;
+      font-family: 'Inter', sans-serif; color: var(--on-surface-variant);
+      transition: background 0.15s, border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sz-opt.center { text-align: center; }
+    .sz-opt b { display: block; font-size: 12px; font-weight: 700; color: var(--on-surface); line-height: 1.3; }
+    .sz-opt small { display: block; font-size: 10px; font-weight: 500; margin-top: 2px; line-height: 1.35; }
+    .sz-opt.sel { background: var(--sz-accent-sel); border-color: var(--primary-container); }
+    .sz-opt.sel b { color: var(--sz-accent); }
+
+    .sz-slider-box { background: var(--surface-container); border-radius: 14px; padding: 9px 12px 5px; }
+    .sz-slider-top { display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
+    .sz-slider-top b { color: var(--on-surface); }
+    .sz-range {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 24px;
+      background: transparent; cursor: pointer; display: block;
+    }
+    .sz-range::-webkit-slider-runnable-track { height: 6px; border-radius: 99px; background: var(--surface-container-highest); }
+    .sz-range::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px; margin-top: -6px;
+      border-radius: 50%; background: var(--primary-container);
+      border: 3px solid var(--surface-container-low);
+      box-shadow: 0 2px 6px rgba(77,142,255,0.4);
+    }
+    .sz-range::-moz-range-track { height: 6px; border-radius: 99px; background: var(--surface-container-highest); }
+    .sz-range::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%; background: var(--primary-container);
+      border: 3px solid var(--surface-container-low);
+    }
+    .sz-range-legend {
+      display: flex; justify-content: space-between; font-size: 9px; font-weight: 600;
+      color: var(--outline); padding: 0 2px 4px;
+    }
+
+    .sz-result { padding: 0; overflow: hidden; }
+    .sz-result-head {
+      display: flex; align-items: center; gap: 7px; padding: 11px 16px;
+      background: linear-gradient(135deg, var(--primary-container), #2f6fe0); color: #fff;
+    }
+    .sz-live-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #6ef0b8; flex-shrink: 0;
+      animation: szPulse 2s ease-in-out infinite;
+    }
+    @keyframes szPulse { 50% { opacity: 0.4; } }
+    .sz-result-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+    .sz-result-tag {
+      margin-left: auto; font-size: 10px; font-weight: 700;
+      background: rgba(255,255,255,0.18); border-radius: 99px; padding: 3px 9px;
+      white-space: nowrap;
+    }
+    .sz-result-body { padding: 16px; }
+    .sz-res-sub { font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--on-surface-variant); }
+    .sz-res-main { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 4px; }
+    .sz-res-title { font-size: 21px; font-weight: 900; letter-spacing: -0.6px; color: var(--on-surface); line-height: 1.15; }
+    .sz-res-badge {
+      flex-shrink: 0; font-size: 9.5px; font-weight: 800; padding: 4px 8px; border-radius: 8px;
+      background: var(--sz-amber-bg); color: var(--sz-amber); border: 1px solid var(--sz-amber-line);
+      white-space: nowrap;
+    }
+    .sz-res-config { font-size: 11.5px; font-weight: 600; color: var(--sz-accent); margin-top: 5px; line-height: 1.45; }
+
+    .sz-meter { margin-top: 14px; background: var(--surface-container); border-radius: 14px; padding: 11px 12px 9px; }
+    .sz-meter-top { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; font-weight: 700; color: var(--on-surface-variant); }
+    .sz-meter-top span:last-child { color: var(--sz-accent); }
+    .sz-meter-track { height: 7px; border-radius: 99px; background: var(--surface-container-highest); overflow: hidden; margin-top: 7px; }
+    .sz-meter-fill {
+      height: 100%; border-radius: 99px; width: 0;
+      background: linear-gradient(90deg, var(--primary-container), var(--primary));
+      transition: width 0.45s ease;
+    }
+    .sz-meter-ticks { display: flex; justify-content: space-between; font-size: 9px; font-weight: 600; color: var(--outline); margin-top: 6px; }
+
+    .sz-specs { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 14px; }
+    .sz-spec { background: var(--surface-container); border-radius: 12px; padding: 9px 10px; }
+    .sz-spec small { display: block; font-size: 9.5px; font-weight: 600; color: var(--on-surface-variant); }
+    .sz-spec b { display: block; font-size: 11.5px; font-weight: 800; color: var(--on-surface); margin-top: 2px; line-height: 1.3; }
+
+    .sz-why {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--on-surface-variant); margin: 16px 0 8px;
+    }
+    .sz-why .material-symbols-outlined { font-size: 15px; color: var(--sz-amber); }
+    .sz-reasons { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .sz-reasons li { display: flex; gap: 7px; font-size: 11.5px; line-height: 1.5; color: var(--on-surface-variant); }
+    .sz-reasons li .material-symbols-outlined { font-size: 15px; color: var(--sz-green); flex-shrink: 0; margin-top: 1px; }
+    .sz-reasons b { color: var(--on-surface); font-weight: 700; }
+
+    .sz-price {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      margin-top: 14px; padding: 11px 12px; border-radius: 14px;
+      background: var(--sz-green-bg); border: 1px solid var(--sz-green-line);
+    }
+    .sz-price-label { font-size: 9.5px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: var(--sz-green); }
+    .sz-price-value { font-size: 17px; font-weight: 900; letter-spacing: -0.4px; color: var(--sz-green); margin-top: 2px; }
+    .sz-price-chip {
+      font-size: 9.5px; font-weight: 700; text-align: center; line-height: 1.3;
+      color: var(--on-surface); background: var(--sz-green-bg);
+      border-radius: 8px; padding: 5px 8px; white-space: nowrap;
+    }
+    .sz-tip {
+      display: flex; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+      background: var(--sz-amber-bg); border: 1px solid var(--sz-amber-line);
+      font-size: 11px; line-height: 1.5; color: var(--on-surface-variant);
+    }
+    .sz-tip .material-symbols-outlined { font-size: 16px; color: var(--sz-amber); flex-shrink: 0; }
+    .sz-tip b { color: var(--sz-amber); }
+    .sz-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .sz-btn-primary, .sz-btn-wa {
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 11px 8px; border: none; border-radius: 13px; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.12s, opacity 0.15s;
+    }
+    .sz-btn-primary { background: linear-gradient(135deg, var(--primary-container), #2f6fe0); color: #fff; }
+    .sz-btn-wa { background: #1faa53; color: #fff; }
+    .sz-btn-primary:active, .sz-btn-wa:active { transform: scale(0.98); }
+    .sz-btn-primary .material-symbols-outlined, .sz-btn-wa .material-symbols-outlined { font-size: 16px; }
+    .sz-reset {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: var(--sz-accent-bg); border: 1px solid var(--border);
+      color: var(--on-surface-variant); border-radius: 10px; padding: 6px 10px;
+      font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; cursor: pointer;
+    }
+    .sz-reset .material-symbols-outlined { font-size: 15px; }
+    .sz-reset:active { background: var(--sz-accent-sel); }
+    [data-theme="light"] .sz-card   { background: #fff; }
+    [data-theme="light"] .sz-opt,
+    [data-theme="light"] .sz-slider-box,
+    [data-theme="light"] .sz-meter,
+    [data-theme="light"] .sz-spec   { background: var(--surface-container-high); }
+    [data-theme="light"] .sz-cat    { background: #fff; }
+    [data-theme="light"] .sz-range::-webkit-slider-thumb { border-color: #fff; }
+    [data-theme="light"] .sz-range::-moz-range-thumb     { border-color: #fff; }
 
     /* ── LIGHT MODE ── */
     [data-theme="light"] {
@@ -1747,15 +1947,277 @@
       <button class="back-home-btn" onclick="switchTab('home')">
         <span class="material-symbols-outlined">arrow_back</span> Home
       </button>
-      <div class="page-title">📐 Appliance Sizing</div>
-      <div style="font-size:13px;color:var(--on-surface-variant);margin-bottom:12px;">
-        Recommend AC tonnage, TV size, fridge and washing machine capacity from the customer's
-        room dimensions and family size.
+      <div class="page-title">Appliance Sizing</div>
+      <div class="sz-intro">
+        Match the customer's room dimensions and family size to the right AC tonnage,
+        TV size, fridge litres and washing machine load.
       </div>
-      <iframe id="sizingFrame" class="sizing-frame"
-        title="Appliance Sizing &amp; Recommendation Calculator"
-        data-src="/hari_om_electronics_appliance_sizing_recommendation_calculator.html"
-        loading="lazy"></iframe>
+
+      <div class="sz-cats" role="tablist" aria-label="Appliance category">
+        <button class="sz-cat active" id="szTab-ac" role="tab" aria-selected="true" onclick="szSwitchTab('ac')">
+          <span class="material-symbols-outlined">ac_unit</span>AC
+        </button>
+        <button class="sz-cat" id="szTab-tv" role="tab" aria-selected="false" onclick="szSwitchTab('tv')">
+          <span class="material-symbols-outlined">tv</span>TV
+        </button>
+        <button class="sz-cat" id="szTab-fridge" role="tab" aria-selected="false" onclick="szSwitchTab('fridge')">
+          <span class="material-symbols-outlined">kitchen</span>Fridge
+        </button>
+        <button class="sz-cat" id="szTab-washer" role="tab" aria-selected="false" onclick="szSwitchTab('washer')">
+          <span class="material-symbols-outlined">local_laundry_service</span>Washer
+        </button>
+      </div>
+
+      <!-- ── AC ── -->
+      <div id="szPanel-ac" class="sz-panel active">
+        <div class="sz-card">
+          <div class="sz-head-row">
+            <span class="sz-eyebrow">Cooling Load</span>
+            <span class="sz-head-meta" id="sz-ac-area">144 sq. ft.</span>
+          </div>
+          <div class="sz-h2">Air Conditioner Finder</div>
+          <div class="sz-sub">Ideal tonnage and BEE star rating for Pune/Maharashtra summer heat.</div>
+
+          <div class="sz-group">
+            <label class="sz-label">1. Room Dimensions (ft)</label>
+            <div class="sz-grid-4" style="margin-bottom:8px;">
+              <button class="sz-opt center" data-preset="10x10" onclick="szSetAcPreset(10, 10)"><b>10×10</b><small>Study</small></button>
+              <button class="sz-opt center sel" data-preset="12x12" onclick="szSetAcPreset(12, 12)"><b>12×12</b><small>Bedroom</small></button>
+              <button class="sz-opt center" data-preset="15x12" onclick="szSetAcPreset(15, 12)"><b>15×12</b><small>Master</small></button>
+              <button class="sz-opt center" data-preset="18x15" onclick="szSetAcPreset(18, 15)"><b>18×15</b><small>Hall</small></button>
+            </div>
+            <div class="sz-grid-2">
+              <div class="sz-slider-box">
+                <div class="sz-slider-top"><span>Length</span><b id="sz-ac-len-val">12 ft</b></div>
+                <input type="range" class="sz-range" id="sz-ac-length" min="8" max="25" value="12" oninput="szCalcAC()">
+              </div>
+              <div class="sz-slider-box">
+                <div class="sz-slider-top"><span>Width</span><b id="sz-ac-wid-val">12 ft</b></div>
+                <input type="range" class="sz-range" id="sz-ac-width" min="8" max="22" value="12" oninput="szCalcAC()">
+              </div>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">2. People normally in the room</label>
+            <div class="sz-grid-3" id="sz-ac-people-group">
+              <button class="sz-opt center sel" onclick="szSelectOption('ac-people', '1-2', this)"><b>1–2</b></button>
+              <button class="sz-opt center" onclick="szSelectOption('ac-people', '3-4', this)"><b>3–4</b></button>
+              <button class="sz-opt center" onclick="szSelectOption('ac-people', '5+', this)"><b>5+</b></button>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">3. Floor &amp; sun exposure</label>
+            <div class="sz-stack" id="sz-ac-ceiling-group">
+              <button class="sz-opt sel" onclick="szSelectOption('ac-ceiling', 'middle', this)"><b>Middle / Ground floor</b><small>Covered roof, normal shade</small></button>
+              <button class="sz-opt" onclick="szSelectOption('ac-ceiling', 'west', this)"><b>West-facing / Large glass</b><small>Direct afternoon sun on the wall</small></button>
+              <button class="sz-opt" onclick="szSelectOption('ac-ceiling', 'top', this)"><b>Top floor / Terrace roof</b><small>Direct slab heat all day</small></button>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">4. Expected daily usage (summer)</label>
+            <div class="sz-grid-3" id="sz-ac-usage-group">
+              <button class="sz-opt center" onclick="szSelectOption('ac-usage', 'low', this)"><b>Under 4h</b><small>Occasional</small></button>
+              <button class="sz-opt center sel" onclick="szSelectOption('ac-usage', 'medium', this)"><b>4–8h</b><small>Night use</small></button>
+              <button class="sz-opt center" onclick="szSelectOption('ac-usage', 'high', this)"><b>8h+</b><small>Heavy / WFH</small></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TV ── -->
+      <div id="szPanel-tv" class="sz-panel">
+        <div class="sz-card">
+          <div class="sz-head-row">
+            <span class="sz-eyebrow">Home Cinema</span>
+            <span class="sz-head-meta" id="sz-tv-dist-badge">8 ft distance</span>
+          </div>
+          <div class="sz-h2">Smart TV Size Finder</div>
+          <div class="sz-sub">Match sofa viewing distance and room lighting to screen size and panel tech.</div>
+
+          <div class="sz-group">
+            <div class="sz-slider-top" style="margin-bottom:7px;">
+              <span class="sz-label" style="margin:0;">1. Sofa-to-TV distance</span>
+              <b style="font-size:13px;color:var(--primary);" id="sz-tv-dist-display">8.0 ft</b>
+            </div>
+            <div class="sz-slider-box" style="padding-bottom:2px;">
+              <input type="range" class="sz-range" id="sz-tv-distance" min="4" max="16" step="0.5" value="8" oninput="szCalcTV()">
+              <div class="sz-range-legend"><span>4 ft</span><span>8 ft</span><span>12 ft</span><span>16+ ft</span></div>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">2. Room lighting</label>
+            <div class="sz-grid-2" id="sz-tv-light-group">
+              <button class="sz-opt" onclick="szSelectOption('tv-light', 'dark', this)"><b>Dark / Dim bedroom</b><small>Evening watching, curtains closed</small></button>
+              <button class="sz-opt sel" onclick="szSelectOption('tv-light', 'bright', this)"><b>Bright living room</b><small>Daylight windows, lights on</small></button>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">3. What do they watch most?</label>
+            <div class="sz-grid-2" id="sz-tv-usage-group">
+              <button class="sz-opt" onclick="szSelectOption('tv-usage', 'dth', this)"><b>DTH / News</b><small>Serials, standard channels</small></button>
+              <button class="sz-opt sel" onclick="szSelectOption('tv-usage', 'ott', this)"><b>OTT movies</b><small>Netflix, Prime, 4K HDR</small></button>
+              <button class="sz-opt" onclick="szSelectOption('tv-usage', 'sports', this)"><b>Cricket / Sports</b><small>Fast motion clarity</small></button>
+              <button class="sz-opt" onclick="szSelectOption('tv-usage', 'gaming', this)"><b>Console gaming</b><small>PS5 / Xbox, 120Hz</small></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── FRIDGE ── -->
+      <div id="szPanel-fridge" class="sz-panel">
+        <div class="sz-card">
+          <div class="sz-head-row">
+            <span class="sz-eyebrow">Kitchen Storage</span>
+            <span class="sz-head-meta" id="sz-fridge-family-badge">3 – 4 members</span>
+          </div>
+          <div class="sz-h2">Refrigerator Capacity Finder</div>
+          <div class="sz-sub">Right litres and door configuration for the family's cooking style.</div>
+
+          <div class="sz-group">
+            <label class="sz-label">1. Family size</label>
+            <div class="sz-grid-4" id="sz-fridge-family-group">
+              <button class="sz-opt center" onclick="szSelectOption('fridge-family', '1-2', this)"><b>1–2</b><small>Couple</small></button>
+              <button class="sz-opt center sel" onclick="szSelectOption('fridge-family', '3-4', this)"><b>3–4</b><small>Nuclear</small></button>
+              <button class="sz-opt center" onclick="szSelectOption('fridge-family', '5-6', this)"><b>5–6</b><small>Large</small></button>
+              <button class="sz-opt center" onclick="szSelectOption('fridge-family', '7+', this)"><b>7+</b><small>Joint</small></button>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">2. Cooking &amp; storage habit</label>
+            <div class="sz-stack" id="sz-fridge-habit-group">
+              <button class="sz-opt" onclick="szSelectOption('fridge-habit', 'daily', this)"><b>Daily fresh cooking</b><small>Milk, curd, daily veggies, few leftovers</small></button>
+              <button class="sz-opt sel" onclick="szSelectOption('fridge-habit', 'weekly', this)"><b>Weekly bulk groceries</b><small>Full week vegetables, fruits, dairy, tiffins</small></button>
+              <button class="sz-opt" onclick="szSelectOption('fridge-habit', 'frozen', this)"><b>Heavy freezer &amp; hosting</b><small>Frozen snacks, ice cream, drinks, party prep</small></button>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">3. Kitchen width available</label>
+            <div class="sz-stack" id="sz-fridge-space-group">
+              <button class="sz-opt" onclick="szSelectOption('fridge-space', 'compact', this)"><b>Narrow / Compact</b><small>Under 24 inches slot</small></button>
+              <button class="sz-opt sel" onclick="szSelectOption('fridge-space', 'standard', this)"><b>Standard slot</b><small>24 – 30 inches wide</small></button>
+              <button class="sz-opt" onclick="szSelectOption('fridge-space', 'wide', this)"><b>Wide / Open dining</b><small>36+ inches, fits side-by-side</small></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── WASHER ── -->
+      <div id="szPanel-washer" class="sz-panel">
+        <div class="sz-card">
+          <div class="sz-head-row">
+            <span class="sz-eyebrow">Laundry Care</span>
+            <span class="sz-head-meta" id="sz-washer-family-badge">3 – 4 members</span>
+          </div>
+          <div class="sz-h2">Washing Machine Finder</div>
+          <div class="sz-sub">Right drum capacity and top vs front load for the household.</div>
+
+          <div class="sz-group">
+            <label class="sz-label">1. Family size</label>
+            <div class="sz-grid-4" id="sz-washer-family-group">
+              <button class="sz-opt center" onclick="szSelectOption('washer-family', '1-2', this)"><b>1–2</b><small>Small</small></button>
+              <button class="sz-opt center sel" onclick="szSelectOption('washer-family', '3-4', this)"><b>3–4</b><small>Medium</small></button>
+              <button class="sz-opt center" onclick="szSelectOption('washer-family', '5-6', this)"><b>5–6</b><small>Large</small></button>
+              <button class="sz-opt center" onclick="szSelectOption('washer-family', '7+', this)"><b>7+</b><small>X-Large</small></button>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">2. How often do they wash?</label>
+            <div class="sz-grid-3" id="sz-washer-freq-group">
+              <button class="sz-opt center" onclick="szSelectOption('washer-freq', 'daily', this)"><b>Daily</b><small>Small loads</small></button>
+              <button class="sz-opt center sel" onclick="szSelectOption('washer-freq', 'alternate', this)"><b>Alternate</b><small>3–4×/week</small></button>
+              <button class="sz-opt center" onclick="szSelectOption('washer-freq', 'weekend', this)"><b>Twice a week</b><small>Piled up</small></button>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">3. Heavy items (bedsheets, curtains)</label>
+            <div class="sz-grid-2" id="sz-washer-heavy-group">
+              <button class="sz-opt sel" onclick="szSelectOption('washer-heavy', 'regular', this)"><b>Daily wear only</b><small>Shirts, jeans, light bedsheets</small></button>
+              <button class="sz-opt" onclick="szSelectOption('washer-heavy', 'heavy', this)"><b>Frequent heavy bedding</b><small>King bedsheets, curtains, blankets</small></button>
+            </div>
+          </div>
+
+          <div class="sz-group">
+            <label class="sz-label">4. Tap water pressure &amp; placement</label>
+            <div class="sz-grid-2" id="sz-washer-water-group">
+              <button class="sz-opt sel" onclick="szSelectOption('washer-water', 'good', this)"><b>Good pressure</b><small>Overhead tank supply</small></button>
+              <button class="sz-opt" onclick="szSelectOption('washer-water', 'low', this)"><b>Low / manual fill</b><small>Bucket filling needed</small></button>
+            </div>
+            <div class="sz-grid-2" id="sz-washer-space-group" style="margin-top:8px;">
+              <button class="sz-opt sel" onclick="szSelectOption('washer-space', 'utility', this)"><b>Utility / Bathroom</b><small>Standard width</small></button>
+              <button class="sz-opt" onclick="szSelectOption('washer-space', 'compact', this)"><b>Compact balcony</b><small>Top opening easier</small></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── LIVE RESULT ── -->
+      <div class="sz-card sz-result">
+        <div class="sz-result-head">
+          <span class="sz-live-dot"></span>
+          <span class="sz-result-eyebrow">Recommended Match</span>
+          <span class="sz-result-tag" id="sz-res-category">Air Conditioner</span>
+        </div>
+        <div class="sz-result-body">
+          <div class="sz-res-sub" id="sz-res-subtitle">Recommended AC Capacity</div>
+          <div class="sz-res-main">
+            <div class="sz-res-title" id="sz-res-title">1.5 Ton Split AC</div>
+            <span class="sz-res-badge" id="sz-res-badge">3-Star / 5-Star Inverter</span>
+          </div>
+          <div class="sz-res-config" id="sz-res-config">Convertible 5-in-1 Inverter &bull; 100% Copper</div>
+
+          <div class="sz-meter">
+            <div class="sz-meter-top">
+              <span id="sz-meter-left">Cooling Load Index</span>
+              <span id="sz-meter-right">~18,000 BTU/hr</span>
+            </div>
+            <div class="sz-meter-track"><div class="sz-meter-fill" id="sz-meter-fill"></div></div>
+            <div class="sz-meter-ticks" id="sz-meter-ticks"></div>
+          </div>
+
+          <div class="sz-specs" id="sz-specs"></div>
+
+          <div class="sz-why">
+            <span class="material-symbols-outlined">auto_awesome</span>Why this fits
+          </div>
+          <ul class="sz-reasons" id="sz-reasons"></ul>
+
+          <div class="sz-price">
+            <div>
+              <div class="sz-price-label">Est. showroom price</div>
+              <div class="sz-price-value" id="sz-price">₹36,000 – ₹44,500</div>
+            </div>
+            <div class="sz-price-chip">EMI &amp;<br>Exchange</div>
+          </div>
+
+          <div class="sz-tip">
+            <span class="material-symbols-outlined">lightbulb</span>
+            <div id="sz-tip">Showroom tip loading…</div>
+          </div>
+
+          <div class="sz-actions">
+            <button class="sz-btn-primary" onclick="szCopyQuote()">
+              <span class="material-symbols-outlined">content_copy</span>
+              <span id="sz-copy-label">Copy Quote</span>
+            </button>
+            <button class="sz-btn-wa" onclick="szShareWhatsApp()">
+              <span class="material-symbols-outlined">send</span>WhatsApp
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button class="sz-reset" onclick="szResetCurrent()" style="margin-bottom:8px;">
+        <span class="material-symbols-outlined">restart_alt</span>Reset this tab
+      </button>
     </div>
 
   </div><!-- /mainPanel -->
@@ -2209,9 +2671,448 @@ function switchTab(tab) {
   if (tab === "sizing") sizingInit();
 }
 
+/* ── TAB: APPLIANCE SIZING ── */
+const SZ_STATE = {
+  activeTab: "ac",
+  ac: { length: 12, width: 12, people: "1-2", ceiling: "middle", usage: "medium" },
+  tv: { distance: 8, light: "bright", usage: "ott" },
+  fridge: { family: "3-4", habit: "weekly", space: "standard" },
+  washer: { family: "3-4", freq: "alternate", heavy: "regular", water: "good", space: "utility" }
+};
+let szQuoteText = "";
+
+function szSwitchTab(tab) {
+  SZ_STATE.activeTab = tab;
+  document.querySelectorAll("#tabSizing .sz-cat").forEach(btn => {
+    btn.classList.remove("active");
+    btn.setAttribute("aria-selected", "false");
+  });
+  const activeBtn = document.getElementById("szTab-" + tab);
+  if (activeBtn) {
+    activeBtn.classList.add("active");
+    activeBtn.setAttribute("aria-selected", "true");
+  }
+  document.querySelectorAll("#tabSizing .sz-panel").forEach(p => p.classList.remove("active"));
+  const panel = document.getElementById("szPanel-" + tab);
+  if (panel) panel.classList.add("active");
+  if (tab === "ac") szCalcAC();
+  else if (tab === "tv") szCalcTV();
+  else if (tab === "fridge") szCalcFridge();
+  else if (tab === "washer") szCalcWasher();
+}
+
+function szSelectOption(groupKey, value, btn) {
+  const parts = groupKey.split("-");
+  SZ_STATE[parts[0]][parts[1]] = value;
+  btn.parentElement.querySelectorAll(".sz-opt").forEach(el => el.classList.remove("sel"));
+  btn.classList.add("sel");
+  const category = parts[0];
+  if (category === "ac") szCalcAC();
+  else if (category === "tv") szCalcTV();
+  else if (category === "fridge") szCalcFridge();
+  else if (category === "washer") szCalcWasher();
+}
+
+function szSetAcPreset(len, wid) {
+  document.getElementById("sz-ac-length").value = len;
+  document.getElementById("sz-ac-width").value = wid;
+  document.querySelectorAll("#szPanel-ac [data-preset]").forEach(el => el.classList.remove("sel"));
+  const preset = document.querySelector(`#szPanel-ac [data-preset="${len}x${wid}"]`);
+  if (preset) preset.classList.add("sel");
+  szCalcAC();
+}
+
+function szCalcAC() {
+  const len = parseInt(document.getElementById("sz-ac-length").value, 10);
+  const wid = parseInt(document.getElementById("sz-ac-width").value, 10);
+  SZ_STATE.ac.length = len;
+  SZ_STATE.ac.width = wid;
+
+  const area = len * wid;
+  document.getElementById("sz-ac-len-val").textContent = `${len} ft`;
+  document.getElementById("sz-ac-wid-val").textContent = `${wid} ft`;
+  document.getElementById("sz-ac-area").textContent = `${area} sq. ft.`;
+
+  let btu = area * 65;
+  if (SZ_STATE.ac.people === "3-4") btu += 1200;
+  else if (SZ_STATE.ac.people === "5+") btu += 2800;
+  if (SZ_STATE.ac.ceiling === "west") btu *= 1.12;
+  else if (SZ_STATE.ac.ceiling === "top") btu *= 1.22;
+
+  let tonnage = "1.5 Ton";
+  let btuLabel = "~18,000 BTU/hr";
+  let meterPct = 70;
+  let priceRange = "₹35,500 – ₹45,000";
+
+  if (btu <= 10500) {
+    tonnage = "0.8 Ton"; btuLabel = "~9,600 BTU/hr"; meterPct = 25; priceRange = "₹26,500 – ₹31,000";
+  } else if (btu <= 13500) {
+    tonnage = "1.0 Ton"; btuLabel = "~12,000 BTU/hr"; meterPct = 45; priceRange = "₹29,500 – ₹36,500";
+  } else if (btu <= 19800) {
+    tonnage = "1.5 Ton"; btuLabel = "~18,000 BTU/hr"; meterPct = 70; priceRange = "₹35,500 – ₹45,000";
+  } else {
+    tonnage = "2.0 Ton"; btuLabel = "~24,000 BTU/hr"; meterPct = 95; priceRange = "₹46,000 – ₹58,000";
+  }
+
+  let starRating = "3-Star Inverter";
+  let starReason = "3-Star Inverter offers the lowest upfront cost for moderate daily usage.";
+  if (SZ_STATE.ac.usage === "high") {
+    starRating = "5-Star Inverter";
+    starReason = "5-Star Inverter saves ~20–25% on electricity bills for 8+ hrs daily running.";
+    if (tonnage === "1.0 Ton") priceRange = "₹33,500 – ₹39,500";
+    if (tonnage === "1.5 Ton") priceRange = "₹41,000 – ₹49,500";
+    if (tonnage === "2.0 Ton") priceRange = "₹52,000 – ₹62,000";
+  } else if (SZ_STATE.ac.usage === "medium") {
+    starRating = "3-Star / 5-Star Inverter";
+    starReason = "For 4–8 hrs/day, 5-Star pays back the extra cost in ~2 summers; 3-Star is budget-friendly.";
+  }
+
+  szRenderResult({
+    category: "Air Conditioner",
+    subtitle: "Recommended AC Capacity",
+    mainTitle: `${tonnage} Split AC`,
+    badge: starRating,
+    configLine: "Convertible 5-in-1 Inverter • 100% Copper • PM 2.5 Filter",
+    meterLeft: "Cooling Load Index",
+    meterRight: btuLabel,
+    meterPct: meterPct,
+    ticks: ["0.8 Ton", "1.0 Ton", "1.5 Ton", "2.0 Ton"],
+    specs: [
+      { label: "Compressor", value: "Variable Inverter" },
+      { label: "Condenser Coil", value: "100% Copper" },
+      { label: "Cooling Mode", value: "Convertible 5-in-1" },
+      { label: "Stabilizer", value: "In-built (130V–285V)" }
+    ],
+    reasons: [
+      `Calculated thermal load of <b>${Math.round(btu).toLocaleString("en-IN")} BTU/hr</b> for a ${len}×${wid} ft (${area} sq. ft.) room.`,
+      SZ_STATE.ac.ceiling === "top"
+        ? "Added +22% cooling buffer for direct top-floor terrace slab heat."
+        : SZ_STATE.ac.ceiling === "west"
+        ? "Added +12% cooling buffer for west-facing glass sun heat."
+        : "Balanced capacity for standard middle/ground floor insulation.",
+      starReason
+    ],
+    priceRange: priceRange,
+    tip: "<b>Showroom Tip:</b> Prefer a Convertible Inverter model so the unit can run at a lower capacity on mild nights and save power."
+  });
+}
+
+function szCalcTV() {
+  const dist = parseFloat(document.getElementById("sz-tv-distance").value);
+  SZ_STATE.tv.distance = dist;
+  document.getElementById("sz-tv-dist-display").textContent = `${dist.toFixed(1)} ft`;
+  document.getElementById("sz-tv-dist-badge").textContent = `${dist.toFixed(1)} ft distance`;
+
+  let screenSize = '55" (139 cm)';
+  let meterPct = 60;
+  let priceRange = "₹38,000 – ₹65,000";
+
+  if (dist <= 5.5) {
+    screenSize = '32" – 43"'; meterPct = 22; priceRange = "₹14,500 – ₹28,000";
+  } else if (dist <= 7.5) {
+    screenSize = '43" – 50"'; meterPct = 40; priceRange = "₹25,000 – ₹42,000";
+  } else if (dist <= 9.5) {
+    screenSize = '55" (139 cm)'; meterPct = 60; priceRange = "₹38,000 – ₹65,000";
+  } else if (dist <= 12.0) {
+    screenSize = '65" (164 cm)'; meterPct = 80; priceRange = "₹58,000 – ₹98,000";
+  } else {
+    screenSize = '75"+ (189 cm+)'; meterPct = 96; priceRange = "₹95,000 – ₹1,65,000+";
+  }
+
+  const resolution = dist <= 5.0 && SZ_STATE.tv.usage === "dth" ? "Full HD (1080p)" : "4K Ultra HD";
+  let panelType = "4K LED (VA/ADS)";
+  let refreshRate = "60Hz Standard";
+  let audioWatt = "20W – 24W Dolby";
+
+  if (SZ_STATE.tv.light === "bright") {
+    panelType = dist >= 8 ? "QLED / Mini-LED (High Brightness)" : "Bright 4K QLED";
+  } else {
+    panelType = SZ_STATE.tv.usage === "ott" && dist >= 8 ? "OLED / Full-Array QLED" : "4K QLED / VA Contrast";
+  }
+
+  if (SZ_STATE.tv.usage === "gaming") {
+    refreshRate = "120Hz Native + VRR";
+    panelType = SZ_STATE.tv.light === "dark" ? "OLED / 120Hz QLED" : "120Hz QLED / Mini-LED";
+    audioWatt = "30W – 40W Dolby Atmos";
+  } else if (SZ_STATE.tv.usage === "sports") {
+    refreshRate = "120Hz MEMC Motion";
+    audioWatt = "30W+ Clear Voice";
+  } else if (SZ_STATE.tv.usage === "ott") {
+    audioWatt = "30W – 40W Dolby Atmos";
+  }
+
+  szRenderResult({
+    category: "Smart TV",
+    subtitle: "Ideal Screen Size & Panel",
+    mainTitle: `${screenSize} ${resolution}`,
+    badge: panelType.split(" ")[0],
+    configLine: `${panelType} • ${refreshRate} • Google TV OS`,
+    meterLeft: "Screen Immersion",
+    meterRight: `${dist.toFixed(1)} ft viewing`,
+    meterPct: meterPct,
+    ticks: ['32"–43"', '50"', '55"', '65"–75"+'],
+    specs: [
+      { label: "Display Panel", value: panelType.split("(")[0].trim() },
+      { label: "Refresh Rate", value: refreshRate },
+      { label: "Audio Output", value: audioWatt },
+      { label: "Smart Platform", value: "Google TV / WebOS" }
+    ],
+    reasons: [
+      `At <b>${dist.toFixed(1)} ft viewing distance</b>, a <b>${screenSize}</b> screen fills the field of view without eye strain.`,
+      SZ_STATE.tv.light === "bright"
+        ? "High-brightness QLED/Mini-LED cuts daytime window reflections in a bright living room."
+        : "A high-contrast panel delivers deep blacks and cinema-grade colour in dim lighting.",
+      SZ_STATE.tv.usage === "gaming"
+        ? "120Hz refresh with HDMI 2.1 keeps PS5/Xbox gameplay lag-free."
+        : SZ_STATE.tv.usage === "sports"
+        ? "MEMC motion smoothing keeps a fast cricket ball sharp without blur."
+        : "4K HDR upscaling sharpens both OTT streaming and regular DTH channels."
+    ],
+    priceRange: priceRange,
+    tip: "<b>Showroom Tip:</b> If the sofa is 8+ ft away, moving from 43\" to 55\" gives 63% more screen area for a true theatre feel."
+  });
+}
+
+function szCalcFridge() {
+  const famMap = { "1-2": "1 – 2 members", "3-4": "3 – 4 members", "5-6": "5 – 6 members", "7+": "7+ joint family" };
+  document.getElementById("sz-fridge-family-badge").textContent = famMap[SZ_STATE.fridge.family];
+
+  let capacity = "240L – 280L";
+  let doorType = "Double Door Frost Free";
+  let badge = "Convertible 5-in-1";
+  let meterPct = 48;
+  let priceRange = "₹24,500 – ₹32,000";
+
+  if (SZ_STATE.fridge.family === "1-2") {
+    if (SZ_STATE.fridge.habit === "daily") {
+      capacity = "185L – 215L"; doorType = "Single Door Direct Cool"; badge = "5-Star Direct Cool";
+      meterPct = 22; priceRange = "₹15,500 – ₹19,500";
+    } else {
+      capacity = "220L – 250L"; doorType = "Compact Double Door"; badge = "Frost Free";
+      meterPct = 34; priceRange = "₹21,500 – ₹26,500";
+    }
+  } else if (SZ_STATE.fridge.family === "3-4") {
+    if (SZ_STATE.fridge.habit === "daily") {
+      capacity = "235L – 265L"; doorType = "Double Door Frost Free";
+      meterPct = 44; priceRange = "₹23,500 – ₹29,500";
+    } else if (SZ_STATE.fridge.habit === "weekly") {
+      capacity = "265L – 310L"; doorType = "Convertible Double Door";
+      meterPct = 55; priceRange = "₹27,000 – ₹35,500";
+    } else {
+      capacity = "300L – 350L"; doorType = "Bottom Mount / Convertible"; badge = "Max Freezer Space";
+      meterPct = 65; priceRange = "₹33,000 – ₹43,000";
+    }
+  } else if (SZ_STATE.fridge.family === "5-6") {
+    if (SZ_STATE.fridge.habit === "daily") {
+      capacity = "300L – 340L"; doorType = "Double Door Frost Free";
+      meterPct = 62; priceRange = "₹31,000 – ₹39,500";
+    } else {
+      capacity = "350L – 420L"; doorType = "Large Convertible Double Door"; badge = "10-in-1 Convertible";
+      meterPct = 76; priceRange = "₹38,500 – ₹52,000";
+    }
+  } else {
+    if (SZ_STATE.fridge.space === "wide") {
+      capacity = "550L – 650L"; doorType = "Side-by-Side / French Door"; badge = "Premium Multi-Door";
+      meterPct = 95; priceRange = "₹58,000 – ₹95,000";
+    } else {
+      capacity = "415L – 500L"; doorType = "Jumbo Double Door (Slim Width)"; badge = "High Capacity";
+      meterPct = 85; priceRange = "₹46,000 – ₹62,000";
+    }
+  }
+
+  if (SZ_STATE.fridge.space === "compact" && (capacity.includes("350L") || capacity.includes("415L") || capacity.includes("550L"))) {
+    doorType = "Tall Slim-Fit Double Door";
+    badge = "Space-Saver Fit";
+  }
+
+  szRenderResult({
+    category: "Refrigerator",
+    subtitle: "Recommended Fridge Capacity",
+    mainTitle: capacity,
+    badge: badge,
+    configLine: `${doorType} • Digital Inverter`,
+    meterLeft: "Storage Volume",
+    meterRight: capacity,
+    meterPct: meterPct,
+    ticks: ["190L", "260L", "350L", "550L+"],
+    specs: [
+      { label: "Configuration", value: doorType.split(" ").slice(0, 2).join(" ") },
+      { label: "Compressor", value: "Digital Inverter" },
+      { label: "Defrost System", value: capacity.includes("185L") ? "Direct Cool" : "Auto Frost-Free" },
+      { label: "Stabilizer", value: "Stabilizer-Free Ops" }
+    ],
+    reasons: [
+      `Sized at <b>${capacity}</b> to comfortably fit groceries for <b>${famMap[SZ_STATE.fridge.family]}</b>.`,
+      SZ_STATE.fridge.habit === "frozen"
+        ? "A convertible freezer lets the family expand freezer or fridge space during festivals and gatherings."
+        : SZ_STATE.fridge.habit === "weekly"
+        ? "A dedicated moisture-control crisper keeps a full week of vegetables and fruit crisp."
+        : "Quick-chill dairy and bottle racks suit a fresh daily cooking routine.",
+      SZ_STATE.fridge.space === "wide"
+        ? "The wide kitchen slot fits multi-door models with proper side ventilation."
+        : "Fits standard Indian kitchen niches while leaving 2 inches of side airflow clearance."
+    ],
+    priceRange: priceRange,
+    tip: "<b>Showroom Tip:</b> Convertible Double Door models let the freezer double as extra fridge space when guests visit."
+  });
+}
+
+function szCalcWasher() {
+  const famMap = { "1-2": "1 – 2 members", "3-4": "3 – 4 members", "5-6": "5 – 6 members", "7+": "7+ joint family" };
+  document.getElementById("sz-washer-family-badge").textContent = famMap[SZ_STATE.washer.family];
+
+  let kg = 7.0;
+  if (SZ_STATE.washer.family === "1-2") kg = 6.5;
+  else if (SZ_STATE.washer.family === "3-4") kg = 7.5;
+  else if (SZ_STATE.washer.family === "5-6") kg = 8.5;
+  else kg = 10.0;
+  if (SZ_STATE.washer.freq === "weekend") kg += 1.0;
+  if (SZ_STATE.washer.heavy === "heavy") kg += 1.0;
+
+  let capLabel = "7.5 kg";
+  let meterPct = 50;
+  if (kg <= 6.5) { capLabel = "6.5 kg"; meterPct = 25; }
+  else if (kg <= 7.0) { capLabel = "7.0 kg"; meterPct = 38; }
+  else if (kg <= 7.5) { capLabel = "7.5 kg"; meterPct = 50; }
+  else if (kg <= 8.5) { capLabel = "8.0 – 8.5 kg"; meterPct = 68; }
+  else if (kg <= 9.5) { capLabel = "9.0 kg"; meterPct = 82; }
+  else { capLabel = "10.0 – 11.0 kg"; meterPct = 95; }
+
+  let machineType = "Fully Automatic Front Load";
+  let badge = "In-Built Heater";
+  let priceRange = "₹28,500 – ₹38,000";
+  let motorType = "Direct Drive / Inverter";
+
+  if (SZ_STATE.washer.water === "low") {
+    machineType = "Semi-Automatic / Zero-Pressure Top Load"; badge = "Low Water Friendly";
+    priceRange = "₹12,500 – ₹21,000"; motorType = "Heavy-Duty Pulsator";
+  } else if (SZ_STATE.washer.space === "compact") {
+    machineType = "Fully Automatic Top Load"; badge = "Compact Footprint";
+    priceRange = "₹17,500 – ₹24,500"; motorType = "Smart Inverter Motor";
+  } else {
+    machineType = "Fully Automatic Front Load"; badge = "Steam + In-Built Heater";
+    if (kg <= 7.0) priceRange = "₹24,500 – ₹31,000";
+    else if (kg <= 8.5) priceRange = "₹29,500 – ₹39,500";
+    else priceRange = "₹38,000 – ₹49,000";
+  }
+
+  szRenderResult({
+    category: "Washing Machine",
+    subtitle: "Recommended Drum & Type",
+    mainTitle: `${capLabel} Washer`,
+    badge: badge,
+    configLine: `${machineType} • ${motorType}`,
+    meterLeft: "Drum Load Capacity",
+    meterRight: capLabel,
+    meterPct: meterPct,
+    ticks: ["6.5 kg", "7.5 kg", "8.5 kg", "10+ kg"],
+    specs: [
+      { label: "Machine Type", value: machineType.includes("Front") ? "Front Load Auto" : machineType.includes("Semi") ? "Semi / Zero-Bar" : "Top Load Auto" },
+      { label: "Motor Tech", value: motorType },
+      { label: "Hygiene Care", value: machineType.includes("Front") ? "In-Built Heater + Steam" : "Hard Water Wash" },
+      { label: "Energy Rating", value: "5-Star BEE Rated" }
+    ],
+    reasons: [
+      `<b>${capLabel} drum</b> handles ${famMap[SZ_STATE.washer.family]} laundry (${SZ_STATE.washer.freq === "weekend" ? "larger twice-a-week loads" : "regular wash cycles"}) without overloading the motor.`,
+      SZ_STATE.washer.heavy === "heavy"
+        ? "Extra drum volume prevents tangling when washing king-size bedsheets, curtains and winter blankets."
+        : "An optimised drum size saves water and detergent on daily clothes.",
+      SZ_STATE.washer.water === "low"
+        ? "Works smoothly even with low overhead tank water pressure."
+        : SZ_STATE.washer.space === "compact"
+        ? "A top-opening lid needs zero front clearance, ideal for a narrow dry balcony."
+        : "Front Load uses ~40% less water and includes an in-built heater for tough stains and germs."
+    ],
+    priceRange: priceRange,
+    tip: "<b>Showroom Tip:</b> Check for Hard Water Wash if the area uses borewell water — it prevents mineral scaling on clothes and drum."
+  });
+}
+
+function szRenderResult(data) {
+  document.getElementById("sz-res-category").textContent = data.category;
+  document.getElementById("sz-res-subtitle").textContent = data.subtitle;
+  document.getElementById("sz-res-title").textContent = data.mainTitle;
+  document.getElementById("sz-res-badge").textContent = data.badge;
+  document.getElementById("sz-res-config").textContent = data.configLine;
+  document.getElementById("sz-meter-left").textContent = data.meterLeft;
+  document.getElementById("sz-meter-right").textContent = data.meterRight;
+  document.getElementById("sz-meter-fill").style.width = `${data.meterPct}%`;
+  document.getElementById("sz-meter-ticks").innerHTML = data.ticks.map(t => `<span>${t}</span>`).join("");
+  document.getElementById("sz-specs").innerHTML = data.specs.map(s =>
+    `<div class="sz-spec"><small>${s.label}</small><b>${s.value}</b></div>`
+  ).join("");
+  document.getElementById("sz-reasons").innerHTML = data.reasons.map(r =>
+    `<li><span class="material-symbols-outlined">check_circle</span><span>${r}</span></li>`
+  ).join("");
+  document.getElementById("sz-price").textContent = data.priceRange;
+  document.getElementById("sz-tip").innerHTML = data.tip;
+
+  const plainReasons = data.reasons.map(r => `• ${r.replace(/<[^>]*>?/gm, "")}`).join("\n");
+  szQuoteText =
+`*Hari Om Electronics (Alandi & Dhanore)*
+*${data.category} Recommendation*
+
+*Recommended:* ${data.mainTitle} (${data.badge})
+*Specs:* ${data.configLine}
+*Est. Budget:* ${data.priceRange} (EMI & Exchange Available)
+
+*Why this fits your home:*
+${plainReasons}
+
+Visit Hari Om Electronics for a live demo & best showroom offer!`;
+}
+
+function szCopyQuote() {
+  const ta = document.createElement("textarea");
+  ta.value = szQuoteText;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand("copy");
+    showToast("WhatsApp quote copied", "success");
+    const label = document.getElementById("sz-copy-label");
+    label.textContent = "Copied!";
+    setTimeout(() => { label.textContent = "Copy Quote"; }, 2000);
+  } catch (e) {
+    showToast("Unable to copy automatically", "error");
+  }
+  document.body.removeChild(ta);
+}
+
+function szShareWhatsApp() {
+  window.open(`https://wa.me/?text=${encodeURIComponent(szQuoteText)}`, "_blank", "noopener,noreferrer");
+}
+
+function szResetCurrent() {
+  const tab = SZ_STATE.activeTab;
+  if (tab === "ac") {
+    szSetAcPreset(12, 12);
+    szSelectOption("ac-people", "1-2", document.querySelector("#sz-ac-people-group .sz-opt"));
+    szSelectOption("ac-ceiling", "middle", document.querySelector("#sz-ac-ceiling-group .sz-opt"));
+    szSelectOption("ac-usage", "medium", document.querySelector("#sz-ac-usage-group .sz-opt:nth-child(2)"));
+  } else if (tab === "tv") {
+    document.getElementById("sz-tv-distance").value = 8;
+    szSelectOption("tv-light", "bright", document.querySelector("#sz-tv-light-group .sz-opt:nth-child(2)"));
+    szSelectOption("tv-usage", "ott", document.querySelector("#sz-tv-usage-group .sz-opt:nth-child(2)"));
+    szCalcTV();
+  } else if (tab === "fridge") {
+    szSelectOption("fridge-family", "3-4", document.querySelector("#sz-fridge-family-group .sz-opt:nth-child(2)"));
+    szSelectOption("fridge-habit", "weekly", document.querySelector("#sz-fridge-habit-group .sz-opt:nth-child(2)"));
+    szSelectOption("fridge-space", "standard", document.querySelector("#sz-fridge-space-group .sz-opt:nth-child(2)"));
+  } else if (tab === "washer") {
+    szSelectOption("washer-family", "3-4", document.querySelector("#sz-washer-family-group .sz-opt:nth-child(2)"));
+    szSelectOption("washer-freq", "alternate", document.querySelector("#sz-washer-freq-group .sz-opt:nth-child(2)"));
+    szSelectOption("washer-heavy", "regular", document.querySelector("#sz-washer-heavy-group .sz-opt"));
+    szSelectOption("washer-water", "good", document.querySelector("#sz-washer-water-group .sz-opt"));
+    szSelectOption("washer-space", "utility", document.querySelector("#sz-washer-space-group .sz-opt"));
+  }
+  showToast("Reset to defaults", "info");
+}
+
 function sizingInit() {
-  const f = document.getElementById("sizingFrame");
-  if (f && !f.getAttribute("src")) f.src = f.dataset.src;
+  szCalcAC();
 }
 
 /* ── TAB: TAKE REVIEW (Google review QR wizard) ── */

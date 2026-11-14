@@ -7,7 +7,7 @@
    Bump CACHE_NAME on any change to force a clean install.
 ══════════════════════════════════════════════════ */
 
-const CACHE_NAME = "hariom-dms-v9";
+const CACHE_NAME = "hariom-dms-v10";
 const OFFLINE_URL = "/offline.html";
 
 // Only these static asset types get cached (stale-while-revalidate).
@@ -30,9 +30,6 @@ const PRECACHE_URLS = [
   // Quotation PDFs are written on the device, so the writer must be available
   // with no network either.
   "/vendor/jspdf.umd.min.js",
-  // Appliance sizing calculator embedded as a staff tab (iframe navigation) —
-  // precached so the tab opens offline.
-  "/hari_om_electronics_appliance_sizing_recommendation_calculator.html",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png"
 ];
