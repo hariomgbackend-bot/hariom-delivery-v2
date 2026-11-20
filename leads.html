@@ -667,6 +667,11 @@ function productSummary(l) {
   return escHtml(ps[0]?.product_name || l.product_interest || "—");
 }
 
+/* Exchange photos — newer leads store an array, older ones a single URL */
+function leadPhotoUrls(l) {
+  return [...new Set([...(l.exchange_photo_urls || []), l.exchange_photo_url].filter(Boolean))];
+}
+
 /* Effective board column — a status that isn't one of the 7 stages (legacy rows
    awaiting migration) is shown as "New" so no lead ever falls outside the pipeline */
 function stageOf(l) {
@@ -908,12 +913,14 @@ function renderCard(l) {
   if (isStaleNew(l))     flags.push(`<span class="kb-flag kb-flag-stale">🕓 ${agingDays(l)}d untouched</span>`);
   const owner = ownerLabel(l);
   const note  = l.followup_note ? `<div class="kb-note">💬 ${escHtml(l.followup_note)}</div>` : "";
+  const photoCount = leadPhotoUrls(l).length;
+  const photoChip  = photoCount ? ` · 📷${photoCount > 1 ? " " + photoCount : ""}` : "";
 
   return `
     <div class="kb-card" draggable="true" data-id="${escHtml(l.id)}" onclick="openDrawer('${escHtml(l.id)}')">
       <div class="kb-card-name">${escHtml(l.customer_name || "—")} ${onlineChip(l)} ${mkStoreBadge(l.storeId, 18)}</div>
       <div class="kb-card-meta">
-        ${escHtml(l.phone || "—")} · ${productSummary(l)}${l.exchange_photo_url ? " · 📷" : ""}
+        ${escHtml(l.phone || "—")} · ${productSummary(l)}${photoChip}
       </div>
       ${flags.length ? `<div class="kb-card-meta" style="margin-top:6px;">${flags.join(" ")}</div>` : ""}
       <div class="kb-card-row">
@@ -1347,6 +1354,8 @@ function openDrawer(id) {
     ? products.map(p => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>${escHtml(p.product_name)}</span><span style="font-weight:700;">${fmtMoney(p.quoted_price)}</span></div>`).join("")
     : escHtml(l.product_interest || "—");
 
+  const exPhotos = leadPhotoUrls(l);
+
   /* Owner options — the capturer may not be a staff record (an admin/accountant
      lead stores a role name in created_by), so keep them selectable. */
   const ownerNow = ownerId(l);
@@ -1379,16 +1388,18 @@ function openDrawer(id) {
     ${dr("Added by", `${escHtml(l.created_by_name || "—")} · ${fmtDate(l.created_at)}`)}
     ${l.source === "web" ? dr("Source", "🌐 Online enquiry") : ""}
 
-    ${(l.exchange_offer || l.exchange_photo_url) ? `
+    ${(l.exchange_offer || exPhotos.length) ? `
       <div class="drawer-section">Exchange offer</div>
       ${dr("Condition", l.exchange_condition === "not_working" ? "Not working" : "Working")}
-      ${l.exchange_photo_url
-        ? `<a href="${escHtml(l.exchange_photo_url)}" target="_blank" rel="noopener" style="display:block;margin-top:8px;">
-             <img src="${escHtml(l.exchange_photo_url)}" alt="Old product the customer wants to exchange"
-                  loading="lazy"
-                  style="width:100%;max-height:320px;object-fit:contain;border-radius:12px;border:1px solid var(--border);background:var(--surface-container-high);">
-             <div style="font-size:11px;color:var(--on-surface-variant);text-align:center;margin-top:6px;">Tap to open full size</div>
-           </a>`
+      ${exPhotos.length
+        ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:8px;">
+             ${exPhotos.map(u => `<a href="${escHtml(u)}" target="_blank" rel="noopener">
+               <img src="${escHtml(u)}" alt="Old product the customer wants to exchange"
+                    loading="lazy"
+                    style="width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--border);background:var(--surface-container-high);">
+             </a>`).join("")}
+           </div>
+           <div style="font-size:11px;color:var(--on-surface-variant);text-align:center;margin-top:6px;">Tap a photo to open full size</div>`
         : `<div style="font-size:12px;color:var(--on-surface-variant);margin-top:6px;">No photo provided</div>`}
     ` : ""}
 

@@ -1094,9 +1094,9 @@ function buildAllCharts(data) {
   });
 
   // ── Status donut ──
-  const statuses = ["delivered","loaded","pending","failed","booked"];
-  const statusLabels = ["Delivered","Loaded","Pending","Failed","Booked"];
-  const statusColors = [C.tertiary, C.primary, C.amber, C.error, "#818cf8"];
+  const statuses = ["delivered","loaded","pending","failed","booked","closed"];
+  const statusLabels = ["Delivered","Loaded","Pending","Failed","Booked","Closed"];
+  const statusColors = [C.tertiary, C.primary, C.amber, C.error, "#818cf8", "#94a3b8"];
   const statusCounts = statuses.map(s => data.filter(d=>d.status===s).length);
   makeChart("chartStatus", {
     type:"doughnut",
@@ -1798,6 +1798,7 @@ function renderDeliveryMap() {
     loaded:    "#adc6ff",
     pending:   "#fbbf24",
     booked:    "#c084fc",
+    closed:    "#94a3b8",
   };
 
   // Filter by timeline

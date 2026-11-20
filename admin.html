@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
-  <script src="/shared.js?v=3"></script>
+  <script src="/shared.js?v=5"></script>
 
   <link rel="stylesheet" href="/design-system.css?v=2">
   <style>
@@ -1254,6 +1254,7 @@
     [data-theme="light"] .badge-delivered { background: rgba(22,163,74,0.12);   color: #166534; }
     [data-theme="light"] .badge-failed    { background: rgba(220,38,38,0.12);   color: #b91c1c; }
     [data-theme="light"] .badge-booked    { background: rgba(99,102,241,0.12);  color: #4338ca; }
+    [data-theme="light"] .badge-closed    { background: #e5e7eb;                color: #4b5563; }
     [data-theme="light"] .badge-urgent    { background: rgba(234,88,12,0.12);   color: #9a3412; }
     [data-theme="light"] .dark-toggle { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
     [data-theme="light"] #payoutChips > div { background: #f8fafc !important; }
@@ -1356,6 +1357,18 @@
     .st-input { width:140px;padding:8px 10px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:var(--font-mono);font-size:13px;color:var(--on-surface);outline:none; }
     .st-input:focus { outline:2px solid var(--primary); }
     .st-actions { display:flex;gap:8px; }
+
+    /* ── Enquiry form settings ── */
+    .ef-card, .ef-cat { background:var(--surface-container-low);border:1px solid var(--outline-variant);border-radius:16px;padding:18px;margin-bottom:14px; }
+    .ef-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:10px; }
+    .ef-lbl { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--on-surface-variant);display:block;margin-bottom:5px; }
+    .ef-in { width:100%;padding:9px 11px;background:var(--surface-container-high);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--on-surface);outline:none; }
+    .ef-in:focus { outline:2px solid var(--primary); }
+    textarea.ef-in { resize:vertical;min-height:46px; }
+    .ef-row { display:flex;gap:8px;align-items:center;margin-bottom:8px; }
+    .ef-toggle { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border); }
+    .ef-del { background:transparent;border:1px solid var(--error);color:var(--error);border-radius:8px;padding:6px 10px;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;cursor:pointer; }
+    .ef-var-row { display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:8px; }
 
     /* ── Attendance (admin) ── */
     .att-toolbar { display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap; }
@@ -1560,6 +1573,11 @@
       Stores
     </button>
 
+    <button class="sidebar-item" id="nav-enquiry-form" onclick="showView('enquiry-form')">
+      <span class="material-symbols-outlined">assignment</span>
+      Enquiry Form
+    </button>
+
     <button class="sidebar-item" id="nav-attendance" onclick="showView('attendance')">
       <span class="material-symbols-outlined">fact_check</span>
       Attendance
@@ -1676,6 +1694,7 @@
         <button class="filter-btn"        id="btn-loaded"    onclick="setFilter('loaded')">Loaded<span class="filter-count" id="cnt-loaded"></span></button>
         <button class="filter-btn"        id="btn-delivered" onclick="setFilter('delivered')">Delivered<span class="filter-count" id="cnt-delivered"></span></button>
         <button class="filter-btn"        id="btn-failed"    onclick="setFilter('failed')" style="color:var(--error);border-color:rgba(255,180,171,0.3);">❌ Failed<span class="filter-count count-red" id="cnt-failed"></span></button>
+        <button class="filter-btn"        id="btn-closed"    onclick="setFilter('closed')" style="color:#b6bac7;border-color:rgba(140,144,159,0.35);">Closed<span class="filter-count" id="cnt-closed"></span></button>
         <button class="filter-btn"        id="btn-urgent"    onclick="setFilter('urgent')">🔥 Urgent<span class="filter-count" id="cnt-urgent"></span></button>
         <select id="adminStoreFilter" onchange="setAdminStoreFilter(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--surface-container-high);color:var(--on-surface);outline:none;font-weight:600;">
           <option value="all">🏪 All Stores</option>
@@ -2455,6 +2474,32 @@
       <div id="stGrid"></div>
     </section>
 
+    <!-- ════ VIEW: ENQUIRY FORM SETTINGS ════ -->
+    <section id="view-enquiry-form" style="display:none;">
+      <div class="section-heading">
+        <div>
+          <div class="section-title-lg">Enquiry Form</div>
+          <div class="section-subtitle">What customers see on the public enquiry link — categories, brands, sizes and photos</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="pg-btn pg-btn-outline" onclick="efResetDefaults()">Reset to defaults</button>
+          <button class="pg-btn pg-btn-primary" id="efSaveBtn" onclick="efSave()">Save changes</button>
+        </div>
+      </div>
+      <div id="efMsg" style="font-size:12px;font-weight:600;min-height:16px;margin-bottom:10px;"></div>
+
+      <div class="ef-card">
+        <div style="font-size:13px;font-weight:800;color:var(--on-surface);margin-bottom:6px;">Exchange &amp; photos</div>
+        <div id="efExchange"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 12px;gap:12px;flex-wrap:wrap;">
+        <div style="font-size:13px;font-weight:800;color:var(--on-surface);text-transform:uppercase;letter-spacing:.4px;">Categories</div>
+        <button class="pg-btn pg-btn-outline" onclick="efAddCategory()">+ Add category</button>
+      </div>
+      <div id="efCats"></div>
+    </section>
+
     <!-- ════ VIEW: ATTENDANCE ════ -->
     <section id="view-attendance" style="display:none;">
       <div class="section-heading">
@@ -2637,6 +2682,7 @@ const VIEW_LABELS = {
   'price-guide':   'Price Guide',
   slabs:           'Slabs',
   stores:          'Stores',
+  'enquiry-form':  'Enquiry Form Settings',
   attendance:      'Staff Attendance',
   permissions:     'Staff Permissions',
   'product-normalizer': 'Product Name Cleanup',
@@ -2649,7 +2695,7 @@ let currentAdminView = 'deliveries';
 function showView(view) {
   currentAdminView = view;
   ['categories','models'].forEach(k => { const n = document.getElementById('nav-' + k); if (n) n.classList.remove('active'); });
-  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','stores','attendance','permissions','product-normalizer','links','gbpilot','activity-log'].forEach(v => {
+  ['deliveries','payout','storage','service-count','map','staff','calendar','brands','price-guide','slabs','stores','enquiry-form','attendance','permissions','product-normalizer','links','gbpilot','activity-log'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) {
       el.style.display = v === view ? '' : 'none';
@@ -2672,6 +2718,7 @@ function showView(view) {
   if (view === 'price-guide')     { pgLoadData(); }
   if (view === 'slabs')           { slLoadData(); }
   if (view === 'stores')          { stLoadData(); }
+  if (view === 'enquiry-form')    { efLoad(); }
   if (view === 'attendance')      { attLoadData(); }
   if (view === 'permissions')     { loadPermissions(); }
   if (view === 'product-normalizer') { loadProductNormalizer(); }
@@ -3893,7 +3940,7 @@ async function loadAdmin() {
   let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}`;
 
   if (adminStoreFilter && adminStoreFilter !== "all") url += `&store=${encodeURIComponent(adminStoreFilter)}`;
-  const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
+  const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed", closed:"closed" };
   if (statusMap[currentFilter])          url += `&status=${statusMap[currentFilter]}`;
   if (currentFilter === "urgent")        url += `&priority=urgent`;
   if (currentFilter === "today") {
@@ -4034,7 +4081,7 @@ async function loadAdmin() {
       <td>
         <span class="badge badge-${escHtml(d.status)}">${escHtml(d.status)}</span>
         ${d.priority === "urgent" ? `<span class="badge badge-urgent" style="margin-left:4px;">🔥</span>` : ""}
-        ${(d.status !== "delivered" && d.status !== "failed" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
+        ${(d.status !== "delivered" && d.status !== "failed" && d.status !== "closed" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
       </td>
       <td style="white-space:nowrap">${formatETA(d.estimated_delivery_time)}</td>
       <td><button class="btn-sm" onclick='event.stopPropagation();viewDetails(window.__deliveryCache["${escHtml(d.id)}"])'>Full&nbsp;View</button></td>
@@ -4322,6 +4369,7 @@ function viewDetails(d) {
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + escHtml(d.loaded_location.lat) + ',' + escHtml(d.loaded_location.lng) + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
     <div class="detail-row"><b>Delivered Location</b><span>${d.delivered_location ? '<a href="https://www.google.com/maps?q=' + escHtml(d.delivered_location.lat) + ',' + escHtml(d.delivered_location.lng) + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
+    ${d.loaded_by_name ? `<div class="detail-row"><b>Loaded by</b><span>${escHtml(d.loaded_by_name)}</span></div>` : ""}
     <div class="detail-row"><b>Loaded Photo (Indoor)</b><span id="adminLoadedPhotoDisplay">${d.photo_loaded_url ? '<a href="' + escHtml(d.photo_loaded_url) + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}${proofStampBadge(d, "loaded")}</span></div>
     ${d.photo_loaded_outdoor_url ? `<div class="detail-row"><b>Loaded Photo (Outdoor)</b><span><a href="${escHtml(d.photo_loaded_outdoor_url)}" target="_blank" style="color:var(--accent)">View Photo</a></span></div>` : ""}
     <div class="detail-row"><b>Delivered Photo (Indoor)</b><span id="adminDeliveredPhotoDisplay">${d.photo_delivered_url ? '<a href="' + escHtml(d.photo_delivered_url) + '" target="_blank" style="color:var(--accent)">View Photo</a>' : "—"}${proofStampBadge(d, "delivered")}</span></div>
@@ -4336,7 +4384,11 @@ function viewDetails(d) {
       ${d.failure_photo_url ? `<div class="detail-row"><b>Failure Photo</b><span><a href="${escHtml(d.failure_photo_url)}" target="_blank" style="color:var(--accent);">View Photo</a>${proofStampBadge(d, "failed")}</span></div>` : ""}
     </div>` : ""}
 
+    ${d.status === "closed" && d.close_reason ? `<div class="detail-row"><b>Close reason</b><span>${escHtml(d.close_reason)}</span></div>` : ""}
+
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+      ${["booked","pending"].includes(d.status) ? `<button class="btn-gray" onclick="closeDO('${escHtml(d.id)}')">Close DO</button>` : ""}
+      <button class="btn-gray" onclick="openLibraryPicker('${escHtml(d.id)}','${escHtml(d.storeId || "")}')">📷 From non-DO photos</button>
       <button class="btn-primary" onclick="enableEdit()">✏ Edit</button>
       <button class="btn-danger" onclick="deleteDelivery('${escHtml(d.id)}')">🗑 Delete</button>
     </div>
@@ -4662,6 +4714,103 @@ async function deleteDelivery(id) {
   } catch (e) { showToast("⚠ Network error. Please try again.", 'error'); }
 }
 
+async function closeDO(id) {
+  const reason = prompt("Close this DO?\n\nReason (optional):", "");
+  if (reason === null) return;
+  try {
+    const res = await authFetch(`${BASE_URL}/closeDelivery/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast("⚠ " + (data.error || "Close failed"), "error"); return; }
+    document.getElementById("popup")?.classList.remove("is-open");
+    showToast("DO closed", "success");
+    loadAdmin();
+  } catch (e) { showToast("⚠ Network error. Please try again.", "error"); }
+}
+
+/* ── NON-DO PHOTO LIBRARY ── */
+let _libStores = null;
+async function _storeKeyForId(storeId) {
+  if (!storeId) return "";
+  try {
+    if (!_libStores) _libStores = await (await fetch(`${BASE_URL}/api/stores`)).json();
+    const s = (_libStores || []).find(x => x.id === storeId);
+    return s ? String(s.key || "").toLowerCase() : "";
+  } catch { return ""; }
+}
+
+function _ensureLibPicker() {
+  let el = document.getElementById("libPicker");
+  if (el) return el;
+  el = document.createElement("div");
+  el.className = "popup-overlay";
+  el.id = "libPicker";
+  el.innerHTML = `<div class="popup-card" style="max-width:760px;width:92vw;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border);">
+      <div style="font-size:15px;font-weight:800;">Non-DO photos</div>
+      <button onclick="document.getElementById('libPicker').classList.remove('is-open')" style="background:none;border:none;font-size:20px;color:var(--on-surface-variant);cursor:pointer;">×</button>
+    </div>
+    <div id="libPickerBody" style="padding:16px;max-height:72vh;overflow:auto;"></div>
+  </div>`;
+  document.body.appendChild(el);
+  return el;
+}
+
+async function openLibraryPicker(deliveryId, storeId) {
+  const el = _ensureLibPicker();
+  const body = document.getElementById("libPickerBody");
+  body.innerHTML = '<div style="padding:20px;color:var(--on-surface-variant);">Loading…</div>';
+  el.classList.add("is-open");
+  try {
+    const key = await _storeKeyForId(storeId);
+    const res = await authFetch(`${BASE_URL}/non-do-photos?status=open${key ? `&store=${encodeURIComponent(key)}` : ""}`);
+    const items = res.ok ? await res.json() : [];
+    if (!Array.isArray(items) || !items.length) {
+      body.innerHTML = '<div style="padding:20px;color:var(--on-surface-variant);">No unused non-DO photos for this store.</div>';
+      return;
+    }
+    body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;">
+      ${items.map(p => {
+        const when = p.captured_at?.seconds ? new Date(p.captured_at.seconds * 1000).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+        return `<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface-container-low);">
+          <img src="${escHtml(p.photo_url)}" style="width:100%;height:140px;object-fit:cover;display:block;">
+          <div style="padding:10px;">
+            <div style="font-size:13px;font-weight:700;">${escHtml(p.customer_name || "—")}</div>
+            <div style="font-size:11px;color:var(--on-surface-variant);">${escHtml(p.serial_number || "No serial")} · ${p.photo_outdoor_url ? "AC · 2 photos" : "1 photo"}${when ? " · " + escHtml(when) : ""}</div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+              <button class="btn-primary" style="flex:1;padding:8px;font-size:11px;" onclick="attachLibraryPhoto('${escHtml(deliveryId)}','${escHtml(p.id)}','delivered')">Delivered</button>
+              <button class="btn-gray" style="flex:1;padding:8px;font-size:11px;" onclick="attachLibraryPhoto('${escHtml(deliveryId)}','${escHtml(p.id)}','loaded')">Loaded</button>
+            </div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+  } catch (e) {
+    body.innerHTML = `<div style="padding:20px;color:var(--error);">Could not load photos: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function attachLibraryPhoto(deliveryId, photoId, slot) {
+  try {
+    const res = await authFetch(`${BASE_URL}/delivery/${deliveryId}/attach-library-photo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ photoId, slot })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Attach failed");
+    document.getElementById("libPicker")?.classList.remove("is-open");
+    document.getElementById("popup")?.classList.remove("is-open");
+    showToast("Photo attached", "success");
+    loadAdmin();
+  } catch (e) {
+    showToast("⚠ " + e.message, "error");
+  }
+}
+
 /* ── ADMIN CORRECT DELIVERY (Feature 2) ── */
 function openAdminCorrect(deliveryId, field) {
   const area = document.getElementById("adminCorrectArea");
@@ -4825,6 +4974,7 @@ function updateFilterCounts(allData, serverCounts = null) {
     loaded:    full.filter(d => d.status === "loaded").length,
     delivered: full.filter(d => d.status === "delivered").length,
     failed:    full.filter(d => d.status === "failed").length,
+    closed:    full.filter(d => d.status === "closed").length,
     urgent:    full.filter(d => d.priority === "urgent").length,
   };
   const counts = serverCounts
@@ -5733,6 +5883,242 @@ async function savePermissions() {
   } catch(e) { msg.style.color='var(--error)'; msg.textContent='Network error.'; }
 }
 
+</script>
+
+<script>
+/* ════ ENQUIRY FORM SETTINGS ════
+   Edits settings/enquiry_form, which the public form reads through
+   /api/public/enquiry-config. Defaults come from shared.js. */
+let EF_CONFIG = null;
+const EF_KEY_RE = /^[A-Za-z0-9_-]{1,20}$/;
+
+function efConfig() {
+  return (typeof enquiryDefaultConfig === "function")
+    ? enquiryDefaultConfig()
+    : { categories: [], exchange: { enabled: true, max_photos: 3, photo_required: false } };
+}
+
+function efSetMsg(text, isError, isOk) {
+  const el = document.getElementById("efMsg");
+  if (!el) return;
+  el.textContent = text || "";
+  el.style.color = isError ? "var(--error)" : isOk ? "var(--tertiary)" : "var(--on-surface-variant)";
+}
+
+async function efLoad() {
+  efSetMsg("");
+  try {
+    const res = await authFetch(`${BASE_URL}/enquiry-config`);
+    const d = res.ok ? await res.json() : null;
+    EF_CONFIG = (d && d.configured && Array.isArray(d.categories)) ? d : efConfig();
+  } catch (e) {
+    showToast("Could not load enquiry settings: " + e.message, "error");
+    EF_CONFIG = efConfig();
+  }
+  efRender();
+}
+
+function efRender() {
+  efRenderExchange();
+  efRenderCats();
+}
+
+function efRenderExchange() {
+  const el = document.getElementById("efExchange");
+  if (!el) return;
+  const ex = EF_CONFIG.exchange || {};
+  el.innerHTML = `
+    <label class="ef-toggle" style="cursor:pointer;">
+      <span style="font-size:13px;font-weight:600;color:var(--on-surface);">Show the exchange offer step</span>
+      <input type="checkbox" id="efExEnabled" ${ex.enabled !== false ? "checked" : ""} style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
+    </label>
+    <div class="ef-grid" style="margin-top:12px;">
+      <div>
+        <label class="ef-lbl">Max photos (1–6)</label>
+        <input class="ef-in" id="efMaxPhotos" type="number" min="1" max="6" value="${Number(ex.max_photos) || 3}">
+      </div>
+      <div>
+        <label class="ef-lbl">Photo required?</label>
+        <label style="display:flex;align-items:center;gap:8px;padding:9px 0;cursor:pointer;">
+          <input type="checkbox" id="efPhotoReq" ${ex.photo_required ? "checked" : ""} style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
+          <span style="font-size:12px;color:var(--on-surface-variant);">Customer must add a photo</span>
+        </label>
+      </div>
+    </div>`;
+}
+
+function efRenderCats() {
+  const wrap = document.getElementById("efCats");
+  if (!wrap) return;
+  const cats = EF_CONFIG.categories || [];
+  if (!cats.length) {
+    wrap.innerHTML = '<div style="padding:28px;text-align:center;color:var(--outline);">No categories yet — click "+ Add category".</div>';
+    return;
+  }
+  wrap.innerHTML = cats.map((c, i) => efCatCard(c, i, cats.length)).join("");
+}
+
+function efCatCard(c, i, total) {
+  const vars = (c.variants || []).map((v, vi) => efVariantRow(i, vi, v)).join("");
+  return `
+    <div class="ef-cat" data-idx="${i}">
+      <div class="ef-row" style="justify-content:space-between;">
+        <div style="font-size:14px;font-weight:800;color:var(--on-surface);">${escHtml(c.label_en || c.key || "New category")}</div>
+        <div style="display:flex;gap:6px;">
+          <button class="pg-btn pg-btn-outline" onclick="efMove(${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
+          <button class="pg-btn pg-btn-outline" onclick="efMove(${i},1)" ${i === total - 1 ? "disabled" : ""}>↓</button>
+          <button class="ef-del" onclick="efDelete(${i})">Delete</button>
+        </div>
+      </div>
+      <div class="ef-grid">
+        <div><label class="ef-lbl">Key</label><input class="ef-in" id="efKey_${i}" value="${escHtml(c.key)}" placeholder="LED"></div>
+        <div><label class="ef-lbl">Icon</label><input class="ef-in" id="efIcon_${i}" value="${escHtml(c.icon || "")}" placeholder="tv"></div>
+        <div><label class="ef-lbl">English label</label><input class="ef-in" id="efEn_${i}" value="${escHtml(c.label_en || "")}" placeholder="TV / LED"></div>
+        <div><label class="ef-lbl">Marathi label</label><input class="ef-in" id="efMr_${i}" value="${escHtml(c.label_mr || "")}" placeholder="टीव्ही / एलईडी"></div>
+      </div>
+      <label class="ef-row" style="cursor:pointer;margin:2px 0 10px;">
+        <input type="checkbox" id="efOn_${i}" ${c.enabled !== false ? "checked" : ""} style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;">
+        <span style="font-size:12px;color:var(--on-surface-variant);">Show this category on the form</span>
+      </label>
+      <div>
+        <label class="ef-lbl">Brands (comma separated)</label>
+        <textarea class="ef-in" id="efBrands_${i}" rows="2" placeholder="SAMSUNG, LG, SONY">${escHtml((c.brands || []).join(", "))}</textarea>
+      </div>
+      <div style="margin-top:10px;">
+        <label class="ef-lbl">Sizes / variants</label>
+        ${vars || '<div style="font-size:12px;color:var(--outline);margin-bottom:8px;">No sizes yet.</div>'}
+        <button class="pg-btn pg-btn-outline" onclick="efAddVariant(${i})">+ Add size</button>
+      </div>
+    </div>`;
+}
+
+function efVariantRow(ci, vi, v) {
+  return `<div class="ef-var-row">
+    <input class="ef-in" id="efVv_${ci}_${vi}" value="${escHtml(v.value || "")}" placeholder="Value (32)">
+    <input class="ef-in" id="efVen_${ci}_${vi}" value="${escHtml(v.label_en || "")}" placeholder="English (32&quot;)">
+    <input class="ef-in" id="efVmr_${ci}_${vi}" value="${escHtml(v.label_mr || "")}" placeholder="Marathi (३२&quot;)">
+    <button class="ef-del" onclick="efDeleteVariant(${ci},${vi})">✕</button>
+  </div>`;
+}
+
+function efReadForm() {
+  const exchange = {
+    enabled: !!document.getElementById("efExEnabled")?.checked,
+    max_photos: Math.min(6, Math.max(1, parseInt(document.getElementById("efMaxPhotos")?.value, 10) || 3)),
+    photo_required: !!document.getElementById("efPhotoReq")?.checked,
+  };
+  const cats = [];
+  (EF_CONFIG.categories || []).forEach((c, i) => {
+    const keyEl = document.getElementById(`efKey_${i}`);
+    if (!keyEl) return;
+    const variants = (c.variants || []).map((v, vi) => {
+      const vEl = document.getElementById(`efVv_${i}_${vi}`);
+      if (!vEl) return null;
+      return {
+        value: vEl.value.trim(),
+        label_en: document.getElementById(`efVen_${i}_${vi}`).value.trim(),
+        label_mr: document.getElementById(`efVmr_${i}_${vi}`).value.trim(),
+      };
+    }).filter(v => v && v.value);
+    cats.push({
+      key: keyEl.value.trim(),
+      label_en: document.getElementById(`efEn_${i}`).value.trim(),
+      label_mr: document.getElementById(`efMr_${i}`).value.trim(),
+      icon: document.getElementById(`efIcon_${i}`).value.trim() || "category",
+      enabled: document.getElementById(`efOn_${i}`).checked,
+      brands: document.getElementById(`efBrands_${i}`).value.split(",").map(s => s.trim()).filter(Boolean),
+      variants,
+    });
+  });
+  EF_CONFIG = { ...EF_CONFIG, categories: cats, exchange };
+  return EF_CONFIG;
+}
+
+function efValidate(cfg) {
+  const cats = cfg.categories || [];
+  if (!cats.some(c => c.enabled)) return "Keep at least one category enabled.";
+  const seen = new Set();
+  for (const c of cats) {
+    if (!EF_KEY_RE.test(c.key)) return `"${c.key || "(blank)"}" is not a valid key — use letters, numbers, - or _ (max 20).`;
+    if (seen.has(c.key.toUpperCase())) return `Duplicate key "${c.key}".`;
+    seen.add(c.key.toUpperCase());
+    if (!c.label_en) return `Category "${c.key}" needs an English label.`;
+  }
+  const mp = Number(cfg.exchange.max_photos);
+  if (!(mp >= 1 && mp <= 6)) return "Max photos must be between 1 and 6.";
+  return "";
+}
+
+async function efSave() {
+  const cfg = efReadForm();
+  const err = efValidate(cfg);
+  if (err) { efSetMsg(err, true); return; }
+  efSetMsg("Saving…");
+  const btn = document.getElementById("efSaveBtn");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await authFetch(`${BASE_URL}/enquiry-config`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categories: cfg.categories, exchange: cfg.exchange }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Save failed");
+    efSetMsg("Saved!", false, true);
+    showToast("Enquiry form saved", "success");
+  } catch (e) {
+    efSetMsg(e.message || "Save failed", true);
+    showToast("Save failed: " + e.message, "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function efResetDefaults() {
+  if (!confirm("Load the built-in default catalogue? Click Save to apply it.")) return;
+  EF_CONFIG = efConfig();
+  efRender();
+  efSetMsg("Defaults loaded — click Save to apply.", false, true);
+}
+
+function efAddCategory() {
+  efReadForm();
+  EF_CONFIG.categories.push({ key: "", label_en: "", label_mr: "", icon: "category", enabled: true, brands: [], variants: [] });
+  efRenderCats();
+}
+
+function efDelete(i) {
+  efReadForm();
+  if (!confirm("Delete this category?")) return;
+  EF_CONFIG.categories.splice(i, 1);
+  efRenderCats();
+}
+
+function efMove(i, dir) {
+  efReadForm();
+  const cats = EF_CONFIG.categories;
+  const j = i + dir;
+  if (j < 0 || j >= cats.length) return;
+  [cats[i], cats[j]] = [cats[j], cats[i]];
+  efRenderCats();
+}
+
+function efAddVariant(ci) {
+  efReadForm();
+  const cat = EF_CONFIG.categories[ci];
+  if (!cat) return;
+  if (!Array.isArray(cat.variants)) cat.variants = [];
+  cat.variants.push({ value: "", label_en: "", label_mr: "" });
+  efRenderCats();
+}
+
+function efDeleteVariant(ci, vi) {
+  efReadForm();
+  const cat = EF_CONFIG.categories[ci];
+  if (!cat || !Array.isArray(cat.variants)) return;
+  cat.variants.splice(vi, 1);
+  efRenderCats();
+}
 </script>
 
 <script>

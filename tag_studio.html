@@ -2628,10 +2628,15 @@ Bosch	WM	8.0 kg	SERIES 6	Anti-Tangle Inverter WM	38990	51900	WAJ2426AIN" class="
         if (spare) { used[spare.id] = true; f.id = spare.id; f.svgKey = spare.svgKey; }
       });
 
+      const requestedLayout = String(t.layout || '').toLowerCase();
+
       return createTagDataInstance({
         category,
-        // Fridge tags default to the tall card; staff can still change it after loading.
-        layout: category === 'REF' ? 'tall' : 'std',
+        // The staff request carries the card layout; older requests fall back to
+        // the category default (fridges print tall).
+        layout: (requestedLayout === 'tall' || requestedLayout === 'std')
+          ? requestedLayout
+          : (category === 'REF' ? 'tall' : 'std'),
         brand:    t.brand,
         series:   t.series,
         badge:    t.badge,

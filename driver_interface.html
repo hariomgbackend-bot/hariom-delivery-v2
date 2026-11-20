@@ -1905,6 +1905,8 @@ let XLIT = (function () {
 let xlitRunning = false;
 /* texts that failed recently — retry after a short backoff instead of hammering */
 const XLIT_FAIL = new Map();   // text -> timestamp
+const XLIT_ATTEMPTS = new Map(); // text -> retries (server said "pending")
+let xlitRetryTimer = null;
 function xlitFailedRecently(text) {
   const at = XLIT_FAIL.get(text);
   return at && (Date.now() - at < 60000);
@@ -1942,6 +1944,7 @@ async function hydrateMarathiTexts(texts) {
 
   xlitRunning = true;
   let didChange = false;
+  const retryLater = [];
   try {
     for (let i = 0; i < need.length; i += 40) {
       const chunk = need.slice(i, i + 40);
@@ -1952,12 +1955,17 @@ async function hydrateMarathiTexts(texts) {
       });
       if (!res.ok) { xlitMarkFailed(chunk); break; }
       const data = await res.json();
+      const pending = Array.isArray(data.pending) ? new Set(data.pending) : new Set();
       if (Array.isArray(data.results)) {
         data.results.forEach((r, j) => {
           // Only cache a genuine Marathi result; otherwise leave the original.
           if (typeof r === "string" && /[\u0900-\u097F]/.test(r) && r !== chunk[j]) {
             XLIT[chunk[j]] = r;
+            XLIT_ATTEMPTS.delete(chunk[j]);
             didChange = true;
+          } else if (pending.has(chunk[j])) {
+            // Server is still translating in the background — retry shortly.
+            retryLater.push(chunk[j]);
           } else {
             XLIT_FAIL.set(chunk[j], Date.now());
           }
@@ -1970,6 +1978,20 @@ async function hydrateMarathiTexts(texts) {
     xlitMarkFailed(need);
   } finally {
     xlitRunning = false;
+  }
+
+  // Retry texts the server answered with "pending" (it is finishing them in
+  // the background). Two short retries are enough; after that the next normal
+  // render or reconnect picks them up.
+  if (retryLater.length) {
+    const fresh = retryLater.filter(tx => (XLIT_ATTEMPTS.get(tx) || 0) < 3);
+    fresh.forEach(tx => XLIT_ATTEMPTS.set(tx, (XLIT_ATTEMPTS.get(tx) || 0) + 1));
+    if (fresh.length && !xlitRetryTimer) {
+      xlitRetryTimer = setTimeout(() => {
+        xlitRetryTimer = null;
+        if (LANG === "mr") hydrateMarathiTexts(fresh);
+      }, 2500);
+    }
   }
 
   // Refresh AFTER releasing the guard, so re-renders can start a follow-up
@@ -1998,7 +2020,7 @@ function xlitRefreshUI() {
 window.addEventListener("online", () => {
   if (LANG !== "mr" || !Array.isArray(allDeliveriesData) || !allDeliveriesData.length) return;
   XLIT_FAIL.clear();
-  hydrateMarathiTexts(collectXlitTexts(allDeliveriesData));
+  hydrateMarathiTexts(collectXlitTexts(allDeliveriesData.slice(0, 25)));
 });
 
 /* ═══════════════════════════════════════
@@ -2955,7 +2977,7 @@ function renderDeliveries(data) {
   // delivered/failed — keep it visible so the driver sees the pending-sync badge.
   // Deliveries that are truly done (no pending action) are still hidden.
   data = data.filter(d => {
-    if (d.status !== "delivered" && d.status !== "failed") return true;
+    if (!["delivered", "failed", "closed"].includes(d.status)) return true;
     return pendingSyncIds.includes(d.id);
   });
 
@@ -3096,9 +3118,7 @@ function renderDeliveries(data) {
 
   // Transliterate customer names / addresses once, in the background.
   if (LANG === "mr") {
-    hydrateMarathiTexts(collectXlitTexts(
-      Array.isArray(allDeliveriesData) && allDeliveriesData.length ? allDeliveriesData : data
-    ));
+    hydrateMarathiTexts(collectXlitTexts(data));
   }
 }
 
@@ -4597,7 +4617,8 @@ function renderHistory() {
       </div>`;
   }).join("");
 
-  if (LANG === "mr") hydrateMarathiTexts(collectXlitTexts(historyData));
+  // Only the most recent history rows are worth translating up front.
+  if (LANG === "mr") hydrateMarathiTexts(collectXlitTexts(historyData.slice(0, 25)));
 }
 
 function toggleHistory() {

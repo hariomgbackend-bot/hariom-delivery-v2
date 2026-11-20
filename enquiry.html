@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/design-system.css?v=4">
-<script src="/shared.js?v=4"></script>
+<script src="/shared.js?v=5"></script>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -102,8 +102,16 @@
   .btn-full-primary { background: linear-gradient(135deg, #4d8eff, #2f6fe0); color: #fff; }
   .btn-full-primary:disabled { opacity: .5; cursor: not-allowed; }
 
-  #photoPreview { display: block; margin-top: 10px; max-width: 100%; max-height: 180px; border-radius: 12px; }
-  #photoPreview[hidden] { display: none; }
+  #photoPreviewWrap {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 8px; margin-top: 10px;
+  }
+  #photoPreviewWrap:empty { display: none; }
+  #photoPreviewWrap img {
+    width: 100%; height: 84px; object-fit: cover;
+    border-radius: 10px; border: 1px solid var(--border);
+  }
+  #photoHint { margin-top: 8px; font-weight: 600; }
 
   #doneArea { display: none; text-align: center; padding: 46px 8px; }
   #doneArea .tick {
@@ -188,9 +196,10 @@
           <div class="chiptoggle chip-sm on" data-cond="working" onclick="setCondition('working')" data-i18n="cond_work">Working</div>
           <div class="chiptoggle chip-sm" data-cond="not_working" onclick="setCondition('not_working')" data-i18n="cond_nowork">Not working</div>
         </div>
-        <div class="detail-label" data-i18n="photo_label">Photo of the old product (optional)</div>
-        <input type="file" id="fPhoto" accept="image/*" capture="environment" onchange="onPhoto(this)">
-        <img id="photoPreview" hidden alt="preview">
+        <div class="detail-label" data-i18n="photo_label">Photos of the old product (optional)</div>
+        <input type="file" id="fPhoto" accept="image/*" multiple onchange="onPhoto(this)">
+        <div class="detail-label" id="photoHint"></div>
+        <div id="photoPreviewWrap"></div>
       </div>
     </div>
 
@@ -231,8 +240,13 @@ const DEFAULT_STORE_KEY = "dhanore";
 let LANG = "mr";
 let STORES = [];
 let store  = null;
-let TALLY_NAMES = null;
-let photoBlob = null;
+let FORM_CONFIG = null;
+let CATEGORIES = [];
+let CAT_BY_KEY = {};
+let EXCHANGE_ENABLED = true;
+let MAX_PHOTOS = 3;
+let PHOTO_REQUIRED = false;
+let photoBlobs = [];
 
 /* ── Translations ── */
 const I18N = {
@@ -253,7 +267,10 @@ const I18N = {
     exch_no: "No", exch_yes: "Yes, exchange offer",
     cond_label: "Condition of the old product",
     cond_work: "Working", cond_nowork: "Not working",
-    photo_label: "Photo of the old product (optional)",
+    photo_label: "Photos of the old product (optional)",
+    photos_hint: "Add up to {max} photos",
+    photos_selected: "{n} of {max} photos added",
+    err_photo: "Please add at least one photo of the old product.",
     submit: "Submit enquiry", sending: "Sending…",
     done_h2: "Thank you!",
     done_default: "We have your enquiry. Our team will call you shortly with the best offer.",
@@ -290,7 +307,10 @@ const I18N = {
     exch_no: "नाही", exch_yes: "हो, एक्सचेंज ऑफर",
     cond_label: "जुन्या मालाची स्थिती",
     cond_work: "चालू आहे", cond_nowork: "चालत नाही",
-    photo_label: "जुन्या मालाचा फोटो (ऐच्छिक)",
+    photo_label: "जुन्या मालाचे फोटो (ऐच्छिक)",
+    photos_hint: "जास्तीत जास्त {max} फोटो जोडा",
+    photos_selected: "{n} / {max} फोटो जोडले",
+    err_photo: "कृपया जुन्या मालाचा किमान एक फोटो जोडा.",
     submit: "चौकशी पाठवा", sending: "पाठवत आहे…",
     done_h2: "धन्यवाद!",
     done_default: "तुमची चौकशी आम्हाला मिळाली आहे. आमची टीम लवकरच सर्वोत्तम ऑफरसह कॉल करेल.",
@@ -314,35 +334,67 @@ const I18N = {
 
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key; }
 
-/* Category → size/variant options.
-   `label` is the English name kept for the stored summary; `i18n` is the display key.
-   Variant entries: [value, labelKey|null] — null means it is a screen size in inches. */
-const CATEGORIES = [
-  { key: "LED", label: "TV / LED", i18n: "cat_LED", icon: "tv",
-    variants: [["24",null],["32",null],["40",null],["43",null],["50",null],["55",null],["65",null],["65plus","var_tv_big"]] },
-  { key: "WM", label: "Washing Machine", i18n: "cat_WM", icon: "local_laundry_service",
-    variants: [["TL","var_tl"],["FL","var_fl"],["SA","var_sa"]] },
-  { key: "REF", label: "Refrigerator", i18n: "cat_REF", icon: "kitchen",
-    variants: [["DC","var_dc"],["FF","var_ff"],["SBS","var_sbs"]] },
-  { key: "AC", label: "Air Conditioner", i18n: "cat_AC", icon: "ac_unit",
-    variants: [["1.0T","var_1t"],["1.5T","var_15t"],["2.0T","var_2t"],["3.0T","var_3t"],["INV","var_inv"]] },
-  { key: "COOLER", label: "Air Cooler", i18n: "cat_COOLER", icon: "air", variants: [] },
-  { key: "FAN", label: "Fan", i18n: "cat_FAN", icon: "mode_fan", variants: [] },
-  { key: "MIXER", label: "Mixer / Grinder", i18n: "cat_MIXER", icon: "blender", variants: [] },
-  { key: "COOKTOP", label: "Cooktop", i18n: "cat_COOKTOP", icon: "local_fire_department", variants: [] },
-  { key: "E-GEYSER", label: "Geyser", i18n: "cat_EGEYSER", icon: "water_heater", variants: [] },
-  { key: "CHIMNEY", label: "Chimney", i18n: "cat_CHIMNEY", icon: "air_purifier", variants: [] },
-  { key: "LAPTOP", label: "Laptop", i18n: "cat_LAPTOP", icon: "laptop_mac", variants: [] },
-];
-const CAT_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
+/* ── Form config ──
+   Categories, brands, sizes and exchange settings come from
+   /api/public/enquiry-config (edited in admin.html). Until an admin saves a
+   config, the shared default catalogue in shared.js is used. */
+function catLabel(cat) {
+  const l = LANG === "mr" ? (cat.label_mr || cat.label_en) : cat.label_en;
+  return l || cat.key || "";
+}
 
-const FALLBACK_BRANDS = {
-  LED: ["SAMSUNG","LG","SONY","HAIER","TCL","PANASONIC","LLOYD","VIDEOCON","ONIDA"],
-  WM:  ["SAMSUNG","LG","WHIRLPOOL","HAIER","IFB","BOSCH","GODREJ","VOLTAS"],
-  REF: ["SAMSUNG","LG","WHIRLPOOL","HAIER","GODREJ","HISENSE","PANASONIC"],
-  AC:  ["SAMSUNG","LG","VOLTAS","DAIKIN","BLUE STAR","HITACHI","LLOYD","PANASONIC","CROMPTON"],
-  others: [],
-};
+function variantLabel(v) {
+  const l = LANG === "mr" ? (v.label_mr || v.label_en) : v.label_en;
+  return l || v.value || "";
+}
+
+function applyFormConfig(cfg) {
+  FORM_CONFIG = cfg;
+  CATEGORIES = (cfg.categories || []).filter(c => c.enabled !== false);
+  CAT_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
+
+  const ex = cfg.exchange || {};
+  EXCHANGE_ENABLED = ex.enabled !== false;
+  MAX_PHOTOS = Math.min(6, Math.max(1, Number(ex.max_photos) || 3));
+  PHOTO_REQUIRED = EXCHANGE_ENABLED && ex.photo_required === true;
+
+  for (const k of [...active]) {
+    if (!CAT_BY_KEY[k]) { active.delete(k); delete selBrand[k]; delete selVar[k]; }
+  }
+
+  const step = document.getElementById("exchStep");
+  if (step) step.hidden = !EXCHANGE_ENABLED || active.size === 0;
+  if (!EXCHANGE_ENABLED) {
+    exchange = false;
+    photoBlobs = [];
+    const wrap = document.getElementById("photoPreviewWrap");
+    if (wrap) wrap.innerHTML = "";
+  }
+
+  paintPhotoHint();
+}
+
+async function loadFormConfig() {
+  let cfg = null;
+  try {
+    const r = await fetch(location.origin + "/api/public/enquiry-config");
+    const d = r.ok ? await r.json() : null;
+    if (d && d.configured && Array.isArray(d.categories) && d.categories.length) cfg = d;
+  } catch { /* offline → defaults */ }
+
+  if (!cfg) {
+    cfg = typeof enquiryDefaultConfig === "function"
+      ? enquiryDefaultConfig()
+      : (window.ENQUIRY_DEFAULT_CONFIG || { categories: [], exchange: {} });
+  }
+  applyFormConfig(cfg);
+}
+
+function paintPhotoHint() {
+  const hint = document.getElementById("photoHint");
+  if (!hint) return;
+  hint.textContent = t("photos_hint").replace("{max}", MAX_PHOTOS);
+}
 
 const active   = new Set();
 const selBrand = {};
@@ -350,11 +402,6 @@ const selVar   = {};
 let exchange  = true;
 let condition = "working";
 let sending   = false;
-
-function variantLabel(v) {
-  if (v[1]) return t(v[1]);
-  return v[0] + '"';
-}
 
 /* ── Language ── */
 function setLang(lang) {
@@ -371,6 +418,7 @@ function applyLang() {
   renderCategories();
   rebuildDetails();
   renderStoreLine();
+  paintPhotoHint();
   paintSubmit();
 }
 
@@ -420,27 +468,10 @@ function currentStoreId() {
   return pick ? pick.value : "";
 }
 
-/* ── Brands (derived from the public product list) ── */
-async function loadTally() {
-  try {
-    const r = await fetch("/tally/products");
-    const d = r.ok ? await r.json() : null;
-    TALLY_NAMES = d && Array.isArray(d.names) ? d.names : [];
-  } catch { TALLY_NAMES = []; }
-}
-
+/* ── Brands (admin-managed list per category) ── */
 function brandsFor(catKey) {
-  if (!TALLY_NAMES || !TALLY_NAMES.length) return FALLBACK_BRANDS[catKey] || FALLBACK_BRANDS.others;
-  const prefix = catKey + " ";
-  const set = new Set();
-  for (const n of TALLY_NAMES) {
-    if (typeof n === "string" && n.startsWith(prefix)) {
-      const b = (typeof getBrand === "function" ? getBrand(n) : "") || "";
-      if (b && b !== "Other") set.add(b);
-    }
-  }
-  const list = [...set].sort();
-  return list.length ? list : (FALLBACK_BRANDS[catKey] || FALLBACK_BRANDS.others);
+  const cat = CAT_BY_KEY[catKey];
+  return cat && Array.isArray(cat.brands) ? cat.brands : [];
 }
 
 /* ── Category chips ── */
@@ -448,8 +479,8 @@ function renderCategories() {
   const grid = document.getElementById("catGrid");
   if (!grid) return;
   grid.innerHTML = CATEGORIES.map(c => `
-    <div class="chiptoggle${active.has(c.key) ? " on" : ""}" data-cat="${c.key}" onclick="toggleCategory('${c.key}')">
-      <span class="material-symbols-outlined">${c.icon}</span>${esc(t(c.i18n))}
+    <div class="chiptoggle${active.has(c.key) ? " on" : ""}" data-cat="${esc(c.key)}" onclick="toggleCategory('${esc(c.key)}')">
+      <span class="material-symbols-outlined">${esc(c.icon)}</span>${esc(catLabel(c))}
     </div>`).join("");
 }
 
@@ -471,9 +502,11 @@ function toggleCategory(key) {
 
 function revealAfterCategory() {
   const any = active.size > 0;
-  ["detailStep", "noteStep", "custStep", "exchStep"].forEach(id => {
+  ["detailStep", "noteStep", "custStep"].forEach(id => {
     document.getElementById(id).hidden = !any;
   });
+  const exch = document.getElementById("exchStep");
+  if (exch) exch.hidden = !any || !EXCHANGE_ENABLED;
 }
 
 /* ── Brand + size blocks (re-rendered on every change so language + state hold) ── */
@@ -494,14 +527,14 @@ function rebuildDetails() {
         `<div class="chiptoggle chip-sm${bs.has(b) ? " on" : ""}" data-b="${key}|${esc(b)}" onclick="toggleBrand('${key}','${esc(b)}')">${esc(b)}</div>`))
       .join("");
     const varChips = (cat.variants || []).map(v =>
-      `<div class="chiptoggle chip-sm${vs.has(v[0]) ? " on" : ""}" data-v="${key}|${esc(v[0])}" onclick="toggleVariant('${key}','${esc(v[0])}')">${esc(variantLabel(v))}</div>`).join("");
+      `<div class="chiptoggle chip-sm${vs.has(v.value) ? " on" : ""}" data-v="${key}|${esc(v.value)}" onclick="toggleVariant('${key}','${esc(v.value)}')">${esc(variantLabel(v))}</div>`).join("");
 
     return `
       <div class="detail-block">
-        <div class="detail-cat">${esc(t(cat.i18n))}</div>
+        <div class="detail-cat">${esc(catLabel(cat))}</div>
         <div class="detail-label">${esc(t("brand_label"))}</div>
         <div class="chip-grid">${brandChips}</div>
-        ${cat.variants.length ? `<div class="detail-label">${esc(t("variant_label"))}</div><div class="chip-grid">${varChips}</div>` : ""}
+        ${(cat.variants || []).length ? `<div class="detail-label">${esc(t("variant_label"))}</div><div class="chip-grid">${varChips}</div>` : ""}
       </div>`;
   }).join("");
 }
@@ -533,12 +566,28 @@ function setCondition(c) {
     el.classList.toggle("on", el.getAttribute("data-cond") === c));
 }
 function onPhoto(input) {
-  const file = input.files && input.files[0];
-  const img = document.getElementById("photoPreview");
-  if (!file) { photoBlob = null; img.hidden = true; return; }
-  photoBlob = file;
-  img.src = URL.createObjectURL(file);
-  img.hidden = false;
+  const wrap = document.getElementById("photoPreviewWrap");
+  const hint = document.getElementById("photoHint");
+  const files = [...(input.files || [])].slice(0, MAX_PHOTOS);
+  photoBlobs = files;
+
+  if (wrap) {
+    wrap.querySelectorAll("img").forEach(img => URL.revokeObjectURL(img.src));
+    wrap.innerHTML = "";
+    files.forEach(f => {
+      const img = document.createElement("img");
+      img.src = URL.createObjectURL(f);
+      img.alt = "preview";
+      img.loading = "lazy";
+      wrap.appendChild(img);
+    });
+  }
+  if (hint) {
+    hint.textContent = files.length
+      ? t("photos_selected").replace("{n}", files.length).replace("{max}", MAX_PHOTOS)
+      : t("photos_hint").replace("{max}", MAX_PHOTOS);
+  }
+  validate();
 }
 
 /* ── Selections + summary (always in English, so the stored lead is consistent) ── */
@@ -566,7 +615,7 @@ function requirementSummary() {
     const brands = bs && bs.size && !bs.has("__any") ? [...bs].join("/") : "";
     const vs  = selVar[key];
     const vars = vs && vs.size ? [...vs].join("/") : "";
-    return [cat.label, brands, vars].filter(Boolean).join(" · ");
+    return [cat.label_en || cat.key, brands, vars].filter(Boolean).join(" · ");
   }).join(" ; ");
 }
 
@@ -574,7 +623,8 @@ function requirementSummary() {
 function validate() {
   const name  = (document.getElementById("fName")?.value || "").trim();
   const phone = (document.getElementById("fPhone")?.value || "").replace(/\D/g, "");
-  const ok = active.size > 0 && name && /^\d{10}$/.test(phone);
+  const ok = active.size > 0 && name && /^\d{10}$/.test(phone)
+    && (!PHOTO_REQUIRED || photoBlobs.length > 0);
   document.getElementById("submitBtn").disabled = !ok;
   return ok;
 }
@@ -582,11 +632,16 @@ document.addEventListener("input", e => { if (e.target.id === "fName" || e.targe
 
 /* ── Submit ── */
 async function submitEnquiry() {
-  if (!validate()) { showToast(t("err_required"), "error"); return; }
+  if (!validate()) {
+    showToast(PHOTO_REQUIRED && !photoBlobs.length ? t("err_photo") : t("err_required"), "error");
+    return;
+  }
   const btn = document.getElementById("submitBtn");
   sending = true; btn.disabled = true; paintSubmit();
   try {
-    const blob = photoBlob ? await compressImage(photoBlob) : null;
+    const blobs = exchange && photoBlobs.length
+      ? await Promise.all(photoBlobs.slice(0, MAX_PHOTOS).map(compressImage))
+      : [];
     const fd = new FormData();
     fd.append("store", currentStoreId());
     fd.append("customer_name", document.getElementById("fName").value.trim());
@@ -598,7 +653,7 @@ async function submitEnquiry() {
     fd.append("selections", JSON.stringify(buildSelections()));
     fd.append("exchange_offer", exchange ? "true" : "false");
     if (exchange) fd.append("exchange_condition", condition);
-    if (blob) fd.append("photo", blob, "exchange.jpg");
+    blobs.forEach((blob, i) => fd.append("photos", blob, `exchange-${i + 1}.jpg`));
     fd.append("t0", String(STARTED_AT));
     fd.append("company", document.getElementById("fCompany").value);
 
@@ -643,10 +698,12 @@ if ("serviceWorker" in navigator) {
 /* ── Init ── */
 (async function init() {
   setLang("mr");   /* Marathi first — the toggle switches to English */
-  setExchange(true);
+  await Promise.all([loadStores(), loadFormConfig()]);
+  renderCategories();
+  setExchange(EXCHANGE_ENABLED);
   setCondition("working");
-  await Promise.all([loadStores(), loadTally()]);
   rebuildDetails();
+  revealAfterCategory();
   validate();
 })();
 </script>

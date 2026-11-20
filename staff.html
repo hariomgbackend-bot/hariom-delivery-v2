@@ -1213,8 +1213,13 @@
         </div>
         <div class="home-card" onclick="switchTab('capture')">
           <div class="home-card-icon" style="background:rgba(22,163,74,0.12);">🏪</div>
-          <div class="home-card-label">Self Pickup</div>
-          <div class="home-card-count muted">photo first</div>
+          <div class="home-card-label">Photo Handover</div>
+          <div class="home-card-count muted">self · porter · unassigned</div>
+        </div>
+        <div class="home-card" onclick="switchTab('nonDo')">
+          <div class="home-card-icon" style="background:rgba(245,158,11,0.12);">📷</div>
+          <div class="home-card-label">Non-DO Photo</div>
+          <div class="home-card-count muted">sold, no DO</div>
         </div>
         <div class="home-card" onclick="switchTab('tagRequest')">
           <div class="home-card-icon" style="background:rgba(236,72,153,0.12);">🏷</div>
@@ -1846,9 +1851,9 @@
       <button class="back-home-btn" onclick="switchTab('home')">
         <span class="material-symbols-outlined">arrow_back</span> Home
       </button>
-      <div class="page-title">🏪 Self Pickup</div>
+      <div class="page-title">📦 Photo Handover</div>
       <div style="font-size:13px;color:var(--on-surface-variant);margin-bottom:14px;">
-        Photograph the unit the customer is collecting, then tap the DO it belongs to.
+        Photograph the unit being handed over — self pickup, unassigned or Porter — then tap the DO it belongs to.
       </div>
 
       <input type="file" id="capInput" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
@@ -1870,8 +1875,55 @@
         <button class="btn btn-gray" style="width:100%;margin-top:10px;padding:12px;" onclick="capTake()">↻ Retake photo</button>
       </div>
 
+      <button class="btn btn-gray" style="width:100%;padding:12px;margin-top:14px;" onclick="switchTab('nonDo')">📷 No DO? Take a photo without a DO</button>
+
       <div class="page-title" id="capListTitle" style="display:none;font-size:15px;margin-top:24px;">Tap the DO this photo is for</div>
       <div id="capList"></div>
+    </div>
+
+    <!-- TAB: NON-DO PHOTO -->
+    <div id="tabNonDo" style="display:none;">
+      <button class="back-home-btn" onclick="switchTab('home')">
+        <span class="material-symbols-outlined">arrow_back</span> Home
+      </button>
+      <div class="page-title">📷 Non-DO Photo</div>
+      <div style="font-size:13px;color:var(--on-surface-variant);margin-bottom:14px;">
+        Sold and handed over without a DO? Photograph it here with the customer's name. The accountant can attach it when the DO is created.
+      </div>
+
+      <input type="file" id="ndInput" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
+        style="display:none;" onchange="ndOnPhoto(event)">
+      <input type="file" id="ndOutdoorInput" accept="image/png,image/jpeg,image/jpg,image/webp" capture="environment"
+        style="display:none;" onchange="ndOnOutdoor(event)">
+
+      <div id="ndStartWrap">
+        <button class="btn-full btn-full-primary" style="padding:15px;font-size:15px;" onclick="ndTake()">📸 Take photo</button>
+      </div>
+      <div id="ndPhotoWrap" style="display:none;">
+        <img id="ndPreview" alt="captured photo"
+          style="width:100%;max-height:220px;object-fit:cover;border-radius:14px;border:1px solid var(--border);">
+        <button class="btn btn-gray" style="width:100%;margin-top:10px;padding:12px;" onclick="ndTake()">↻ Retake photo</button>
+
+        <div id="ndOutdoorWrap" style="display:none;margin-top:10px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--on-surface-variant);margin-bottom:6px;">Outdoor unit (AC)</div>
+          <img id="ndOutdoorPreview" alt="outdoor unit photo"
+            style="width:100%;max-height:180px;object-fit:cover;border-radius:14px;border:1px solid var(--border);">
+          <button class="btn btn-gray" style="width:100%;margin-top:8px;padding:12px;" onclick="ndTakeOutdoor()">↻ Retake outdoor photo</button>
+        </div>
+        <button class="btn btn-gray" id="ndAddOutdoorBtn" style="width:100%;margin-top:10px;padding:12px;" onclick="ndTakeOutdoor()">📸 Add outdoor unit photo (AC)</button>
+      </div>
+
+      <div class="trq-card" style="margin-top:14px;">
+        <div class="trq-field"><label>Customer name *</label><input id="ndName" placeholder="e.g. John Smith"></div>
+        <div class="trq-field"><label>Serial number (optional)</label><input id="ndSerial" placeholder="Serial no."></div>
+        <div class="trq-field"><label>Note (optional)</label><input id="ndNote" placeholder="e.g. paid by UPI"></div>
+      </div>
+
+      <button class="btn-full btn-full-primary" id="ndSubmitBtn" style="padding:15px;font-size:15px;" onclick="ndSubmit()">⬆ Upload photo</button>
+      <div id="ndMsg" style="font-size:12px;margin-top:8px;min-height:16px;font-weight:600;text-align:center;"></div>
+
+      <div class="page-title" style="font-size:15px;margin-top:26px;">Recent non-DO photos</div>
+      <div id="ndList"></div>
     </div>
 
     <!-- TAB: TAG REQUEST -->
@@ -2652,7 +2704,7 @@ function doLogout() {
 /* ── TAB SWITCH ── */
 function switchTab(tab) {
   currentTab = tab;
-  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", attendance:"tabAttendance", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview", capture:"tabCapture", tagRequest:"tabTagRequest", quotation:"tabQuotation", sizing:"tabSizing" };
+  const idMap = { home:"tabHome", raiseTicket:"tabRaiseTicket", deliveries:"tabDeliveries", leads:"tabLeads", prices:"tabPriceGuide", calendar:"tabCalendar", attendance:"tabAttendance", slabs:"tabSlabs", training:"tabTraining", takeReview:"tabTakeReview", capture:"tabCapture", nonDo:"tabNonDo", tagRequest:"tabTagRequest", quotation:"tabQuotation", sizing:"tabSizing" };
   Object.keys(idMap).forEach(k => {
     const el = document.getElementById(idMap[k]);
     if (el) el.style.display = k === tab ? "" : "none";
@@ -2666,6 +2718,7 @@ function switchTab(tab) {
   if (tab === "slabs") stSlLoadData();
   if (tab === "takeReview") trRender();
   if (tab === "capture") capInit();
+  if (tab === "nonDo") ndInit();
   if (tab === "tagRequest") trqInit();
   if (tab === "quotation") qtInit();
   if (tab === "sizing") sizingInit();
@@ -5190,21 +5243,44 @@ async function capOnOutdoor(ev) {
   if (capDelivery) capRenderConfirm();   // refresh the "added / retake" label
 }
 
+let capDrivers = null;
+
+function capKind(d) {
+  if (d.delivery_mode === "porter") return "porter";
+  if (d.is_self_pickup === true) return "self";
+  const name = String(d.assigned_driver_name || "").trim().toLowerCase();
+  const id   = String(d.assigned_driver_id || "").trim().toLowerCase();
+  if (!id || id === "unassigned" || name === "unassigned") return "unassigned";
+  return null;
+}
+
+async function capLoadDrivers() {
+  if (capDrivers) return capDrivers;
+  try {
+    const res = await fetch(`${BASE_URL}/driver-list-public`);
+    const data = res.ok ? await res.json() : [];
+    capDrivers = (Array.isArray(data) ? data : [])
+      .map(d => ({ id: d.id, name: String(d.driver_name || "").trim() }))
+      .filter(d => d.id && d.name);
+  } catch { capDrivers = []; }
+  return capDrivers;
+}
+
 async function capLoadCandidates() {
   const list = document.getElementById("capList");
   list.innerHTML = skeletons(2);
   try {
-    // Only this store's active DOs, then filter to self-pickup here: a
-    // (storeId, is_self_pickup) composite index does not exist, but
-    // (storeId, status) does — so this stays index-backed and bounded.
+    // Pending DOs only, filtered here so no extra composite index is needed:
+    // self-pickup, plus unassigned and Porter DOs that still need a photo.
     const store = staffStoreId || "all";
-    const res  = await authFetch(`${BASE_URL}/deliveries?store=${encodeURIComponent(store)}&status=pending,booked&force=1`);
+    const res  = await authFetch(`${BASE_URL}/deliveries?store=${encodeURIComponent(store)}&status=pending&force=1`);
     const data = await res.json();
     const rows = Array.isArray(data) ? data : (data.data || []);
-    capCandidates = rows.filter(d => d.is_self_pickup === true);
+    capCandidates = rows.filter(d => capKind(d) !== null);
+    await capLoadDrivers();
     capRenderList();
   } catch (e) {
-    list.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('box')}</div><p>Couldn't load self pickups</p><small>Check the connection and try again</small></div>`;
+    list.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('box')}</div><p>Couldn't load pickups</p><small>Check the connection and try again</small></div>`;
   }
 }
 
@@ -5214,6 +5290,11 @@ function capRenderList() {
     list.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG('check')}</div><p>No self pickups waiting</p><small>Nothing left to collect at this store</small></div>`;
     return;
   }
+  const BADGE = {
+    self:       `<span class="badge" style="background:rgba(22,163,74,0.15);color:#16a34a;border:1px solid rgba(22,163,74,0.3);">🏪 Self Pickup</span>`,
+    unassigned: `<span class="badge" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);">👤 Unassigned</span>`,
+    porter:     `<span class="badge" style="background:rgba(77,142,255,0.15);color:#4d8eff;border:1px solid rgba(77,142,255,0.3);">📦 Porter</span>`,
+  };
   list.innerHTML = capCandidates.map(d => `
     <div class="delivery-card" onclick="capPick('${esc(d.id)}')">
       <div class="card-top">
@@ -5221,9 +5302,7 @@ function capRenderList() {
           <div class="card-name">${esc(d.customer_name)}</div>
           <div class="card-product">${esc(d.product_name)}</div>
         </div>
-        <div class="card-badges">
-          <span class="badge" style="background:rgba(22,163,74,0.15);color:#16a34a;border:1px solid rgba(22,163,74,0.3);">🏪 Self Pickup</span>
-        </div>
+        <div class="card-badges">${BADGE[capKind(d)] || ""}</div>
       </div>
       <div class="card-divider"></div>
       <div class="card-footer">
@@ -5240,10 +5319,23 @@ function capPick(id) {
   capRenderConfirm();
 }
 
+function capDriverOptions() {
+  return (capDrivers || [])
+    .filter(d => !/^(unassigned|porter)$/i.test(d.name))
+    .map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`)
+    .join("");
+}
+
 function capRenderConfirm() {
   const d          = capDelivery;
+  const kind       = capKind(d);
   const isAC       = isACProductName(d.product_name);
   const needSerial = !d.product_serial_number;
+  const confirmLabel = kind === "unassigned"
+    ? "✅ Load & assign driver"
+    : kind === "porter"
+      ? "✅ Hand to Porter"
+      : "✅ Mark Collected";
 
   document.getElementById("capPopupContent").innerHTML = `
     <div class="popup-band popup-band-pending">
@@ -5251,6 +5343,7 @@ function capRenderConfirm() {
       <div style="font-size:14px;color:var(--on-surface-variant);margin-top:4px;">${esc(d.product_name)}</div>
     </div>
     <div class="popup-body" style="padding-top:14px;">
+      ${isAC ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--muted);margin-bottom:6px;">Indoor unit</div>` : ""}
       <img src="${capPreviewUrl || ""}" alt="captured photo"
         style="width:100%;max-height:180px;object-fit:cover;border-radius:14px;border:1px solid var(--border);margin-bottom:12px;">
 
@@ -5273,7 +5366,22 @@ function capRenderConfirm() {
       <div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value">${esc(d.product_serial_number)}</span></div>
       `}
 
-      <button class="btn-full btn-full-primary" id="capConfirmBtn" style="padding:14px;font-size:15px;margin-top:6px;" onclick="capSubmit()">✅ Mark Collected</button>
+      ${kind === "unassigned" ? `
+      <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Assign Driver *</label>
+      <select id="capDriver" style="width:100%;box-sizing:border-box;margin:4px 0 12px;padding:11px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--surface);color:var(--text);outline:none;">
+        <option value="">— Select driver —</option>
+        ${capDriverOptions()}
+      </select>` : ""}
+
+      ${kind === "porter" ? `
+      <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Porter Name *</label>
+      <input id="capPorterName" placeholder="Porter name" autocomplete="off" style="width:100%;box-sizing:border-box;margin:4px 0 12px;padding:11px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--surface);color:var(--text);outline:none;">
+      <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Vehicle Number</label>
+      <input id="capPorterVehicle" placeholder="e.g. MH14 AB 1234" autocomplete="off" style="width:100%;box-sizing:border-box;margin:4px 0 12px;padding:11px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--surface);color:var(--text);outline:none;">
+      <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Porter Phone</label>
+      <input id="capPorterPhone" inputmode="tel" placeholder="Phone number" autocomplete="off" style="width:100%;box-sizing:border-box;margin:4px 0 12px;padding:11px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--surface);color:var(--text);outline:none;">` : ""}
+
+      <button class="btn-full btn-full-primary" id="capConfirmBtn" style="padding:14px;font-size:15px;margin-top:6px;" onclick="capSubmit()">${confirmLabel}</button>
       <button class="btn btn-gray" style="width:100%;margin-top:8px;padding:12px;" onclick="closeCapPopup()">Cancel</button>
       <div id="capMsg" style="font-size:12px;margin-top:8px;min-height:16px;font-weight:600;text-align:center;"></div>
     </div>`;
@@ -5319,14 +5427,20 @@ async function capSubmit() {
   const d = capDelivery;
   if (!d) return;
 
+  const kind  = capKind(d);
+  const label = kind === "unassigned" ? "✅ Load & assign driver"
+    : kind === "porter" ? "✅ Hand to Porter"
+    : "✅ Mark Collected";
+
   const msg = document.getElementById("capMsg");
   const btn = document.getElementById("capConfirmBtn");
   const say = (text, colour) => { if (msg) { msg.style.color = colour; msg.textContent = text; } };
+  const fail = text => { if (btn) { btn.disabled = false; btn.textContent = label; } say(text, "var(--error)"); };
 
   if (!navigator.onLine) { say("⚠ Needs a connection — try again when online", "var(--error)"); return; }
   if (!capPhotoBlob)     { say("⚠ Take the photo first", "var(--error)"); return; }
 
-  // /markSelfPickup requires a serial whenever the DO has none.
+  // A serial is required whenever the DO has none (markSelfPickup / markLoaded).
   const serialEl = document.getElementById("capSerial");
   const serial   = serialEl ? serialEl.value.trim() : (d.product_serial_number || "");
   if (!serial) {
@@ -5338,6 +5452,27 @@ async function capSubmit() {
   const isAC = isACProductName(d.product_name);
   if (isAC && !capOutdoorBlob) { say("⚠ Outdoor unit photo is required for an AC", "var(--error)"); return; }
 
+  let driver = null;
+  if (kind === "unassigned") {
+    const driverId = document.getElementById("capDriver")?.value || "";
+    if (!driverId) { say("⚠ Select the driver", "var(--error)"); return; }
+    driver = (capDrivers || []).find(x => x.id === driverId) || null;
+    if (!driver) { say("⚠ Driver not found", "var(--error)"); return; }
+  }
+
+  let porter = null;
+  if (kind === "porter") {
+    const name = document.getElementById("capPorterName")?.value.trim() || "";
+    if (!name) { say("⚠ Porter name is required", "var(--error)"); return; }
+    porter = {
+      name,
+      vehicle:  document.getElementById("capPorterVehicle")?.value.trim() || "",
+      phone:    document.getElementById("capPorterPhone")?.value.trim() || "",
+      driverId: (capDrivers || []).find(x => /^porter$/i.test(x.name))?.id || "",
+    };
+    if (!porter.driverId) { say("⚠ Porter driver is not configured", "var(--error)"); return; }
+  }
+
   if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
   say("Uploading photo…", "var(--muted)");
 
@@ -5347,29 +5482,59 @@ async function capSubmit() {
       formData.append("photo_indoor",  capPhotoBlob,   "indoor.jpg");
       formData.append("photo_outdoor", capOutdoorBlob, "outdoor.jpg");
     } else {
-      formData.append("photo", capPhotoBlob, "selfpickup.jpg");
+      formData.append("photo", capPhotoBlob, kind === "self" ? "selfpickup.jpg" : "loaded.jpg");
     }
-    formData.append("confirmed_by", staffName || "staff");
     formData.append("serial", serial);
 
     const pos = await capGetPosition();
     if (pos) { formData.append("lat", pos.lat); formData.append("lng", pos.lng); }
 
-    const res  = await authFetch(`${BASE_URL}/markSelfPickup/${d.id}`, { method: "POST", body: formData });
-    const data = await res.json().catch(() => ({}));
+    let res, data;
+    if (kind === "self") {
+      formData.append("confirmed_by", staffName || "staff");
+      res  = await authFetch(`${BASE_URL}/markSelfPickup/${d.id}`, { method: "POST", body: formData });
+    } else {
+      // 1) Porter: save the courier details while the DO is still pending.
+      if (kind === "porter") {
+        const put = await authFetch(`${BASE_URL}/delivery/${d.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            porter_courier_name: porter.name,
+            porter_vehicle_number: porter.vehicle,
+            porter_phone: porter.phone,
+            delivery_mode: "porter",
+          }),
+        });
+        const pd = await put.json().catch(() => ({}));
+        if (!put.ok) return fail("⚠ " + (pd.error || "Could not save Porter details"));
+      }
 
-    if (!res.ok) {
-      if (btn) { btn.disabled = false; btn.textContent = "✅ Mark Collected"; }
-      say("⚠ " + (data.error || "Failed"), "var(--error)");
-      return;
+      // 2) Assign the chosen driver (Porter for a courier hand-off).
+      const target = kind === "porter" ? { id: porter.driverId, name: "Porter" } : driver;
+      const assign = await authFetch(`${BASE_URL}/assignDelivery/${d.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driver_id: target.id, driver_name: target.name }),
+      });
+      const ad = await assign.json().catch(() => ({}));
+      if (!assign.ok) return fail("⚠ " + (ad.error || "Could not assign driver"));
+
+      // 3) Load with the photo + serial.
+      res  = await authFetch(`${BASE_URL}/markLoaded/${d.id}`, { method: "POST", body: formData });
     }
 
-    showToast("✅ Self pickup confirmed!");
+    data = await res.json().catch(() => ({}));
+    if (!res.ok) return fail("⚠ " + (data.error || "Failed"));
+
+    showToast(kind === "self" ? "✅ Self pickup confirmed!"
+      : kind === "porter" ? "✅ Handed to Porter"
+      : "✅ Loaded & driver assigned");
     closeCapPopup();
     capReset();
     updateHomeCounts();
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = "✅ Mark Collected"; }
+    if (btn) { btn.disabled = false; btn.textContent = label; }
     say("⚠ Network error. Retry.", "var(--error)");
   }
 }
@@ -5427,16 +5592,194 @@ function ntMoney(n) {
    Sends product data only. Colours, custom brand names, feature ICONS and price
    scales stay in Tag Studio, which applies them when the request is loaded.
 ═══════════════════════════════════════ */
+/* ═══════════════════════════════════════
+   NON-DO PHOTO (staff)
+   Handover proof captured without a DO; the accountant attaches it later.
+═══════════════════════════════════════ */
+let ndBlob = null;
+let ndOutdoorBlob = null;
+let ndOutdoorUrl = null;
+
+function ndTake() { document.getElementById("ndInput")?.click(); }
+
+function ndTakeOutdoor() { document.getElementById("ndOutdoorInput")?.click(); }
+
+async function ndOnOutdoor(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  ndOutdoorBlob = await compressImage(f);
+  if (ndOutdoorUrl) URL.revokeObjectURL(ndOutdoorUrl);
+  ndOutdoorUrl = URL.createObjectURL(ndOutdoorBlob);
+  const img = document.getElementById("ndOutdoorPreview");
+  if (img) img.src = ndOutdoorUrl;
+  document.getElementById("ndOutdoorWrap").style.display = "";
+  document.getElementById("ndAddOutdoorBtn").style.display = "none";
+  ev.target.value = "";
+}
+
+function ndOnPhoto(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  ndBlob = f;
+  const img = document.getElementById("ndPreview");
+  if (img) img.src = URL.createObjectURL(f);
+  document.getElementById("ndStartWrap").style.display = "none";
+  document.getElementById("ndPhotoWrap").style.display = "";
+  ev.target.value = "";
+}
+
+function ndReset() {
+  ndBlob = null;
+  if (ndOutdoorUrl) { URL.revokeObjectURL(ndOutdoorUrl); ndOutdoorUrl = null; }
+  ndOutdoorBlob = null;
+  ["ndName", "ndSerial", "ndNote"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  document.getElementById("ndStartWrap").style.display = "";
+  document.getElementById("ndPhotoWrap").style.display = "none";
+  document.getElementById("ndOutdoorWrap").style.display = "none";
+  const addBtn = document.getElementById("ndAddOutdoorBtn");
+  if (addBtn) addBtn.style.display = "";
+  const img = document.getElementById("ndPreview");
+  if (img) img.src = "";
+  const oimg = document.getElementById("ndOutdoorPreview");
+  if (oimg) oimg.src = "";
+  const msg = document.getElementById("ndMsg");
+  if (msg) msg.textContent = "";
+}
+
+async function ndSubmit() {
+  const msg = document.getElementById("ndMsg");
+  const btn = document.getElementById("ndSubmitBtn");
+  const say = (t, c) => { if (msg) { msg.style.color = c; msg.textContent = t; } };
+
+  const name = document.getElementById("ndName")?.value.trim() || "";
+  if (!ndBlob) { say("⚠ Take the product photo first", "var(--error)"); return; }
+  if (!name)   { say("⚠ Customer name is required", "var(--error)"); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+  say("Uploading…", "var(--muted)");
+  try {
+    const blob = await compressImage(ndBlob);
+    const fd = new FormData();
+    fd.append("photo", blob, "non-do.jpg");
+    if (ndOutdoorBlob) fd.append("photo_outdoor", ndOutdoorBlob, "non-do-outdoor.jpg");
+    fd.append("customer_name", name);
+    fd.append("serial_number", document.getElementById("ndSerial")?.value.trim() || "");
+    fd.append("note", document.getElementById("ndNote")?.value.trim() || "");
+
+    const pos = await capGetPosition();
+    if (pos) { fd.append("lat", pos.lat); fd.append("lng", pos.lng); }
+
+    const res = await authFetch(`${BASE_URL}/non-do-photos`, { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { say("⚠ " + (data.error || "Upload failed"), "var(--error)"); return; }
+
+    showToast("✅ Non-DO photo saved");
+    ndReset();
+    ndLoadHistory();
+  } catch (e) {
+    say("⚠ Network error. Retry.", "var(--error)");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "⬆ Upload photo"; }
+  }
+}
+
+async function ndLoadHistory() {
+  const box = document.getElementById("ndList");
+  if (!box) return;
+  box.innerHTML = skeletons(2);
+  try {
+    const res = await authFetch(`${BASE_URL}/non-do-photos`);
+    const items = res.ok ? await res.json() : [];
+    if (!Array.isArray(items) || !items.length) {
+      box.innerHTML = `<div class="empty-state"><div style="margin-bottom:14px;">${emptyStateSVG("box")}</div><p>No non-DO photos yet</p></div>`;
+      return;
+    }
+    box.innerHTML = items.map(p => {
+      const when = p.captured_at?.seconds
+        ? new Date(p.captured_at.seconds * 1000).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+        : "";
+      return `<div class="delivery-card" style="display:flex;gap:12px;align-items:center;">
+        <img src="${escHtml(p.photo_url)}" alt="" style="width:76px;height:76px;object-fit:cover;border-radius:10px;flex-shrink:0;">
+        <div style="min-width:0;flex:1;">
+          <div class="card-name">${escHtml(p.customer_name || "—")}</div>
+          <div class="card-product">${escHtml(p.serial_number || "No serial")} · ${p.photo_outdoor_url ? "AC · 2 photos" : "1 photo"}</div>
+          <div style="font-size:11px;color:var(--on-surface-variant);">${escHtml(when)} ${p.status === "used" ? "· USED" : "· OPEN"}</div>
+        </div>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    box.innerHTML = '<div class="empty-state"><p>Couldn\'t load non-DO photos</p></div>';
+  }
+}
+
+function ndInit() { ndLoadHistory(); }
+
 const TRQ_CATEGORIES = [["TV", "TV"], ["REF", "Refrigerator"], ["WM", "Washing Machine"]];
 const TRQ_STARS = [["none", "No rating"], ["5", "5 ★"], ["4", "4 ★"], ["3", "3 ★"], ["2", "2 ★"], ["1", "1 ★"]];
 let trqCount = 0;
 let trqOptions = null;   // the studio's own lists, from GET /tag-options
+let trqModels  = null;   // known model numbers, from GET /models
 
 async function trqInit() {
-  await trqLoadOptions();
+  await Promise.all([trqLoadOptions(), trqLoadModels()]);
   trqWirePreview();
   if (!document.getElementById("trqList").children.length) trqAddTag();
   trqLoadHistory();
+}
+
+/* Known model names, used to fill the Model/SKU field from a Tally product name. */
+async function trqLoadModels() {
+  if (trqModels) return trqModels;
+  try {
+    const res = await fetch(`${BASE_URL}/models`);
+    const data = res.ok ? await res.json() : [];
+    trqModels = (Array.isArray(data) ? data : [])
+      .map(m => String(m.name || m.id || "").trim())
+      .filter(Boolean);
+  } catch (e) {
+    trqModels = [];
+  }
+  return trqModels;
+}
+
+/* Pick the model number out of a Tally product name. Prefers a known model
+   (longest match), otherwise the last token mixing letters and digits that is
+   not a size/capacity (55, 260L, 8.0 kg…). */
+function trqGuessModel(name) {
+  const raw = String(name || "").trim();
+  if (!raw) return "";
+  const upper = raw.toUpperCase();
+
+  const known = (trqModels || [])
+    .filter(m => m.length >= 4 && upper.includes(m.toUpperCase()))
+    .sort((a, b) => b.length - a.length)[0];
+  if (known) return known;
+
+  const sizeRe = /^\d+(\.\d+)?(["'L]|LTR|LITRE|KG|KGS|T|TON|TONS)?$/i;
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const tok = tokens[i].replace(/[,;]+$/, "");
+    if (tok.length < 4 || tok.length > 32) continue;
+    if (sizeRe.test(tok)) continue;
+    if (!/[A-Za-z]/.test(tok) || !/\d/.test(tok)) continue;
+    return tok;
+  }
+  return "";
+}
+
+function trqFillModel(idx, name) {
+  const fill = () => {
+    const el = document.getElementById("trqmodel_" + idx);
+    if (el && !el.value) {
+      const guess = trqGuessModel(name);
+      if (guess) el.value = guess;
+    }
+  };
+  if (trqModels) fill();
+  else trqLoadModels().then(fill);
 }
 
 /* The studio's brands and features, so staff pick from exactly what the studio has
@@ -5620,7 +5963,13 @@ function trqOnCategoryChange(idx) {
     label: document.getElementById(`trqfeat_${n}_${idx}`)?.value || "",
     id:    document.getElementById(`trqfeatid_${n}_${idx}`)?.value || ""
   }));
-  wrap.innerHTML = trqFeatureControls(idx, document.getElementById("trqcategory_" + idx)?.value || "TV");
+  const cat = document.getElementById("trqcategory_" + idx)?.value || "TV";
+  // The studio defaults fridges to the tall card; mirror that so the request
+  // doesn't force a standard card on a refrigerator by accident.
+  const layout = document.getElementById("trqlayout_" + idx);
+  if (layout) layout.value = (cat === "REF") ? "tall" : "std";
+
+  wrap.innerHTML = trqFeatureControls(idx, cat);
   prev.forEach((p, i) => {
     const n = i + 1;
     const txt = document.getElementById(`trqfeat_${n}_${idx}`);
@@ -5666,6 +6015,12 @@ function trqAddTag() {
     <div class="trq-grid">
       <div class="trq-field"><label>Category *</label>${trqCategoryControl(idx)}</div>
       <div class="trq-field"><label>Brand</label>${trqBrandControl(idx)}</div>
+      <div class="trq-field"><label>Card layout</label>
+        <select id="trqlayout_${idx}">
+          <option value="std">Standard — 4 × 2.5in</option>
+          <option value="tall">Tall — 2.5 × 4in</option>
+        </select>
+      </div>
       <div class="trq-field"><label>Series</label><input id="trqseries_${idx}" placeholder="e.g. CRYSTAL 4K"></div>
       <div class="trq-field"><label>Gold badge</label><input id="trqbadge_${idx}" placeholder="e.g. 4K ULTRA HD"></div>
       <div class="trq-field"><label>Size / spec</label><input id="trqmain_${idx}" placeholder="e.g. 55"></div>
@@ -5731,6 +6086,8 @@ function trqOnProductPicked(idx, name) {
     trqOnCategoryChange(idx);   // re-filter the feature slots for the new category
   }
 
+  trqFillModel(idx, name);
+
   const pg = ntPriceGuideRow(name);
   if (pg) {
     setIfEmpty("trqmrp_" + idx, pg.mrp || "");
@@ -5753,6 +6110,7 @@ function trqCollect() {
       .filter(p => p.label);
     tags.push({
       category:      g("trqcategory_" + i)?.value || "TV",
+      layout:        g("trqlayout_" + i)?.value === "tall" ? "tall" : "std",
       brand:         g("trqbrand_" + i)?.value.trim()    || "",
       series:        g("trqseries_" + i)?.value.trim()   || "",
       badge:         g("trqbadge_" + i)?.value.trim()    || "",
@@ -5800,9 +6158,14 @@ async function trqSubmit() {
     if (!res.ok) { say("⚠ " + (data.error || "Failed"), "var(--error)"); return; }
 
     showToast(`✅ Request sent — ${data.count} tag${data.count === 1 ? "" : "s"}`);
+    if (data.savedFeatures) {
+      showToast(`💡 ${data.savedFeatures} custom feature${data.savedFeatures === 1 ? "" : "s"} saved to the studio`);
+    }
     document.getElementById("trqList").innerHTML = "";
     document.getElementById("trqNote").value = "";
     trqCount = 0;
+    trqOptions = null;          // refetch so the saved custom features appear
+    await trqLoadOptions();
     trqAddTag();
     trqLoadHistory();
   } catch (e) {

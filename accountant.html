@@ -1067,6 +1067,7 @@
       <button class="filter-btn" data-filter="loaded"    onclick="setFilter('loaded')">Loaded <span class="filter-count" id="fc-loaded"></span></button>
       <button class="filter-btn" data-filter="delivered" onclick="setFilter('delivered')">Delivered <span class="filter-count" id="fc-delivered"></span></button>
       <button class="filter-btn" data-filter="failed"    onclick="setFilter('failed')" style="color:var(--error);border-color:rgba(255,180,171,0.3);">❌ Failed <span class="filter-count" id="fc-failed"></span></button>
+      <button class="filter-btn" data-filter="closed"    onclick="setFilter('closed')" style="color:#b6bac7;border-color:rgba(140,144,159,0.35);">Closed <span class="filter-count" id="fc-closed"></span></button>
       <button class="filter-btn" data-filter="urgent"    onclick="setFilter('urgent')">🔥 Urgent <span class="filter-count" id="fc-urgent"></span></button>
       <button class="filter-btn" data-filter="self_pickup" onclick="setFilter('self_pickup')" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);">🏪 Self Pickup <span class="filter-count" id="fc-self_pickup"></span></button>
       <button class="filter-btn" data-filter="porter" onclick="setFilter('porter')" style="color:#4d8eff;border-color:rgba(77,142,255,0.3);">📦 Porter <span class="filter-count" id="fc-porter"></span></button>
@@ -3903,7 +3904,7 @@ function makeDeliveryRow(d, i, phonePositions) {
       <span class="badge badge-${d.status}">${d.status}</span>
       ${d.delivery_mode === "porter" ? `<span class="badge badge-selfpickup" style="margin-left:4px;background:rgba(77,142,255,0.12);color:#4d8eff;">📦 Porter</span>` : ""}
       ${d.is_self_pickup && d.delivery_mode !== "porter" ? `<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>`:""}
-      ${(d.status!=="delivered"&&d.status!=="failed"&&d.status!=="booked"&&d.estimated_delivery_time&&new Date(d.estimated_delivery_time)<new Date())?`<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>`:""}
+      ${(d.status!=="delivered"&&d.status!=="failed"&&d.status!=="closed"&&d.status!=="booked"&&d.estimated_delivery_time&&new Date(d.estimated_delivery_time)<new Date())?`<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>`:""}
       ${installFlag(d)}
       ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
     </td>
@@ -3937,7 +3938,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
 
       const [bookedRes, restRes] = await Promise.all([
         authFetch(`${BASE_URL}/deliveries?status=booked&ticketStatus=1${fq}`),
-        authFetch(`${BASE_URL}/deliveries?status=pending,loaded,delivered&page=${currentPage}&pageSize=${PAGE_SIZE}&ticketStatus=1${fq}`)
+        authFetch(`${BASE_URL}/deliveries?status=pending,loaded,delivered,closed&page=${currentPage}&pageSize=${PAGE_SIZE}&ticketStatus=1${fq}`)
       ]);
       if (bookedRes.status === 429 || restRes.status === 429) { _deliveriesInflight = false; return; }
 
@@ -3961,8 +3962,8 @@ async function _doLoadDeliveries(showSkeleton = true) {
     } else {
       let url = `${BASE_URL}/deliveries?page=${currentPage}&pageSize=${PAGE_SIZE}&ticketStatus=1`;
 
-      const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed" };
-      if (currentFilter === "past")             url += `&status=delivered,failed`;
+      const statusMap = { booked:"booked", pending:"pending", loaded:"loaded", delivered:"delivered", failed:"failed", closed:"closed" };
+      if (currentFilter === "past")             url += `&status=delivered,failed,closed`;
       else if (statusMap[currentFilter])        url += `&status=${statusMap[currentFilter]}`;
       if (currentFilter === "urgent")           url += `&priority=urgent`;
       if (currentFilter === "self_pickup")      url += `&selfPickup=true`;
@@ -4007,7 +4008,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
     // Counts from server endpoint
     const sc = await countsPromise;
     if (sc) {
-      ["all","booked","pending","loaded","delivered","failed","urgent","self_pickup","porter","today"].forEach(k => {
+      ["all","booked","pending","loaded","delivered","failed","closed","urgent","self_pickup","porter","today"].forEach(k => {
         const el = document.getElementById("fc-"+k);
         if (el) el.innerText = sc[k] || "";
       });
@@ -4319,6 +4320,75 @@ function fmtActionStamp(t) {
     : "";
 }
 
+/* ── NON-DO PHOTO LIBRARY ── */
+function _ensureLibPicker() {
+  let el = document.getElementById("libPicker");
+  if (el) return el;
+  el = document.createElement("div");
+  el.className = "popup-overlay";
+  el.id = "libPicker";
+  el.innerHTML = `<div class="popup-card" style="max-width:760px;width:92vw;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border);">
+      <div style="font-size:15px;font-weight:800;">Non-DO photos</div>
+      <button onclick="document.getElementById('libPicker').classList.remove('is-open')" style="background:none;border:none;font-size:20px;color:var(--on-surface-variant);cursor:pointer;">×</button>
+    </div>
+    <div id="libPickerBody" style="padding:16px;max-height:72vh;overflow:auto;"></div>
+  </div>`;
+  document.body.appendChild(el);
+  return el;
+}
+
+async function openLibraryPicker(deliveryId) {
+  const el = _ensureLibPicker();
+  const body = document.getElementById("libPickerBody");
+  body.innerHTML = '<div style="padding:20px;color:var(--on-surface-variant);">Loading…</div>';
+  el.classList.add("is-open");
+  try {
+    const res = await authFetch(`${BASE_URL}/non-do-photos?status=open`);
+    const items = res.ok ? await res.json() : [];
+    if (!Array.isArray(items) || !items.length) {
+      body.innerHTML = '<div style="padding:20px;color:var(--on-surface-variant);">No unused non-DO photos for this store.</div>';
+      return;
+    }
+    body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;">
+      ${items.map(p => {
+        const when = p.captured_at?.seconds ? new Date(p.captured_at.seconds * 1000).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+        return `<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface-container-low);">
+          <img src="${escHtml(p.photo_url)}" style="width:100%;height:140px;object-fit:cover;display:block;">
+          <div style="padding:10px;">
+            <div style="font-size:13px;font-weight:700;">${escHtml(p.customer_name || "—")}</div>
+            <div style="font-size:11px;color:var(--on-surface-variant);">${escHtml(p.serial_number || "No serial")} · ${p.photo_outdoor_url ? "AC · 2 photos" : "1 photo"}${when ? " · " + escHtml(when) : ""}</div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+              <button class="btn btn-primary" style="flex:1;padding:8px;font-size:11px;" onclick="attachLibraryPhoto('${escHtml(deliveryId)}','${escHtml(p.id)}','delivered')">Delivered</button>
+              <button class="btn btn-gray" style="flex:1;padding:8px;font-size:11px;" onclick="attachLibraryPhoto('${escHtml(deliveryId)}','${escHtml(p.id)}','loaded')">Loaded</button>
+            </div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+  } catch (e) {
+    body.innerHTML = `<div style="padding:20px;color:var(--error);">Could not load photos: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function attachLibraryPhoto(deliveryId, photoId, slot) {
+  try {
+    const res = await authFetch(`${BASE_URL}/delivery/${deliveryId}/attach-library-photo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ photoId, slot })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Attach failed");
+    document.getElementById("libPicker")?.classList.remove("is-open");
+    closeViewPopup();
+    showToast("Photo attached", "success");
+    loadDeliveries(false);
+  } catch (e) {
+    showToast("⚠ " + e.message, "error");
+  }
+}
+
 function openViewPopup(id) {
   const delivery = currentAccountantData.find(d => d.id === id);
   if (!delivery) return;
@@ -4476,6 +4546,9 @@ function openViewPopup(id) {
             ${delivery.loaded_timestamp ? `
               <div style="margin-top:8px;font-size:10px;color:#94a3b8;">🕓 Loaded ${fmtActionStamp(delivery.loaded_timestamp)}</div>
             ` : ""}
+            ${delivery.loaded_by_name ? `
+              <div style="font-size:10px;color:#94a3b8;">👤 Loaded by ${escHtml(delivery.loaded_by_name)}</div>
+            ` : ""}
             ${proofStampBadge(delivery, "loaded")}
           </div>` : ""}
         ${delivery.photo_delivered_url || delivery.photo_delivered_outdoor_url ? `
@@ -4501,6 +4574,9 @@ function openViewPopup(id) {
             ` : ""}
             ${delivery.delivered_timestamp ? `
               <div style="margin-top:8px;font-size:10px;color:#94a3b8;">🕓 Delivered ${fmtActionStamp(delivery.delivered_timestamp)}</div>
+            ` : ""}
+            ${delivery.pickup_confirmed_by ? `
+              <div style="font-size:10px;color:#94a3b8;">👤 Handled by ${escHtml(delivery.pickup_confirmed_by)}</div>
             ` : ""}
             ${proofStampBadge(delivery, "delivered")}
           </div>` : ""}
@@ -4546,6 +4622,14 @@ function openViewPopup(id) {
   if (delivery.status === "pending" || delivery.status === "booked") {
     content.innerHTML += `<button class="btn btn-primary" style="margin-top:16px;" onclick="editDelivery('${escHtml(delivery.id)}')">✏ Edit</button>`;
   }
+
+  if (delivery.status === "closed" && delivery.close_reason) {
+    content.innerHTML += `<div class="detail-row" style="margin-top:12px;"><b>Close reason</b><span>${escHtml(delivery.close_reason)}</span></div>`;
+  }
+
+  content.innerHTML += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+    <button class="btn btn-gray" onclick="openLibraryPicker('${escHtml(delivery.id)}')">📷 From non-DO photos</button>
+  </div>`;
 
   if (delivery.status === "loaded") {
     const hasInstr = !!(delivery.driver_instructions && delivery.driver_instructions !== "none");

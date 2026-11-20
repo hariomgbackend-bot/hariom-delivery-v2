@@ -14,6 +14,7 @@ import {  collection, addDoc, getDocs, Timestamp,
   doc, getDoc, updateDoc, deleteDoc,
   query, where, orderBy, setDoc, getCountFromServer, limit, runTransaction, increment
 } from "firebase/firestore";
+import { createHash } from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
@@ -135,7 +136,7 @@ const LONG_CACHE_EXT = new Set([
 // Service workers must never be long-cached — the browser checks the
 // registry on every update and a long max-age can delay activation of a
 // fixed worker. Serve them with no-cache so fixes go live immediately.
-const SW_FILES = ["./service-worker.js", "/service-worker.js", "./firebase-messaging-sw.js", "/firebase-messaging-sw.js"];
+const SW_FILES = ["./service-worker.js", "/service-worker.js", "./firebase-messaging-sw.js", "/firebase-messaging-sw.js", "./enquiry-sw.js", "/enquiry-sw.js"];
 
 app.use(express.static(".", {
   setHeaders: (res, filePath) => {
@@ -1539,20 +1540,98 @@ const publicEnquiryLimiter = rateLimit({
   message: { error: "Too many submissions. Please try again later." }
 });
 
-// Public enquiry photo upload — the shared `upload` has no size cap; this one does
+// Public enquiry photo uploads — the shared `upload` has no size cap; this one does.
+// Old clients post a single "photo"; the current form posts up to 6 "photos".
 const enquiryUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 }
+  limits: { fileSize: 5 * 1024 * 1024, files: 6 }
 });
-const enquiryPhoto = (req, res, next) => {
-  enquiryUpload.single("photo")(req, res, (err) => {
+const enquiryFiles = (req, res, next) => {
+  enquiryUpload.fields([
+    { name: "photo",  maxCount: 1 },
+    { name: "photos", maxCount: 6 }
+  ])(req, res, (err) => {
     if (err) {
-      const tooBig = err.code === "LIMIT_FILE_SIZE";
-      return res.status(400).json({ error: tooBig ? "Photo is too large (max 5 MB)." : "Could not read the photo." });
+      if (err.code === "LIMIT_FILE_SIZE") return res.status(400).json({ error: "Each photo must be under 5 MB." });
+      if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE")
+        return res.status(400).json({ error: "Too many photos." });
+      return res.status(400).json({ error: "Could not read the photos." });
     }
     next();
   });
 };
+
+/* ── Validate + sanitise an admin-saved enquiry-form config ── */
+function sanitizeEnquiryConfig(body) {
+  const b = body || {};
+  const seen = new Set();
+  const categories = [];
+
+  /* sanitizeRequest() HTML-escapes every string before it reaches us, so
+     decode the entities back — labels such as 32" must be stored verbatim. */
+  const decode = s => String(s || "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+  const clean = (s, max) => decode(s).trim().slice(0, max);
+
+  for (const c of (Array.isArray(b.categories) ? b.categories : []).slice(0, 30)) {
+    const key = clean(c?.key, 20);
+    if (!/^[A-Za-z0-9_-]{1,20}$/.test(key) || seen.has(key.toUpperCase())) continue;
+    seen.add(key.toUpperCase());
+
+    const label_en = clean(c?.label_en, 60);
+    if (!label_en) continue;
+
+    const brands = [...new Set(
+      (Array.isArray(c.brands) ? c.brands : [])
+        .map(x => clean(x, 40).toUpperCase())
+        .filter(Boolean)
+    )].slice(0, 40);
+
+    const variants = (Array.isArray(c.variants) ? c.variants : [])
+      .slice(0, 20)
+      .map(v => ({
+        value:    clean(v?.value, 20),
+        label_en: clean(v?.label_en, 20),
+        label_mr: clean(v?.label_mr, 20),
+      }))
+      .filter(v => v.value);
+
+    const iconRaw = clean(c?.icon, 40);
+
+    categories.push({
+      key,
+      label_en,
+      label_mr: clean(c?.label_mr, 60) || label_en,
+      icon: /^[a-z0-9_-]{1,40}$/i.test(iconRaw) ? iconRaw : "category",
+      enabled: c?.enabled !== false,
+      brands,
+      variants,
+    });
+  }
+
+  if (!categories.some(c => c.enabled)) {
+    throw new Error("Add at least one enabled category");
+  }
+
+  const ex = b.exchange || {};
+  let maxPhotos = Number(ex.max_photos);
+  if (!Number.isFinite(maxPhotos)) maxPhotos = 3;
+  maxPhotos = Math.min(6, Math.max(1, Math.round(maxPhotos)));
+
+  return {
+    version: 2,
+    categories,
+    exchange: {
+      enabled: ex.enabled !== false,
+      max_photos: maxPhotos,
+      photo_required: ex.photo_required === true,
+    },
+  };
+}
 
 // Apply global limiter to all routes
 app.use(globalLimiter);
@@ -1598,9 +1677,30 @@ const xlitSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 /* Translate one English phrase to Marathi via Google Translate (gtx).
    Returns "" on failure so the caller can retry / use the next engine. */
+async function fetchWithTimeout(url, options = {}, ms = 2500) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...options, signal: ctrl.signal }); }
+  finally { clearTimeout(timer); }
+}
+
+/* Run fn over items with a concurrency cap, preserving order. */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  async function worker() {
+    while (i < items.length) {
+      const idx = i++;
+      out[idx] = await fn(items[idx], idx);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
 async function translatePhrase(text) {
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=mr&dt=t&q=${encodeURIComponent(text)}`;
-  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  const r = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 2500);
   if (!r.ok) return "";
   const data = await r.json();
   const out = Array.isArray(data?.[0])
@@ -1652,10 +1752,10 @@ async function transliterateWord(word) {
   if (!core || !/[A-Za-z]/.test(core)) return core;
   if (XLIT_WORD_CACHE.has(core)) return XLIT_WORD_CACHE.get(core);
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 1; attempt++) {
     try {
       const url = `https://inputtools.google.com/request?text=${encodeURIComponent(core)}&itc=mr-t-i0-und&num=3&cp=0&cs=1&ie=utf-8&oe=utf-8&app=test`;
-      const r = await fetch(url, { headers: { Accept: "application/json" } });
+      const r = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 2000);
       const data = await r.json();
       const candidates = data?.[1]?.[0]?.[1] || [];
       if (candidates.length) {
@@ -1675,18 +1775,27 @@ async function transliterateWord(word) {
   return core;
 }
 
-/* Transliterate a whole English string word-by-word (never leaves Latin). */
+/* Transliterate a whole English string word-by-word (never leaves Latin).
+   Words are converted in parallel: a serial loop here was what made the first
+   Marathi render take 20+ seconds when Google was slow. */
 async function transliterateWhole(text) {
   const parts = String(text == null ? "" : text).split(/(\s+)/);
-  const out = [];
+  const words = [];
   for (const part of parts) {
-    if (!part) continue;
-    if (!/[A-Za-z]/.test(part)) { out.push(part); continue; }
+    if (!part || !/[A-Za-z]/.test(part)) continue;
     const m = part.match(/^([^A-Za-z]*)([A-Za-z][A-Za-z&.'-]*)([^A-Za-z]*)$/);
-    if (!m) { out.push(await transliterateWord(part)); continue; }
-    out.push(m[1] + (await transliterateWord(m[2])) + m[3]);
+    words.push(m ? m[2] : part);
   }
-  return out.join("");
+  const unique = [...new Set(words)];
+  const pairs = await mapLimit(unique, 8, async w => [w, await transliterateWord(w)]);
+  const map = new Map(pairs);
+
+  return parts.map(part => {
+    if (!part || !/[A-Za-z]/.test(part)) return part;
+    const m = part.match(/^([^A-Za-z]*)([A-Za-z][A-Za-z&.'-]*)([^A-Za-z]*)$/);
+    if (!m) return map.get(part) || part;
+    return m[1] + (map.get(m[2]) || m[2]) + m[3];
+  }).join("");
 }
 
 /* Replace any Latin tokens left inside an already-translated string. */
@@ -1694,8 +1803,8 @@ async function devanagarify(text) {
   const src = String(text == null ? "" : text);
   const tokens = [...new Set(src.match(/[A-Za-z][A-Za-z&.'-]*/g) || [])];
   if (!tokens.length) return src;
-  const map = new Map();
-  for (const tok of tokens) map.set(tok, await transliterateWord(tok));
+  const pairs = await mapLimit(tokens, 8, async tok => [tok, await transliterateWord(tok)]);
+  const map = new Map(pairs);
   return src.replace(/[A-Za-z][A-Za-z&.'-]*/g, tok => map.get(tok) || tok);
 }
 
@@ -1704,20 +1813,27 @@ function cachePhrase(src, out) {
   XLIT_PHRASE_CACHE.set(src, out);
 }
 
-/* Google Translate with retries. Returns "" if every attempt fails. */
-async function translateOne(src) {
+/* Google Translate. `fast` is for the interactive batch path: one attempt,
+   no backoff — Groq and word-level transliteration are the fallbacks there.
+   The single-phrase endpoint keeps the slower retry ladder. */
+async function translateOne(src, fast = false) {
   if (!src.trim() || !/[A-Za-z]/.test(src)) return src;   // already Marathi / nothing to do
   if (XLIT_PHRASE_CACHE.has(src)) return XLIT_PHRASE_CACHE.get(src);
 
-  const backoff = [200, 700, 1500];
+  const backoff = fast ? [0] : [200, 700, 1500];
   for (let attempt = 0; attempt < backoff.length; attempt++) {
     let result = "";
     try { result = await translatePhrase(src); } catch (_) { result = ""; }
     if (result && XLIT_HAS_DEVANAGARI.test(result)) return result;
-    await xlitSleep(backoff[attempt]);
+    if (backoff[attempt]) await xlitSleep(backoff[attempt]);
   }
   return "";
 }
+
+/* Cross-device cache: translations are computed once and stored, so a new
+   driver (or a server restart) never pays the translation cost again. */
+const xlitDocId = text => createHash("sha1").update(text).digest("hex");
+const XLIT_DB = "marathi_texts";
 
 /* Batch conversion for display-time Marathi DO data (names / addresses).
    POST /transliterate-batch { texts: [] } → { results: [] }
@@ -1730,54 +1846,101 @@ app.post("/transliterate-batch", async (req, res) => {
   const texts = Array.isArray(req.body?.texts) ? req.body.texts : [];
   if (!texts.length) return res.json({ results: [] });
 
-  const unique = [...new Set(texts.map(tx => String(tx == null ? "" : tx)))];
+  const startedAt = Date.now();
+  const unique = [...new Set(texts.map(tx => String(tx == null ? "" : tx)))].filter(Boolean);
   const resolved = new Map();
-  const failed = [];
-  let cursor = 0;
+  const missing = [];
 
-  async function worker() {
-    while (cursor < unique.length) {
-      const src = unique[cursor++];
-      const out = await translateOne(src);
-      if (out) resolved.set(src, out);
-      else failed.push(src);
-      await xlitSleep(120);          // gentle spacing to avoid throttling
+  // Pass 0: memory + persistent cache, in parallel. Most requests after the
+  // first driver are answered here without touching a translation engine.
+  // The cache lookup is time-boxed: a cold Firestore connection must not hold
+  // up the first Marathi render.
+  await Promise.all(unique.map(async src => {
+    if (!/[A-Za-z]/.test(src)) { resolved.set(src, src); return; }
+    if (XLIT_PHRASE_CACHE.has(src)) { resolved.set(src, XLIT_PHRASE_CACHE.get(src)); return; }
+    const budget = Math.max(300, 2000 - (Date.now() - startedAt));
+    const snap = await Promise.race([
+      getDoc(doc(db, XLIT_DB, xlitDocId(src))).catch(() => null),
+      xlitSleep(budget).then(() => null),
+    ]);
+    const mr = snap && snap.exists() ? String(snap.data().mr || "") : "";
+    if (mr && XLIT_HAS_DEVANAGARI.test(mr)) {
+      resolved.set(src, mr);
+      cachePhrase(src, mr);
+      return;
+    }
+    missing.push(src);
+  }));
+
+  const persisted = new Set();
+  function persist() {
+    for (const src of missing) {
+      if (persisted.has(src)) continue;
+      const out = resolved.get(src);
+      if (!out || out === src) continue;
+      persisted.add(src);
+      cachePhrase(src, out);
+      setDoc(doc(db, XLIT_DB, xlitDocId(src)), {
+        text: src.slice(0, 300),
+        mr: out,
+        updatedAt: Timestamp.now(),
+      }, { merge: true }).catch(() => {});
     }
   }
 
-  // Pass 1: Google Translate (concurrency 2, spaced)
-  await Promise.all(
-    Array.from({ length: Math.min(2, unique.length) }, () => worker())
-  );
+  async function runPipeline() {
+    // Pass 1: Google Translate for misses — concurrency 8, no retry backoff.
+    const failed = [];
+    let cursor = 0;
+    async function worker() {
+      while (cursor < missing.length) {
+        const src = missing[cursor++];
+        const out = await translateOne(src, true);
+        if (out) resolved.set(src, out);
+        else failed.push(src);
+        await xlitSleep(10);
+      }
+    }
+    await Promise.all(
+      Array.from({ length: Math.min(8, missing.length) }, () => worker())
+    );
 
-  // Pass 2: Groq for whatever Translate missed
-  if (failed.length) {
-    const groqOut = await translateWithGroq(failed);
-    groqOut.forEach((v, i) => { if (v) resolved.set(failed[i], v); });
+    // Pass 2: Groq for whatever Translate missed (one batched call)
+    if (failed.length) {
+      const groqOut = await translateWithGroq(failed);
+      groqOut.forEach((v, i) => { if (v) resolved.set(failed[i], v); });
+    }
+
+    // Pass 3: guarantee conversion — transliterate anything still missing
+    for (const src of missing) {
+      if (resolved.has(src)) continue;
+      let out = "";
+      try { out = await transliterateWhole(src); } catch (_) { out = ""; }
+      if (out) resolved.set(src, out);
+    }
+
+    // Pass 4: fill any Latin fragments left inside translated results
+    for (const [src, out] of [...resolved.entries()]) {
+      if (!/[A-Za-z]/.test(out)) continue;
+      try { resolved.set(src, await devanagarify(out)); } catch (_) {}
+    }
+    persist();
   }
 
-  // Pass 3: guarantee conversion — transliterate anything still missing
-  for (const src of unique) {
-    if (resolved.has(src)) continue;
-    let out = "";
-    try { out = await transliterateWhole(src); } catch (_) { out = ""; }
-    if (out) resolved.set(src, out);
-  }
+  // Never make the driver wait on a stalled translation engine: give the
+  // pipeline a short budget, answer with whatever is ready, and let the rest
+  // finish in the background (cached for the next render).
+  const pipeline = runPipeline().catch(() => {});
+  const remaining = Math.max(500, 4500 - (Date.now() - startedAt));
+  await Promise.race([pipeline, xlitSleep(remaining)]);
+  persist();
+  pipeline.then(persist).catch(() => {});
 
-  // Pass 4: fill any Latin fragments left inside translated results
-  for (const [src, out] of [...resolved.entries()]) {
-    if (!/[A-Za-z]/.test(out)) continue;
-    try { resolved.set(src, await devanagarify(out)); } catch (_) {}
-  }
-
-  for (const [src, out] of resolved.entries()) cachePhrase(src, out);
-
-  const results = texts.map(tx => {
-    const src = String(tx == null ? "" : tx);
-    return resolved.get(src) || src;
+  const pending = missing.filter(src => !resolved.has(src));
+  res.json({
+    results: texts.map(tx => resolved.get(String(tx == null ? "" : tx)) || String(tx ?? "")),
+    pending,
   });
-
-  res.json({ results });
 });
 
 /* ════════════════════════════════════════════════
@@ -2783,7 +2946,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
     addStoreFilter(storeCond, req.user, undefined, req);
 
     const [
-      total, booked, pending, loaded, delivered, failed, urgent, porterCount, manualCount, tallyTdlCount, importFileCount
+      total, booked, pending, loaded, delivered, failed, closed, urgent, porterCount, manualCount, tallyTdlCount, importFileCount
     ] = await Promise.all([
       countQuery(query(deliveriesRef, ...storeCond)),
       countQuery(query(deliveriesRef, where("status", "==", "booked"), ...storeCond)),
@@ -2791,6 +2954,7 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
       countQuery(query(deliveriesRef, where("status", "==", "loaded"), ...storeCond)),
       countQuery(query(deliveriesRef, where("status", "==", "delivered"), ...storeCond)),
       countQuery(query(deliveriesRef, where("status", "==", "failed"), ...storeCond)),
+      countQuery(query(deliveriesRef, where("status", "==", "closed"), ...storeCond)),
       countQuery(query(deliveriesRef, where("priority", "==", "urgent"), ...storeCond)),
       countQuery(query(deliveriesRef, where("delivery_mode", "==", "porter"), ...storeCond)),
       countQuery(query(deliveriesRef, where("created_timestamp", ">=", todayStart), where("source", "==", "manual"), ...storeCond)),
@@ -2807,13 +2971,14 @@ app.get("/delivery-counts", readLimiter, authenticate, authorize(["admin", "acco
       loaded,
       delivered,
       failed,
+      closed,
       urgent,
       porter: porterCount,
       today: todayTotal,
       sourceToday: { manual: manualCount, tally_tdl: tallyTdlCount, import_file: importFileCount }
     };
 
-    trackReads("delivery-counts", 10);
+    trackReads("delivery-counts", 11);
     if (!req.query.store) deliveryCountsCache = { data: result, expiry: Date.now() + DELIVERY_COUNTS_CACHE_TTL };
     res.json(result);
   } catch (error) {
@@ -3106,14 +3271,55 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       return { id: d.id, ...data };
     });
 
-    // Client-side text search (Firestore can't do partial text search)
+    // Client-side text search (Firestore can't do partial text search).
+    // Token-based and order-independent: every word the user types must appear
+    // somewhere, so "Sharma Rahul", "rahul sharma" and "rahul 98" all work.
     if (search) {
-      const term = search.toLowerCase();
-      deliveries = deliveries.filter(d =>
-        (d.customer_name || "").toLowerCase().includes(term) ||
-        (d.phone || "").includes(term) ||
-        (d.product_name || "").toLowerCase().includes(term)
+      const norm = s => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+      const tokens = String(search).toLowerCase().split(/\s+/).map(norm).filter(Boolean);
+
+      const rows = deliveries.map(d => {
+        const hay = [
+          d.customer_name, d.alternate_phone, d.phone, d.product_name,
+          d.address, d.area, d.product_serial_number, d.modelNo,
+          d.invoice_number, d.sold_by_name, d.assigned_driver_name,
+        ].map(v => String(v || "").toLowerCase()).join(" ");
+        return {
+          d, hay,
+          compact: norm(hay),
+          words: hay.split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 3),
+        };
+      });
+
+      // Damerau-ish: at most one insert / delete / substitute / adjacent swap.
+      const withinOneEdit = (a, b) => {
+        if (a === b) return true;
+        if (Math.abs(a.length - b.length) > 1) return false;
+        let i = 0, j = 0, edits = 0;
+        while (i < a.length && j < b.length) {
+          if (a[i] === b[j]) { i++; j++; continue; }
+          if (++edits > 1) return false;
+          if (a[i + 1] === b[j] && a[i] === b[j + 1]) { i += 2; j += 2; continue; } // swap
+          if (a.length > b.length) i++;
+          else if (b.length > a.length) j++;
+          else { i++; j++; }
+        }
+        if (i < a.length || j < b.length) edits++;
+        return edits <= 1;
+      };
+
+      const matches = (row, fuzzy) => tokens.every(t =>
+        row.hay.includes(t) ||
+        row.compact.includes(t) ||
+        (fuzzy && t.length >= 4 &&
+          row.words.some(w => w.length >= 3 && withinOneEdit(t, w)))
       );
+
+      let hits = rows.filter(r => matches(r, false));
+      // Typo fallback: only when the exact search found nothing.
+      if (!hits.length && tokens.length) hits = rows.filter(r => matches(r, true));
+      deliveries = hits.map(r => r.d);
+
       // Can't use Firestore count when text search is applied — fall back to fetched count
       totalCount = deliveries.length;
     }
@@ -3143,8 +3349,8 @@ app.get("/deliveries", readLimiter, authenticate, async (req, res) => {
       totalCount = deliveries.length;
     }
 
-    // booked → failed → pending (urgent, then newest) → loaded → delivered
-    const statusOrder = { booked: 0, failed: 1, pending: 2, loaded: 3, delivered: 4 };
+    // booked → failed → pending (urgent, then newest) → loaded → delivered → closed
+    const statusOrder = { booked: 0, failed: 1, pending: 2, loaded: 3, delivered: 4, closed: 5 };
 
     deliveries.sort((a, b) => {
       const statusDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
@@ -3300,7 +3506,7 @@ app.post("/batch/deliveries", authenticate, authorize(["admin", "accountant"]), 
     if (!driverId && !driverName && !status) {
       return res.status(400).json({ error: "Nothing to update — provide driver and/or status" });
     }
-    const VALID_STATUSES = ["booked", "pending", "loaded", "delivered", "failed"];
+    const VALID_STATUSES = ["booked", "pending", "loaded", "delivered", "failed", "closed"];
     if (status && !VALID_STATUSES.includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
@@ -3378,6 +3584,244 @@ app.post("/deleteFailedDelivery/:id", authenticate, authorize(["accountant", "ad
    MARK LOADED
 ═══════════════════════════════════════════════ */
 
+/* ════ CLOSE A STALE DO ════
+   Pending/booked DOs that never moved can be closed instead of lingering.
+   Closed DOs get their own status/badge and leave the pending queue. */
+app.post("/closeDelivery/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const refDoc = doc(db, "deliveries", req.params.id);
+    const snap   = await getDoc(refDoc);
+    if (!snap.exists()) return res.status(404).json({ error: "Delivery not found" });
+
+    const delivery = snap.data();
+    if (!["booked", "pending"].includes(delivery.status)) {
+      return res.status(400).json({ error: "Only booked or pending DOs can be closed" });
+    }
+    if (!req.user.isSuperAdmin && req.user.storeId && delivery.storeId && delivery.storeId !== req.user.storeId) {
+      return res.status(403).json({ error: "Store access denied" });
+    }
+
+    const reason = String(req.body?.reason || "").trim().slice(0, 300);
+    await updateDoc(refDoc, {
+      status: "closed",
+      previous_status: delivery.status,
+      close_reason: reason,
+      closed_at: Timestamp.now(),
+      closed_by_name: req.user.name || req.user.email || "Staff",
+      closed_by_role: req.user.role || "",
+    });
+
+    invalidateDeliveriesCache();
+    logActivity({
+      action: "close_delivery",
+      entityType: "delivery",
+      entityId: req.params.id,
+      label: delivery.customer_name || delivery.phone || "",
+      details: reason ? `DO closed. Reason: ${reason}` : "DO closed",
+      req,
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("/closeDelivery error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ════ NON-DO PHOTO LIBRARY ════
+   Staff photograph a product handed over without a DO; the accountant later
+   attaches that photo to the DO they create. */
+const nonDoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 2 }
+});
+const nonDoPhoto = (req, res, next) => {
+  nonDoUpload.fields([{ name: "photo", maxCount: 1 }, { name: "photo_outdoor", maxCount: 1 }])(req, res, (err) => {
+    if (err) {
+      const tooBig = err.code === "LIMIT_FILE_SIZE";
+      return res.status(400).json({ error: tooBig ? "Each photo must be under 5 MB." : "Could not read the photos." });
+    }
+    next();
+  });
+};
+
+app.post("/non-do-photos", authenticate, authorize(["staff", "accountant"]), nonDoPhoto, async (req, res) => {
+  try {
+    const indoorFile  = req.files?.photo?.[0] || null;
+    const outdoorFile = req.files?.photo_outdoor?.[0] || null;
+    if (!indoorFile) return res.status(400).json({ error: "A photo is required" });
+    if (!/^image\//i.test(indoorFile.mimetype || "") || (outdoorFile && !/^image\//i.test(outdoorFile.mimetype || ""))) {
+      return res.status(400).json({ error: "Only image files are allowed." });
+    }
+
+    const customer_name = String(req.body?.customer_name || "").trim().slice(0, 120);
+    if (!customer_name) return res.status(400).json({ error: "Customer name is required" });
+
+    const store = await storeKeyForUser(req.user);
+    if (!store) return res.status(400).json({ error: "This account has no store" });
+
+    const serial_number = String(req.body?.serial_number || "").trim().slice(0, 80);
+    const note = String(req.body?.note || "").trim().slice(0, 300);
+
+    const uploadOne = async (file, suffix) => {
+      const ext = (file.mimetype.split("/")[1] || "jpg").replace("jpeg", "jpg").replace(/\W/g, "");
+      const path = `non_do_photos/${Date.now()}_${store}${suffix}.${ext}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file.buffer, { contentType: file.mimetype });
+      return { path, url: await getDownloadURL(storageRef) };
+    };
+
+    const main = await uploadOne(indoorFile, "");
+    const outdoor = outdoorFile ? await uploadOne(outdoorFile, "_outdoor") : null;
+
+    const lat = Number(req.body?.lat);
+    const lng = Number(req.body?.lng);
+    const captured_location = (Number.isFinite(lat) && Number.isFinite(lng))
+      ? { lat, lng }
+      : null;
+
+    const docRef = await addDoc(collection(db, "non_do_photos"), {
+      store,
+      customer_name,
+      serial_number,
+      note,
+      photo_url: main.url,
+      photo_path: main.path,
+      ...(outdoor && { photo_outdoor_url: outdoor.url, photo_outdoor_path: outdoor.path }),
+      ...(captured_location && { captured_location }),
+      status: "open",
+      used_delivery_id: "",
+      used_at: null,
+      captured_at: Timestamp.now(),
+      captured_by_id: req.user.staff_id || req.user.id || null,
+      captured_by_name: req.user.name || req.user.email || "Staff",
+    });
+
+    res.json({ success: true, id: docRef.id, url: photo_url });
+  } catch (error) {
+    console.error("/non-do-photos upload error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/non-do-photos", authenticate, authorize(["staff", "admin", "accountant"]), async (req, res) => {
+  try {
+    const conditions = [collection(db, "non_do_photos")];
+    const store = req.user.role === "admin"
+      ? String(req.query.store || "").trim()
+      : (await storeKeyForUser(req.user) || "");
+    if (store) conditions.push(where("store", "==", store));
+    if (req.query.status === "open") conditions.push(where("status", "==", "open"));
+    conditions.push(limit(200));
+
+    const snap = await getDocs(query(...conditions));
+    const items = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.captured_at?.seconds || 0) - (a.captured_at?.seconds || 0))
+      .slice(0, 100);
+    res.json(items);
+  } catch (error) {
+    console.error("/non-do-photos list error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/delivery/:id/attach-library-photo", authenticate, authorize(["admin", "accountant"]), async (req, res) => {
+  try {
+    const photoId = String(req.body?.photoId || "").trim();
+    const slot = req.body?.slot === "loaded" ? "loaded" : "delivered";
+    if (!photoId) return res.status(400).json({ error: "photoId is required" });
+
+    const libRef  = doc(db, "non_do_photos", photoId);
+    const libSnap = await getDoc(libRef);
+    if (!libSnap.exists()) return res.status(404).json({ error: "Library photo not found" });
+    const lib = libSnap.data();
+
+    const delRef  = doc(db, "deliveries", req.params.id);
+    const delSnap = await getDoc(delRef);
+    if (!delSnap.exists()) return res.status(404).json({ error: "Delivery not found" });
+    const delivery = delSnap.data();
+
+    const pathFrom = (p, u) => p || decodeURIComponent(String(u || "").split("/o/")[1]?.split("?")[0] || "") || "";
+    const srcPath        = pathFrom(lib.photo_path, lib.photo_url);
+    const srcOutdoorPath = pathFrom(lib.photo_outdoor_path, lib.photo_outdoor_url);
+    if (!srcPath) return res.status(400).json({ error: "Library photo file is missing" });
+
+    // Self-pickup and Porter hand-offs are complete at the counter/courier, so
+    // attaching their photo also delivers them. A normal DO only becomes loaded.
+    const isHandover = delivery.is_self_pickup === true || delivery.delivery_mode === "porter";
+    const effectiveSlot = isHandover ? "delivered" : slot;
+    const folder = effectiveSlot === "loaded" ? "delivery_proofs_loaded" : "delivery_proofs_delivered";
+    const copyFromLibrary = async (src, suffix) => {
+      const ext  = (src.split(".").pop() || "jpg").replace(/\W/g, "") || "jpg";
+      const dest = `${folder}/${Date.now()}_from_library_${photoId}${suffix}.${ext}`;
+      // Copy, don't move: replacing a DO photo later deletes its delivery proof,
+      // and the library original must survive that.
+      await adminBucket.file(src).copy(adminBucket.file(dest));
+      return await getDownloadURL(ref(storage, dest));
+    };
+
+    const url = await copyFromLibrary(srcPath, "");
+    const outdoorUrl = srcOutdoorPath ? await copyFromLibrary(srcOutdoorPath, "_outdoor") : null;
+
+    const nextStatus = delivery.status === "delivered"
+      ? "delivered"
+      : (isHandover ? "delivered" : "loaded");
+
+    const actorName = req.user?.name || req.user?.email || "Staff";
+    const actorId   = req.user?.staff_id || req.user?.id || null;
+
+    const updates = {
+      [effectiveSlot === "loaded" ? "photo_loaded_url" : "photo_delivered_url"]: url,
+      ...(outdoorUrl && {
+        [effectiveSlot === "loaded" ? "photo_loaded_outdoor_url" : "photo_delivered_outdoor_url"]: outdoorUrl,
+      }),
+      photo_source_library_id: photoId,
+      photo_attached_by_name: actorName,
+      photo_attached_by_id: actorId,
+      photo_attached_at: Timestamp.now(),
+      status: nextStatus,
+    };
+    if (nextStatus === "loaded") {
+      updates.loaded_by_name = actorName;
+      updates.loaded_by_id = actorId;
+    }
+    if (nextStatus === "delivered") {
+      updates.delivered_by_name = actorName;
+      updates.delivered_by_id = actorId;
+    }
+    if (nextStatus === "delivered" && delivery.status !== "delivered") {
+      updates.delivered_timestamp = Timestamp.now();
+    }
+    if (nextStatus === "loaded" && delivery.status !== "loaded") {
+      updates.loaded_timestamp = Timestamp.now();
+    }
+    if (!delivery.product_serial_number && lib.serial_number) {
+      updates.product_serial_number = String(lib.serial_number).trim();
+    }
+
+    await updateDoc(delRef, updates);
+    await updateDoc(libRef, {
+      status: "used",
+      used_delivery_id: req.params.id,
+      used_at: Timestamp.now(),
+    });
+
+    invalidateDeliveriesCache();
+    logActivity({
+      action: "attach_library_photo",
+      entityType: "delivery",
+      entityId: req.params.id,
+      label: delivery.customer_name || "",
+      details: `Non-DO photo attached as ${effectiveSlot} photo; status ${delivery.status} → ${nextStatus}`,
+      req,
+    });
+    res.json({ success: true, url, slot: effectiveSlot, status: nextStatus });
+  } catch (error) {
+    console.error("/delivery/:id/attach-library-photo error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Returns true if product name suggests it's an AC (has indoor + outdoor units)
 function isACProduct(productName) {
   if (!productName) return false;
@@ -3445,6 +3889,8 @@ app.post("/markLoaded/:id", upload.fields([
       status: "loaded",
       product_serial_number: finalSerial,
       loaded_timestamp: req.offlineSync ? actionTimestamp(req.body) : Timestamp.now(),
+      loaded_by_id:   req.user?.staff_id || req.user?.id || req.user?.driver_id || null,
+      loaded_by_name: req.user?.name || req.user?.email || (req.user?.role === "driver" ? "Driver" : "Staff"),
       photo_loaded_url: photo_loaded_url,
       ...(photo_loaded_outdoor_url && { photo_loaded_outdoor_url })
       // Freight is captured at delivery time (markDelivered), not here
@@ -3743,7 +4189,7 @@ app.delete("/driver/:id", authenticate, authorize(["admin"]), async (req, res) =
       collection(db, "deliveries"),
       where("assigned_driver_id", "==", driverId)
     ));
-    const hasActive = snapshot.docs.some(d => d.data().status !== "delivered");
+    const hasActive = snapshot.docs.some(d => !["delivered", "failed", "closed"].includes(d.data().status));
     if (hasActive) return res.json({ error: "Driver has active deliveries. Cannot delete." });
     const driverSnap = await getDoc(doc(db, "drivers", driverId));
     const driverName = driverSnap.exists() ? driverSnap.data().driver_name : driverId;
@@ -5785,11 +6231,49 @@ app.post("/leads", authenticate, authorize(["admin", "accountant", "staff"]), as
    Shared per store as /enquiry?store=<storeId|key>
 ════════════════════════════════════════════════ */
 
+/* Enquiry-form config: categories, brands, sizes and photo settings.
+   Public read for the form itself; admin read/write for the editor. */
+app.get("/api/public/enquiry-config", async (req, res) => {
+  try {
+    const snap = await getDoc(doc(db, "settings", "enquiry_form"));
+    res.json(snap.exists() ? { ...snap.data(), configured: true } : { configured: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/enquiry-config", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const cache = getRefCache("enquiry_config");
+    if (Date.now() < cache.expiry) return res.json(cache.data);
+    const snap = await getDoc(doc(db, "settings", "enquiry_form"));
+    const data = snap.exists() ? { ...snap.data(), configured: true } : { configured: false };
+    cache.data = data;
+    cache.expiry = Date.now() + cache.ttl;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/enquiry-config", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const clean = sanitizeEnquiryConfig(req.body);
+    clean.updated_at = Timestamp.now();
+    clean.updated_by = req.user?.email || "admin";
+    await setDoc(doc(db, "settings", "enquiry_form"), clean);
+    invalidateRefCache("enquiry_config");
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get(["/enquiry", "/enquiry/:store"], (req, res) => {
   res.sendFile(path.join(process.cwd(), "enquiry.html"));
 });
 
-app.post("/api/public/enquiry", publicEnquiryLimiter, enquiryPhoto, async (req, res) => {
+app.post("/api/public/enquiry", publicEnquiryLimiter, enquiryFiles, async (req, res) => {
   try {
     const b = req.body || {};
 
@@ -5862,16 +6346,36 @@ app.post("/api/public/enquiry", publicEnquiryLimiter, enquiryPhoto, async (req, 
       if (!storeId) return res.status(400).json({ error: "This enquiry link is not valid. Please ask the store for a fresh link." });
     }
 
-    /* ── Optional exchange photo → Firebase Storage (same flow as /markFailed) ── */
-    let exchange_photo_url = null;
-    if (req.file) {
-      const storageRef = ref(storage, "enquiry_photos/" + Date.now() + "_" + phone);
-      await uploadBytes(storageRef, req.file.buffer, { contentType: req.file.mimetype });
-      exchange_photo_url = await getDownloadURL(storageRef);
-    }
-
     const exchange_offer     = String(b.exchange_offer) === "true";
     const exchange_condition = exchange_offer ? (b.exchange_condition === "not_working" ? "not_working" : "working") : "";
+
+    /* ── Exchange photos → Firebase Storage (same flow as /markFailed) ──
+       The form's configured max governs how many are kept; the multer cap of 6
+       is the hard ceiling. Old clients still post the single `photo` field. */
+    let formExchange = { enabled: true, max_photos: 3 };
+    try {
+      const cfgSnap = await getDoc(doc(db, "settings", "enquiry_form"));
+      if (cfgSnap.exists() && cfgSnap.data().exchange) {
+        formExchange = { ...formExchange, ...cfgSnap.data().exchange };
+      }
+    } catch (e) { console.warn("[public enquiry config]", e.message); }
+
+    const maxPhotos = Math.min(6, Math.max(1, Number(formExchange.max_photos) || 3));
+    const uploaded = exchange_offer && formExchange.enabled !== false
+      ? [ ...(req.files?.photo || []), ...(req.files?.photos || []) ].slice(0, maxPhotos)
+      : [];
+
+    const exchange_photo_urls = [];
+    for (let i = 0; i < uploaded.length; i++) {
+      const f = uploaded[i];
+      if (!/^image\//i.test(f.mimetype || "")) {
+        return res.status(400).json({ error: "Only image files are allowed." });
+      }
+      const ext = (f.mimetype.split("/")[1] || "jpg").replace("jpeg", "jpg").replace(/\W/g, "");
+      const storageRef = ref(storage, `enquiry_photos/${Date.now()}_${phone}_${i}.${ext}`);
+      await uploadBytes(storageRef, f.buffer, { contentType: f.mimetype });
+      exchange_photo_urls.push(await getDownloadURL(storageRef));
+    }
 
     const now = Timestamp.now();
     const docRef = await addDoc(collection(db, "leads"), {
@@ -5897,7 +6401,10 @@ app.post("/api/public/enquiry", publicEnquiryLimiter, enquiryPhoto, async (req, 
       first_contact_at: null,
       created_at: now,
       updated_at: now,
-      ...(exchange_photo_url && { exchange_photo_url }),
+      ...(exchange_photo_urls.length && {
+        exchange_photo_url: exchange_photo_urls[0],
+        exchange_photo_urls,
+      }),
     });
 
     res.json({ success: true, id: docRef.id });
@@ -7165,7 +7672,8 @@ app.post("/markSelfPickup/:id", upload.fields([
       delivered_timestamp:     req.offlineSync ? actionTimestamp(req.body) : Timestamp.now(),
       photo_delivered_url:     photo_delivered_url,
       ...(photo_delivered_outdoor_url && { photo_delivered_outdoor_url }),
-      pickup_confirmed_by:     req.body.confirmed_by || "staff",
+      pickup_confirmed_by:     req.body.confirmed_by || req.user?.name || "staff",
+      pickup_confirmed_by_id:  req.user?.staff_id || req.user?.id || req.user?.driver_id || null,
       is_self_pickup:          true,
       ...porterUpdates
     };
@@ -9611,6 +10119,71 @@ async function storeKeyForUser(user) {
 
 const TAG_CATEGORIES = ["TV", "REF", "WM"];
 
+/* Custom features typed by staff are remembered in the studio's own feature
+   memory, so they show up in the request dropdown next time. */
+function decodeHtmlEntities(s) {
+  return String(s || "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+function normFeatureLabel(s) {
+  return decodeHtmlEntities(s).replace(/\s*\n\s*/g, " ").trim().toLowerCase();
+}
+function customFeatureId(label) {
+  const base = normFeatureLabel(label).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 36);
+  return "custom_" + (base || "feature");
+}
+
+async function persistCustomFeatures(store, tags) {
+  if (!store) return 0;
+
+  const snap = await getDocs(query(collection(db, "tag_studio_files"), where("store", "==", store), limit(20)));
+  const newest = snap.docs
+    .map(d => ({ ref: d.ref, data: d.data() }))
+    .sort((a, b) => (Number(b.data.updatedAt) || 0) - (Number(a.data.updatedAt) || 0))[0];
+
+  let memory = newest && Array.isArray(newest.data.featureMemory) && newest.data.featureMemory.length
+    ? newest.data.featureMemory.map(f => ({ ...f }))
+    : TAG_DEFAULT_FEATURES.map(f => ({ ...f, svgKey: f.id }));
+
+  const catKey = c => String(c || "ALL").toUpperCase();
+  const seen = new Set(memory.map(f => normFeatureLabel(f.label) + "|" + catKey(f.cat)));
+  let added = 0;
+
+  for (const t of tags) {
+    const labels = Array.isArray(t.featureLabels) ? t.featureLabels : [];
+    const ids    = Array.isArray(t.featureIds) ? t.featureIds : [];
+    labels.forEach((label, i) => {
+      if (!label || ids[i]) return;                 // already a known studio feature
+      const key = normFeatureLabel(label) + "|" + catKey(t.category);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      let id = customFeatureId(label);
+      let n = 2;
+      while (memory.some(f => f.id === id)) id = customFeatureId(label) + "_" + n++;
+      memory.push({ id, cat: t.category || "ALL", label: decodeHtmlEntities(label).trim(), svgKey: "star_5" });
+      added++;
+    });
+  }
+  if (!added) return 0;
+
+  const payload = { featureMemory: memory, updatedAt: Date.now(), serverUpdatedAt: Timestamp.now() };
+  if (newest) {
+    payload.revision = (Number(newest.data.revision) || 0) + 1;
+    await updateDoc(newest.ref, payload);
+  } else {
+    await addDoc(collection(db, "tag_studio_files"), {
+      name: "Default", store, schemaVersion: 1,
+      queue: [], catalog: [], brandProfiles: {}, customSvgs: {},
+      ...payload
+    });
+  }
+  return added;
+}
+
 app.post("/tag-requests", authenticate, authorize(["staff", "admin", "accountant"]), async (req, res) => {
   try {
     const tags = Array.isArray(req.body?.tags) ? req.body.tags : [];
@@ -9632,8 +10205,21 @@ app.post("/tag-requests", authenticate, authorize(["staff", "admin", "accountant
       if (!Number.isFinite(specialPrice) || !Number.isFinite(mrp))
         return res.status(400).json({ error: `Tag ${i + 1}: prices must be numbers` });
 
+      // Keep feature labels and ids index-aligned: a custom slot has a label but
+      // no id, so filtering the arrays independently would pair the wrong icon.
+      const rawLabels = Array.isArray(t.featureLabels) ? t.featureLabels : [];
+      const rawIds    = Array.isArray(t.featureIds) ? t.featureIds : [];
+      const featPairs = rawLabels
+        .slice(0, 4)
+        .map((label, n) => ({
+          label: String(label || "").trim(),
+          id:    String(rawIds[n] || "").trim()
+        }))
+        .filter(p => p.label);
+
       clean.push({
         category,
+        layout: String(t.layout) === "tall" ? "tall" : "std",
         brand:    String(t.brand || "").trim(),
         series:   String(t.series || "").trim(),
         badge:    String(t.badge || "").trim(),
@@ -9648,10 +10234,8 @@ app.post("/tag-requests", authenticate, authorize(["staff", "admin", "accountant
         emi:      String(t.emi || "").trim(),
         // Feature TEXT only — Tag Studio picks the icons. featureIds lets the studio
         // match a known feature exactly instead of guessing from the label.
-        featureLabels: (Array.isArray(t.featureLabels) ? t.featureLabels : [])
-          .map(f => String(f || "").trim()).filter(Boolean).slice(0, 4),
-        featureIds: (Array.isArray(t.featureIds) ? t.featureIds : [])
-          .map(f => String(f || "").trim()).filter(Boolean).slice(0, 4)
+        featureLabels: featPairs.map(p => p.label),
+        featureIds:    featPairs.map(p => p.id)
       });
     }
 
@@ -9668,7 +10252,13 @@ app.post("/tag-requests", authenticate, authorize(["staff", "admin", "accountant
       tags:            clean
     });
 
-    res.json({ success: true, id: docRef.id, count: clean.length });
+    // Remember any custom feature text for future requests. Best-effort: a
+    // failure here must never lose the request that was just created.
+    let savedFeatures = 0;
+    try { savedFeatures = await persistCustomFeatures(store, clean); }
+    catch (e) { console.warn("[tag-requests] custom feature save:", e.message); }
+
+    res.json({ success: true, id: docRef.id, count: clean.length, savedFeatures });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

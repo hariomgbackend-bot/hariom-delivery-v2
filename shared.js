@@ -228,6 +228,81 @@ function compressImage(file) {
   });
 }
 
+/* ════════════════════════════════════════════════
+   PUBLIC ENQUIRY FORM — default catalogue
+
+   The live form reads settings/enquiry_form (editable in admin.html).
+   Until an admin saves a config, enquiry.html uses this catalogue, and
+   admin.html uses it as the "Reset to defaults" baseline.
+════════════════════════════════════════════════ */
+const ENQUIRY_DEFAULT_CONFIG = {
+  version: 2,
+  exchange: { enabled: true, max_photos: 3, photo_required: false },
+  categories: [
+    {
+      key: "LED", label_en: "TV / LED", label_mr: "टीव्ही / एलईडी", icon: "tv", enabled: true,
+      brands: ["SAMSUNG","LG","SONY","HAIER","TCL","PANASONIC","LLOYD","VIDEOCON","ONIDA"],
+      variants: [
+        { value: "24",     label_en: '24"',                label_mr: '२४"' },
+        { value: "32",     label_en: '32"',                label_mr: '३२"' },
+        { value: "40",     label_en: '40"',                label_mr: '४०"' },
+        { value: "43",     label_en: '43"',                label_mr: '४३"' },
+        { value: "50",     label_en: '50"',                label_mr: '५०"' },
+        { value: "55",     label_en: '55"',                label_mr: '५५"' },
+        { value: "65",     label_en: '65"',                label_mr: '६५"' },
+        { value: "65plus", label_en: '65" or bigger',      label_mr: '६५" किंवा मोठा' }
+      ]
+    },
+    {
+      key: "WM", label_en: "Washing Machine", label_mr: "वॉशिंग मशीन", icon: "local_laundry_service", enabled: true,
+      brands: ["SAMSUNG","LG","WHIRLPOOL","HAIER","IFB","BOSCH","GODREJ","VOLTAS"],
+      variants: [
+        { value: "TL", label_en: "Top Load (TL)",      label_mr: "टॉप लोड (TL)" },
+        { value: "FL", label_en: "Front Load (FL)",    label_mr: "फ्रंट लोड (FL)" },
+        { value: "SA", label_en: "Semi-Automatic (SA)", label_mr: "सेमी ऑटोमॅटिक (SA)" }
+      ]
+    },
+    {
+      key: "REF", label_en: "Refrigerator", label_mr: "रेफ्रिजरेटर", icon: "kitchen", enabled: true,
+      brands: ["SAMSUNG","LG","WHIRLPOOL","HAIER","GODREJ","HISENSE","PANASONIC"],
+      variants: [
+        { value: "DC",  label_en: "Direct Cool (DC)",  label_mr: "डायरेक्ट कूल (DC)" },
+        { value: "FF",  label_en: "Frost Free (FF)",   label_mr: "फ्रॉस्ट फ्री (FF)" },
+        { value: "SBS", label_en: "Side-by-Side",      label_mr: "साइड-बाय-साइड" }
+      ]
+    },
+    {
+      key: "AC", label_en: "Air Conditioner", label_mr: "एअर कंडिशनर", icon: "ac_unit", enabled: true,
+      brands: ["SAMSUNG","LG","VOLTAS","DAIKIN","BLUE STAR","HITACHI","LLOYD","PANASONIC","CROMPTON"],
+      variants: [
+        { value: "1.0T", label_en: "1.0 Ton", label_mr: "१ टन" },
+        { value: "1.5T", label_en: "1.5 Ton", label_mr: "१.५ टन" },
+        { value: "2.0T", label_en: "2.0 Ton", label_mr: "२ टन" },
+        { value: "3.0T", label_en: "3.0 Ton", label_mr: "३ टन" },
+        { value: "INV",  label_en: "Inverter", label_mr: "इनव्हर्टर" }
+      ]
+    },
+    { key: "COOLER", label_en: "Air Cooler", label_mr: "एअर कूलर", icon: "air", enabled: true,
+      brands: [], variants: [] },
+    { key: "FAN", label_en: "Fan", label_mr: "फॅन", icon: "mode_fan", enabled: true,
+      brands: [], variants: [] },
+    { key: "MIXER", label_en: "Mixer / Grinder", label_mr: "मिक्सर / ग्राइंडर", icon: "blender", enabled: true,
+      brands: [], variants: [] },
+    { key: "COOKTOP", label_en: "Cooktop", label_mr: "कुकटॉप", icon: "local_fire_department", enabled: true,
+      brands: [], variants: [] },
+    { key: "E-GEYSER", label_en: "Geyser", label_mr: "गिझर", icon: "water_heater", enabled: true,
+      brands: [], variants: [] },
+    { key: "CHIMNEY", label_en: "Chimney", label_mr: "चिमणी", icon: "air_purifier", enabled: true,
+      brands: [], variants: [] },
+    { key: "LAPTOP", label_en: "Laptop", label_mr: "लॅपटॉप", icon: "laptop_mac", enabled: true,
+      brands: [], variants: [] }
+  ]
+};
+
+function enquiryDefaultConfig() {
+  return JSON.parse(JSON.stringify(ENQUIRY_DEFAULT_CONFIG));
+}
+
 /* ── Unified auth fetch ── */
 async function authFetch(url, options = {}) {
   const token = typeof window.authGetToken === "function" ? window.authGetToken() : null;
