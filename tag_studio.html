@@ -85,14 +85,20 @@
       height: var(--tag-h);
       position: relative;
       overflow: hidden;
+      /* Centre the card with flex, not absolute+translate. Chrome's print
+         paginator mis-paints absolutely-positioned rotated cards on sheets
+         after the first, spilling their content below the page; flex centring
+         keeps every card clipped to its own slot on every page. */
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .tag-slot > .shelf-tag {
-      position: absolute;
-      top: 50%;
-      left: 50%;
+      position: static;
+      flex: 0 0 auto;
     }
-    .tag-slot.slot-std  > .shelf-tag { transform: translate(-50%, -50%); }
-    .tag-slot.slot-tall > .shelf-tag { transform: translate(-50%, -50%) rotate(90deg); }
+    .tag-slot.slot-std  > .shelf-tag { transform: none; }
+    .tag-slot.slot-tall > .shelf-tag { transform: rotate(90deg); }
 
     /* CARD STRUCTURE (4" WIDE x 2.5" TALL) */
     .shelf-tag {
