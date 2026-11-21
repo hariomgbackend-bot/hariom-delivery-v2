@@ -6624,11 +6624,13 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
 
     trackReads("service-tickets", snap.docs.length);
 
-    // Group: new (active) first, then logged (completed) — newest first within each group.
-    const ticketStatusOrder = { new: 0, logged: 1 };
+    // Group: active (new/open) first, then logged/resolved — newest first
+    // within each group. Tickets are created with status "open"; "new" may
+    // appear on older/imported rows, so treat anything not closed as active.
+    const isDoneStatus = s => s === "logged" || s === "resolved" || s === "closed";
     tickets.sort((a, b) => {
-      const sa = ticketStatusOrder[a.status] ?? 99;
-      const sb = ticketStatusOrder[b.status] ?? 99;
+      const sa = isDoneStatus(a.status) ? 1 : 0;
+      const sb = isDoneStatus(b.status) ? 1 : 0;
       if (sa !== sb) return sa - sb;
       const ta = a.created_at?.seconds ?? (a.created_at?._seconds ?? 0);
       const tb = b.created_at?.seconds ?? (b.created_at?._seconds ?? 0);
