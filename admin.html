@@ -4363,7 +4363,33 @@ function updateSummaryCards(data, serverCounts = null) {
 function viewDetails(d) {
   currentDeliveryObj = d;
 
-  const ts  = (t) => t ? new Date(t.seconds * 1000).toLocaleString("en-IN", {day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}) : "—";
+  // Timestamps arrive either as Firestore Timestamps (toMillis), JSON-serialised
+  // {seconds} / {_seconds}, or ISO strings — handle all of them.
+  const tsMs = (t) => {
+    if (!t) return 0;
+    if (typeof t.toMillis === "function") return t.toMillis();
+    if (t.seconds != null) return t.seconds * 1000;
+    if (t._seconds != null) return t._seconds * 1000;
+    if (typeof t === "number") return t;
+    const n = Date.parse(t);
+    return isNaN(n) ? 0 : n;
+  };
+  const ts = (t) => {
+    const ms = tsMs(t);
+    return ms ? new Date(ms).toLocaleString("en-IN", {day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}) : "—";
+  };
+  const ago = (t) => {
+    const ms = tsMs(t);
+    if (!ms) return "";
+    const diff = Date.now() - ms;
+    if (diff < 0) return "";
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + "h ago";
+    return Math.floor(hrs / 24) + "d ago";
+  };
 
   const freightDisplay = (() => {
     if (!d.freight_charged) return "No";
@@ -4387,8 +4413,9 @@ function viewDetails(d) {
     <div class="detail-row"><b>Invoice No.</b><span>${escHtml(d.invoice_number || "—")}</span></div>
     <div class="detail-row"><b>Status</b><span><span class="badge badge-${escHtml(d.status)}">${escHtml(d.status)}</span></span></div>
     <div class="detail-row"><b>Priority</b><span><span class="badge badge-${escHtml(d.priority || "normal")}">${escHtml(d.priority || "normal")}</span></span></div>
+    <div class="detail-row"><b>Created</b><span>${ts(d.created_timestamp)}${d.created_timestamp ? ` <span style="color:var(--muted);font-size:12px;">(${ago(d.created_timestamp)})</span>` : ""}</span></div>
     <div class="detail-row"><b>ETA</b><span>${d.estimated_delivery_time ? new Date(d.estimated_delivery_time).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}) : "—"}</span></div>
-    <div class="detail-row"><b>Delivery Rating</b><span>${(() => { if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—"; const diff = (new Date(d.delivered_timestamp.seconds*1000) - new Date(d.estimated_delivery_time))/60000; if (diff<=-10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">\u26a1 Early (' + Math.abs(Math.round(diff)) + 'm early)</span>'; if (diff<=10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">\u2705 On Time</span>'; if (diff<=30) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">\ud83d\udd50 Late (' + Math.round(diff) + 'm)</span>'; return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">\ud83d\udd34 Very Late (' + Math.round(diff) + 'm)</span>'; })()}</span></div>
+    <div class="detail-row"><b>Delivery Rating</b><span>${(() => { if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—"; const diff = (tsMs(d.delivered_timestamp) - new Date(d.estimated_delivery_time).getTime())/60000; if (diff<=-10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#065f46;">\u26a1 Early (' + Math.abs(Math.round(diff)) + 'm early)</span>'; if (diff<=10) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#dbeafe;color:#1e40af;">\u2705 On Time</span>'; if (diff<=30) return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;">\ud83d\udd50 Late (' + Math.round(diff) + 'm)</span>'; return '<span style="padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b;">\ud83d\udd34 Very Late (' + Math.round(diff) + 'm)</span>'; })()}</span></div>
     <div class="detail-row"><b>Driver</b><span>${d.delivery_mode === "porter" ? "📦 Porter App" : escHtml(d.assigned_driver_name || "—")}</span></div>
     ${d.delivery_mode === "porter" ? `
     <div class="detail-row"><b>Porter Invoice/Order No</b><span>${escHtml(d.porter_invoice_number) || "—"}</span></div>
@@ -4401,7 +4428,6 @@ function viewDetails(d) {
     <div class="detail-row"><b>Pickup From</b><span>${escHtml(d.pickup_from) || "—"}</span></div>
     <div class="detail-row"><b>Freight</b><span>${freightDisplay}</span></div>
     <div class="detail-row"><b>Distance Covered</b><span>${d.distance_km != null ? "<strong style=\"color:#16a34a;\">" + d.distance_km + " km</strong>" : "—"}</span></div>
-    <div class="detail-row"><b>Created At</b><span>${ts(d.created_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded At</b><span>${ts(d.loaded_timestamp)}</span></div>
     <div class="detail-row"><b>Delivered At</b><span>${ts(d.delivered_timestamp)}</span></div>
     <div class="detail-row"><b>Loaded Location</b><span>${d.loaded_location ? '<a href="https://www.google.com/maps?q=' + escHtml(d.loaded_location.lat) + ',' + escHtml(d.loaded_location.lng) + '" target="_blank" style="color:var(--accent)">\ud83d\udccd View Map</a>' : "—"}</span></div>
