@@ -2338,6 +2338,16 @@
   </div>
 </div>
 
+<!-- ══ BRAND TICKET DETAIL POPUP ══ -->
+<div class="popup" id="brandTicketPopup">
+  <div class="popup-box">
+    <div id="brandTicketPopupContent"></div>
+    <div class="popup-actions" id="brandTicketPopupActions">
+      <button class="popup-close-btn" onclick="closeBrandTicketPopup()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ CALENDAR ADD LEAVE POPUP ══ -->
 <div class="popup" id="calLeavePopup">
   <div class="popup-box" style="max-width:380px;">
@@ -3750,6 +3760,8 @@ function renderRecentTickets(arr) {
   document.getElementById("ptRecent").style.display = "";
 }
 
+let _brandTickets = [];
+
 /* ── My brand tickets — server scopes /service/tickets to this staff's
       brand + store and to the last 15 days. New (unlogged) tickets sort on
       top. Promoters can type the brand's ticket no. to log it, which updates
@@ -3774,6 +3786,7 @@ async function loadBrandTickets() {
     const payload = await res.json();
     const tickets = (Array.isArray(payload) ? payload : (payload.data || []))
       .filter(t => t.status !== "closed");
+    _brandTickets = tickets;
 
     const storeName = storeDisplayName(staffStoreId) || "";
     if (titleEl) {
@@ -3793,11 +3806,11 @@ async function loadBrandTickets() {
           : `<span class="rt-badge rt-badge-new">New</span>`;
         const action = logged
           ? `<div class="bt-track">Ticket #: <b>${esc(t.brand_tracking_number || "—")}</b></div>`
-          : `<div class="bt-log-row">
+          : `<div class="bt-log-row" onclick="event.stopPropagation()">
                <input id="btInput_${esc(t.id)}" placeholder="Brand ticket no." inputmode="text">
                <button class="bt-log-btn" onclick="logBrandTicket('${esc(t.id)}', this)">Log</button>
              </div>`;
-        return `<div class="rt-card bt-card">
+        return `<div class="rt-card bt-card" style="cursor:pointer;" onclick="openBrandTicket('${esc(t.id)}')">
           <div class="rt-card-icon">${icon}</div>
           <div class="rt-card-body">
             <div class="rt-card-name">${esc(t.customer_name || "—")}</div>
@@ -3836,6 +3849,135 @@ async function logBrandTicket(id, btn) {
       if (btn) { btn.disabled = false; btn.textContent = "Log"; }
       return;
     }
+    const t = _brandTickets.find(x => x.id === id);
+    if (t) { t.status = "logged"; t.brand_tracking_number = val; }
+    showToast("✅ Ticket logged: " + val);
+    if (t && document.getElementById("brandTicketPopup").classList.contains("open")) {
+      renderBrandTicketPopup(t);
+    }
+    loadBrandTickets();
+  } catch (e) {
+    showToast("❌ Network error");
+    if (btn) { btn.disabled = false; btn.textContent = "Log"; }
+  }
+}
+
+/* ── Brand ticket detail popup ── */
+function openBrandTicket(id) {
+  const t = _brandTickets.find(x => x.id === id);
+  if (!t) return;
+  renderBrandTicketPopup(t);
+  document.getElementById("brandTicketPopup").classList.add("open");
+}
+
+function closeBrandTicketPopup() {
+  document.getElementById("brandTicketPopup").classList.remove("open");
+}
+
+function renderBrandTicketPopup(t) {
+  const logged    = t.status === "logged" || t.status === "resolved";
+  const typeLabel = t.type === "installation" ? "Demo-Installation" : "Complaint";
+  const created   = t.created_at?.seconds
+    ? new Date(t.created_at.seconds * 1000).toLocaleString("en-IN")
+    : "—";
+  const storeName = storeDisplayName(t.storeId) || "—";
+
+  document.getElementById("brandTicketPopupContent").innerHTML = `
+    <div class="popup-band popup-band-${logged ? "loaded" : "pending"}">
+      <div class="popup-status-row">
+        <span class="badge badge-${logged ? "loaded" : "pending"}">${logged ? "Logged" : "New"}</span>
+        <span class="badge" style="background:rgba(173,198,255,0.12);color:var(--primary);">${esc(typeLabel)}</span>
+        ${t.brand ? `<span class="badge" style="background:rgba(22,163,74,0.12);color:#16a34a;">${esc(t.brand)}</span>` : ""}
+      </div>
+      <div class="popup-name">${esc(t.customer_name || "—")}</div>
+    </div>
+    <div class="popup-body">
+      ${t.phone ? `<div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value"><a class="phone-link" href="tel:${esc(t.phone)}">${esc(t.phone)}</a></span></div>` : ""}
+      ${t.alternate_phone ? `<div class="detail-row"><span class="detail-label">Alt Phone</span><span class="detail-value"><a class="phone-link" href="tel:${esc(t.alternate_phone)}">${esc(t.alternate_phone)}</a></span></div>` : ""}
+      <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value">${esc(t.product_name || "—")}</span></div>
+      ${t.serial_number ? `<div class="detail-row"><span class="detail-label">Serial</span><span class="detail-value" style="font-family:'JetBrains Mono',monospace;font-size:13px;">${esc(t.serial_number)}</span></div>` : ""}
+      ${t.description ? `<div class="detail-row"><span class="detail-label">Issue</span><span class="detail-value">${esc(t.description)}</span></div>` : ""}
+      ${t.address ? `<div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${esc(t.address)}</span></div>` : ""}
+      <div class="detail-row"><span class="detail-label">Store</span><span class="detail-value">${esc(storeName)}</span></div>
+      ${t.created_by_name ? `<div class="detail-row"><span class="detail-label">Raised by</span><span class="detail-value">${esc(t.created_by_name)}</span></div>` : ""}
+      <div class="detail-row"><span class="detail-label">Raised on</span><span class="detail-value">${esc(created)}</span></div>
+      <div class="detail-row"><span class="detail-label">Ticket #</span><span class="detail-value" style="font-family:'JetBrains Mono',monospace;font-weight:700;">${esc(t.brand_tracking_number || (logged ? "—" : "Not logged yet"))}</span></div>
+    </div>`;
+
+  const actionsEl = document.getElementById("brandTicketPopupActions");
+  let actions = "";
+  if (!logged) {
+    actions += `<div class="bt-log-row" style="margin:0;">
+        <input id="btPopupInput" placeholder="Brand ticket no." inputmode="text">
+        <button class="bt-log-btn" onclick="logBrandTicketFromPopup('${esc(t.id)}', this)">Log</button>
+      </div>`;
+  }
+  actions += `<button class="btn btn-teal-sm" style="width:100%;" onclick="shareTicketOnWA('${esc(t.id)}')">
+      <span class="material-symbols-outlined" style="font-size:16px;">share</span> Share on WhatsApp
+    </button>`;
+  if (t.phone) {
+    actions += `<button class="btn btn-ghost" style="width:100%;" onclick="shareTicketToCustomer('${esc(t.id)}')">
+        <span class="material-symbols-outlined" style="font-size:16px;">send</span> Send to Customer
+      </button>`;
+  }
+  actionsEl.innerHTML = actions + `<button class="popup-close-btn" onclick="closeBrandTicketPopup()">Close</button>`;
+}
+
+function buildTicketWAMessage(t) {
+  const _d = s => (s || "—");
+  return `🏪 Hariom Electronics — Service Ticket
+━━━━━━━━━━━━━━
+🎫 Ticket: ${t.brand_tracking_number || "Not logged"}
+🛠 Type: ${t.type === "installation" ? "Demo-Installation" : "Complaint"}
+👤 Customer: ${_d(t.customer_name)}
+📞 Phone: ${_d(t.phone)}
+📍 Address: ${_d(t.address)}
+📦 Product: ${_d(t.product_name)}
+🔑 Serial: ${_d(t.serial_number)}
+📝 Issue: ${_d(t.description)}
+🏬 Store: ${storeDisplayName(t.storeId) || "—"}
+━━━━━━━━━━━━━━
+Hariom Electronics, Pune`;
+}
+
+function shareTicketOnWA(id) {
+  const t = _brandTickets.find(x => x.id === id);
+  if (!t) return;
+  shareOnWA(encodeURIComponent(buildTicketWAMessage(t)));
+}
+
+function shareTicketToCustomer(id) {
+  const t = _brandTickets.find(x => x.id === id);
+  if (!t || !t.phone) return;
+  const digits = String(t.phone).replace(/\D/g, "");
+  const num = digits.length === 10 ? "91" + digits : digits;
+  window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(buildTicketWAMessage(t)), "_blank");
+}
+
+async function logBrandTicketFromPopup(id, btn) {
+  const input = document.getElementById("btPopupInput");
+  const val   = (input?.value || "").trim();
+  if (!val) {
+    showToast("⚠ Enter the brand ticket number");
+    if (input) input.focus();
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = "…"; }
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "logged", brand_tracking_number: val, _append_tracking: true })
+    });
+    if (!res.ok) {
+      let err = "Failed to log ticket";
+      try { const d = await res.json(); if (d && d.error) err = d.error; } catch (_) {}
+      showToast("❌ " + err);
+      if (btn) { btn.disabled = false; btn.textContent = "Log"; }
+      return;
+    }
+    const t = _brandTickets.find(x => x.id === id);
+    if (t) { t.status = "logged"; t.brand_tracking_number = val; renderBrandTicketPopup(t); }
     showToast("✅ Ticket logged: " + val);
     loadBrandTickets();
   } catch (e) {
