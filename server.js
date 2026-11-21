@@ -1045,20 +1045,30 @@ app.post(
         .concat(tagAll("HARIOMIFSERIALNO"));
       const lines = itemNames.length ? itemNames : [""];
 
-      // Atomic dedup: one ticket per voucher+type+item(s) within 30 minutes.
-      // Including the item/serial lets the same invoice raise separate tickets
-      // for different products, while a retry of the identical push is blocked.
-      const dedupKey = `tally:${voucher_number}:${type}:${lines.join("|")}:${serials.join("|")}`;
-      const claim = await claimTicketSlot(dedupKey, 30 * 60 * 1000);
-      if (claim.duplicate) {
-        console.log("[tally/ticket] recent duplicate push ignored:", voucher_number);
-        res.set("Content-Type", "text/xml");
-        return res.send(`
+      // Complaints are allowed to repeat — only demo-installations are deduped.
+      // For an installation duplicate we don't hard-block: the copy is created
+      // flagged as a possible duplicate and the service panel decides keep/discard.
+      let claim = null;
+      let duplicateOf = null;
+      if (type === "installation") {
+        const dedupKey = `tally:${voucher_number}:${type}:${lines.join("|")}:${serials.join("|")}`;
+        claim = await claimTicketSlot(dedupKey, 30 * 60 * 1000);
+        if (claim.duplicate) {
+          const claimSnap = await getDoc(doc(db, "ticket_dedup", claim.id));
+          const prev = claimSnap.exists() ? claimSnap.data() : {};
+          if (prev.flag_ticket_id) {
+            // One flagged copy per window is enough — later retries stay ignored.
+            console.log("[tally/ticket] duplicate already flagged, ignoring retry:", voucher_number);
+            res.set("Content-Type", "text/xml");
+            return res.send(`
   <RESPONSE>
   <STATUS>1</STATUS>
-  <MESSAGE>Recent Duplicate Ticket</MESSAGE>
+  <MESSAGE>Duplicate Ticket Already Flagged</MESSAGE>
   </RESPONSE>
   `);
+          }
+          duplicateOf = claim.ticket_id || prev.ticket_id || null;
+        }
       }
 
       const storeId = store_branch ? await resolveStoreIdCached(store_branch) : "";
@@ -1115,6 +1125,12 @@ app.post(
           tally_voucher_number:  voucher_number,
           brand_tracking_number: null,
           brand_request_status:  null,
+          ...(duplicateOf && {
+            possible_duplicate:    true,
+            duplicate_of:          duplicateOf,
+            duplicate_reviewed:    false,
+            duplicate_detected_at: Timestamp.now(),
+          }),
         };
         newTicket._search = computeSearchField(newTicket);
         newTicket._search_tokens = computeSearchTokens(newTicket);
@@ -1126,7 +1142,23 @@ app.post(
           i + 1, "/", lines.length, "|", lineProduct, "|", type, "| id:", docRef.id
         );
       }
-      linkTicketToClaim(claim, createdIds[0]);
+      if (claim && claim.duplicate) {
+        // Mark this push as flagged so retries don't create more copies, and
+        // ask the service panel to keep or discard the duplicate.
+        if (createdIds[0]) {
+          setDoc(doc(db, "ticket_dedup", claim.id), { flag_ticket_id: createdIds[0] }, { merge: true }).catch(() => {});
+        }
+        (async () => {
+          try {
+            await sendServicePush(
+              "⚠ Duplicate demo-installation detected",
+              `${customer_name || phone} — ${lines.filter(Boolean).slice(0, 3).join(", ") || "Product"} — keep or discard in Tickets`
+            );
+          } catch (e) { console.warn("[tally/ticket dup push]", e.message); }
+        })();
+      } else {
+        linkTicketToClaim(claim, createdIds[0]);
+      }
 
       (async () => {
         try {
@@ -6819,22 +6851,25 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       }
     }
 
-    // Atomic duplicate guard — double taps / retried submits within 10 min
-    // for the same type + phone + customer + product + store are rejected.
-    const dedupKey = [
-      "manual", type,
-      String(phone || "").replace(/\D/g, ""),
-      String(customer_name || "").toLowerCase().replace(/\s+/g, " ").trim(),
-      String(product_name || "").toUpperCase().replace(/\s+/g, " ").trim(),
-      String(serial_number || "").toUpperCase().trim(),
-      req.body.storeId || req.user.storeId || "",
-    ].join(":");
-    const claim = await claimTicketSlot(dedupKey, 10 * 60 * 1000);
-    if (claim.duplicate) {
-      return res.status(409).json({
-        error: "Duplicate ticket — an identical ticket was created moments ago",
-        ticket_id: claim.ticket_id
-      });
+    // Duplicate guard applies to demo-installations only; complaints are
+    // allowed to repeat (a customer can raise several in a week).
+    let claim = null;
+    if (type === "installation") {
+      const dedupKey = [
+        "manual", type,
+        String(phone || "").replace(/\D/g, ""),
+        String(customer_name || "").toLowerCase().replace(/\s+/g, " ").trim(),
+        String(product_name || "").toUpperCase().replace(/\s+/g, " ").trim(),
+        String(serial_number || "").toUpperCase().trim(),
+        req.body.storeId || req.user.storeId || "",
+      ].join(":");
+      claim = await claimTicketSlot(dedupKey, 10 * 60 * 1000);
+      if (claim.duplicate) {
+        return res.status(409).json({
+          error: "Duplicate ticket — an identical installation ticket was created moments ago",
+          ticket_id: claim.ticket_id
+        });
+      }
     }
 
     // Auto-flag stock complaints (customer name = a Hariom store).
@@ -7025,6 +7060,39 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
     })();
   } catch (err) {
     console.error("/service/ticket/:id PUT error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ════════════════════════════════════════════════
+   DUPLICATE REVIEW — keep or discard a flagged copy
+   (created when Tally pushes a repeated demo-installation)
+   ════════════════════════════════════════════════ */
+app.post("/service/ticket/:id/keep-duplicate", authenticate, authorize(["admin", "service", "accountant"]), async (req, res) => {
+  try {
+    await updateDoc(doc(db, "service_tickets", req.params.id), {
+      possible_duplicate:    false,
+      duplicate_reviewed:    true,
+      duplicate_reviewed_at: Timestamp.now(),
+      duplicate_reviewed_by: req.user.name || req.user.role,
+    });
+    invalidateServiceTicketsCache();
+    broadcastRefresh({ type: "ticket" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/service/ticket/:id/keep-duplicate error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/service/ticket/:id/discard-duplicate", authenticate, authorize(["admin", "service", "accountant"]), async (req, res) => {
+  try {
+    await deleteDoc(doc(db, "service_tickets", req.params.id));
+    invalidateServiceTicketsCache();
+    broadcastRefresh({ type: "ticket" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/service/ticket/:id/discard-duplicate error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
