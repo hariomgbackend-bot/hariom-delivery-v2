@@ -1041,14 +1041,11 @@ app.post(
   `);
       }
 
-      const dupeSnap = await getDocs(query(
-        collection(db, "service_tickets"),
-        where("tally_voucher_number", "==", voucher_number),
-        where("type", "==", type),
-        where("created_at", ">=", Timestamp.fromMillis(Date.now() - (5 * 60 * 1000))),
-        limit(1)
-      ));
-      if (dupeSnap.size > 0) {
+      // Atomic dedup: Tally can retry a push (flaky LAN). One ticket per
+      // voucher+type within 30 minutes; the claim also closes the race
+      // between two simultaneous pushes.
+      const claim = await claimTicketSlot(`tally:${voucher_number}:${type}`, 30 * 60 * 1000);
+      if (claim.duplicate) {
         console.log("[tally/ticket] recent duplicate push ignored:", voucher_number);
         res.set("Content-Type", "text/xml");
         return res.send(`
@@ -1110,6 +1107,7 @@ app.post(
       newTicket._search = computeSearchField(newTicket);
       newTicket._search_tokens = computeSearchTokens(newTicket);
       const docRef = await addDoc(collection(db, "service_tickets"), newTicket);
+      linkTicketToClaim(claim, docRef.id);
 
       console.log(
         "[tally/ticket] Ticket auto-created:", voucher_number, "|",
@@ -2829,6 +2827,32 @@ function invalidateDeliveriesCache() {
 
 function invalidateServiceTicketsCache() {
   Object.keys(serviceTicketsCaches).forEach(k => delete serviceTicketsCaches[k]);
+}
+
+/* ── Ticket dedup ──
+   Firestore has no unique constraints, and the create paths can race (Tally
+   retries, double taps, offline sync). claimTicketSlot atomically reserves a
+   key in ticket_dedup for `windowMs`; a second create inside the window is
+   rejected and gets the original ticket id back. */
+async function claimTicketSlot(key, windowMs) {
+  const id = createHash("sha1").update(String(key)).digest("hex");
+  const refDoc = doc(db, "ticket_dedup", id);
+  const now = Date.now();
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(refDoc);
+    if (snap.exists()) {
+      const prev = snap.data() || {};
+      if (now - (prev.last_at || 0) < windowMs) {
+        return { duplicate: true, ticket_id: prev.ticket_id || null, id };
+      }
+    }
+    tx.set(refDoc, { key: String(key), last_at: now, ticket_id: null }, { merge: true });
+    return { duplicate: false, ticket_id: null, id };
+  });
+}
+function linkTicketToClaim(claim, ticketId) {
+  if (!claim || claim.duplicate || !claim.id) return;
+  setDoc(doc(db, "ticket_dedup", claim.id), { ticket_id: ticketId }, { merge: true }).catch(() => {});
 }
 
 // ── Read stats tracker — counts docs read per endpoint ──
@@ -5776,6 +5800,9 @@ function needsAutoInstallation(productName) {
 
 async function autoCreateServiceTicket(deliveryData, deliveryId) {
   if (!needsAutoInstallation(deliveryData.product_name)) return;
+  // One auto-installation ticket per delivery, ever — atomic claim.
+  const claim = await claimTicketSlot(`auto-install:${deliveryId}`, 3650 * 86400000);
+  if (claim.duplicate) return;
   // Don't double-create if one already exists for this delivery
   const existing = await getDocs(query(
     collection(db, "service_tickets"),
@@ -5789,7 +5816,7 @@ async function autoCreateServiceTicket(deliveryData, deliveryId) {
     deliveryData.delivered_timestamp
   );
 
-  await addDoc(collection(db, "service_tickets"), {
+  const docRef = await addDoc(collection(db, "service_tickets"), {
     type:               "installation",
     status:             "open",
     linked_delivery_id: deliveryId,
@@ -5814,6 +5841,7 @@ async function autoCreateServiceTicket(deliveryData, deliveryId) {
     storeId:            deliveryData.storeId || "",
     is_auto_created:    true
   });
+  linkTicketToClaim(claim, docRef.id);
   console.log(`[autoTicket] Created installation ticket for delivery ${deliveryId}`);
 }
 
@@ -6775,6 +6803,23 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       }
     }
 
+    // Atomic duplicate guard — double taps / retried submits within 10 min
+    // for the same type + phone + customer + product + store are rejected.
+    const dedupKey = [
+      "manual", type,
+      String(phone || "").replace(/\D/g, ""),
+      String(customer_name || "").toLowerCase().replace(/\s+/g, " ").trim(),
+      String(product_name || "").toUpperCase().replace(/\s+/g, " ").trim(),
+      req.body.storeId || req.user.storeId || "",
+    ].join(":");
+    const claim = await claimTicketSlot(dedupKey, 10 * 60 * 1000);
+    if (claim.duplicate) {
+      return res.status(409).json({
+        error: "Duplicate ticket — an identical ticket was created moments ago",
+        ticket_id: claim.ticket_id
+      });
+    }
+
     // Auto-flag stock complaints (customer name = a Hariom store).
     // An explicitly checked "In Stock" box also stays true.
     const effectiveInStock = in_stock === true || isStockComplaint(type, customer_name);
@@ -6815,6 +6860,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
     newTicket._search = computeSearchField(newTicket);
     newTicket._search_tokens = computeSearchTokens(newTicket);
     const docRef = await addDoc(collection(db, "service_tickets"), newTicket);
+    linkTicketToClaim(claim, docRef.id);
 
     res.json({ success: true, id: docRef.id });
     broadcastRefresh({ type: "ticket" });
