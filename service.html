@@ -798,6 +798,12 @@
       <label>Serial Number</label>
       <input class="form-input" id="ctSerial" placeholder="Product serial">
     </div>
+    <!-- Loaded photo from the linked DO — read the serial from the label -->
+    <div class="form-field" id="ctPhotoWrap" style="display:none;">
+      <label>Loaded Photo <span style="font-weight:400;text-transform:none;letter-spacing:0;">— tap to read the serial from the label</span></label>
+      <img id="ctLoadedPhoto" alt="Loaded photo" onclick="window.open(this.src,'_blank')"
+        style="width:100%;max-height:240px;object-fit:contain;border-radius:10px;background:rgba(0,0,0,0.25);border:1px solid var(--outline-variant);cursor:zoom-in;">
+    </div>
     <div class="form-field" id="ctPurchaseDateField">
       <label>Date of Purchase</label>
       <input class="form-input" type="date" id="ctPurchaseDate">
@@ -891,6 +897,31 @@ document.addEventListener("keydown", e => {
     closeCreateTicketPopup();
   }
 });
+
+/* ── POPUP NAVIGATION GUARD ──
+   Some browsers/WebViews treat Backspace or the Back key as "navigate back",
+   which used to close the popup while editing. While a popup is open we keep
+   a history entry and swallow the pop, so the form can only be closed with
+   its own buttons. */
+function anyPopupOpen() {
+  return !!document.querySelector(".popup-overlay.is-open");
+}
+let _popupGuardArmed = false;
+function guardPopupHistory() {
+  if (_popupGuardArmed) return;
+  _popupGuardArmed = true;
+  history.pushState({ hariomPopupGuard: true }, "");
+}
+window.addEventListener("popstate", () => {
+  if (anyPopupOpen()) history.pushState({ hariomPopupGuard: true }, "");
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Backspace" || !anyPopupOpen()) return;
+  const el = e.target;
+  const editing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" ||
+                         el.tagName === "SELECT" || el.isContentEditable);
+  if (!editing) { e.preventDefault(); e.stopPropagation(); }
+}, true);
 
 /* ── AUTH ── */
 let serviceToken = null;
@@ -1415,6 +1446,7 @@ Hariom Electronics, Pune`
 function openTicketDetail(id) {
   const t = allTickets.find(x => x.id === id);
   if (!t) return;
+  guardPopupHistory();
 
   const warranty     = warrantyStr(t);
   const createdDate  = fmtDateTime(t.created_at);
@@ -1591,6 +1623,9 @@ async function loadBrandActions(ticket) {
     const productUpper = (ticket.product_name || "").toUpperCase();
     const matched = brands.find(b => productUpper.includes(b.name.toUpperCase()));
     if (!matched) return;
+    // Haier/Bajaj already get a built-in autofill button above — don't add a
+    // second, brand-configured form button for the same ticket.
+    if (matched.installation_method === "form" && detectVendor(ticket)) return;
 
     const container = document.getElementById("brandActionContainer");
     if (!container) return;
@@ -1884,7 +1919,26 @@ function onCtPinInput(val) {
   }, 300);
 }
 
+async function loadCtPhoto(deliveryId) {
+  const wrap = document.getElementById("ctPhotoWrap");
+  const img  = document.getElementById("ctLoadedPhoto");
+  if (!wrap || !img) return;
+  wrap.style.display = "none";
+  img.removeAttribute("src");
+  if (!deliveryId) return;
+  try {
+    const res = await authFetch(`${BASE_URL}/delivery/${deliveryId}`);
+    if (!res.ok) return;
+    const d = await res.json();
+    const url = d.photo_loaded_url || d.photo_delivered_url;
+    if (!url) return;
+    img.src = url;
+    wrap.style.display = "";
+  } catch (_) { /* photo is optional */ }
+}
+
 function openCreateTicketPopup(prefill = {}) {
+  guardPopupHistory();
   // Reset all fields
   document.getElementById("ctTallySearch").checked = false;
   document.getElementById("ctManualFields").style.display = "";
@@ -1930,6 +1984,7 @@ function openCreateTicketPopup(prefill = {}) {
   }
 
   document.getElementById("createTicketPopup").classList.add("is-open");
+  loadCtPhoto(prefill.deliveryId || "");
   document.getElementById("ctFirstName").focus();
   loadIssueTypes();
   // Reset description fields
