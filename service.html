@@ -801,7 +801,7 @@
     <!-- Loaded photo from the linked DO — read the serial from the label -->
     <div class="form-field" id="ctPhotoWrap" style="display:none;">
       <label>Loaded Photo <span style="font-weight:400;text-transform:none;letter-spacing:0;">— tap to read the serial from the label</span></label>
-      <img id="ctLoadedPhoto" alt="Loaded photo" onclick="window.open(this.src,'_blank')"
+      <img id="ctPhotoLoaded" alt="Loaded photo" onclick="window.open(this.src,'_blank')"
         style="width:100%;max-height:240px;object-fit:contain;border-radius:10px;background:rgba(0,0,0,0.25);border:1px solid var(--outline-variant);cursor:zoom-in;">
     </div>
     <div class="form-field" id="ctPurchaseDateField">
@@ -922,6 +922,18 @@ document.addEventListener("keydown", e => {
                          el.tagName === "SELECT" || el.isContentEditable);
   if (!editing) { e.preventDefault(); e.stopPropagation(); }
 }, true);
+
+/* ── Load the hand-over photo as soon as a 10-digit phone is typed ── */
+document.addEventListener("input", e => {
+  if (!e.target || e.target.id !== "ctPhone") return;
+  const phone = e.target.value.replace(/\D/g, "");
+  if (phone.length === 10) {
+    loadCtPhoto(document.getElementById("ctLinkedDeliveryId").value || "", phone);
+  } else {
+    const wrap = document.getElementById("ctPhotoWrap");
+    if (wrap) wrap.style.display = "none";
+  }
+});
 
 /* ── AUTH ── */
 let serviceToken = null;
@@ -1919,22 +1931,47 @@ function onCtPinInput(val) {
   }, 300);
 }
 
-async function loadCtPhoto(deliveryId) {
+async function loadCtPhoto(deliveryId, phone) {
   const wrap = document.getElementById("ctPhotoWrap");
-  const img  = document.getElementById("ctLoadedPhoto");
+  const img  = document.getElementById("ctPhotoLoaded");
   if (!wrap || !img) return;
   wrap.style.display = "none";
   img.removeAttribute("src");
-  if (!deliveryId) return;
-  try {
-    const res = await authFetch(`${BASE_URL}/delivery/${deliveryId}`);
-    if (!res.ok) return;
-    const d = await res.json();
-    const url = d.photo_loaded_url || d.photo_delivered_url;
-    if (!url) return;
-    img.src = url;
-    wrap.style.display = "";
-  } catch (_) { /* photo is optional */ }
+
+  let url = "";
+  if (deliveryId) {
+    try {
+      const res = await authFetch(`${BASE_URL}/delivery/${deliveryId}`);
+      if (res.ok) {
+        const d = await res.json();
+        url = d.photo_loaded_url || d.photo_delivered_url || "";
+      }
+    } catch (_) {}
+  }
+
+  // No linked DO? Look the customer up by phone so a walk-in ticket still
+  // shows the photo taken at hand-over.
+  if (!url && phone) {
+    const digits = String(phone).replace(/\D/g, "");
+    if (digits.length === 10) {
+      try {
+        const res = await authFetch(`${BASE_URL}/deliveries?search=${encodeURIComponent(digits)}&force=1`);
+        if (res.ok) {
+          const payload = await res.json();
+          const rows = Array.isArray(payload) ? payload : (payload.data || []);
+          const hit = rows.find(d => {
+            const p = String(d.phone || d.alternate_phone || "").replace(/\D/g, "");
+            return p.endsWith(digits) && (d.photo_loaded_url || d.photo_delivered_url);
+          });
+          if (hit) url = hit.photo_loaded_url || hit.photo_delivered_url || "";
+        }
+      } catch (_) {}
+    }
+  }
+
+  if (!url) return;
+  img.src = url;
+  wrap.style.display = "";
 }
 
 function openCreateTicketPopup(prefill = {}) {
@@ -1984,7 +2021,7 @@ function openCreateTicketPopup(prefill = {}) {
   }
 
   document.getElementById("createTicketPopup").classList.add("is-open");
-  loadCtPhoto(prefill.deliveryId || "");
+  loadCtPhoto(prefill.deliveryId || "", prefill.phone || "");
   document.getElementById("ctFirstName").focus();
   loadIssueTypes();
   // Reset description fields
