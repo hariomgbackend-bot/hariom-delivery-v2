@@ -1005,7 +1005,7 @@ app.post(
         tagAll("HARIOMTFITEM").concat(tagAll("HARIOMCFITEM")).concat(tagAll("HARIOMIFITEM"));
 
       const voucher_number = anyTag("HARIOMTFVOUCHERNO", "HARIOMCFVOUCHERNO", "HARIOMIFVOUCHERNO");
-      const customer_name  = anyTag("HARIOMTFPARTY", "HARIOMCFPARTY", "HARIOMIFPARTY");
+      let customer_name  = anyTag("HARIOMTFPARTY", "HARIOMCFPARTY", "HARIOMIFPARTY");
       const raw_address    = anyTag("HARIOMTFADDRESS", "HARIOMCFADDRESS", "HARIOMIFADDRESS");
       const mobile         = anyTag("HARIOMTFMOBILE", "HARIOMCFMOBILE", "HARIOMIFMOBILE");
       const store_branch   = anyTag("HARIOMTFSTOREBRANCH", "HARIOMCFSTOREBRANCH", "HARIOMIFSTOREBRANCH");
@@ -1016,8 +1016,6 @@ app.post(
 
       const phone     = mobile || anyTag("HARIOMTFPHONE", "HARIOMCFPHONE", "HARIOMIFPHONE") || addrPhone || "";
       const alt_phone = (addrPhone && addrPhone !== phone) ? addrPhone : (phonesInAddr[1] || "");
-
-      const product_name = (anyItem()[0] || "").toUpperCase();
 
       const serial_number = anyTag("HARIOMTFSERIALNO", "HARIOMCFSERIALNO", "HARIOMIFSERIALNO");
 
@@ -1075,50 +1073,67 @@ app.post(
         }
       }
 
-      const newTicket = {
-        type,
-        status:                "open",
-        linked_delivery_id:    null,
-        customer_name:         customer_name || "Unknown",
-        phone:                 phone || "",
-        alternate_phone:       alt_phone || "",
-        address:               clean_address || "",
-        product_name:          product_name || "",
-        serial_number:         serial_number || "",
-        description:           description,
-        priority,
-        brand:                 (await extractTicketBrand(product_name)) || null,
-        created_by:            "tally_tdl",
-        created_by_name:       "Auto Via Tally",
-        created_by_role:       "accountant",
-        raised_by_role:        "accountant",
-        assigned_to:           null,
-        created_at:            Timestamp.now(),
-        resolved_at:           null,
-        warranty_expiry:       null,
-        purchase_date:         null,
-        is_auto_created:       true,
-        source:                "tally_tdl",
-        storeId,
-        tally_voucher_number:  voucher_number,
-        brand_tracking_number: null,
-        brand_request_status:  null,
-      };
-      newTicket._search = computeSearchField(newTicket);
-      newTicket._search_tokens = computeSearchTokens(newTicket);
-      const docRef = await addDoc(collection(db, "service_tickets"), newTicket);
-      linkTicketToClaim(claim, docRef.id);
+      const itemNames = anyItem().map(s => String(s || "").toUpperCase().trim()).filter(Boolean);
+      const serials   = tagAll("HARIOMTFSERIALNO")
+        .concat(tagAll("HARIOMCFSERIALNO"))
+        .concat(tagAll("HARIOMIFSERIALNO"));
 
-      console.log(
-        "[tally/ticket] Ticket auto-created:", voucher_number, "|",
-        customer_name, "|", type, "|", priority, "| id:", docRef.id
-      );
+      // One ticket per product line — a multi-item invoice must raise a ticket
+      // for every item, not just the first.
+      const lines = itemNames.length ? itemNames : [""];
+      const createdIds = [];
+      for (let i = 0; i < lines.length; i++) {
+        const lineProduct = lines[i];
+        const lineSerial  = serials[i] || (lines.length === 1 ? serial_number : "") || "";
+
+        const newTicket = {
+          type,
+          status:                "open",
+          linked_delivery_id:    null,
+          customer_name:         customer_name || "Unknown",
+          phone:                 phone || "",
+          alternate_phone:       alt_phone || "",
+          address:               clean_address || "",
+          product_name:          lineProduct || "",
+          serial_number:         lineSerial,
+          description:           description,
+          priority,
+          brand:                 (await extractTicketBrand(lineProduct)) || null,
+          created_by:            "tally_tdl",
+          created_by_name:       "Auto Via Tally",
+          created_by_role:       "accountant",
+          raised_by_role:        "accountant",
+          assigned_to:           null,
+          created_at:            Timestamp.now(),
+          resolved_at:           null,
+          warranty_expiry:       null,
+          purchase_date:         null,
+          is_auto_created:       true,
+          source:                "tally_tdl",
+          storeId,
+          tally_voucher_number:  voucher_number,
+          brand_tracking_number: null,
+          brand_request_status:  null,
+        };
+        newTicket._search = computeSearchField(newTicket);
+        newTicket._search_tokens = computeSearchTokens(newTicket);
+        const docRef = await addDoc(collection(db, "service_tickets"), newTicket);
+        createdIds.push(docRef.id);
+
+        console.log(
+          "[tally/ticket] Ticket auto-created:", voucher_number, "| item",
+          i + 1, "/", lines.length, "|", lineProduct, "|", type, "| id:", docRef.id
+        );
+      }
+      linkTicketToClaim(claim, createdIds[0]);
 
       (async () => {
         try {
+          const label = lines.filter(Boolean).slice(0, 3).join(", ") || "Product";
           await sendServicePush(
-            `🔧 New ${type === "installation" ? "Demo-Installation" : "Complaint"} Ticket`,
-            `${customer_name || phone} — ${product_name || "Product"} — from Tally`
+            `🔧 New ${type === "installation" ? "Demo-Installation" : "Complaint"} Ticket` +
+              (lines.length > 1 ? ` (${lines.length} items)` : ""),
+            `${customer_name || phone} — ${label} — from Tally`
           );
         } catch (e) { console.warn("[tally/ticket push]", e.message); }
       })();
