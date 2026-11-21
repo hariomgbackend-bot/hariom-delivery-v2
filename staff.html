@@ -5772,6 +5772,7 @@ async function capSubmit() {
             porter_vehicle_number: porter.vehicle,
             porter_phone: porter.phone,
             delivery_mode: "porter",
+            product_serial_number: serial,
           }),
         });
         const pd = await put.json().catch(() => ({}));
@@ -5788,8 +5789,11 @@ async function capSubmit() {
       const ad = await assign.json().catch(() => ({}));
       if (!assign.ok) return fail("⚠ " + (ad.error || "Could not assign driver"));
 
-      // 3) Load with the photo + serial.
-      res  = await authFetch(`${BASE_URL}/markLoaded/${d.id}`, { method: "POST", body: formData });
+      // 3) Porter hand-over completes the DO immediately — Porter DOs have no
+      //    "loaded" stage. Normal DOs / unassigned are loaded, then delivered
+      //    later by the driver.
+      const endpoint = kind === "porter" ? "markDelivered" : "markLoaded";
+      res  = await authFetch(`${BASE_URL}/${endpoint}/${d.id}`, { method: "POST", body: formData });
     }
 
     data = await res.json().catch(() => ({}));

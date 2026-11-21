@@ -3988,6 +3988,10 @@ app.post("/markDelivered/:id", upload.fields([
     const deliveryData = snapBefore.data();
     const delivLat = req.body.lat;
     const delivLng = req.body.lng;
+    // Porter DOs have no "loaded" stage — the counter hand-over IS the delivery.
+    // Accept a serial in the request when the DO doesn't have one yet.
+    const isPorter  = deliveryData.delivery_mode === "porter";
+    const serialToUse = deliveryData.product_serial_number || String(req.body.serial || "").trim();
 
     // Determine which photo fields to require based on product type
     let indoorPhoto = req.files?.photo_indoor?.[0] || req.files?.photo?.[0]; // backward compat
@@ -4032,6 +4036,8 @@ app.post("/markDelivered/:id", upload.fields([
     // Determine freight fields to save
     // Freight is always set at delivery time — ₹0 is valid (driver pays nothing but still logged)
     const freightFields = (() => {
+      // Porter hand-over is not a driver delivery — driver freight doesn't apply.
+      if (isPorter) return {};
       // Accountant already set freight at creation — don't touch it
       if (deliveryData.freight_charged) return {};
       // Batch secondary — freight already entered on primary item
@@ -4057,14 +4063,17 @@ app.post("/markDelivered/:id", upload.fields([
     await updateDoc(refDoc, {
       status: "delivered",
       delivered_timestamp: req.offlineSync ? actionTimestamp(req.body) : Timestamp.now(),
+      ...(!deliveryData.product_serial_number && serialToUse && { product_serial_number: serialToUse }),
       ...(deliveredLocation && { delivered_location: deliveredLocation }),
+      delivered_by_id:   req.user?.staff_id || req.user?.id || req.user?.driver_id || null,
+      delivered_by_name: req.user?.name || req.user?.email || (req.user?.role === "driver" ? "Driver" : "Staff"),
       photo_delivered_url: photo_delivered_url,
       ...(photo_delivered_outdoor_url && { photo_delivered_outdoor_url }),
       ...freightFields
     });
 
     // Update inventory_serials: set status to sold, location to delivered, store customer
-    const serial = deliveryData.product_serial_number;
+    const serial = serialToUse;
     if (serial) {
       const serialSnap = await getDocs(query(
         collection(db, "inventory_serials"),
