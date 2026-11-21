@@ -1039,10 +1039,17 @@ app.post(
   `);
       }
 
-      // Atomic dedup: Tally can retry a push (flaky LAN). One ticket per
-      // voucher+type within 30 minutes; the claim also closes the race
-      // between two simultaneous pushes.
-      const claim = await claimTicketSlot(`tally:${voucher_number}:${type}`, 30 * 60 * 1000);
+      const itemNames = anyItem().map(s => String(s || "").toUpperCase().trim()).filter(Boolean);
+      const serials   = tagAll("HARIOMTFSERIALNO")
+        .concat(tagAll("HARIOMCFSERIALNO"))
+        .concat(tagAll("HARIOMIFSERIALNO"));
+      const lines = itemNames.length ? itemNames : [""];
+
+      // Atomic dedup: one ticket per voucher+type+item(s) within 30 minutes.
+      // Including the item/serial lets the same invoice raise separate tickets
+      // for different products, while a retry of the identical push is blocked.
+      const dedupKey = `tally:${voucher_number}:${type}:${lines.join("|")}:${serials.join("|")}`;
+      const claim = await claimTicketSlot(dedupKey, 30 * 60 * 1000);
       if (claim.duplicate) {
         console.log("[tally/ticket] recent duplicate push ignored:", voucher_number);
         res.set("Content-Type", "text/xml");
@@ -1073,14 +1080,8 @@ app.post(
         }
       }
 
-      const itemNames = anyItem().map(s => String(s || "").toUpperCase().trim()).filter(Boolean);
-      const serials   = tagAll("HARIOMTFSERIALNO")
-        .concat(tagAll("HARIOMCFSERIALNO"))
-        .concat(tagAll("HARIOMIFSERIALNO"));
-
       // One ticket per product line — a multi-item invoice must raise a ticket
       // for every item, not just the first.
-      const lines = itemNames.length ? itemNames : [""];
       const createdIds = [];
       for (let i = 0; i < lines.length; i++) {
         const lineProduct = lines[i];
