@@ -546,6 +546,21 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
+    /* Status initial badge — same badge colour, breathing, rating halo */
+    .badge-letter {
+      width: 22px; height: 22px; padding: 0;
+      justify-content: center; border-radius: 50%;
+      font-size: 11px; font-weight: 800; letter-spacing: 0;
+      animation: badgeBreath 1.8s ease-in-out infinite;
+    }
+    @keyframes badgeBreath {
+      0%, 100% { transform: scale(1);    filter: brightness(1); }
+      50%      { transform: scale(1.07); filter: brightness(1.18); }
+    }
+    .badge-halo-early    { box-shadow: 0 0 0 3px rgba(34,197,94,0.45);  }
+    .badge-halo-ontime   { box-shadow: 0 0 0 3px rgba(59,130,246,0.45); }
+    .badge-halo-late     { box-shadow: 0 0 0 3px rgba(245,158,11,0.5);  }
+    .badge-halo-verylate { box-shadow: 0 0 0 3px rgba(239,68,68,0.5);   }
     .btn-sm {
       padding: 4px 12px;
       background: linear-gradient(135deg, var(--primary-container), var(--primary));
@@ -1713,12 +1728,12 @@
           <thead>
             <tr>
               <th style="width:22px;"></th>
+              <th>Created</th>
               <th>Customer</th>
               <th style="width:38px;text-align:center;">St</th>
               <th>Driver</th>
               <th>Product</th>
               <th>Status</th>
-              <th>Created</th>
               <th>ETA</th>
               <th>Details</th>
             </tr>
@@ -4033,6 +4048,16 @@ async function loadAdmin() {
     const n = Date.parse(v);
     return isNaN(n) ? 0 : n;
   };
+  const ratingHalo = (d) => {
+    if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "";
+    const diff = (ms(d.delivered_timestamp) - new Date(d.estimated_delivery_time).getTime()) / 60000;
+    if (!isFinite(diff)) return "";
+    if (diff <= -10) return "badge-halo-early";
+    if (diff <= 10) return "badge-halo-ontime";
+    if (diff <= 30) return "badge-halo-late";
+    return "badge-halo-verylate";
+  };
+
   function formatETA(val) {
     if (!val) return "—";
     const dt = new Date(val);
@@ -4078,6 +4103,8 @@ async function loadAdmin() {
     const eta       = d.estimated_delivery_time ? new Date(d.estimated_delivery_time) : null;
     const createdMs = ms(d.created_timestamp);
     const createdDate = createdMs ? new Date(createdMs) : null;
+    const haloClass = ratingHalo(d);
+    const statusLetter = escHtml(String(d.status || "?").charAt(0).toUpperCase());
 
     let durationText = "";
     if (loaded && delivered) {
@@ -4110,6 +4137,11 @@ async function loadAdmin() {
 
     row.innerHTML = `
       <td><span class="row-chevron">▶</span></td>
+      <td style="white-space:nowrap;line-height:1.25;">
+        ${createdDate
+          ? `${createdDate.toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}<div style="font-size:11px;color:var(--muted);">${createdDate.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",hour12:true})}</div>`
+          : "—"}
+      </td>
       <td>
         <b>${escHtml(d.customer_name || "")}</b>${batchTag}
         ${d.phone ? `<div style="margin-top:2px;"><a href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">📞 ${escHtml(d.phone)}</a></div>` : ""}
@@ -4119,14 +4151,9 @@ async function loadAdmin() {
       <td style="color:var(--muted)">${d.delivery_mode === "porter" ? "📦 Porter" : escHtml(d.assigned_driver_name || "—")}</td>
       <td>${escHtml(d.product_name || "")}</td>
       <td>
-        <span class="badge badge-${escHtml(d.status)}">${escHtml(d.status)}</span>
+        <span class="badge badge-${escHtml(d.status)} badge-letter ${haloClass}" title="${escHtml(d.status)}">${statusLetter}</span>
         ${d.priority === "urgent" ? `<span class="badge badge-urgent" style="margin-left:4px;">🔥</span>` : ""}
         ${(d.status !== "delivered" && d.status !== "failed" && d.status !== "closed" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
-      </td>
-      <td style="white-space:nowrap;line-height:1.25;">
-        ${createdDate
-          ? `${createdDate.toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}<div style="font-size:11px;color:var(--muted);">${createdDate.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",hour12:true})}</div>`
-          : "—"}
       </td>
       <td style="white-space:nowrap">${formatETA(d.estimated_delivery_time)}</td>
       <td><button class="btn-sm" onclick='event.stopPropagation();viewDetails(window.__deliveryCache["${escHtml(d.id)}"])'>Full&nbsp;View</button></td>
