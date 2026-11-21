@@ -1304,6 +1304,12 @@
         </select>
       </div>
 
+      <!-- My brand tickets (server-scoped to this promoter's brand + store) -->
+      <div id="ptBrandTickets" style="display:none;">
+        <div id="ptBrandTicketsTitle" style="font-size:13px;font-weight:600;color:var(--on-surface-variant);margin:6px 0 8px;padding:0 2px;"></div>
+        <div id="ptBrandTicketsList"></div>
+      </div>
+
       <!-- Recently raised tickets (24h) -->
       <div id="ptRecent" style="display:none;">
         <div style="font-size:13px;font-weight:600;color:var(--on-surface-variant);margin:6px 0 8px;padding:0 2px;">📋 Recently raised</div>
@@ -2399,6 +2405,7 @@ let staffToken       = null;
 let staffId          = null;
 let staffName        = "";
 let staffStoreId     = "";
+let staffBrand       = "";
 let STAFF_STORES     = {};
 const STORE_DEFAULTS = {
   Alandi:  { address: "Alandi Devachi, Datta Mandir Road, Near Cosmos Bank, Tal Khed Dist Pune 412105",  phone: "8177896218", altPhone: "9822632095" },
@@ -2585,12 +2592,14 @@ async function doLogin() {
     staffId    = id;
     staffName  = data.name;
     staffStoreId = data.storeId || "";
+    staffBrand   = (data.brand || "").toUpperCase();
     staffWeeklyOff = data.weekly_off || "";
     staffColor = data.color || "";
     localStorage.setItem("staffToken", data.token);
     localStorage.setItem("staffId",    id);
     localStorage.setItem("staffName",  data.name);
     localStorage.setItem("staffStoreId", staffStoreId);
+    localStorage.setItem("staffBrand", staffBrand);
     localStorage.setItem("staffColor", staffColor);
 
     msg.style.color = "var(--tertiary)"; msg.textContent = "Welcome " + data.name + "!";
@@ -2627,6 +2636,7 @@ async function showStaffStoreBadge() {
   if (token && id && name && !isTokenExpired(token)) {
     staffToken = token; staffId = id; staffName = name;
     staffStoreId = localStorage.getItem("staffStoreId") || "";
+    staffBrand   = (localStorage.getItem("staffBrand") || "").toUpperCase();
     staffColor = localStorage.getItem("staffColor") || "";
     showMainPanel();
   } else {
@@ -2640,6 +2650,7 @@ function showMainPanel() {
   document.getElementById("headerSub").textContent       = staffName;
   showStaffStoreBadge();
   writeHomeGreeting();
+  loadBrandTickets();
   loadLeads();
   loadTallyProducts();
   stPgLoadData();
@@ -3606,6 +3617,7 @@ function clearPhoneSearch() {
   if (storeWrap) storeWrap.style.display = "none";
   const ptType = el("ptType");
   if (ptType) ptType.disabled = false;
+  loadBrandTickets();
   loadRecentTickets();
 }
 
@@ -3716,6 +3728,51 @@ function renderRecentTickets(arr) {
     </div>`;
   }).join("");
   document.getElementById("ptRecent").style.display = "";
+}
+
+/* ── My brand tickets — server scopes /service/tickets to this staff's
+      brand + store (see addStoreFilter + staff brand clause in server.js).
+      Promoters without a brand set keep the old behaviour (section hidden). ── */
+async function loadBrandTickets() {
+  const wrap    = document.getElementById("ptBrandTickets");
+  const listEl  = document.getElementById("ptBrandTicketsList");
+  const titleEl = document.getElementById("ptBrandTicketsTitle");
+  if (!wrap || !listEl) return;
+  if (!staffBrand) { wrap.style.display = "none"; return; }
+
+  try {
+    const res = await authFetch(`${BASE_URL}/service/tickets?pageSize=100`);
+    if (!res.ok) { wrap.style.display = "none"; return; }
+    const payload = await res.json();
+    const all = Array.isArray(payload) ? payload : (payload.data || []);
+    const open = all.filter(t => t.status !== "logged" && t.status !== "closed");
+
+    const storeName = storeDisplayName(staffStoreId) || "";
+    if (titleEl) {
+      titleEl.textContent = `🧾 ${staffBrand} tickets${storeName ? " · " + storeName : ""}` +
+        (open.length ? ` (${open.length})` : "");
+    }
+
+    if (!open.length) {
+      listEl.innerHTML = `<div style="font-size:12px;color:var(--on-surface-variant);padding:4px 2px 10px;">No open ${esc(staffBrand)} tickets right now.</div>`;
+    } else {
+      listEl.innerHTML = open.slice(0, 10).map(t => {
+        const icon = t.type === "installation" ? "🔧" : "⚠️";
+        const meta = [t.product_name, t.phone].filter(Boolean).map(esc).join(" · ");
+        return `<div class="rt-card">
+          <div class="rt-card-icon">${icon}</div>
+          <div class="rt-card-body">
+            <div class="rt-card-name">${esc(t.customer_name || "—")}</div>
+            <div class="rt-card-meta">${meta}</div>
+          </div>
+          <div class="rt-badge rt-badge-new">New</div>
+        </div>`;
+      }).join("");
+    }
+    wrap.style.display = "";
+  } catch (e) {
+    wrap.style.display = "none";
+  }
 }
 
 function timeAgo(ts) {

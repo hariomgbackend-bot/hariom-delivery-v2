@@ -1078,7 +1078,7 @@ app.post(
         }
       }
 
-      const docRef = await addDoc(collection(db, "service_tickets"), {
+      const newTicket = {
         type,
         status:                "open",
         linked_delivery_id:    null,
@@ -1090,6 +1090,7 @@ app.post(
         serial_number:         serial_number || "",
         description:           description,
         priority,
+        brand:                 (await extractTicketBrand(product_name)) || null,
         created_by:            "tally_tdl",
         created_by_name:       "Auto Via Tally",
         created_by_role:       "accountant",
@@ -1105,7 +1106,10 @@ app.post(
         tally_voucher_number:  voucher_number,
         brand_tracking_number: null,
         brand_request_status:  null,
-      });
+      };
+      newTicket._search = computeSearchField(newTicket);
+      newTicket._search_tokens = computeSearchTokens(newTicket);
+      const docRef = await addDoc(collection(db, "service_tickets"), newTicket);
 
       console.log(
         "[tally/ticket] Ticket auto-created:", voucher_number, "|",
@@ -5787,6 +5791,7 @@ async function autoCreateServiceTicket(deliveryData, deliveryId) {
     product_name:       deliveryData.product_name   || "",
     serial_number:      deliveryData.product_serial_number || "",
     description:        "",
+    brand:              (await extractTicketBrand(deliveryData.product_name)) || null,
     created_by:         "auto_accountant",
     created_by_name:    "Auto Via Accountant",
     created_by_role:    "accountant",
@@ -5884,13 +5889,14 @@ app.post("/staff/login", pinLimiter, async (req, res) => {
 
     const staffStoreName = await resolveStoreName(staffData.storeId);
     const token = jwt.sign(
-      { role: "staff", staff_id, name: staffData.name, storeId: staffData.storeId || "", storeName: staffStoreName || "" },
+      { role: "staff", staff_id, name: staffData.name, storeId: staffData.storeId || "", storeName: staffStoreName || "", brand: staffData.brand || "" },
       JWT_SECRET,
       { expiresIn: "12h" }
     );
     res.json({
       success: true, token, name: staffData.name,
       storeId: staffData.storeId || "", storeName: staffStoreName || "",
+      brand: staffData.brand || "",
       weekly_off: staffData.weekly_off || "",
       color: staffData.color || ""
     });
@@ -5945,7 +5951,7 @@ app.post("/service/login", adminLoginLimiter, async (req, res) => {
 ════════════════════════════════════════════════ */
 app.post("/addStaff", authenticate, authorize(["admin"]), async (req, res) => {
   try {
-    const { name, role, pin, email, password, phone, weekly_off, color, storeId } = req.body;
+    const { name, role, pin, email, password, phone, weekly_off, color, storeId, brand } = req.body;
     if (!name)   return res.status(400).json({ error: "Name required" });
     if (!role || !["staff", "service"].includes(role))
                  return res.status(400).json({ error: "Role must be 'staff' or 'service'" });
@@ -5960,6 +5966,7 @@ app.post("/addStaff", authenticate, authorize(["admin"]), async (req, res) => {
       color:      color || "",
       created_at: Timestamp.now()
     };
+    if (role === "staff") docData.brand = String(brand || "").toUpperCase();
 
     if (role === "staff") {
       if (!pin || !/^\d{6}$/.test(pin))
@@ -6020,6 +6027,7 @@ app.put("/staff/:id", authenticate, authorize(["admin"]), async (req, res) => {
       updates.passwordHash = await bcrypt.hash(password, 10);
     }
     if (updates.email) updates.email = updates.email.toLowerCase().trim();
+    if (updates.brand !== undefined) updates.brand = String(updates.brand || "").toUpperCase();
 
     // Remove any accidental hash fields passed from client
     delete updates.pinHash_raw;
@@ -6552,7 +6560,7 @@ function computeSearchTokens(ticket) {
 
 app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
-    const cacheKey = `${req.user.role}_${req.user.storeId || ''}_${req.query.status || ''}_${req.query.type || ''}_${req.query.in_stock || ''}_${req.query.page || ''}_${req.query.pageSize || ''}`;
+    const cacheKey = `${req.user.role}_${req.user.storeId || ''}_${req.user.brand || ''}_${req.query.brand || ''}_${req.query.status || ''}_${req.query.type || ''}_${req.query.in_stock || ''}_${req.query.page || ''}_${req.query.pageSize || ''}`;
     const existing = serviceTicketsCaches[cacheKey];
     if (existing && Date.now() < existing.expiry) {
       return res.json(existing.data);
@@ -6563,6 +6571,12 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
     }
     if (req.query.status) ticketConstraints.push(where("status", "==", req.query.status));
     if (req.query.type)   ticketConstraints.push(where("type", "==", req.query.type));
+    if (req.query.brand)  ticketConstraints.push(where("brand", "==", String(req.query.brand).toUpperCase()));
+    // Promoters see only their own brand's tickets; the store filter above
+    // already scopes them to their store.
+    if (req.user.role === "staff" && req.user.brand) {
+      ticketConstraints.push(where("brand", "==", String(req.user.brand).toUpperCase()));
+    }
     if (req.query.in_stock === "true") ticketConstraints.push(where("in_stock", "==", true));
     ticketConstraints.push(orderBy("created_at", "desc"));
 
@@ -6748,7 +6762,9 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
     const effectiveInStock = in_stock === true || isStockComplaint(type, customer_name);
 
     // Extract the brand (word-boundary match against the brands master).
-    const brand = await extractTicketBrand(product_name);
+    // Falls back to the raiser's brand when the product name doesn't name one.
+    const brand = (await extractTicketBrand(product_name)) ||
+                  (req.user.brand ? String(req.user.brand).toUpperCase() : null);
 
     const newTicket = {
       storeId:          req.body.storeId || req.user.storeId || "",
