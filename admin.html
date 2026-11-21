@@ -4160,7 +4160,7 @@ async function loadAdmin() {
         <span class="badge badge-${escHtml(d.status)} badge-letter ${haloClass}" title="${escHtml(d.status)}">${statusLetter}</span>
         ${d.priority === "urgent" ? `<span class="badge badge-urgent" style="margin-left:4px;">🔥</span>` : ""}
       </td>
-      <td style="white-space:nowrap${overdue ? ";color:#ef4444;font-weight:700;" : ""}">${overdue ? "⏰ " : ""}${formatETA(d.estimated_delivery_time)}</td>
+      <td style="white-space:nowrap${overdue ? ";border-bottom:1px dashed rgba(239,68,68,0.55);" : ""}"${overdue ? ' title="Overdue — ETA has passed"' : ""}>${formatETA(d.estimated_delivery_time)}</td>
       <td><button class="btn-sm" onclick='event.stopPropagation();viewDetails(window.__deliveryCache["${escHtml(d.id)}"])'>Full&nbsp;View</button></td>
     `;
 

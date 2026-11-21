@@ -3962,11 +3962,9 @@ function makeDeliveryRow(d, i, phonePositions) {
     <td>${escHtml(d.product_name)}${installFlag(d)}</td>
     <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${escHtml(d.address)||'—'}</span></td>
     <td>${d.delivery_mode === "porter" ? '📦 Porter' : (d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—')}</td>
-    <td style="font-weight:500;white-space:nowrap;${overdue ? "color:#ef4444;font-weight:700;" : ""}">${overdue ? "⏰ " : ""}${formatDate(d.estimated_delivery_time)}</td>
+    <td style="font-weight:500;white-space:nowrap;${overdue ? "border-bottom:1px dashed rgba(239,68,68,0.55);" : ""}"${overdue ? ' title="Overdue — ETA has passed"' : ""}>${formatDate(d.estimated_delivery_time)}</td>
     <td>
       <span class="badge badge-${d.status} badge-letter ${ratingHalo(d)}" title="${escHtml(d.status)}">${badgeGlyph(d.status, escHtml(String(d.status||"?").charAt(0).toUpperCase()))}</span>
-      ${d.delivery_mode === "porter" ? `<span class="badge badge-selfpickup" style="margin-left:4px;background:rgba(77,142,255,0.12);color:#4d8eff;">📦 Porter</span>` : ""}
-      ${d.is_self_pickup && d.delivery_mode !== "porter" ? `<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>`:""}
       ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
     </td>
     <td><button class="btn ${d.status==='failed'?'btn-danger':'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status==="failed"?"⚠ Action":"View"}</button></td>
