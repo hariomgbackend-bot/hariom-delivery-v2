@@ -4145,7 +4145,7 @@ async function loadAdmin() {
       <td><span class="row-chevron">▶</span></td>
       <td style="white-space:nowrap;line-height:1.25;">
         ${createdDate
-          ? `${createdDate.toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}<div style="font-size:11px;color:var(--muted);">${createdDate.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",hour12:true})}</div>`
+          ? `${createdDate.toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}<div style="font-size:11px;color:var(--muted);">${createdDate.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",hour12:true}).toUpperCase()}</div>`
           : "—"}
       </td>
       <td>
