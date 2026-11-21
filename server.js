@@ -6560,7 +6560,7 @@ function computeSearchTokens(ticket) {
 
 app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "service", "staff"]), async (req, res) => {
   try {
-    const cacheKey = `${req.user.role}_${req.user.storeId || ''}_${req.user.brand || ''}_${req.query.brand || ''}_${req.query.status || ''}_${req.query.type || ''}_${req.query.in_stock || ''}_${req.query.page || ''}_${req.query.pageSize || ''}`;
+    const cacheKey = `${req.user.role}_${req.user.storeId || ''}_${req.user.brand || ''}_${req.query.brand || ''}_${req.query.days || ''}_${req.query.status || ''}_${req.query.type || ''}_${req.query.in_stock || ''}_${req.query.page || ''}_${req.query.pageSize || ''}`;
     const existing = serviceTicketsCaches[cacheKey];
     if (existing && Date.now() < existing.expiry) {
       return res.json(existing.data);
@@ -6576,6 +6576,13 @@ app.get("/service/tickets", authenticate, authorize(["admin", "accountant", "ser
     // already scopes them to their store.
     if (req.user.role === "staff" && req.user.brand) {
       ticketConstraints.push(where("brand", "==", String(req.user.brand).toUpperCase()));
+    }
+    // Promoters only care about recent work — default to the last 15 days.
+    const days = req.query.days !== undefined
+      ? parseInt(req.query.days) || 0
+      : (req.user.role === "staff" ? 15 : 0);
+    if (days > 0) {
+      ticketConstraints.push(where("created_at", ">=", Timestamp.fromMillis(Date.now() - days * 86400000)));
     }
     if (req.query.in_stock === "true") ticketConstraints.push(where("in_stock", "==", true));
     ticketConstraints.push(orderBy("created_at", "desc"));
@@ -6819,12 +6826,31 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
   }
 });
 
-app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "accountant"]), async (req, res) => {
+app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "accountant", "staff"]), async (req, res) => {
   try {
     const refDoc   = doc(db, "service_tickets", req.params.id);
     const snap     = await getDoc(refDoc);
     if (!snap.exists()) return res.status(404).json({ error: "Ticket not found" });
     const existing = snap.data();
+
+    // Staff (promoters) can only log tickets belonging to their brand + store,
+    // and only the log action itself — no other fields.
+    const isStaff = req.user.role === "staff";
+    if (isStaff) {
+      if (req.user.storeId && existing.storeId && existing.storeId !== req.user.storeId) {
+        return res.status(403).json({ error: "Ticket belongs to another store" });
+      }
+      if (req.user.brand && existing.brand &&
+          String(existing.brand).toUpperCase() !== String(req.user.brand).toUpperCase()) {
+        return res.status(403).json({ error: "Ticket belongs to another brand" });
+      }
+      if (req.body.status !== undefined && req.body.status !== "logged") {
+        return res.status(403).json({ error: "Staff can only mark a ticket as logged" });
+      }
+      if (!String(req.body.brand_tracking_number || "").trim()) {
+        return res.status(400).json({ error: "Ticket number required" });
+      }
+    }
 
     const allowed = [
       "status", "assigned_to", "description", "notes",
@@ -6836,8 +6862,15 @@ app.put("/service/ticket/:id", authenticate, authorize(["admin", "service", "acc
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
 
+    // Staff may not touch profile fields — strip everything but the log action.
+    if (isStaff) {
+      Object.keys(updates).forEach(k => {
+        if (k !== "status" && k !== "brand_tracking_number") delete updates[k];
+      });
+    }
+
     // Recompute brand whenever the product name changes (word-boundary match).
-    if (req.body.product_name !== undefined) {
+    if (!isStaff && req.body.product_name !== undefined) {
       updates.brand = await extractTicketBrand(req.body.product_name);
     }
 

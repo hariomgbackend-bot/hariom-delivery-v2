@@ -853,6 +853,22 @@
     .rt-badge-new { background: #e8f5e9; color: #2e7d32; }
     .rt-badge-logged { background: #f5f5f5; color: #757575; }
 
+    /* ── BRAND TICKET LOG ROW ── */
+    .bt-card { align-items: flex-start; }
+    .bt-log-row { display: flex; gap: 6px; margin-top: 6px; }
+    .bt-log-row input {
+      flex: 1; min-width: 0; padding: 6px 8px; font-size: 12px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--surface-container-high); color: var(--on-surface); outline: none;
+    }
+    .bt-log-btn {
+      padding: 6px 12px; font-size: 12px; font-weight: 700; border: none;
+      border-radius: 8px; background: #16a34a; color: #fff; cursor: pointer;
+    }
+    .bt-log-btn:disabled { opacity: 0.6; }
+    .bt-track { font-size: 12px; margin-top: 4px; color: var(--on-surface-variant); }
+    .bt-track b { color: var(--on-surface); font-family: var(--font-mono, monospace); }
+
     /* ── PRICE GUIDE CARDS ── */
     .pg-card {
       background: var(--surface-container-low); border-radius: 18px;
@@ -3735,8 +3751,9 @@ function renderRecentTickets(arr) {
 }
 
 /* ── My brand tickets — server scopes /service/tickets to this staff's
-      brand + store (see addStoreFilter + staff brand clause in server.js).
-      Promoters without a brand set keep the old behaviour (section hidden). ── */
+      brand + store and to the last 15 days. New (unlogged) tickets sort on
+      top. Promoters can type the brand's ticket no. to log it, which updates
+      the very same ticket the service panel sees. ── */
 async function loadBrandTickets() {
   const wrap    = document.getElementById("ptBrandTickets");
   const listEl  = document.getElementById("ptBrandTicketsList");
@@ -3745,7 +3762,7 @@ async function loadBrandTickets() {
   if (!staffBrand) { wrap.style.display = "none"; return; }
 
   try {
-    const res = await authFetch(`${BASE_URL}/service/tickets?pageSize=100`);
+    const res = await authFetch(`${BASE_URL}/service/tickets?pageSize=100&days=15`);
     if (!res.ok) {
       let errMsg = `Could not load tickets (HTTP ${res.status}).`;
       try { const j = await res.json(); if (j && j.error) errMsg = j.error; } catch (_) {}
@@ -3755,34 +3772,75 @@ async function loadBrandTickets() {
       return;
     }
     const payload = await res.json();
-    const all = Array.isArray(payload) ? payload : (payload.data || []);
-    const open = all.filter(t => t.status !== "logged" && t.status !== "closed");
+    const tickets = (Array.isArray(payload) ? payload : (payload.data || []))
+      .filter(t => t.status !== "closed");
 
     const storeName = storeDisplayName(staffStoreId) || "";
     if (titleEl) {
-      titleEl.textContent = `🧾 ${staffBrand} tickets${storeName ? " · " + storeName : ""}` +
-        (open.length ? ` (${open.length})` : "");
+      titleEl.textContent = `🧾 ${staffBrand} tickets${storeName ? " · " + storeName : ""} · last 15 days` +
+        (tickets.length ? ` (${tickets.length})` : "");
     }
 
-    if (!open.length) {
-      listEl.innerHTML = `<div style="font-size:12px;color:var(--on-surface-variant);padding:4px 2px 10px;">No open ${esc(staffBrand)} tickets right now.</div>`;
+    if (!tickets.length) {
+      listEl.innerHTML = `<div style="font-size:12px;color:var(--on-surface-variant);padding:4px 2px 10px;">No ${esc(staffBrand)} tickets in the last 15 days.</div>`;
     } else {
-      listEl.innerHTML = open.slice(0, 10).map(t => {
-        const icon = t.type === "installation" ? "🔧" : "⚠️";
-        const meta = [t.product_name, t.phone].filter(Boolean).map(esc).join(" · ");
-        return `<div class="rt-card">
+      listEl.innerHTML = tickets.slice(0, 15).map(t => {
+        const logged = t.status === "logged" || t.status === "resolved";
+        const icon   = t.type === "installation" ? "🔧" : "⚠️";
+        const meta   = [t.product_name, t.phone].filter(Boolean).map(esc).join(" · ");
+        const badge  = logged
+          ? `<span class="rt-badge rt-badge-logged">Logged</span>`
+          : `<span class="rt-badge rt-badge-new">New</span>`;
+        const action = logged
+          ? `<div class="bt-track">Ticket #: <b>${esc(t.brand_tracking_number || "—")}</b></div>`
+          : `<div class="bt-log-row">
+               <input id="btInput_${esc(t.id)}" placeholder="Brand ticket no." inputmode="text">
+               <button class="bt-log-btn" onclick="logBrandTicket('${esc(t.id)}', this)">Log</button>
+             </div>`;
+        return `<div class="rt-card bt-card">
           <div class="rt-card-icon">${icon}</div>
           <div class="rt-card-body">
             <div class="rt-card-name">${esc(t.customer_name || "—")}</div>
             <div class="rt-card-meta">${meta}</div>
+            ${action}
           </div>
-          <div class="rt-badge rt-badge-new">New</div>
+          ${badge}
         </div>`;
       }).join("");
     }
     wrap.style.display = "";
   } catch (e) {
     wrap.style.display = "none";
+  }
+}
+
+async function logBrandTicket(id, btn) {
+  const input = document.getElementById("btInput_" + id);
+  const val   = (input?.value || "").trim();
+  if (!val) {
+    showToast("⚠ Enter the brand ticket number");
+    if (input) input.focus();
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = "…"; }
+  try {
+    const res = await authFetch(`${BASE_URL}/service/ticket/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "logged", brand_tracking_number: val, _append_tracking: true })
+    });
+    if (!res.ok) {
+      let err = "Failed to log ticket";
+      try { const d = await res.json(); if (d && d.error) err = d.error; } catch (_) {}
+      showToast("❌ " + err);
+      if (btn) { btn.disabled = false; btn.textContent = "Log"; }
+      return;
+    }
+    showToast("✅ Ticket logged: " + val);
+    loadBrandTickets();
+  } catch (e) {
+    showToast("❌ Network error");
+    if (btn) { btn.disabled = false; btn.textContent = "Log"; }
   }
 }
 
