@@ -371,6 +371,7 @@
       animation: badgeBreath 1.8s ease-in-out infinite;
     }
     .badge-letter::before { content: none !important; display: none !important; }
+    .badge-letter.badge-delivered { animation: none; }
     .badge-letter svg { width: 22px; height: 22px; display: block; }
     @keyframes badgeBreath {
       0%, 100% { transform: scale(1);    filter: brightness(1); }
@@ -3927,9 +3928,11 @@ function installFlag(d) {
 }
 
 function makeDeliveryRow(d, i, phonePositions) {
-  const isBatched = d.phone && batchPhones.includes(d.phone);
+  const isBatched = d.phone && !d.is_self_pickup && d.delivery_mode !== "porter" && batchPhones.includes(d.phone);
   let batchTag = "";
   const tr = document.createElement("tr");
+  const overdue = d.status !== "delivered" && d.status !== "failed" && d.status !== "closed" && d.status !== "booked" &&
+                  !!d.estimated_delivery_time && new Date(d.estimated_delivery_time) < new Date();
   if (isBatched) {
     const bN = batchNumberMap[d.phone];
     const pal = BATCH_PALETTES[(bN-1)%BATCH_PALETTES.length];
@@ -3946,8 +3949,7 @@ function makeDeliveryRow(d, i, phonePositions) {
   if (d.status==="booked") tr.style.background=_isDark()?"rgba(99,102,241,0.08)":"#eef2ff";
   if (d.status==="failed") tr.style.background=_isDark()?"rgba(255,180,171,0.06)":"#fff1f2";
 
-  const storeCircle = d.storeId === "store_a"
-    ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.15);vertical-align:middle;">A</span>`
+  const storeCircle = d.storeId === "store_a"    ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.15);vertical-align:middle;">A</span>`
     : d.storeId === "store_b"
     ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#059669,#34d399);color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,0.15);vertical-align:middle;">D</span>`
     : `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--surface-container-high);color:var(--outline);font-size:12px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.08);vertical-align:middle;">?</span>`;
@@ -3957,16 +3959,14 @@ function makeDeliveryRow(d, i, phonePositions) {
     <td style="white-space:nowrap;font-size:12px;color:var(--muted);">${formatCreated(d.created_timestamp)}</td>
     <td>${escHtml(d.customer_name)}${batchTag}${d.previous_failures>0?` <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,180,171,0.15);color:var(--error);">⚠ Prev. Failed</span>`:""}</td>
     <td><a class='phone-link' href='tel:${escHtml(d.phone)}'>${escHtml(d.phone)}</a></td>
-    <td>${escHtml(d.product_name)}</td>
+    <td>${escHtml(d.product_name)}${installFlag(d)}</td>
     <td style="max-width:160px;"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;font-size:12px;color:var(--muted);" title="${(d.address||'').replace(/"/g,'&quot;')}">${escHtml(d.address)||'—'}</span></td>
     <td>${d.delivery_mode === "porter" ? '📦 Porter' : (d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—')}</td>
-    <td style="font-weight:500;white-space:nowrap;">${formatDate(d.estimated_delivery_time)}</td>
+    <td style="font-weight:500;white-space:nowrap;${overdue ? "color:#ef4444;font-weight:700;" : ""}">${overdue ? "⏰ " : ""}${formatDate(d.estimated_delivery_time)}</td>
     <td>
       <span class="badge badge-${d.status} badge-letter ${ratingHalo(d)}" title="${escHtml(d.status)}">${badgeGlyph(d.status, escHtml(String(d.status||"?").charAt(0).toUpperCase()))}</span>
       ${d.delivery_mode === "porter" ? `<span class="badge badge-selfpickup" style="margin-left:4px;background:rgba(77,142,255,0.12);color:#4d8eff;">📦 Porter</span>` : ""}
       ${d.is_self_pickup && d.delivery_mode !== "porter" ? `<span class="badge badge-selfpickup" style="margin-left:4px;">🏪 Self Pickup</span>`:""}
-      ${(d.status!=="delivered"&&d.status!=="failed"&&d.status!=="closed"&&d.status!=="booked"&&d.estimated_delivery_time&&new Date(d.estimated_delivery_time)<new Date())?`<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>`:""}
-      ${installFlag(d)}
       ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
     </td>
     <td><button class="btn ${d.status==='failed'?'btn-danger':'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status==="failed"?"⚠ Action":"View"}</button></td>
@@ -4092,9 +4092,9 @@ async function _doLoadDeliveries(showSkeleton = true) {
       if (el) el.innerText = rCounts[r] || "";
     });
 
-    // Batch grouping
+    // Batch grouping (self-pickup & porter are never batched)
     phoneCounts = {};
-    pageData.forEach(d => { if (d.phone) phoneCounts[d.phone] = (phoneCounts[d.phone]||0)+1; });
+    pageData.forEach(d => { if (d.phone && !d.is_self_pickup && d.delivery_mode !== "porter") phoneCounts[d.phone] = (phoneCounts[d.phone]||0)+1; });
     batchPhones = Object.keys(phoneCounts).filter(p => phoneCounts[p] > 1);
     batchNumberMap = {};
     let bc = 1;
@@ -4291,7 +4291,7 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
   const rendered = new Set();
   finalData.forEach(d => {
     if (rendered.has(d.id)) return;
-    const isBatch = d.phone && batchPhones.includes(d.phone);
+    const isBatch = d.phone && !d.is_self_pickup && d.delivery_mode !== "porter" && batchPhones.includes(d.phone);
     if (isBatch) {
       const bNum    = batchNumberMap[d.phone];
       const palette = BATCH_PALETTES[(bNum - 1) % BATCH_PALETTES.length];

@@ -554,6 +554,7 @@
       animation: badgeBreath 1.8s ease-in-out infinite;
     }
     .badge-letter::before { content: none !important; display: none !important; }
+    .badge-letter.badge-delivered { animation: none; }
     .badge-letter svg { width: 22px; height: 22px; display: block; }
     @keyframes badgeBreath {
       0%, 100% { transform: scale(1);    filter: brightness(1); }
@@ -4067,9 +4068,10 @@ async function loadAdmin() {
     return dt.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
   }
 
-  // ── Batch grouping ──
+  // ── Batch grouping (self-pickup & porter are never batched) ──
   const phoneCounts = {};
-  data.forEach(d => { if (d.phone) phoneCounts[d.phone] = (phoneCounts[d.phone] || 0) + 1; });
+  const batchable = (d) => d.phone && !d.is_self_pickup && d.delivery_mode !== "porter";
+  data.forEach(d => { if (batchable(d)) phoneCounts[d.phone] = (phoneCounts[d.phone] || 0) + 1; });
   const batchPhones = Object.keys(phoneCounts).filter(p => phoneCounts[p] > 1);
   const batchNumberMap = {};
   let batchCounter = 1;
@@ -4107,6 +4109,8 @@ async function loadAdmin() {
     const createdDate = createdMs ? new Date(createdMs) : null;
     const haloClass = ratingHalo(d);
     const statusLetter = badgeGlyph(d.status, escHtml(String(d.status || "?").charAt(0).toUpperCase()));
+    const overdue = d.status !== "delivered" && d.status !== "failed" && d.status !== "closed" &&
+                    !!d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now;
 
     let durationText = "";
     if (loaded && delivered) {
@@ -4128,7 +4132,7 @@ async function loadAdmin() {
 
     // Batch tag
     let batchTag = "";
-    if (d.phone && batchPhones.includes(d.phone)) {
+    if (batchable(d) && batchPhones.includes(d.phone)) {
       const bNum    = batchNumberMap[d.phone];
       const palette = BATCH_PALETTES[(bNum - 1) % BATCH_PALETTES.length];
       batchTag = `<span style="display:inline-block;margin-left:5px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${palette.bg};color:${palette.text};border:1px solid ${palette.border};vertical-align:middle;white-space:nowrap;">🔗 Batch ${bNum}</span>`;
@@ -4150,14 +4154,13 @@ async function loadAdmin() {
         ${d.status === "failed" ? `<div style="font-size:11px;color:#dc2626;margin-top:2px;">${escHtml(d.failure_reason || "")}</div>` : ""}
       </td>
       <td style="text-align:center;">${stCircle}</td>
-      <td style="color:var(--muted)">${d.delivery_mode === "porter" ? "📦 Porter" : escHtml(d.assigned_driver_name || "—")}</td>
+      <td style="color:var(--muted)">${d.delivery_mode === "porter" ? "📦 Porter" : d.is_self_pickup ? "🏪 Self Pickup" : escHtml(d.assigned_driver_name || "—")}</td>
       <td>${escHtml(d.product_name || "")}</td>
       <td>
         <span class="badge badge-${escHtml(d.status)} badge-letter ${haloClass}" title="${escHtml(d.status)}">${statusLetter}</span>
         ${d.priority === "urgent" ? `<span class="badge badge-urgent" style="margin-left:4px;">🔥</span>` : ""}
-        ${(d.status !== "delivered" && d.status !== "failed" && d.status !== "closed" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
       </td>
-      <td style="white-space:nowrap">${formatETA(d.estimated_delivery_time)}</td>
+      <td style="white-space:nowrap${overdue ? ";color:#ef4444;font-weight:700;" : ""}">${overdue ? "⏰ " : ""}${formatETA(d.estimated_delivery_time)}</td>
       <td><button class="btn-sm" onclick='event.stopPropagation();viewDetails(window.__deliveryCache["${escHtml(d.id)}"])'>Full&nbsp;View</button></td>
     `;
 
@@ -4331,7 +4334,7 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
   const rendered = new Set();
   data.forEach(d => {
     if (rendered.has(d.id)) return;
-    const isBatch = d.phone && batchPhones.includes(d.phone);
+    const isBatch = d.phone && !d.is_self_pickup && d.delivery_mode !== "porter" && batchPhones.includes(d.phone);
     if (isBatch) {
       const bNum    = batchNumberMap[d.phone];
       const palette = BATCH_PALETTES[(bNum-1) % BATCH_PALETTES.length];
