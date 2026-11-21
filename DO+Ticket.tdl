@@ -1,0 +1,435 @@
+;;==============================================================
+;; HARIOM ELECTRONICS — DELIVERY ORDER TDL (FINAL VERSION)
+;;==============================================================
+
+;;--------------------------------------------------------------
+;; Step 1: Database Storage (Must match the ID we used previously)
+;;--------------------------------------------------------------
+[System: UDF]
+    HariomStoreBranch : String : 1005
+
+[System: Formula]
+DMSEndpoint  : "https://webhook.site/b72b51c0-3bc6-4c15-97ab-41244c2a9b28"
+
+[System: Variable]
+HariomSelfPickup : "No"
+
+[Variable: HariomSelfPickup]
+    Type : String
+
+;;--------------------------------------------------------------
+;; Add button and post-save prompt to Sales Voucher form
+;;--------------------------------------------------------------
+[#Form: Voucher]
+    Add : Button : HariomDOButton
+    On  : Form Accept : $VoucherTypeName = "GST SALES" : Call : HariomPromptDO
+
+[Button: HariomDOButton]
+    Title    : "Send DO"
+    Key      : Alt+D
+    Action   : Call : HariomDoAction
+    Scope    : Form
+    Inactive : Not ($VoucherTypeName = "GST SALES")
+
+;;--------------------------------------------------------------
+;; Protected Post-Save Prompt Function
+;;--------------------------------------------------------------
+[Function: HariomPromptDO]
+    00 : If : $$IsEmpty:$VoucherNumber
+    01 :    Return : Yes
+    02 : End If
+    
+    03 : Query Box : "Hariom DMS" + $$NewLine + $$NewLine + "Create Delivery Order for this voucher?" : Yes : No
+    
+    04 : If : $$LastResult
+    05 :    Call : HariomDoAction
+    06 : End If
+    
+    07 : Return : Yes
+
+;;--------------------------------------------------------------
+;; Main function
+;;--------------------------------------------------------------
+[Function: HariomDoAction]
+    00 : If : Not ($VoucherTypeName = "GST SALES")
+    01 :    Return : No
+    02 : End If
+    03 : If : $$IsEmpty:$VoucherNumber
+    04 :    MSG Box : "Error" : "Please open a valid Sales Voucher first."
+    05 :    Return : No
+    06 : End If
+
+    07 : Set : HariomSelfPickup : "No"
+    08 : Query Box : "Hariom DMS" + $$NewLine + $$NewLine + "Is this a Self Pickup order?" : Yes : No
+    09 : If : $$LastResult
+    10 :    Set : HariomSelfPickup : "Yes"
+    11 : End If
+
+    12 : HTTP Post : @@DMSEndpoint + "?selfpickup=" + ##HariomSelfPickup : ASCII : HariomPayloadRpt : HariomErrRpt : HariomOKRpt
+    13 : Return : Yes
+
+;;--------------------------------------------------------------
+;; PAYLOAD — Stable XML Map Structure (UPDATED)
+;;--------------------------------------------------------------
+[Report: HariomPayloadRpt]
+    Form : HariomPayloadForm
+    Export Header : "x-tally-key:123456"
+
+[Form: HariomPayloadForm]
+    Part : HariomPayloadPart
+
+[Part: HariomPayloadPart]
+    Line        : HariomPayloadLine
+    Repeat : HariomPayloadLine : InventoryEntries
+    Scroll      : Vertical
+
+[Line: HariomPayloadLine]
+    ;; Added HariomFStoreBranch to the list of fields
+    Fields : HariomFVoucherNo, HariomFDate, HariomFParty, HariomFAddress, HariomFItem, HariomFQty, HariomFAmt, HariomFPhone, HariomFMobile, HariomFSelfPickup, HariomFStoreBranch, HariomSRNo
+
+[Field: HariomFVoucherNo]
+    Use    : Name Field
+    Set as : $VoucherNumber
+
+[Field: HariomFDate]
+    Use    : Name Field
+    Set as : $$String:$Date
+
+[Field: HariomFParty]
+    Use    : Name Field
+    Set as : $PartyLedgerName
+
+[Field: HariomFItem]
+    Use    : Name Field
+    Set as : $StockItemName
+
+[Field: HariomFQty]
+    Use    : Name Field
+    Set as : $$String:$BilledQty
+
+[Field: HariomFAmt]
+    Use    : Name Field
+    Set as : $$String:$Amount
+
+[Field: HariomFAddress]
+    Use    : Name Field
+    Set As : $$FullList:Address:$Address
+
+[Field: HariomFPhone]
+    Use    : Name Field
+    Set as : $LedgerPhone:Ledger:$PartyLedgerName
+
+[Field: HariomFMobile]
+    Use    : Name Field
+    Set as : $LedgerMobile:Ledger:$PartyLedgerName
+
+[Field: HariomFSelfPickup]
+    Use    : Name Field
+    Set as : ##HariomSelfPickup
+
+;; NEW FIELD: This pulls the data from your "Store Branch" UDF
+[Field: HariomFStoreBranch]
+    Use    : Name Field
+    Set as : $$Owner:$HariomStoreBranch
+
+[Field: HariomSRNo]
+    Use    : Name Field
+    Set as : $Basicuserdescription
+
+;;--------------------------------------------------------------
+;; Success handler
+;;--------------------------------------------------------------
+[Report: HariomOKRpt]
+    Title : "Hariom DMS"
+    Form  : HariomOKForm
+
+[Form: HariomOKForm]
+    Part       : HariomOKPart
+    No Confirm : Yes
+
+[Part: HariomOKPart]
+    Line         : HariomOKLine
+    Space Top    : 2 mm
+    Space Bottom : 2 mm
+
+[Line: HariomOKLine]
+    Fields : HariomFOKMsg
+
+[Field: HariomFOKMsg]
+    Use    : Name Field
+    Set as : "Delivery Order sent to DMS! (Press Esc to close)"
+    Style  : Small Bold
+
+;;--------------------------------------------------------------
+;; Error handler
+;;--------------------------------------------------------------
+[Report: HariomErrRpt]
+    Title : "Hariom DMS Error"
+    Form  : HariomErrForm
+
+[Form: HariomErrForm]
+    Part       : HariomErrPart
+    No Confirm : Yes
+
+[Part: HariomErrPart]
+    Line         : HariomErrLine
+    Space Top    : 2 mm
+    Space Bottom : 2 mm
+
+[Line: HariomErrLine]
+    Fields : HariomFErrMsg
+
+[Field: HariomFErrMsg]
+    Use    : Name Field
+    Set as : "Failed to send Delivery Order to DMS. (Press Esc to close)"
+    Style  : Small Bold
+
+;;==============================================================
+;; END OF TDL
+;;==============================================================
+
+;;==============================================================
+;; HARIOM ELECTRONICS — SERVICE TICKET TDL
+;; Mirrors hariom_delivery_final.tdl's "Send DO" pattern
+;;==============================================================
+
+;;--------------------------------------------------------------
+;; Endpoint (new route — backend must implement this, same auth
+;; pattern as /tally/voucher: header x-tally-key:123456)
+;;--------------------------------------------------------------
+[System: Formula]
+TicketEndpoint  : "https://hariom-delivery-v2.onrender.com/tally/ticket"
+
+[System: Variable]
+HariomTicketType     : "complaint"
+HariomTicketPriority : "normal"
+HariomTSelItem       : ""
+HariomTSelSerial     : ""
+
+[Variable: HariomTicketType]
+    Type : String
+
+[Variable: HariomTicketPriority]
+    Type : String
+
+[Variable: HariomTSelItem]
+    Type : String
+
+[Variable: HariomTSelSerial]
+    Type : String
+
+;;--------------------------------------------------------------
+;; Button on the same Voucher form as "Send DO"
+;;--------------------------------------------------------------
+[#Form: Voucher]
+    Add : Button : HariomTicketButton
+
+[Button: HariomTicketButton]
+    Title    : "Raise Ticket"
+    ;; Use Alt+W to avoid Tally's native Alt+T conflicts
+    Key      : Alt+W
+    Action   : Call : HariomTicketAction
+    Scope    : Form
+    Inactive : Not ($VoucherTypeName = "GST SALES")
+
+;;--------------------------------------------------------------
+;; Main function
+;;--------------------------------------------------------------
+[Function: HariomTicketAction]
+    00 : If : Not ($VoucherTypeName = "GST SALES")
+    01 :    Return : No
+    02 : End If
+    03 : If : $$IsEmpty:$VoucherNumber
+    04 :    MSG Box : "Error" : "Please open a valid Sales Voucher first."
+    05 :    Return : No
+    06 : End If
+    07 : If : $$NumItems:InventoryEntries = 0
+    08 :    MSG Box : "Error" : "No items found in DB! Are you on an unsaved voucher?"
+    09 :    Return : No
+    10 : End If
+
+    11 : Set : HariomTSelItem : ""
+    12 : Set : HariomTSelSerial : ""
+    13 : Display : HariomTItemPickerRpt
+    14 : If : $$IsEmpty:##HariomTSelItem
+    15 :    Return : No
+    16 : End If
+
+    17 : Set : HariomTicketType : "complaint"
+    18 : Query Box : "Hariom Service" + $$NewLine + $$NewLine + "Is this an Installation ticket for " + ##HariomTSelItem + "? (No = Complaint)" : Yes : No
+    19 : If : $$LastResult
+    20 :    Set : HariomTicketType : "installation"
+    21 : End If
+
+    22 : Set : HariomTicketPriority : "normal"
+    23 : If : ##HariomTicketType = "complaint"
+    24 :    Query Box : "Hariom Service" + $$NewLine + $$NewLine + "Mark as URGENT priority?" : Yes : No
+    25 :    If : $$LastResult
+    26 :       Set : HariomTicketPriority : "high"
+    27 :    End If
+    28 : End If
+
+    29 : HTTP Post : @@TicketEndpoint : ASCII : HariomTicketPayloadRpt : HariomTicketErrRpt : HariomTicketOKRpt
+    30 : Return : Yes
+
+;;--------------------------------------------------------------
+;; PAYLOAD — same XML map structure as the DO payload
+;;--------------------------------------------------------------
+[Report: HariomTicketPayloadRpt]
+    Form : HariomTicketPayloadForm
+    Export Header : "x-tally-key:123456"
+
+[Form: HariomTicketPayloadForm]
+    Part : HariomTicketPayloadPart
+
+[Part: HariomTicketPayloadPart]
+    Line   : HariomTicketPayloadLine
+    Scroll : Vertical
+
+[Line: HariomTicketPayloadLine]
+    Fields : HariomTFVoucherNo, HariomTFDate, HariomTFParty, HariomTFAddress, HariomTFItem, HariomTFPhone, HariomTFMobile, HariomTFDescription, HariomTFType, HariomTFPriority, HariomTFStoreBranch, HariomTSRNo
+
+[Field: HariomTFVoucherNo]
+    Use    : Name Field
+    Set as : $VoucherNumber
+
+[Field: HariomTFDate]
+    Use    : Name Field
+    Set as : $$String:$Date
+
+[Field: HariomTFParty]
+    Use    : Name Field
+    Set as : $PartyLedgerName
+
+[Field: HariomTFAddress]
+    Use    : Name Field
+    Set As : $$FullList:Address:$Address
+
+[Field: HariomTFItem]
+    Use    : Name Field
+    Set as : ##HariomTSelItem
+
+[Field: HariomTFPhone]
+    Use    : Name Field
+    Set as : $LedgerPhone:Ledger:$PartyLedgerName
+
+[Field: HariomTFMobile]
+    Use    : Name Field
+    Set as : $LedgerMobile:Ledger:$PartyLedgerName
+
+[Field: HariomTFDescription]
+    Use    : Name Field
+    Set as : $Narration
+
+[Field: HariomTSRNo]
+    Use    : Name Field
+    Set as : ##HariomTSelSerial
+
+[Field: HariomTFType]
+    Use    : Name Field
+    Set as : ##HariomTicketType
+
+[Field: HariomTFPriority]
+    Use    : Name Field
+    Set as : ##HariomTicketPriority
+
+[Field: HariomTFStoreBranch]
+    Use    : Name Field
+    Set as : $$Owner:$HariomStoreBranch
+
+;;--------------------------------------------------------------
+;; Success handler
+;;--------------------------------------------------------------
+[Report: HariomTicketOKRpt]
+    Title : "Hariom Service"
+    Form  : HariomTicketOKForm
+
+[Form: HariomTicketOKForm]
+    Part       : HariomTicketOKPart
+    No Confirm : Yes
+
+[Part: HariomTicketOKPart]
+    Line         : HariomTicketOKLine
+    Space Top    : 2 mm
+    Space Bottom : 2 mm
+
+[Line: HariomTicketOKLine]
+    Fields : HariomFTicketOKMsg
+
+[Field: HariomFTicketOKMsg]
+    Use    : Name Field
+    Set as : "Service Ticket sent! (Press Esc to close)"
+    Style  : Small Bold
+
+;;--------------------------------------------------------------
+;; Error handler
+;;--------------------------------------------------------------
+[Report: HariomTicketErrRpt]
+    Title : "Hariom Service Error"
+    Form  : HariomTicketErrForm
+
+[Form: HariomTicketErrForm]
+    Part       : HariomTicketErrPart
+    No Confirm : Yes
+
+[Part: HariomTicketErrPart]
+    Line         : HariomTicketErrLine
+    Space Top    : 2 mm
+    Space Bottom : 2 mm
+
+[Line: HariomTicketErrLine]
+    Fields : HariomFTicketErrMsg
+
+[Field: HariomFTicketErrMsg]
+    Use    : Name Field
+    Set as : "Failed to send Service Ticket. (Press Esc to close)"
+    Style  : Small Bold
+
+;;==============================================================
+;; ITEM PICKER — multi-item invoice: choose which line to raise for
+;;==============================================================
+[Report: HariomTItemPickerRpt]
+    Title : "Raise complaint / demo-installation for which item? (Enter = select, Esc = cancel)"
+    Form  : HariomTItemPickerForm
+
+[Form: HariomTItemPickerForm]
+    Width  : 90% Page
+    Height : 12 cm
+    Part   : HariomTItemPickerPart
+
+[Part: HariomTItemPickerPart]
+    Line   : HariomTItemPickerLine
+    Repeat : HariomTItemPickerLine : InventoryEntries
+    Scroll : Vertical
+
+[Line: HariomTItemPickerLine]
+    Fields : HariomTPItem, HariomTPQty, HariomTPSerial
+    Key    : HariomTPickKey
+
+[Key: HariomTPickKey]
+    Key    : Enter
+    Action : Call : HariomTPickItem
+
+[Field: HariomTPItem]
+    Use    : Name Field
+    Set as : $StockItemName
+    Width  : 45
+
+[Field: HariomTPQty]
+    Use    : Name Field
+    Set as : $$String:$BilledQty
+    Width  : 8
+
+[Field: HariomTPSerial]
+    Use    : Name Field
+    Set as : $Basicuserdescription
+    Width  : 25
+
+[Function: HariomTPickItem]
+    00 : Set : HariomTSelItem : $StockItemName
+    01 : Set : HariomTSelSerial : $Basicuserdescription
+    02 : Return : Yes
+
+;;==============================================================
+;; END OF TDL
+;;==============================================================

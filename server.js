@@ -271,6 +271,34 @@ function normalizeTallyInvoiceNumber(inv) {
   return s.replace(/<Auto>|&lt;Auto&gt;/gi, "").trim();
 }
 
+/* ── Tally DO "serial / note" field ──
+   The item description (Basicuserdescription → HARIOMSRNO) is used loosely:
+   sometimes a serial, sometimes text like "Under Exchange", sometimes both.
+   Split it into an alphanumeric serial (must contain a digit) and an
+   exchange instruction. */
+function parseTallySerialNote(raw, fallbackSerial) {
+  const text = String(raw || "").trim();
+  if (!text) return { serial: fallbackSerial || "", instruction: "none" };
+
+  const exchange =
+    /exchang|\bexch\b|\bund[.\-_ ]?exch/i.test(text) ||
+    /\bold\s*(item|product|unit|machine|ac|fridge)\b/i.test(text) ||
+    /\bbring\s*old\b/i.test(text);
+
+  const tokens = text
+    .split(/[\s,;:/|()\[\]]+/)
+    .map(t => t.replace(/[^A-Za-z0-9-]/g, ""))
+    .filter(Boolean);
+  // A serial is a token with at least one digit and a reasonable length;
+  // plain words ("Under", "Exchange") never qualify.
+  const serialToken = tokens.find(t => t.length >= 5 && /[0-9]/.test(t));
+
+  return {
+    serial: serialToken ? serialToken.toUpperCase() : (fallbackSerial || ""),
+    instruction: exchange ? "Bring Old exchange item" : "none",
+  };
+}
+
 /* ════════════════════════════════════════════════
    CRON — 6:00 AM IST daily
    Flips booked → pending when delivery date arrives
@@ -623,6 +651,10 @@ app.post(
       const items = tagAll("HARIOMFITEM");
       const qtys  = tagAll("HARIOMFQTY");
       const amts  = tagAll("HARIOMFAMT");
+      // Per-line serial/note (HariomSRNo → HARIOMSRNO)
+      const srNotes = tagAll("HARIOMSRNO").length
+        ? tagAll("HARIOMSRNO")
+        : tagAll("HARIOMFSRNO");
 
       // Self-pickup flag — primary source is the ?selfpickup= query param
       // (set inline in HariomDoAction right before HTTP Post fires, so
@@ -698,8 +730,12 @@ return res.send(`
           : batchId;
 
         for (let u = 1; u <= rawQty; u++) {
-          // Serial suffix helps the driver know which unit this is
-          const unitSerial = rawQty > 1 ? `${u}/${rawQty}` : "";
+          // Serial / note from the item description: a serial stays a serial,
+          // "Under Exchange" becomes a driver instruction, both can coexist.
+          const parsedNote = parseTallySerialNote(srNotes[i] || "", "");
+          const unitSerial = parsedNote.serial
+            ? (rawQty > 1 ? `${parsedNote.serial}/${u}` : parsedNote.serial)
+            : (rawQty > 1 ? `${u}/${rawQty}` : "");
           const docRef = await addDoc(collection(db, "deliveries"), {
             customer_name:           customer_name || "Unknown",
             phone:                   phone || "",
@@ -713,7 +749,7 @@ return res.send(`
             estimated_delivery_time,
             assigned_driver_id,
             assigned_driver_name,
-            driver_instructions:     "none",
+            driver_instructions:     parsedNote.instruction,
             freight_charged:         false,
             freight_amount:          "",
             freight_set_by:          "",
