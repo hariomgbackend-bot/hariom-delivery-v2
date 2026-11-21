@@ -1718,6 +1718,7 @@
               <th>Driver</th>
               <th>Product</th>
               <th>Status</th>
+              <th>Created</th>
               <th>ETA</th>
               <th>Details</th>
             </tr>
@@ -4023,15 +4024,15 @@ async function loadAdmin() {
   table.innerHTML = "";
 
   // ── Helpers ──
-  function getDeliveryRating(d) {
-    if (d.status !== "delivered" || !d.delivered_timestamp || !d.estimated_delivery_time) return "—";
-    const diffMin = (new Date(d.delivered_timestamp.seconds * 1000) - new Date(d.estimated_delivery_time)) / 60000;
-    if (diffMin <= -10) return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#d1fae5;color:#065f46;white-space:nowrap;">⚡ Early</span>`;
-    if (diffMin <=  10) return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af;white-space:nowrap;">✅ On Time</span>`;
-    if (diffMin <=  30) return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;white-space:nowrap;">🕐 Late</span>`;
-    return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#fee2e2;color:#991b1b;white-space:nowrap;">🔴 Very Late</span>`;
-  }
-
+  const ms = (v) => {
+    if (!v) return 0;
+    if (typeof v.toMillis === "function") return v.toMillis();
+    if (v.seconds != null) return v.seconds * 1000;
+    if (v._seconds != null) return v._seconds * 1000;
+    if (typeof v === "number") return v;
+    const n = Date.parse(v);
+    return isNaN(n) ? 0 : n;
+  };
   function formatETA(val) {
     if (!val) return "—";
     const dt = new Date(val);
@@ -4072,9 +4073,11 @@ async function loadAdmin() {
     window.__deliveryCache[d.id] = d;
     const row = document.createElement("tr");
 
-    const loaded    = d.loaded_timestamp    ? new Date(d.loaded_timestamp.seconds * 1000)    : null;
-    const delivered = d.delivered_timestamp ? new Date(d.delivered_timestamp.seconds * 1000) : null;
+    const loaded    = ms(d.loaded_timestamp)    ? new Date(ms(d.loaded_timestamp))    : null;
+    const delivered = ms(d.delivered_timestamp) ? new Date(ms(d.delivered_timestamp)) : null;
     const eta       = d.estimated_delivery_time ? new Date(d.estimated_delivery_time) : null;
+    const createdMs = ms(d.created_timestamp);
+    const createdDate = createdMs ? new Date(createdMs) : null;
 
     let durationText = "";
     if (loaded && delivered) {
@@ -4120,6 +4123,11 @@ async function loadAdmin() {
         ${d.priority === "urgent" ? `<span class="badge badge-urgent" style="margin-left:4px;">🔥</span>` : ""}
         ${(d.status !== "delivered" && d.status !== "failed" && d.status !== "closed" && d.estimated_delivery_time && new Date(d.estimated_delivery_time) < now) ? `<span style="display:inline-block;margin-left:4px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:#fae8ff;color:#7e22ce;border:1px solid #d8b4fe;">⚠ Overdue</span>` : ""}
       </td>
+      <td style="white-space:nowrap;line-height:1.25;">
+        ${createdDate
+          ? `${createdDate.toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}<div style="font-size:11px;color:var(--muted);">${createdDate.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",hour12:true})}</div>`
+          : "—"}
+      </td>
       <td style="white-space:nowrap">${formatETA(d.estimated_delivery_time)}</td>
       <td><button class="btn-sm" onclick='event.stopPropagation();viewDetails(window.__deliveryCache["${escHtml(d.id)}"])'>Full&nbsp;View</button></td>
     `;
@@ -4136,17 +4144,15 @@ async function loadAdmin() {
     const loadedTime = loaded ? loaded.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "—";
     const delivTime  = delivered ? delivered.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "—";
 
-    const ratingHtml = getDeliveryRating(d) || "—";
-
-    expandRow.innerHTML = `<td colspan="8">
+    expandRow.innerHTML = `<td colspan="9">
       <div class="detail-expand-inner">
         <div class="detail-expand-item">
           <span class="detail-expand-label">Priority</span>
           <span class="detail-expand-value"><span class="badge badge-${escHtml(d.priority||'normal')}">${escHtml(d.priority||"normal")}</span></span>
         </div>
         <div class="detail-expand-item">
-          <span class="detail-expand-label">Rating</span>
-          <span class="detail-expand-value">${ratingHtml}</span>
+          <span class="detail-expand-label">Created</span>
+          <span class="detail-expand-value">${createdDate ? createdDate.toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:true}) : "—"}</span>
         </div>
         <div class="detail-expand-item">
           <span class="detail-expand-label">Duration</span>
@@ -4187,7 +4193,7 @@ async function loadAdmin() {
     table.appendChild(expandRow);
   });
   if (pageData.length === 0) {
-    table.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div></td></tr>`;
+    table.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div></td></tr>`;
     if (mc) mc.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div>`;
   }
   staggerCards(table);
@@ -4254,6 +4260,15 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
     return isNaN(dt) ? v : dt.toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:true});
   }
 
+  function fmtCreated(v) {
+    if (!v) return "—";
+    const m = typeof v.toMillis === "function" ? v.toMillis()
+      : v.seconds != null ? v.seconds * 1000
+      : v._seconds != null ? v._seconds * 1000
+      : new Date(v).getTime();
+    return m ? new Date(m).toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:true}) : "—";
+  }
+
   function makeMobCard(d, palette) {
     const card = document.createElement("div");
     card.className = "mob-delivery-card" + (palette ? " batch-card" : "");
@@ -4272,12 +4287,12 @@ function renderAdminMobCards(data, batchPhones, batchNumberMap, BATCH_PALETTES) 
         <div class="mob-dc-badges">
           <span class="badge badge-${escHtml(d.status)}">${escHtml(d.status)}</span>
           ${d.priority === "urgent" ? `<span class="badge badge-urgent">🔥</span>` : ""}
-          ${ratingBadge(d)}
         </div>
       </div>
       <div class="mob-dc-meta">
         <span>🚚 ${d.delivery_mode === "porter" ? "📦 Porter" : escHtml(d.assigned_driver_name || "—")}</span>
         <span>⏱ ${fmtETA(d.estimated_delivery_time)}</span>
+        <span>🕓 ${fmtCreated(d.created_timestamp)}</span>
         ${d.phone ? `<span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>` : ""}
       </div>
     `;

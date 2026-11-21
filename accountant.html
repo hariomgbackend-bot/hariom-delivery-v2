@@ -1120,6 +1120,7 @@
                 <th>Driver</th>
                 <th>ETA</th>
                 <th>Status</th>
+                <th>Created</th>
                 <th></th>
               </tr>
             </thead>
@@ -1142,6 +1143,7 @@
             <th>Driver</th>
             <th>ETA</th>
             <th>Status</th>
+            <th>Created</th>
             <th></th>
           </tr>
         </thead>
@@ -3787,6 +3789,16 @@ function formatDate(dateString) {
   const d = new Date(dateString);
   return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
+function formatCreated(v) {
+  if (!v) return "—";
+  const ms = typeof v.toMillis === "function" ? v.toMillis()
+    : v.seconds != null ? v.seconds * 1000
+    : v._seconds != null ? v._seconds * 1000
+    : new Date(v).getTime();
+  if (!ms || isNaN(ms)) return "—";
+  const d = new Date(ms);
+  return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
 function formatEtaForInput(eta) {
   if (!eta || eta === "On-Demand") return "";
   if (eta.seconds) return new Date(eta.seconds * 1000).toISOString().slice(0, 16);
@@ -3810,12 +3822,12 @@ function showDeliverySkeleton() {
   const list = document.getElementById("list");
   if (list) {
     list.innerHTML = Array.from({ length: 8 }).map(() =>
-      `<tr><td colspan="9"><div class="skeleton" style="height:16px;width:92%;margin:12px 0;"></div></td></tr>`
+      `<tr><td colspan="10"><div class="skeleton" style="height:16px;width:92%;margin:12px 0;"></div></td></tr>`
     ).join("");
   }
   const bl = document.getElementById("bookedList");
   if (bl) bl.innerHTML = Array.from({ length: 4 }).map(() =>
-    `<tr><td colspan="9"><div class="skeleton" style="height:16px;width:90%;margin:10px 0;"></div></td></tr>`
+    `<tr><td colspan="10"><div class="skeleton" style="height:16px;width:90%;margin:10px 0;"></div></td></tr>`
   ).join("");
   const mb = document.getElementById("mobileBookedCards");
   if (mb) mb.innerHTML = Array.from({ length: 3 }).map(() =>
@@ -3908,6 +3920,7 @@ function makeDeliveryRow(d, i, phonePositions) {
       ${installFlag(d)}
       ${d.status==="failed"&&d.failure_reason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">${escHtml(d.failure_reason)}</div>`:""}
     </td>
+    <td style="white-space:nowrap;font-size:12px;color:var(--muted);">${formatCreated(d.created_timestamp)}</td>
     <td><button class="btn ${d.status==='failed'?'btn-danger':'btn-primary'} btn-sm" onclick="openViewPopup('${escHtml(d.id)}')">${d.status==="failed"?"⚠ Action":"View"}</button></td>
   `;
   return tr;
@@ -4055,7 +4068,7 @@ async function _doLoadDeliveries(showSkeleton = true) {
     list.innerHTML = "";
 
     if (pageData.length === 0) {
-      list.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div></td></tr>`;
+      list.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div></td></tr>`;
       const _mc = document.getElementById("mobileCards");
       if (_mc) _mc.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No deliveries found</p><small>Try a different filter or search</small></div>`;
       ["bookedCollapsible","mobileBookedCollapsible"].forEach(id => {
@@ -4221,6 +4234,7 @@ function renderMobileCards(finalData, batchPhones, batchNumberMap, BATCH_PALETTE
         <span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>
         <span>🚚 ${d.delivery_mode === "porter" ? '📦 Porter' : (d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—')}</span>
         <span>⏱ ${formatDate(d.estimated_delivery_time)}</span>
+        <span>🕓 ${formatCreated(d.created_timestamp)}</span>
       </div>
     `;
     return card;
@@ -4280,6 +4294,7 @@ function renderMobileCardsSubset(finalData, container, opts) {
         <span>📞 <a class="phone-link" href="tel:${escHtml(d.phone)}" onclick="event.stopPropagation()">${escHtml(d.phone)}</a></span>
         <span>🚚 ${d.delivery_mode === "porter" ? '📦 Porter' : (d.is_self_pickup ? '🏪 Self' : escHtml(d.assigned_driver_name) || '—')}</span>
         <span>⏱ ${formatDate(d.estimated_delivery_time)}</span>
+        <span>🕓 ${formatCreated(d.created_timestamp)}</span>
       </div>
     `;
     return card;
@@ -4479,6 +4494,7 @@ function openViewPopup(id) {
         : `<span style="color:var(--outline);">— Not raised</span>`
     }</span></div>
     <div class="detail-row"><b>Priority</b><span>${delivery.priority}</span></div>
+    <div class="detail-row"><b>Created</b><span>${delivery.created_timestamp ? new Date((typeof delivery.created_timestamp.toMillis==="function"?delivery.created_timestamp.toMillis():(delivery.created_timestamp.seconds!=null?delivery.created_timestamp.seconds*1000:delivery.created_timestamp._seconds!=null?delivery.created_timestamp._seconds*1000:new Date(delivery.created_timestamp).getTime()))).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}) : "—"}</span></div>
     ${!delivery.is_self_pickup ? `
     <div class="detail-row" id="driverDetailRow">
       <b>Driver</b>
