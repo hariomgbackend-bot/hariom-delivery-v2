@@ -6826,6 +6826,7 @@ app.post("/service/ticket", authenticate, authorize(["admin", "accountant", "sta
       String(phone || "").replace(/\D/g, ""),
       String(customer_name || "").toLowerCase().replace(/\s+/g, " ").trim(),
       String(product_name || "").toUpperCase().replace(/\s+/g, " ").trim(),
+      String(serial_number || "").toUpperCase().trim(),
       req.body.storeId || req.user.storeId || "",
     ].join(":");
     const claim = await claimTicketSlot(dedupKey, 10 * 60 * 1000);
