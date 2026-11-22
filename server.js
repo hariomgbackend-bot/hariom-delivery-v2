@@ -3808,7 +3808,12 @@ app.post("/non-do-photos", authenticate, authorize(["staff", "accountant"]), non
       captured_by_name: req.user.name || req.user.email || "Staff",
     });
 
-    res.json({ success: true, id: docRef.id, url: photo_url });
+    res.json({
+      success: true,
+      id: docRef.id,
+      url: main.url,
+      ...(outdoor && { photo_outdoor_url: outdoor.url }),
+    });
   } catch (error) {
     console.error("/non-do-photos upload error:", error);
     res.status(500).json({ error: error.message });
